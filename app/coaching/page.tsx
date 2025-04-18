@@ -200,7 +200,7 @@ export default function CoachingDashboard() {
         <textarea
           className="w-full border rounded-lg p-3 text-sm bg-white shadow-sm"
           rows={3}
-          placeholder="e.g. 'What drills should I do Monday?' or 'How hard should I push on Tuesday’s bike ride?'"
+          placeholder="e.g. 'What drills should I do Monday's swim?' or 'How hard should I push on Tuesday’s bike ride?'"
           value={userQuestion}
           onChange={(e) => setUserQuestion(e.target.value)}
         />
@@ -220,7 +220,7 @@ export default function CoachingDashboard() {
 
       <div className="mb-10">
         <h2 className="text-lg font-semibold mb-2">Upcoming Sessions</h2>
-        <p className="text-gray-500 mb-4">Here’s what’s coming up. Want more detail? Ask your coach below.</p>
+        <p className="text-gray-500 mb-4">Here’s what’s coming up. Want more detail on an individual session? Ask your coach above.</p>
         <ul className="space-y-2 text-sm text-gray-700">
           {upcomingSessions.map((s, i) => (
             <li key={i} className="bg-white border rounded-xl p-3">
