@@ -31,26 +31,17 @@ export default function ProfilePage() {
   }, []);
 
   if (!profile) {
-    return <div className="text-center py-20 text-gray-500">Loading profile...</div>;
+    return (
+      <main className="max-w-7xl mx-auto px-4 py-6">
+        <div className="text-gray-500">Loading profile...</div>
+      </main>
+    );
   }
 
   return (
-    <main className="max-w-2xl mx-auto px-6 py-16">
-      <h1 className="text-3xl font-semibold mb-8">My Profile</h1>
-
-      <div className="bg-white border rounded-xl shadow-sm p-6 space-y-6">
-        <div className="flex items-center gap-4">
-          <img
-            src={profile.avatar}
-            alt="Avatar"
-            className="w-16 h-16 rounded-full border"
-          />
-          <div>
-            <p className="text-lg font-semibold">{profile.name}</p>
-            <p className="text-sm text-gray-500">{profile.email}</p>
-          </div>
-        </div>
-
+    <main className="max-w-7xl mx-auto px-4 py-6">
+      <div className="max-w-lg mx-auto p-6 bg-white rounded-xl shadow border">
+        <h1 className="text-2xl font-bold mb-6">My Profile</h1>
         <div className="space-y-4">
           <div>
             <label className="text-sm text-gray-500 block mb-1">Name</label>
@@ -63,7 +54,7 @@ export default function ProfilePage() {
           <div>
             <label className="text-sm text-gray-500 block mb-1">Experience Level</label>
             <select disabled className="w-full border rounded px-3 py-2 bg-gray-100">
-              <option>Intermediate</option>
+              <option>Beginner</option>
             </select>
           </div>
         </div>
