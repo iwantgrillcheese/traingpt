@@ -2,9 +2,7 @@ import OpenAI from 'openai';
 import { OpenAIStream, StreamingTextResponse } from 'ai';
 import { differenceInWeeks } from 'date-fns';
 
-export const config = {
-  runtime: 'edge',
-};
+export const runtime = 'edge'; // ✅ new Next.js 14+ syntax
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
@@ -32,7 +30,7 @@ Athlete Profile:
 - Preferred Rest Day: ${body.restDay}
 
 Today's date is ${new Date().toISOString().split('T')[0]}.
-The training plan should span ${planLengthWeeks} full weeks, with the final session on race day (${body.raceDate}). The first week should start on the Monday that is ${planLengthWeeks} weeks before race day..
+The training plan should span ${planLengthWeeks} full weeks, with the final session on race day (${body.raceDate}). The first week should start on the Monday that is ${planLengthWeeks} weeks before race day.
 
 Additional Notes from Athlete:
 ${body.userNote || 'None'}
