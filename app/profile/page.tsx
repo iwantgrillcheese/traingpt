@@ -31,28 +31,43 @@ export default function ProfilePage() {
   }, []);
 
   if (!profile) {
-    return <div className="p-10">Loading profile...</div>;
+    return <div className="text-center py-20 text-gray-500">Loading profile...</div>;
   }
 
   return (
-    <div className="max-w-md mx-auto p-8 bg-white rounded-xl shadow">
-      <h1 className="text-2xl font-bold mb-6">My Profile</h1>
-      <div className="space-y-4">
-        <div>
-          <label className="text-sm text-gray-500 block mb-1">Name</label>
-          <input value={profile.name} disabled className="w-full border rounded px-3 py-2" />
+    <main className="max-w-2xl mx-auto px-6 py-16">
+      <h1 className="text-3xl font-semibold mb-8">My Profile</h1>
+
+      <div className="bg-white border rounded-xl shadow-sm p-6 space-y-6">
+        <div className="flex items-center gap-4">
+          <img
+            src={profile.avatar}
+            alt="Avatar"
+            className="w-16 h-16 rounded-full border"
+          />
+          <div>
+            <p className="text-lg font-semibold">{profile.name}</p>
+            <p className="text-sm text-gray-500">{profile.email}</p>
+          </div>
         </div>
-        <div>
-          <label className="text-sm text-gray-500 block mb-1">Email</label>
-          <input value={profile.email} disabled className="w-full border rounded px-3 py-2" />
-        </div>
-        <div>
-          <label className="text-sm text-gray-500 block mb-1">Experience Level</label>
-          <select disabled className="w-full border rounded px-3 py-2 bg-gray-100">
-            <option>Beginner</option>
-          </select>
+
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm text-gray-500 block mb-1">Name</label>
+            <input value={profile.name} disabled className="w-full border rounded px-3 py-2 bg-gray-50" />
+          </div>
+          <div>
+            <label className="text-sm text-gray-500 block mb-1">Email</label>
+            <input value={profile.email} disabled className="w-full border rounded px-3 py-2 bg-gray-50" />
+          </div>
+          <div>
+            <label className="text-sm text-gray-500 block mb-1">Experience Level</label>
+            <select disabled className="w-full border rounded px-3 py-2 bg-gray-100">
+              <option>Intermediate</option>
+            </select>
+          </div>
         </div>
       </div>
-    </div>
+    </main>
   );
 }
