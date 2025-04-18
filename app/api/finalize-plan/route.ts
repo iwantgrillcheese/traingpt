@@ -30,7 +30,7 @@ Athlete Profile:
 Today's date is ${new Date().toISOString().split('T')[0]}.
 Count backward from ${body.raceDate} to create ${planLengthWeeks} weeks of training. 
 🛑 Do not skip or omit race week — it must end with "🌟 Race Day: ${body.raceType}" on ${body.raceDate}. 
-This final week should taper volume and prepare the athlete to peak.
+This final week should taper volume and prepare the athlete to peak. For example, if the race is on Saturday May 31st - the plan should run through that date and end with "🌟 Race Day: ${body.raceType}" on ${body.raceDate}. The week leading up to Race Day should be the taper phase.
 
 Additional Notes from Athlete:
 ${body.userNote || 'None'}
