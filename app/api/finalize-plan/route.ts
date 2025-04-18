@@ -9,11 +9,18 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 export async function POST(req: Request) {
   const body = await req.json();
 
-  const planLengthWeeks = differenceInWeeks(new Date(body.raceDate), new Date());
+  // 👇 Ensure the race week is included by rounding up
+  const planLengthWeeks = differenceInWeeks(
+    new Date(body.raceDate),
+    new Date()
+  ) + 1;
+
   const useGPT4 = body.experience === 'Advanced';
   const model = useGPT4 ? 'gpt-4-turbo' : 'gpt-3.5-turbo';
 
-  const prompt = `You are a world-class triathlon coach creating a peak performance training plan that ends exactly on the athlete's race date (${body.raceDate}).
+  const prompt = `🛑 ABSOLUTELY REQUIRED: The final week must end with "🌟 Race Day: ${body.raceType}" on ${body.raceDate}. This week is mandatory and counts as the last week in the plan. Never skip or shift it.
+
+You are a world-class triathlon coach creating a peak performance training plan that ends exactly on the athlete's race date (${body.raceDate}).
 
 Use your elite triathlon coaching experience to build a complete, periodized training plan tailored to the athlete's profile. The plan must include clear week-level guidance and practical daily sessions.
 
@@ -29,8 +36,7 @@ Athlete Profile:
 
 Today's date is ${new Date().toISOString().split('T')[0]}.
 Count backward from ${body.raceDate} to create ${planLengthWeeks} weeks of training. 
-🛑 Do not skip or omit race week — it must end with "🌟 Race Day: ${body.raceType}" on ${body.raceDate}. 
-This final week should taper volume and prepare the athlete to peak. For example, if the race is on Saturday May 31st - the plan should run through that date and end with "🌟 Race Day: ${body.raceType}" on ${body.raceDate}. The week leading up to Race Day should be the taper phase.
+The final week must taper and prepare the athlete to peak, ending with "🌟 Race Day: ${body.raceType}" on ${body.raceDate}.
 
 Additional Notes from Athlete:
 ${body.userNote || 'None'}
