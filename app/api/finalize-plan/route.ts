@@ -28,7 +28,7 @@ Athlete Profile:
 - Preferred Rest Day: ${body.restDay}
 
 Today's date is ${new Date().toISOString().split('T')[0]}.
-The training plan should span ${planLengthWeeks} full weeks, with the final session on race day (${body.raceDate}). The first week should start on the Monday that is ${planLengthWeeks} weeks before race day..
+The training plan must end on ${body.raceDate}, which is race day. Include a final week that ends on this date, even if it is not a full week. Do not omit the final race week under any circumstances. The first week should start on the Monday ${planLengthWeeks} weeks before race day.
 
 Additional Notes from Athlete:
 ${body.userNote || 'None'}
