@@ -114,10 +114,10 @@ export default function SchedulePage() {
   }
 
   return (
-    <main className="max-w-[1440px] mx-auto px-8 py-16">
-      <div className="flex justify-between items-center mb-10">
-        <h1 className="text-3xl font-semibold">Your Training Plan</h1>
-        <div className="text-sm text-gray-500 flex items-center gap-4">
+    <main className="max-w-[1440px] mx-auto px-4 sm:px-8 py-12 sm:py-16">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 sm:gap-0 mb-10">
+        <h1 className="text-2xl sm:text-3xl font-semibold">Your Training Plan</h1>
+        <div className="text-sm text-gray-500 flex flex-wrap gap-2 sm:gap-4">
           <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-400" /> Easy</div>
           <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-400" /> Moderate</div>
           <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-400" /> Hard</div>
@@ -136,7 +136,7 @@ export default function SchedulePage() {
           const end = addDays(start, 6);
           return (
             <section key={i}>
-              <div className="flex justify-between items-end mb-3">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-3 gap-1 sm:gap-0">
                 <div>
                   <h2 className="text-lg font-semibold">{week.label}</h2>
                   {week.focus && <p className="text-sm text-gray-500 italic mt-0.5">{week.focus}</p>}
@@ -144,7 +144,7 @@ export default function SchedulePage() {
                 <span className="text-sm text-gray-400">{format(start, 'MMM d')} – {format(end, 'MMM d')}</span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
                 {weekDays.map((day, d) => {
                   const sessions = Array.isArray(week.days?.[day]) ? week.days[day] : [];
                   const label = weekLabels[d];
