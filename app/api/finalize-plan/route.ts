@@ -1,12 +1,10 @@
+import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { OpenAIStream, StreamingTextResponse } from 'ai';
 import { differenceInWeeks } from 'date-fns';
 
-export const runtime = 'edge'; // ✅ new Next.js 14+ syntax
+export const runtime = 'edge';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
 export async function POST(req: Request) {
   const body = await req.json();
@@ -30,7 +28,7 @@ Athlete Profile:
 - Preferred Rest Day: ${body.restDay}
 
 Today's date is ${new Date().toISOString().split('T')[0]}.
-The training plan should span ${planLengthWeeks} full weeks, with the final session on race day (${body.raceDate}). The first week should start on the Monday that is ${planLengthWeeks} weeks before race day.
+The training plan should span ${planLengthWeeks} full weeks, with the final session on race day (${body.raceDate}). The first week should start on the Monday that is ${planLengthWeeks} weeks before race day..
 
 Additional Notes from Athlete:
 ${body.userNote || 'None'}
@@ -76,12 +74,34 @@ Each week object in "plan" must include:
 
 Only return the raw JSON object. Do not include markdown or extra commentary.`;
 
-  const response = await openai.chat.completions.create({
-    model,
-    stream: true,
-    messages: [{ role: 'user', content: prompt }],
-  });
+  try {
+    const completion = await openai.chat.completions.create({
+      model,
+      stream: true,
+      temperature: 0.7,
+      messages: [{ role: 'user', content: prompt }],
+    });
 
-  const stream = OpenAIStream(response);
-  return new StreamingTextResponse(stream);
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        for await (const chunk of completion) {
+          const content = chunk.choices?.[0]?.delta?.content;
+          if (content) {
+            controller.enqueue(encoder.encode(content));
+          }
+        }
+        controller.close();
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+      },
+    });
+  } catch (err) {
+    console.error('Streaming error:', err);
+    return NextResponse.json({ error: 'Failed to generate plan.' }, { status: 500 });
+  }
 }
