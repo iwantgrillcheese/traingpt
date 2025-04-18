@@ -18,9 +18,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div className="flex flex-col justify-between h-full">
           <div>
             <div className="flex items-center justify-between mb-8">
-              <span className={`text-lg font-semibold transition-opacity duration-300
-                ${sidebarOpen ? 'opacity-100 block' : 'opacity-0 hidden'}
-                sm:opacity-100 sm:block`}>TrainGPT</span>
+              <Link href="/" className={`text-lg font-semibold transition-opacity duration-300 
+  ${sidebarOpen ? 'opacity-100' : 'opacity-0'} 
+  sm:opacity-100 sm:block hidden`}>
+  TrainGPT
+</Link>
               <button
                 onClick={() => setSidebarOpen(!sidebarOpen)}
                 className="text-2xl focus:outline-none sm:hidden"
