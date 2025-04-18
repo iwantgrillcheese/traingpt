@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   const useGPT4 = body.experience === 'Advanced';
   const model = useGPT4 ? 'gpt-4-turbo' : 'gpt-3.5-turbo';
 
-  const prompt = `You are a world-class triathlon coach creating a peak performance training plan that ends on the athlete's race date.
+  const prompt = `You are a world-class triathlon coach creating a peak performance training plan that ends exactly on the athlete's race date (${body.raceDate}).
 
 Use your elite triathlon coaching experience to build a complete, periodized training plan tailored to the athlete's profile. The plan must include clear week-level guidance and practical daily sessions.
 
@@ -28,17 +28,19 @@ Athlete Profile:
 - Preferred Rest Day: ${body.restDay}
 
 Today's date is ${new Date().toISOString().split('T')[0]}.
-The training plan must end on ${body.raceDate}, which is race day. Include a final week that ends on this date, even if it is not a full week. Do not omit the final race week under any circumstances. The first week should start on the Monday ${planLengthWeeks} weeks before race day.
+Count backward from ${body.raceDate} to create ${planLengthWeeks} weeks of training. 
+🛑 Do not skip or omit race week — it must end with "🌟 Race Day: ${body.raceType}" on ${body.raceDate}. 
+This final week should taper volume and prepare the athlete to peak.
 
 Additional Notes from Athlete:
 ${body.userNote || 'None'}
 
 Core Rules:
-- Periodize into base, build, peak, taper, and race week.
+- Periodize into base, build, peak, taper, and a final race week.
 - Each week must include:
   - A label (e.g. "Week 3: Threshold Development")
   - A one-sentence focus (e.g. "Sharpen bike power and improve tempo run durability.")
-- End the plan on race day with a "🌟 Race Day: ${body.raceType}" session.
+- End the final week with a "🌟 Race Day: ${body.raceType}" session on ${body.raceDate}.
 - Include 1 full rest day weekly (on athlete's preferred day).
 - Use the athlete’s threshold pace and power zones to set intensity (no made-up numbers).
 - Sessions should vary: aerobic endurance, tempo, threshold, brick workouts, drills, open water, etc.
