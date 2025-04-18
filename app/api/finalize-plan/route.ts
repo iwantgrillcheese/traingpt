@@ -1,10 +1,14 @@
-import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { OpenAIStream, StreamingTextResponse } from 'ai';
 import { differenceInWeeks } from 'date-fns';
+
 export const config = {
-  runtime: 'nodejs',
+  runtime: 'edge',
 };
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY!,
+});
 
 export async function POST(req: Request) {
   const body = await req.json();
@@ -74,19 +78,12 @@ Each week object in "plan" must include:
 
 Only return the raw JSON object. Do not include markdown or extra commentary.`;
 
-  const completion = await openai.chat.completions.create({
+  const response = await openai.chat.completions.create({
     model,
+    stream: true,
     messages: [{ role: 'user', content: prompt }],
-    temperature: 0.7,
   });
 
-  const content = completion.choices[0]?.message?.content || '{}';
-
-  try {
-    const parsed = JSON.parse(content);
-    return NextResponse.json(parsed);
-  } catch (err) {
-    console.error('Failed to parse plan:', err);
-    return NextResponse.json({ error: 'Failed to parse plan.' }, { status: 500 });
-  }
+  const stream = OpenAIStream(response);
+  return new StreamingTextResponse(stream);
 }
