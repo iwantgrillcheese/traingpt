@@ -161,6 +161,42 @@ export default function CoachingDashboard() {
         <button onClick={() => window.location.reload()} className="px-4 py-2 text-sm bg-gray-200 text-gray-800 rounded-full hover:bg-gray-300 transition">🔄 Refresh</button>
       </div>
 
+      <div className="mb-12">
+        <h2 className="text-lg font-semibold mb-4">Ask Your Coach</h2>
+        <textarea
+          className="w-full border rounded-lg p-3 text-sm bg-white shadow-sm"
+          rows={3}
+          placeholder="e.g. 'What drills should I do Monday?' or 'How hard should I push on Tuesday’s bike ride?'"
+          value={userQuestion}
+          onChange={(e) => setUserQuestion(e.target.value)}
+        />
+        <button
+          onClick={askCoach}
+          disabled={feedbackLoading}
+          className={`mt-3 px-5 py-2 rounded-full text-sm flex items-center justify-center transition ${feedbackLoading ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-black text-white hover:bg-gray-800'}`}
+        >
+          {feedbackLoading ? <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Ask Coach'}
+        </button>
+      </div>
+
+      <div className="mb-10">
+        <h2 className="text-lg font-semibold mb-2">Upcoming Sessions</h2>
+        <p className="text-gray-500 mb-4">Here’s what’s coming up. Want more detail? Ask your coach above.</p>
+        <div className="flex gap-4 overflow-x-auto pb-4">
+          {upcomingSessions.map((s, i) => (
+            <div key={i} className="min-w-[220px] bg-white border rounded-xl p-4 shadow-sm shrink-0">
+              <p className="text-xs text-gray-500 mb-1">{s.date}</p>
+              <p className="text-sm font-medium text-gray-800">{s.label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-white border rounded-xl p-6 mb-10 shadow-sm">
+        <p className="text-sm text-gray-500 font-semibold mb-2">Coach Notes</p>
+        <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{coachNote || 'Ask a question to generate some coach notes.'}</p>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
         <div className="bg-white border rounded-xl p-6 shadow-sm">
           <p className="text-sm text-gray-500 mb-1">Race Countdown</p>
@@ -193,42 +229,6 @@ export default function CoachingDashboard() {
           <p className="text-xs text-gray-500">Longest Session</p>
           <p className="font-bold text-lg">{weeklyStats.longest}</p>
         </div>
-      </div>
-
-      <div className="mb-12">
-        <h2 className="text-lg font-semibold mb-4">Ask Your Coach</h2>
-        <textarea
-          className="w-full border rounded-lg p-3 text-sm bg-white shadow-sm"
-          rows={3}
-          placeholder="e.g. 'What drills should I do Monday's swim?' or 'How hard should I push on Tuesday’s bike ride?'"
-          value={userQuestion}
-          onChange={(e) => setUserQuestion(e.target.value)}
-        />
-        <button
-          onClick={askCoach}
-          disabled={feedbackLoading}
-          className={`mt-3 px-5 py-2 rounded-full text-sm flex items-center justify-center transition ${feedbackLoading ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-black text-white hover:bg-gray-800'}`}
-        >
-          {feedbackLoading ? <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Ask Coach'}
-        </button>
-      </div>
-
-      <div className="bg-white border rounded-xl p-6 mb-10 shadow-sm">
-        <p className="text-sm text-gray-500 font-semibold mb-2">Coach Notes</p>
-        <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{coachNote || 'Ask a question to generate some coach notes.'}</p>
-      </div>
-
-      <div className="mb-10">
-        <h2 className="text-lg font-semibold mb-2">Upcoming Sessions</h2>
-        <p className="text-gray-500 mb-4">Here’s what’s coming up. Want more detail on an individual session? Ask your coach above.</p>
-        <ul className="space-y-2 text-sm text-gray-700">
-          {upcomingSessions.map((s, i) => (
-            <li key={i} className="bg-white border rounded-xl p-3">
-              <span className="block text-gray-500">{s.date}</span>
-              <span className="block">{s.label}</span>
-            </li>
-          ))}
-        </ul>
       </div>
     </main>
   );
