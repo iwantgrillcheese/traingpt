@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
+export const runtime = 'edge'; // Required for Next.js 14+ on Vercel
+
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(req: Request) {
@@ -50,17 +52,17 @@ Return only the JSON object. No explanations.`;
   const completion = await openai.chat.completions.create({
     model,
     messages: [{ role: 'user', content: prompt }],
-    temperature: 0.7,
+    temperature: 0.6,
   });
 
   const content = completion.choices[0]?.message?.content || '{}';
 
-try {
-  const clean = content.replace(/```json|```/g, '').trim();
-  const parsed = JSON.parse(clean);
-  return NextResponse.json(parsed);
-} catch (err) {
-  console.error('Failed to parse preview plan:', err);
-  return NextResponse.json({ error: 'Failed to parse preview plan.' }, { status: 500 });
-}
+  try {
+    const cleaned = content.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(cleaned);
+    return NextResponse.json(parsed);
+  } catch (err) {
+    console.error('Failed to parse preview plan:', err);
+    return NextResponse.json({ error: 'Failed to parse preview plan.' }, { status: 500 });
+  }
 }
