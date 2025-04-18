@@ -153,11 +153,11 @@ export default function SchedulePage() {
                   return (
                     <div
                       key={day}
-                      className={`relative border border-gray-200 rounded-xl shadow-sm px-4 py-4 flex flex-col min-h-[160px] bg-white 
+                      className={`relative border border-gray-200 rounded-xl shadow-sm px-3 py-2 sm:px-4 sm:py-4 flex flex-col min-h-[100px] sm:min-h-[160px] bg-white 
                         before:content-[''] before:absolute before:top-0 before:left-1/2 before:-translate-x-1/2 before:w-1/2 before:h-1 before:rounded-full ${topBar}`}
                     >
                       <h3 className="text-xs font-medium text-gray-800 mb-2">{label}</h3>
-                      <div className="space-y-1.5 text-sm">
+                      <div className="space-y-1.5 text-sm sm:text-base">
                         {sessions.length > 0 ? sessions.map((s: string, sIdx: number) => {
                           const sessionDate = format(addDays(weekStart, i * 7 + d), 'yyyy-MM-dd');
                           const sportKey = `${sessionDate}-${s.toLowerCase()}`;
