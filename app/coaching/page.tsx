@@ -140,7 +140,7 @@ export default function CoachingDashboard() {
   if (!plan.length) return <div className="text-center text-gray-500 py-20">Generate and finalize a plan first.</div>;
   if (!activated) {
     return (
-      <div className="max-w-xl mx-auto text-center py-32">
+      <div className="max-w-xl mx-auto text-center py-32 px-4">
         <h2 className="text-2xl font-semibold mb-4">Activate AI Coaching</h2>
         <p className="text-gray-600 mb-6">Get race countdowns, compliance stats, and weekly feedback tailored to your plan.</p>
         <button
@@ -155,10 +155,44 @@ export default function CoachingDashboard() {
   }
 
   return (
-    <main className="max-w-6xl mx-auto px-6 py-16">
-      <div className="flex justify-between items-center mb-10">
-        <h1 className="text-3xl font-semibold">Coaching Dashboard</h1>
+    <main className="max-w-6xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-8 gap-4">
+        <h1 className="text-2xl sm:text-3xl font-semibold">Coaching Dashboard</h1>
         <button onClick={() => window.location.reload()} className="px-4 py-2 text-sm bg-gray-200 text-gray-800 rounded-full hover:bg-gray-300 transition">🔄 Refresh</button>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-10">
+        <div className="bg-white border rounded-xl p-6 shadow-sm">
+          <p className="text-sm text-gray-500 mb-1">Race Countdown</p>
+          <p className="text-xl font-bold text-gray-900">{daysLeft !== null ? `${daysLeft} days to ${raceType || 'your race'}` : 'No race date'}</p>
+        </div>
+        <div className="bg-white border rounded-xl p-6 shadow-sm">
+          <p className="text-sm text-gray-500 mb-1">This Week’s Training Time</p>
+          <p className="text-xl font-bold">{weeklyStats.total} hrs</p>
+        </div>
+        <div className="bg-white border rounded-xl p-6 shadow-sm">
+          <p className="text-sm text-gray-500 mb-1">This Week’s Compliance</p>
+          <p className={`text-xl font-bold ${compliance === 100 ? 'text-green-600' : compliance === 0 ? 'text-red-500' : 'text-yellow-500'}`}>{compliance}%</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 mb-10">
+        <div className="bg-white border rounded-xl p-4 text-center">
+          <p className="text-xs text-gray-500">Swim</p>
+          <p className="font-bold text-lg">{weeklyStats.swim} hrs</p>
+        </div>
+        <div className="bg-white border rounded-xl p-4 text-center">
+          <p className="text-xs text-gray-500">Bike</p>
+          <p className="font-bold text-lg">{weeklyStats.bike} hrs</p>
+        </div>
+        <div className="bg-white border rounded-xl p-4 text-center">
+          <p className="text-xs text-gray-500">Run</p>
+          <p className="font-bold text-lg">{weeklyStats.run} hrs</p>
+        </div>
+        <div className="bg-white border rounded-xl p-4 text-center">
+          <p className="text-xs text-gray-500">Longest Session</p>
+          <p className="font-bold text-lg">{weeklyStats.longest}</p>
+        </div>
       </div>
 
       <div className="mb-12">
@@ -192,43 +226,9 @@ export default function CoachingDashboard() {
         </div>
       </div>
 
-      <div className="bg-white border rounded-xl p-6 mb-10 shadow-sm">
+      <div className="bg-white border rounded-xl p-6 shadow-sm">
         <p className="text-sm text-gray-500 font-semibold mb-2">Coach Notes</p>
         <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{coachNote || 'Ask a question to generate some coach notes.'}</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-        <div className="bg-white border rounded-xl p-6 shadow-sm">
-          <p className="text-sm text-gray-500 mb-1">Race Countdown</p>
-          <p className="text-xl font-bold text-gray-900">{daysLeft !== null ? `${daysLeft} days to ${raceType || 'your race'}` : 'No race date'}</p>
-        </div>
-        <div className="bg-white border rounded-xl p-6 shadow-sm">
-          <p className="text-sm text-gray-500 mb-1">This Week’s Training Time</p>
-          <p className="text-xl font-bold">{weeklyStats.total} hrs</p>
-        </div>
-        <div className="bg-white border rounded-xl p-6 shadow-sm">
-          <p className="text-sm text-gray-500 mb-1">This Week’s Compliance</p>
-          <p className={`text-xl font-bold ${compliance === 100 ? 'text-green-600' : compliance === 0 ? 'text-red-500' : 'text-yellow-500'}`}>{compliance}%</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
-        <div className="bg-white border rounded-xl p-4 text-center">
-          <p className="text-xs text-gray-500">Swim</p>
-          <p className="font-bold text-lg">{weeklyStats.swim} hrs</p>
-        </div>
-        <div className="bg-white border rounded-xl p-4 text-center">
-          <p className="text-xs text-gray-500">Bike</p>
-          <p className="font-bold text-lg">{weeklyStats.bike} hrs</p>
-        </div>
-        <div className="bg-white border rounded-xl p-4 text-center">
-          <p className="text-xs text-gray-500">Run</p>
-          <p className="font-bold text-lg">{weeklyStats.run} hrs</p>
-        </div>
-        <div className="bg-white border rounded-xl p-4 text-center">
-          <p className="text-xs text-gray-500">Longest Session</p>
-          <p className="font-bold text-lg">{weeklyStats.longest}</p>
-        </div>
       </div>
     </main>
   );
