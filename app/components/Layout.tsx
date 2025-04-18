@@ -17,20 +17,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       >
         <div className="flex flex-col justify-between h-full">
           <div>
-            <div className="flex items-center justify-between mb-8">
+            <div className="mb-8">
               <span className={`text-lg font-semibold transition-opacity duration-300 
                 ${sidebarOpen ? 'opacity-100' : 'opacity-0'} 
-                sm:opacity-100 sm:block hidden`}>TrainGPT</span>
-              <button
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="text-2xl focus:outline-none sm:hidden"
-              >
-                ☰
-              </button>
+                sm:opacity-100 sm:block hidden`}>
+                TrainGPT
+              </span>
             </div>
-            <nav className={`space-y-4 text-sm font-normal transition-opacity duration-300 
-              ${sidebarOpen ? 'opacity-100 block' : 'opacity-0 hidden'} 
-              sm:opacity-100 sm:block`}
+            <nav
+              className={`space-y-4 text-sm font-normal transition-opacity duration-300 
+                ${sidebarOpen ? 'opacity-100 block' : 'opacity-0 hidden'} 
+                sm:opacity-100 sm:block`}
             >
               <Link href="/" className="block hover:font-medium transition">Plan Generator</Link>
               <Link href="/schedule" className="block hover:font-medium transition">My Schedule</Link>
