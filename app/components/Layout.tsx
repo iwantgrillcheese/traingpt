@@ -19,12 +19,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {/* Toggle Button */}
       <button
   onClick={() => setSidebarOpen(!sidebarOpen)}
-  className="relative w-8 h-8 rounded-full border border-gray-300 hover:border-gray-500 transition-all bg-white flex items-center justify-center"
+  className="relative w-8 h-5 rounded-full border border-gray-300 hover:border-gray-500 transition-all bg-white flex items-center justify-center"
 >
   <span className="sr-only">Toggle Sidebar</span>
   <div
-    className={`absolute w-0.5 h-4 bg-gray-900 transition-all duration-300 ${
-      sidebarOpen ? 'translate-x-1.5' : '-translate-x-1.5'
+    className={`absolute w-0.5 h-3 bg-gray-900 transition-transform duration-300 ${
+      sidebarOpen ? 'translate-x-2' : '-translate-x-2'
     }`}
   />
 </button>
