@@ -1,63 +1,64 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import ProfileAvatar from './profile avatar';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // Close sidebar on escape or click outside
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSidebarOpen(false);
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, []);
+
   return (
-    <div className="flex h-screen text-gray-900 font-sans antialiased overflow-hidden bg-white">
+    <div className="relative flex min-h-screen text-gray-900 font-sans antialiased bg-white">
+      {/* Backdrop for mobile */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-30 z-30 sm:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 z-40 h-full bg-white transition-all duration-300 ease-in-out 
-        ${sidebarOpen ? 'w-48 px-4 pt-6' : 'w-0 px-0'}
-        sm:w-48 sm:px-4 sm:pt-6`}
+        className={`fixed top-0 left-0 z-40 h-full bg-white transform transition-transform duration-300 ease-in-out 
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} 
+        sm:translate-x-0 sm:relative sm:w-48 sm:border-r sm:border-gray-200`}
       >
-        <div className="flex flex-col justify-between h-full">
-          <div>
-            <Link
-              href="/"
-              className={`text-lg font-semibold mb-8 block transition-opacity duration-200 ${
-                sidebarOpen ? 'opacity-100' : 'opacity-0 sm:opacity-100'
-              }`}
-            >
-              TrainGPT
-            </Link>
-
-            <nav
-              className={`space-y-4 text-sm transition-opacity duration-200 ${
-                sidebarOpen ? 'opacity-100' : 'opacity-0 sm:opacity-100'
-              }`}
-            >
-              <Link href="/" className="block hover:font-medium">Plan Generator</Link>
-              <Link href="/schedule" className="block hover:font-medium">My Schedule</Link>
-              <Link href="/coaching" className="block hover:font-medium">Coaching</Link>
-              <Link href="/settings" className="block hover:font-medium">Settings</Link>
-            </nav>
-          </div>
+        <div className="h-full flex flex-col px-4 pt-6">
+          <Link href="/" className="text-lg font-semibold mb-8">TrainGPT</Link>
+          <nav className="space-y-4 text-sm">
+            <Link href="/" className="block hover:font-medium">Plan Generator</Link>
+            <Link href="/schedule" className="block hover:font-medium">My Schedule</Link>
+            <Link href="/coaching" className="block hover:font-medium">Coaching</Link>
+            <Link href="/settings" className="block hover:font-medium">Settings</Link>
+          </nav>
         </div>
       </aside>
 
-      {/* Main */}
+      {/* Main content */}
       <div className="flex-1 flex flex-col min-h-screen overflow-y-auto">
-        {/* Topbar */}
-        <nav className="flex items-center justify-between px-4 py-4 bg-white z-30 border-b border-white">
+        {/* Top bar */}
+        <nav className="flex items-center justify-between px-4 py-4 sm:justify-end border-b border-white bg-white z-10">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="w-8 h-8 rounded-lg border border-gray-300 hover:border-gray-400 transition sm:hidden flex items-center justify-center"
-            aria-label="Toggle sidebar"
+            className="rounded-md p-2 transition sm:hidden focus:outline-none border border-gray-300 hover:border-gray-400"
           >
-            <div className="w-4 h-0.5 bg-black mb-1" />
-            <div className="w-4 h-0.5 bg-black" />
+            <div className="w-5 h-0.5 bg-black mb-1" />
+            <div className="w-5 h-0.5 bg-black" />
           </button>
-          <div className="ml-auto">
+          <div className="ml-auto sm:ml-0">
             <ProfileAvatar />
           </div>
         </nav>
 
-        {/* Page content */}
         <main className="flex-1 px-4 py-8 sm:pl-56">{children}</main>
       </div>
     </div>
