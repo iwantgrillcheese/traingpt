@@ -25,6 +25,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             >
               TrainGPT
             </Link>
+
             <nav
               className={`space-y-4 text-sm transition-opacity duration-200 ${
                 sidebarOpen ? 'opacity-100' : 'opacity-0 sm:opacity-100'
@@ -47,7 +48,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Main Content Area */}
+      {/* Main Content */}
       <div className="flex-1 flex flex-col min-h-screen overflow-y-auto">
         {/* Topbar */}
         <nav className="flex items-center justify-between px-4 py-4 bg-white z-30">
@@ -56,7 +57,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             className="rounded-md border border-gray-300 hover:border-gray-400 transition p-1 focus:outline-none"
           >
             <div className="w-5 h-5 flex items-center justify-center">
-              <div className="w-4 h-0.5 bg-black rounded-sm"></div>
+              <div className="h-4 w-0.5 bg-black rounded-sm"></div>
             </div>
           </button>
           <div className="ml-auto">
