@@ -11,18 +11,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen text-gray-900 font-sans antialiased overflow-hidden bg-white">
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 z-40 h-full bg-white transition-all duration-300
-          ${sidebarOpen ? 'w-48 px-4 pt-6' : 'w-0 px-0'}
-          sm:w-48 sm:px-4 sm:pt-6
-        `}
-        style={{ borderRight: sidebarOpen ? 'none' : 'none' }}
+        className={`fixed top-0 left-0 z-40 h-full bg-white transition-all duration-300 ease-in-out 
+        ${sidebarOpen ? 'w-48 px-4 pt-6' : 'w-0 px-0'}
+        sm:w-48 sm:px-4 sm:pt-6`}
       >
         <div className="flex flex-col justify-between h-full">
           <div>
             <Link
               href="/"
               className={`text-lg font-semibold mb-8 block transition-opacity duration-200 ${
-                sidebarOpen ? 'opacity-100' : 'hidden sm:block'
+                sidebarOpen ? 'opacity-100' : 'opacity-0 sm:opacity-100'
               }`}
             >
               TrainGPT
@@ -30,7 +28,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
             <nav
               className={`space-y-4 text-sm transition-opacity duration-200 ${
-                sidebarOpen ? 'opacity-100 block' : 'hidden sm:block'
+                sidebarOpen ? 'opacity-100' : 'opacity-0 sm:opacity-100'
               }`}
             >
               <Link href="/" className="block hover:font-medium">Plan Generator</Link>
@@ -42,13 +40,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Main content */}
+      {/* Main */}
       <div className="flex-1 flex flex-col min-h-screen overflow-y-auto">
-        {/* Top nav */}
-        <nav className="flex items-center justify-between px-4 py-4 bg-white z-30 sm:pl-56">
+        {/* Topbar */}
+        <nav className="flex items-center justify-between px-4 py-4 bg-white z-30 border-b border-white">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="text-2xl sm:block"
+            className="text-2xl focus:outline-none"
           >
             ☰
           </button>
@@ -57,10 +55,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </nav>
 
-        {/* Main content */}
-        <main className="flex-1 px-4 py-8 sm:pl-56">
-          {children}
-        </main>
+        {/* Page content */}
+        <main className="flex-1 px-4 py-8 sm:pl-56">{children}</main>
       </div>
     </div>
   );
