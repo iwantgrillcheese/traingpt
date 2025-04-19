@@ -46,9 +46,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <nav className="flex items-center justify-between px-4 py-4 bg-white z-30 border-b border-white">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="text-2xl focus:outline-none"
+            className="w-8 h-8 rounded-lg border border-gray-300 hover:border-gray-400 transition sm:hidden flex items-center justify-center"
+            aria-label="Toggle sidebar"
           >
-            ☰
+            <div className="w-4 h-0.5 bg-black mb-1" />
+            <div className="w-4 h-0.5 bg-black" />
           </button>
           <div className="ml-auto">
             <ProfileAvatar />
