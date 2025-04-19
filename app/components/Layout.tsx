@@ -1,60 +1,58 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import ProfileAvatar from './profile avatar';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Close sidebar on escape or click outside
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setSidebarOpen(false);
-    };
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, []);
-
   return (
-    <div className="relative flex min-h-screen text-gray-900 font-sans antialiased bg-white">
-      {/* Backdrop for mobile */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-30 z-30 sm:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
+    <div className="flex h-screen bg-white text-gray-900 font-sans antialiased overflow-hidden">
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 z-40 h-full bg-white transform transition-transform duration-300 ease-in-out 
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} 
-        sm:translate-x-0 sm:relative sm:w-48 sm:border-r sm:border-gray-200`}
+        className={`fixed top-0 left-0 z-30 h-full bg-white transition-all duration-300 ease-in-out 
+        ${sidebarOpen ? 'w-48 px-4 pt-6' : 'w-0 px-0'} 
+        sm:w-48 sm:px-4 sm:pt-6`}
       >
-        <div className="h-full flex flex-col px-4 pt-6">
-          <Link href="/" className="text-lg font-semibold mb-8">TrainGPT</Link>
-          <nav className="space-y-4 text-sm">
-            <Link href="/" className="block hover:font-medium">Plan Generator</Link>
-            <Link href="/schedule" className="block hover:font-medium">My Schedule</Link>
-            <Link href="/coaching" className="block hover:font-medium">Coaching</Link>
-            <Link href="/settings" className="block hover:font-medium">Settings</Link>
-          </nav>
+        <div className="flex flex-col justify-between h-full">
+          <div>
+            <Link
+              href="/"
+              className={`text-lg font-semibold mb-8 block transition-opacity duration-200 ${
+                sidebarOpen ? 'opacity-100' : 'opacity-0 sm:opacity-100'
+              }`}
+            >
+              TrainGPT
+            </Link>
+
+            <nav
+              className={`space-y-4 text-sm transition-opacity duration-200 ${
+                sidebarOpen ? 'opacity-100' : 'opacity-0 sm:opacity-100'
+              }`}
+            >
+              <Link href="/" className="block hover:font-medium">Plan Generator</Link>
+              <Link href="/schedule" className="block hover:font-medium">My Schedule</Link>
+              <Link href="/coaching" className="block hover:font-medium">Coaching</Link>
+              <Link href="/settings" className="block hover:font-medium">Settings</Link>
+            </nav>
+          </div>
         </div>
       </aside>
 
-      {/* Main content */}
+      {/* Main content area */}
       <div className="flex-1 flex flex-col min-h-screen overflow-y-auto">
         {/* Top bar */}
-        <nav className="flex items-center justify-between px-4 py-4 sm:justify-end border-b border-white bg-white z-10">
+        <nav className="flex items-center justify-between px-4 py-4 bg-white z-30">
+          {/* Toggle Button – shows on all screen sizes */}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="rounded-md p-2 transition sm:hidden focus:outline-none border border-gray-300 hover:border-gray-400"
+            className="rounded-md w-8 h-8 border border-gray-300 flex items-center justify-center hover:bg-gray-100 transition"
           >
-            <div className="w-5 h-0.5 bg-black mb-1" />
-            <div className="w-5 h-0.5 bg-black" />
+            <div className="w-4 h-[2px] bg-black relative before:content-[''] before:absolute before:-top-1.5 before:w-4 before:h-[2px] before:bg-black after:content-[''] after:absolute after:top-1.5 after:w-4 after:h-[2px] after:bg-black" />
           </button>
-          <div className="ml-auto sm:ml-0">
+
+          <div className="ml-auto">
             <ProfileAvatar />
           </div>
         </nav>
