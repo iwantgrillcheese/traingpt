@@ -35,7 +35,7 @@ export default function AboutPage() {
     <section className="mb-12">
       <h2 className="text-xl font-semibold mb-2">What to Expect</h2>
       <p className="text-gray-700 leading-relaxed">
-        Just to level set I’m not a developer by trade and I've never built a website. I didn’t even fundamentally understand how websites worked until I started trying to build this. I used ChatGPT to write the code and spent about 50-ish hours after my day job over two weeks to get a V1 out. I proabably won't be able to run it for free forever just due to costs from Open AI API calls but maybe one day we can make it useful enough to be worth paying $5/mo for or whatever it takes to run it.
+        I’m not a developer by trade and I've never built a website. I didn’t even fundamentally understand how websites worked until I started trying to build this. I used ChatGPT to write the code and spent about 50-ish hours after my day job over two weeks to get a V1 out. 
       </p>
       <p className="text-gray-700 leading-relaxed mt-4">
         I’ll probably keep making it better if people find it useful—so if you do, let me know. If something’s broken, just email me at <a href="mailto:me@cameronmmcdiarmid.com" className="underline hover:text-black">me@cameronmmcdiarmid.com</a> or DM me on Strava.
