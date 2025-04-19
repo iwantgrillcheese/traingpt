@@ -17,14 +17,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </Link>
 
         {/* Toggle Button */}
+        
       <button
   onClick={() => setSidebarOpen(!sidebarOpen)}
-  className="relative w-8 h-5 rounded-full border border-gray-300 hover:border-gray-500 transition-all bg-white flex items-center justify-center"
+  className="ml-2 flex items-center justify-center w-8 h-5 rounded-full border border-gray-400 transition-colors duration-300 bg-white hover:border-gray-500"
 >
-  <span className="sr-only">Toggle Sidebar</span>
   <div
-    className={`absolute w-0.5 h-3 bg-gray-900 transition-transform duration-300 ${
-      sidebarOpen ? 'translate-x-2' : '-translate-x-2'
+    className={`w-0.5 h-3 bg-black transition-transform duration-300 ${
+      sidebarOpen ? 'translate-x-[6px]' : 'translate-x-[-6px]'
     }`}
   />
 </button>
@@ -37,11 +37,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 z-20 h-full bg-white shadow-lg transition-all duration-300 ease-in-out 
-          ${sidebarOpen ? 'w-48 px-4 pt-20' : 'w-0 px-0'} 
-          overflow-hidden`}
+  className={`fixed top-0 left-0 z-30 h-full bg-white transition-all duration-300 ease-in-out shadow-none ${
+  sidebarOpen ? 'w-48 px-6' : 'w-0 px-0 overflow-hidden'
+} sm:w-48 sm:px-6`}
+
       >
-        <nav className="space-y-4 text-sm mt-4">
+        <nav className="flex flex-col justify-center gap-6 text-sm h-full pt-10 sm:pt-20">
           <Link href="/" className="block hover:font-medium">Plan Generator</Link>
           <Link href="/schedule" className="block hover:font-medium">My Schedule</Link>
           <Link href="/coaching" className="block hover:font-medium">Coaching</Link>
