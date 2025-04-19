@@ -17,12 +17,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </Link>
 
         {/* Toggle Button */}
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="w-6 h-6 border-l-2 border-gray-800 hover:border-black transition-all duration-300 focus:outline-none"
-        >
-          <span className="sr-only">Toggle Sidebar</span>
-        </button>
+      <button
+  onClick={() => setSidebarOpen(!sidebarOpen)}
+  className="relative w-8 h-8 rounded-full border border-gray-300 hover:border-gray-500 transition-all bg-white flex items-center justify-center"
+>
+  <span className="sr-only">Toggle Sidebar</span>
+  <div
+    className={`absolute w-0.5 h-4 bg-gray-900 transition-all duration-300 ${
+      sidebarOpen ? 'translate-x-1.5' : '-translate-x-1.5'
+    }`}
+  />
+</button>
 
         {/* Profile (pushed right on desktop) */}
         <div className="ml-auto">
