@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { format, addDays, startOfWeek } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 const supabase = createClientComponentClient();
 
@@ -72,10 +72,6 @@ export default function SchedulePage() {
     fetchPlanAndChecks();
   }, []);
 
-  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-  const weekDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  const weekLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
   const toggleCheck = async (key: string, sessionDate: string, sessionName: string) => {
     const sport = sessionName.toLowerCase();
     const current = checked[`${sessionDate}-${sport}`] || 'none';
@@ -93,7 +89,7 @@ export default function SchedulePage() {
       return;
     }
 
-    console.log('Session object:', session); // 👈 inserted for debugging
+    console.log('Session object:', session);
 
     const user = session.user;
 
@@ -134,8 +130,8 @@ export default function SchedulePage() {
 
       <div className="space-y-12">
         {plan.map((week, i) => {
-          const start = addDays(weekStart, i * 7);
-          const end = addDays(start, 6);
+          const sortedDates = Object.keys(week.days).sort();
+
           return (
             <section key={i}>
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-3 gap-1 sm:gap-0">
@@ -143,35 +139,35 @@ export default function SchedulePage() {
                   <h2 className="text-lg font-semibold">{week.label}</h2>
                   {week.focus && <p className="text-sm text-gray-500 italic mt-0.5">{week.focus}</p>}
                 </div>
-                <span className="text-sm text-gray-400">{format(start, 'MMM d')} – {format(end, 'MMM d')}</span>
+                <span className="text-sm text-gray-400">{format(parseISO(sortedDates[0]), 'MMM d')} – {format(parseISO(sortedDates[sortedDates.length - 1]), 'MMM d')}</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-                {weekDays.map((day, d) => {
-                  const sessions = Array.isArray(week.days?.[day]) ? week.days[day] : [];
-                  const label = weekLabels[d];
+                {sortedDates.map((dateStr) => {
+                  const sessions = week.days[dateStr];
+                  const dateObj = parseISO(dateStr);
+                  const dayLabel = format(dateObj, 'EEE, MMM d');
                   const topBar = sessions.length > 0 ? getTopBar(sessions[0]) : '';
 
                   return (
                     <div
-                      key={day}
+                      key={dateStr}
                       className={`relative border border-gray-200 rounded-xl shadow-sm px-3 py-2 sm:px-4 sm:py-4 flex flex-col min-h-[100px] sm:min-h-[160px] bg-white 
                         before:content-[''] before:absolute before:top-0 before:left-1/2 before:-translate-x-1/2 before:w-1/2 before:h-1 before:rounded-full ${topBar}`}
                     >
-                      <h3 className="text-xs font-medium text-gray-800 mb-2">{label}</h3>
+                      <h3 className="text-xs font-medium text-gray-800 mb-2">{dayLabel}</h3>
                       <div className="space-y-1.5 text-sm sm:text-base">
                         {sessions.length > 0 ? sessions.map((s: string, sIdx: number) => {
-                          const sessionDate = format(addDays(weekStart, i * 7 + d), 'yyyy-MM-dd');
-                          const sportKey = `${sessionDate}-${s.toLowerCase()}`;
-                          const status = checked[sportKey] || 'none';
+                          const statusKey = `${dateStr}-${s.toLowerCase()}`;
+                          const status = checked[statusKey] || 'none';
                           return (
                             <div
-                              key={sportKey}
+                              key={statusKey}
                               className={`flex items-start gap-2 group ${status === 'done' ? 'opacity-50' : status === 'skipped' ? 'opacity-50 grayscale' : ''}`}
                             >
                               <button
                                 className="text-xs text-gray-400 hover:text-black transition"
-                                onClick={() => toggleCheck(sportKey, sessionDate, s)}
+                                onClick={() => toggleCheck(statusKey, dateStr, s)}
                                 title="Click to cycle status"
                               >
                                 {getStatusIcon(status)}
