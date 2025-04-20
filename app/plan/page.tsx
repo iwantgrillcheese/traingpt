@@ -1,3 +1,6 @@
+here?
+
+
 'use client';
 
 import React, { useState } from 'react';
@@ -256,13 +259,11 @@ if (!access_token) throw new Error('No Supabase access token found');;
       </main>
 
       {showOverlay && (
- <div className="relative w-12 h-12 mb-6">
- <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
- <div className="absolute inset-0 rounded-full border-4 border-t-black border-b-transparent animate-spin"></div>
-</div>
-
-)}
-
+        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex-col items-center justify-center flex">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-white mb-6" />
+          <p className="text-white text-lg font-medium text-center max-w-xs">{randomQuote}</p>
+        </div>
+      )}
 
       <Footer />
     </div>
