@@ -1,19 +1,19 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import Footer from '../components/footer';
-
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 const supabase = createClientComponentClient();
+import Footer from '../components/footer';
 
 const quotes = [
   "Don't count the days, make the days count.",
   "Discipline is doing it when you don’t feel like it.",
   "Train hard, race easy.",
   "Little by little, a little becomes a lot.",
-  "The only bad workout is the one you didn’t do.",
+  "The only bad workout is the one you didn’t do."
 ];
 
 const blogPosts = [
@@ -45,6 +45,17 @@ const blogPosts = [
 
 export default function Home() {
   const router = useRouter();
+  useEffect(() => {
+    (async () => {
+  
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+  
+      console.log('🧪 SESSION LOG:', session);
+    })();
+  }, []);
+
   const [formData, setFormData] = useState({
     raceType: '',
     raceDate: '',
@@ -53,7 +64,7 @@ export default function Home() {
     swimPace: '',
     experience: '',
     maxHours: '',
-    restDay: '',
+    restDay: ''
   });
 
   const [userNote, setUserNote] = useState('');
@@ -93,26 +104,36 @@ export default function Home() {
     setLoading(true);
     setShowOverlay(true);
     setError('');
-
+  
     try {
       const res = await fetch('/api/finalize-plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...formData, userNote }),
       });
-
+  
       if (!res.ok) throw new Error('Failed to finalize plan');
       const finalPlan = await res.json();
-
+  
+      console.log('📤 Saving to Supabase:', {
+        plan: finalPlan,
+        raceType: formData.raceType,
+        raceDate: formData.raceDate,
+        userNote: userNote || '',
+      });
+  
+      // 🧠 Get Supabase session properly
       const { data: { session } } = await supabase.auth.getSession();
-      const access_token = session?.access_token;
-      if (!access_token) throw new Error('No Supabase access token found');
+const access_token = session?.access_token
 
+if (!access_token) throw new Error('No Supabase access token found');;      
+  
+      // 2. Save to Supabase
       const saveRes = await fetch('/api/save-plan', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${access_token}`,
+          Authorization: Bearer ${access_token},
         },
         body: JSON.stringify({
           plan: finalPlan,
@@ -121,8 +142,10 @@ export default function Home() {
           userNote: userNote || '',
         }),
       });
-
-      await saveRes.json();
+  
+      const saveResult = await saveRes.json();
+      console.log('✅ Supabase response:', saveResult);
+  
       localStorage.setItem('trainGPTPlan', JSON.stringify(finalPlan));
       router.push('/schedule');
     } catch (err: any) {
@@ -132,7 +155,6 @@ export default function Home() {
       setLoading(false);
     }
   };
-
   return (
     <div className="min-h-screen bg-white text-gray-900">
       <main className="max-w-4xl mx-auto px-6 py-16">
@@ -145,7 +167,29 @@ export default function Home() {
 
         {!previewPlan && (
           <form onSubmit={handlePreview} className="bg-gray-50 border border-gray-200 shadow-sm rounded-xl p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-            {[ /* Inputs omitted for brevity - keep your version here */ ]}
+            {[
+              { id: 'raceType', label: 'Race Type', type: 'select', options: ['Half Ironman (70.3)', 'Ironman (140.6)', 'Olympic', 'Sprint'] },
+              { id: 'raceDate', label: 'Race Date', type: 'date' },
+              { id: 'bikeFTP', label: 'Bike FTP (watts)', type: 'number' },
+              { id: 'runPace', label: 'Run Threshold Pace (min/mi)', type: 'text', placeholder: 'e.g. 7:30' },
+              { id: 'swimPace', label: 'Swim Threshold Pace (per 100m)', type: 'text', placeholder: 'e.g. 1:38' },
+              { id: 'experience', label: 'Experience Level', type: 'select', options: ['Beginner', 'Intermediate', 'Advanced'] },
+              { id: 'maxHours', label: 'Max Weekly Training Hours', type: 'number' },
+              { id: 'restDay', label: 'Preferred Rest Day', type: 'select', options: ['Sunday', 'Monday', 'Friday'] }
+            ].map(({ id, label, type, options, placeholder }) => (
+              <div key={id}>
+                <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+                {type === 'select' ? (
+                  <select id={id} name={id} onChange={handleChange} className="w-full bg-white border border-gray-300 rounded-md p-2 text-sm">
+                    <option value="">Select...</option>
+                    {options?.map(opt => <option key={opt}>{opt}</option>)}
+                  </select>
+                ) : (
+                  <input type={type} id={id} name={id} placeholder={placeholder} onChange={handleChange} className="w-full bg-white border border-gray-300 rounded-md p-2 text-sm" />
+                )}
+              </div>
+            ))}
+
             <div className="md:col-span-2">
               <label htmlFor="userNote" className="block text-sm font-medium text-gray-700 mb-1">Customize your plan (optional)</label>
               <textarea
@@ -158,6 +202,7 @@ export default function Home() {
                 className="w-full bg-white border border-gray-300 rounded-md p-2 text-sm"
               />
             </div>
+
             <div className="md:col-span-2 text-center mt-4">
               <button type="submit" disabled={loading} className="bg-black text-white px-8 py-3 rounded-full font-medium hover:bg-gray-800 disabled:opacity-50">
                 {loading ? 'Generating...' : 'Preview Plan'}
@@ -198,7 +243,7 @@ export default function Home() {
           <div className="grid gap-6 md:grid-cols-3">
             {blogPosts.map(({ title, description, tag, date, href, image }) => (
               <Link key={href} href={href} className="block rounded-2xl overflow-hidden hover:shadow-xl transition">
-                <div className="h-48 bg-cover bg-center" style={{ backgroundImage: `url(${image})` }}></div>
+                <div className="h-48 bg-cover bg-center" style={{ backgroundImage: url(${image}) }}></div>
                 <div className="p-4">
                   <p className="text-sm text-gray-500 mb-1">{tag} · {date}</p>
                   <h3 className="text-lg font-semibold leading-tight mb-1">{title}</h3>
@@ -212,7 +257,7 @@ export default function Home() {
 
       {showOverlay && (
         <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex-col items-center justify-center flex">
-          <div className="w-12 h-12 border-4 border-white border-t-transparent border-b-transparent rounded-full animate-spin mb-6" />
+          <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-white mb-6" />
           <p className="text-white text-lg font-medium text-center max-w-xs">{randomQuote}</p>
         </div>
       )}
