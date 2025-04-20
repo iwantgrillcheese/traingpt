@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useEffect } from 'react'
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-const supabase = createClientComponentClient();
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import Footer from '../components/footer';
+
+const supabase = createClientComponentClient();
 
 const quotes = [
   "Don't count the days, make the days count.",
@@ -45,17 +45,6 @@ const blogPosts = [
 
 export default function Home() {
   const router = useRouter();
-  useEffect(() => {
-    (async () => {
-  
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-  
-      console.log('🧪 SESSION LOG:', session);
-    })();
-  }, []);
-
   const [formData, setFormData] = useState({
     raceType: '',
     raceDate: '',
@@ -72,7 +61,14 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showOverlay, setShowOverlay] = useState(false);
-  const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
+  const [quote, setQuote] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('🧪 SESSION LOG:', session);
+    })();
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -81,9 +77,9 @@ export default function Home() {
 
   const handlePreview = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setQuote(quotes[Math.floor(Math.random() * quotes.length)]);
     setLoading(true);
     setError('');
-
     try {
       const res = await fetch('/api/preview-plan', {
         method: 'POST',
@@ -101,39 +97,29 @@ export default function Home() {
   };
 
   const handleFinalize = async () => {
+    setQuote(quotes[Math.floor(Math.random() * quotes.length)]);
     setLoading(true);
     setShowOverlay(true);
     setError('');
-  
     try {
       const res = await fetch('/api/finalize-plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...formData, userNote }),
       });
-  
+
       if (!res.ok) throw new Error('Failed to finalize plan');
       const finalPlan = await res.json();
-  
-      console.log('📤 Saving to Supabase:', {
-        plan: finalPlan,
-        raceType: formData.raceType,
-        raceDate: formData.raceDate,
-        userNote: userNote || '',
-      });
-  
-      // 🧠 Get Supabase session properly
-      const { data: { session } } = await supabase.auth.getSession();
-const access_token = session?.access_token
 
-if (!access_token) throw new Error('No Supabase access token found');;      
-  
-      // 2. Save to Supabase
+      const { data: { session } } = await supabase.auth.getSession();
+      const access_token = session?.access_token;
+      if (!access_token) throw new Error('No Supabase access token found');
+
       const saveRes = await fetch('/api/save-plan', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: Bearer ${access_token},
+          Authorization: `Bearer ${access_token}`,
         },
         body: JSON.stringify({
           plan: finalPlan,
@@ -142,10 +128,10 @@ if (!access_token) throw new Error('No Supabase access token found');;
           userNote: userNote || '',
         }),
       });
-  
+
       const saveResult = await saveRes.json();
       console.log('✅ Supabase response:', saveResult);
-  
+
       localStorage.setItem('trainGPTPlan', JSON.stringify(finalPlan));
       router.push('/schedule');
     } catch (err: any) {
@@ -153,10 +139,22 @@ if (!access_token) throw new Error('No Supabase access token found');;
       setError(err.message || 'Something went wrong');
     } finally {
       setLoading(false);
+      setShowOverlay(false);
     }
   };
+
   return (
-    <div className="min-h-screen bg-white text-gray-900">
+    <div className="min-h-screen bg-white text-gray-900 relative">
+      {(loading || showOverlay) && (
+        <div className="fixed inset-0 z-50 bg-white bg-opacity-90 flex flex-col items-center justify-center text-center px-6">
+          <div className="w-12 h-12 mb-4 relative">
+            <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
+            <div className="absolute inset-0 rounded-full border-4 border-t-black border-b-transparent animate-spin"></div>
+          </div>
+          <p className="text-lg text-gray-700 font-medium italic">{quote}</p>
+        </div>
+      )}
+
       <main className="max-w-4xl mx-auto px-6 py-16">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-semibold tracking-tight">Smarter Endurance Plans. Instantly.</h1>
@@ -205,7 +203,7 @@ if (!access_token) throw new Error('No Supabase access token found');;
 
             <div className="md:col-span-2 text-center mt-4">
               <button type="submit" disabled={loading} className="bg-black text-white px-8 py-3 rounded-full font-medium hover:bg-gray-800 disabled:opacity-50">
-                {loading ? 'Generating...' : 'Preview Plan'}
+                Preview Plan
               </button>
             </div>
           </form>
@@ -229,7 +227,7 @@ if (!access_token) throw new Error('No Supabase access token found');;
 
             <div className="mt-8 text-center space-x-4">
               <button onClick={handleFinalize} disabled={loading} className="px-6 py-3 bg-black text-white font-semibold rounded-full hover:bg-gray-800 transition disabled:opacity-50">
-                {loading ? 'Saving Plan...' : '✅ Finalize Plan'}
+                ✅ Finalize Plan
               </button>
               <button onClick={() => setPreviewPlan(null)} className="mt-3 px-6 py-2 bg-white border border-gray-300 text-gray-700 rounded-full hover:bg-gray-50 transition">
                 ⏪ Go Back
@@ -243,7 +241,7 @@ if (!access_token) throw new Error('No Supabase access token found');;
           <div className="grid gap-6 md:grid-cols-3">
             {blogPosts.map(({ title, description, tag, date, href, image }) => (
               <Link key={href} href={href} className="block rounded-2xl overflow-hidden hover:shadow-xl transition">
-                <div className="h-48 bg-cover bg-center" style={{ backgroundImage: url(${image}) }}></div>
+                <div className="h-48 bg-cover bg-center" style={{ backgroundImage: `url(${image})` }}></div>
                 <div className="p-4">
                   <p className="text-sm text-gray-500 mb-1">{tag} · {date}</p>
                   <h3 className="text-lg font-semibold leading-tight mb-1">{title}</h3>
@@ -254,13 +252,6 @@ if (!access_token) throw new Error('No Supabase access token found');;
           </div>
         </section>
       </main>
-
-      {showOverlay && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex-col items-center justify-center flex">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-white mb-6" />
-          <p className="text-white text-lg font-medium text-center max-w-xs">{randomQuote}</p>
-        </div>
-      )}
 
       <Footer />
     </div>
