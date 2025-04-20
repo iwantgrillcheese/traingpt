@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { differenceInCalendarDays, addDays, isAfter } from 'date-fns';
+import { differenceInCalendarDays, startOfWeek, addDays, isAfter } from 'date-fns';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 export default function CoachingDashboard() {
@@ -35,8 +35,11 @@ export default function CoachingDashboard() {
 
     if (!plans) return;
     const parsed = plans.plan;
-    if (!Array.isArray(parsed)) return;
-    const planStartDate = new Date(Object.keys(parsed[0]?.days || {})[0] || new Date());
+
+    if (!Array.isArray(parsed)) {
+      console.error('[COACHING_TAB] Invalid or missing plan data:', parsed);
+      return;
+    }
 
     setPlan(parsed);
     setRaceDate(plans.race_date || null);
@@ -55,9 +58,23 @@ export default function CoachingDashboard() {
     let longest = '';
     let completedCount = 0, plannedCount = 0;
 
-    const today = new Date();
     const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     const upcoming: { date: string; label: string; status: string }[] = [];
+
+    // Try to identify the plan's real start date
+    let planStartDate = new Date();
+    outer: for (const week of parsed) {
+      for (const day of Object.keys(week.days || {})) {
+        const sessions = week.days?.[day];
+        if (sessions && sessions.length > 0) {
+          const dayIndex = daysOfWeek.indexOf(day);
+          if (dayIndex >= 0) {
+            planStartDate = addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), dayIndex - new Date().getDay());
+            break outer;
+          }
+        }
+      }
+    }
 
     parsed.forEach((week: any, wIdx: number) => {
       const weekStart = addDays(planStartDate, wIdx * 7);
@@ -72,7 +89,7 @@ export default function CoachingDashboard() {
           const completedSession = completed?.find((item) => item.date === sessionDateStr && item.sport.toLowerCase() === s.toLowerCase());
           const status = completedSession?.status || 'none';
 
-          if (sessionDate <= addDays(today, 0)) {
+          if (sessionDate <= new Date()) {
             if (!s.toLowerCase().includes('rest')) plannedCount++;
             if (status === 'done') {
               completedCount++;
@@ -92,7 +109,7 @@ export default function CoachingDashboard() {
             }
           }
 
-          if (isAfter(sessionDate, today)) {
+          if (isAfter(sessionDate, new Date())) {
             upcoming.push({
               date: sessionDate.toDateString(),
               label: `${day}: ${s}`,
