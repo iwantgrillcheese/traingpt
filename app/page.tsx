@@ -22,9 +22,19 @@ const quotes = [
   "The only bad workout is the one you didn’t do."
 ];
 
+type FieldConfig = {
+  id: string;
+  label: string;
+  type: 'text' | 'number' | 'select' | 'date';
+  options?: string[];
+  placeholder?: string;
+};
+
 export default function Home() {
   const router = useRouter();
   const [session, setSession] = useState<Session | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [userNote, setUserNote] = useState('');
   const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
 
   useEffect(() => {
@@ -52,9 +62,22 @@ export default function Home() {
     router.push('/login');
   };
 
+  const beginnerFields: FieldConfig[] = [
+    { id: 'raceType', label: 'Race Type', type: 'text' },
+    { id: 'raceDate', label: 'Race Date', type: 'text' },
+    { id: 'maxHours', label: 'Max Weekly Training Hours', type: 'text' },
+    { id: 'experience', label: 'Experience Level', type: 'select', options: ['Beginner', 'Intermediate', 'Advanced'] }
+  ];
+
+  const advancedFields: FieldConfig[] = [
+    { id: 'bikeFTP', label: 'Bike FTP', type: 'text' },
+    { id: 'runPace', label: 'Run Pace', type: 'text' },
+    { id: 'swimPace', label: 'Swim Pace', type: 'text' },
+    { id: 'restDay', label: 'Preferred Rest Day', type: 'select', options: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] }
+  ];
+
   return (
     <div className="min-h-screen bg-white text-gray-900">
-      {/* 👇 Form Section: stays narrow */}
       <main className="max-w-4xl mx-auto px-6 py-16">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-semibold tracking-tight">
@@ -65,28 +88,62 @@ export default function Home() {
           </p>
         </div>
 
-        <form className="bg-gray-50 border border-gray-200 shadow-sm rounded-xl p-8 grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-          {[
-            "Race Type",
-            "Race Date",
-            "Bike FTP",
-            "Run Pace",
-            "Swim Pace",
-            "Experience",
-            "Max Hours",
-            "Rest Day"
-          ].map((label, i) => (
-            <div key={i}>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {label}
-              </label>
-              <input
-                disabled
-                placeholder="..."
-                className="w-full bg-white border border-gray-300 rounded-md p-2 text-sm opacity-50 cursor-not-allowed"
-              />
+        <form className="bg-gray-50 border border-gray-200 shadow-sm rounded-xl p-8 grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          {[...beginnerFields, ...(showAdvanced ? advancedFields : [])].map(({ id, label, type, options }) => (
+            <div key={id}>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+              {type === 'select' ? (
+                <select
+                  disabled
+                  className="w-full bg-white border border-gray-300 rounded-md p-2 text-sm opacity-50 cursor-not-allowed"
+                >
+                  <option value="">Select...</option>
+                  {options?.map(opt => (
+                    <option key={opt}>{opt}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  disabled
+                  placeholder="..."
+                  className="w-full bg-white border border-gray-300 rounded-md p-2 text-sm opacity-50 cursor-not-allowed"
+                />
+              )}
             </div>
           ))}
+
+          <div className="md:col-span-2">
+            <label htmlFor="userNote" className="block text-sm font-medium text-gray-700 mb-1">
+              Customize your plan (optional)
+            </label>
+            <textarea
+              id="userNote"
+              rows={3}
+              value={userNote}
+              onChange={e => setUserNote(e.target.value)}
+              placeholder="E.g. I’m targeting a 1:30 half marathon off the bike and need help with swim fitness..."
+              disabled
+              className="w-full bg-white border border-gray-300 rounded-md p-2 text-sm opacity-50 cursor-not-allowed"
+            />
+          </div>
+
+          <div className="md:col-span-2 flex items-center justify-center space-x-3 mt-2">
+            <span className="text-sm text-gray-600">Advanced Options</span>
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                showAdvanced ? 'bg-black' : 'bg-gray-300'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  showAdvanced ? 'translate-x-5' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+
           <div className="md:col-span-2 text-center mt-4">
             <button
               type="button"
@@ -99,7 +156,6 @@ export default function Home() {
         </form>
       </main>
 
-      {/* 👇 Blog Section: wider like OpenAI's */}
       <div className="max-w-screen-xl mx-auto px-6">
         <BlogPreview />
       </div>
