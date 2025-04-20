@@ -256,12 +256,11 @@ if (!access_token) throw new Error('No Supabase access token found');;
       </main>
 
       {showOverlay && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
-    <div className="text-6xl text-white mb-6 transition-opacity duration-500 ease-in-out">
-      {['🏊', '🚴', '🏃'][Math.floor(Date.now() / 1500) % 3]}
-    </div>
-    <p className="text-white text-lg font-medium text-center max-w-xs px-6">{randomQuote}</p>
-  </div>
+ <div className="relative w-12 h-12 mb-6">
+ <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
+ <div className="absolute inset-0 rounded-full border-4 border-t-black border-b-transparent animate-spin"></div>
+</div>
+
 )}
 
 
