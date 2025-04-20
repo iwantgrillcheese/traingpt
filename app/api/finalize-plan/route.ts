@@ -29,61 +29,60 @@ export async function POST(req: Request) {
   const model = useGPT4 ? 'gpt-4-turbo' : 'gpt-3.5-turbo';
 
   const prompt = `
-You are a JSON API that returns only valid JSON. You are also a world-class triathlon coach.
+You are a JSON API that returns only valid JSON. You are also a world-class triathlon coach who specializes in Half Ironman (70.3), Ironman (140.6), and Olympic-distance training.
 
-Your job is to create a structured training plan that starts on the most recent Monday and ends on the athlete's race day. The plan should follow expert principles of endurance training and periodization.
+Your job is to generate a **complete training plan** that starts on the most recent Monday and ends **exactly on race day** (${body.raceDate}). The plan must reflect expert-level periodization and realistic endurance coaching principles.
 
 ---
 
-Athlete Info:
+Athlete Profile:
 - Race Type: ${body.raceType}
 - Race Date: ${body.raceDate}
 - Bike FTP: ${body.bikeFTP || 'Not provided'}
 - Run Threshold Pace: ${body.runPace || 'Not provided'}
 - Swim Threshold Pace: ${body.swimPace || 'Not provided'}
-- Experience: ${body.experience}
-- Max Weekly Hours: ${body.maxHours}
+- Experience Level: ${body.experience}
+- Max Weekly Training Hours: ${body.maxHours}
 - Preferred Rest Day: ${body.restDay || 'Sunday'}
 - Today's Date: ${new Date().toISOString().split('T')[0]}
 
 ---
 
-Instructions:
-1. The plan must end exactly on race day: ${body.raceDate}. Race day must be the **last session**.
-2. Start on the most recent Monday before today.
-3. Each week should:
-   - Have a clear label (e.g. "Week 4: Build Volume")
-   - Include a short focus summary
-   - Contain a "days" object with 7 keys (ISO 8601 dates), each mapping to an array of 0–2 short session strings
-   - Each session should look like: "🏃 Run: 40min Z2" or "🚴 Bike: 3×8min @ FTP"
-4. Use pacing or power targets only if provided.
-5. Taper should begin **2 weeks before race day**. No sooner. Keep intensity but reduce volume.
-6. Include 1 full rest day per week on the athlete's preferred day.
-7. Include at least 1 brick session per week after the base phase.
-8. Long workouts should scale based on the race type (e.g., 3hr bikes for Half Ironman).
+Training Plan Rules:
+1. **Start on a Monday**, end on ${body.raceDate}, which must be the final session: 🌟 Race Day: ${body.raceType}
+2. Build from **base → build → peak → taper → race week**
+3. **Taper must begin exactly 7 days before race day**. Maintain intensity, reduce volume. Avoid early taper.
+4. Include 1 full rest day per week (on athlete’s preferred day)
+5. Include 1 brick per week after base phase
+6. Sessions must be realistic — no 2hr runs for Sprint, no 45min bike for Ironman, etc.
+7. Weekly focus and structure should reflect real-world coaching logic, not random volume stacking
+8. Optional testing: include 1–2 threshold test sessions early in the plan if appropriate
+9. Use pacing/power targets if provided, otherwise use terms like “easy aerobic,” “moderate,” or “race pace”
 
 ---
 
-Return JSON in this format:
+Output Format:
+Return a JSON object:
 {
   "plan": [
     {
       "label": "Week 1: Base Endurance",
-      "focus": "Build foundational aerobic fitness",
+      "focus": "Build foundational aerobic fitness and perform light testing",
       "days": {
-        "2025-04-14": ["Rest day"],
-        "2025-04-15": ["🏊 Swim: 1500m easy", "🏃 Run: 30min Z2"],
+        "2025-04-21": ["🏊 Swim: 1500m aerobic", "🏃 Run: 30min Z2"],
         ...
+        "2025-04-27": ["Rest day"]
       }
     },
     ...
   ]
 }
 
-- Do not include markdown or explanation.
-- Return only valid JSON.
-- Race Day must appear as the final session, with this exact label:
-  "🌟 Race Day: ${body.raceType}"
+- Each key in “days” must be a valid ISO 8601 date (YYYY-MM-DD)
+- Each value is a list of up to 2 session strings
+- Final session must be “🌟 Race Day: ${body.raceType}” on ${body.raceDate}
+- Do not include markdown, comments, or explanation
+- Return only the raw JSON
 `;
 
   try {
