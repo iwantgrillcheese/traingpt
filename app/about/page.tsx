@@ -13,9 +13,6 @@ export default function AboutPage() {
       I’m a triathlete who was training for my fourth 70.3 and trying to get a bit faster. I wasn’t ready—or training seriously enough—to justify hiring a coach, so I used ChatGPT to help build my plan. It worked reasonably well but definitely not ideal.
       </p>
       <p className="text-gray-700 leading-relaxed mt-4">
-        I’d ask for a plan, tweak it manually, copy it into Intervals.icu so I could follow it, and then try to get feedback by pasting my Strava sessions back into ChatGPT. It kinda worked, but it was clunky a bit disorganized etc.
-      </p>
-      <p className="text-gray-700 leading-relaxed mt-4">
         When I started training again for Santa Cruz 70.3, I figured I’d clean it up. That’s what this is:
       </p>
       <ul className="list-disc list-inside mt-4 text-gray-700">
