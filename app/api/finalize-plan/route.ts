@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { differenceInWeeks } from 'date-fns';
 import OpenAI from 'openai';
 import { cookies } from 'next/headers';
-import { createPagesServerClient } from '@supabase/auth-helpers-nextjs';
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -13,7 +13,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 export async function POST(req: Request) {
   const body = await req.json();
 
-  const supabase = createPagesServerClient({ cookies });
+  const supabase = createServerComponentClient({ cookies });
 
   const {
     data: { session },
