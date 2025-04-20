@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
 import { NextResponse } from 'next/server';
 import { differenceInWeeks } from 'date-fns';
 
