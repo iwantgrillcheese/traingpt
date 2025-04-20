@@ -1,10 +1,18 @@
-export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
-
 import { NextResponse } from 'next/server';
 import { differenceInWeeks } from 'date-fns';
+import OpenAI from 'openai';
+import { createClient } from '@supabase/supabase-js';
 
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 export const runtime = 'nodejs';
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export async function POST(req: Request) {
   const body = await req.json();
@@ -104,26 +112,42 @@ Each session string should look like:
 ⚠️ Only return the raw JSON object. No markdown or explanation.
 `;
 
+  const completion = await openai.chat.completions.create({
+    model,
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.7,
+  });
+
+  const content = completion.choices[0]?.message?.content || '{}';
+
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.7,
-      }),
+    const clean = content.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+
+    const supabaseClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+
+    const {
+      data: { session },
+    } = await supabaseClient.auth.getSession();
+
+    const user_id = session?.user?.id;
+
+    if (!user_id) {
+      return NextResponse.json({ error: 'No Supabase access token found' }, { status: 401 });
+    }
+
+    await supabaseClient.from('plans').upsert({
+      user_id,
+      plan: parsed.plan,
+      coach_note: parsed.coachNote,
     });
 
-    const raw = await response.text();
-    const content = raw.startsWith('{') ? raw : '{}';
-    const parsed = JSON.parse(content);
-    return NextResponse.json(parsed);
+    return NextResponse.json({ success: true });
   } catch (err) {
-    console.error('Failed to fetch or parse plan:', err);
-    return NextResponse.json({ error: 'Failed to parse plan.' }, { status: 500 });
+    console.error('Failed to finalize plan:', err);
+    return NextResponse.json({ error: 'Failed to finalize plan.' }, { status: 500 });
   }
 }
