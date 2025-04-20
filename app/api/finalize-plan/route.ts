@@ -29,9 +29,7 @@ export async function POST(req: Request) {
   const model = useGPT4 ? 'gpt-4-turbo' : 'gpt-3.5-turbo';
 
   const prompt = `
-You are a JSON API that replies with valid JSON only. You are a world-class triathlon coach building a structured, personalized training plan that ends on the athlete’s race day.
-
-Use your elite coaching expertise to design a periodized, realistic plan tailored to the athlete’s race type, experience, and available training time. Plans should build week to week and conclude with a confident taper into race day.
+You are a JSON API that replies with valid JSON only. You are a world-class triathlon coach creating a structured training plan that ends on race day (${body.raceDate}).
 
 ---
 
@@ -46,62 +44,65 @@ Athlete Profile:
 - Preferred Rest Day: ${body.restDay || 'None specified'}
 
 Today's date is ${new Date().toISOString().split('T')[0]}.
-There are ${planLengthWeeks} full calendar weeks between now and race week.
-
-Important constraints:
-- The plan must start on the most recent Monday that aligns with a clean training progression and ends on race day (${body.raceDate}).
-- Race Day must be the **final session** of the plan and occur **exactly on ${body.raceDate}**.
-- Each day key must be a full ISO 8601 date string: "YYYY-MM-DD".
-- Label Race Day exactly like this: “🌟 Race Day: ${body.raceType}”
+There are ${planLengthWeeks} full training weeks before race week.
 
 ---
 
-Additional Notes from Athlete:
-${body.userNote || 'None'}
+📌 Absolute Rules:
+- The training plan **must end on race day: ${body.raceDate}**
+- Race Day must be the **final session** of the final week, labeled: “🌟 Race Day: ${body.raceType}”
+- Race week must start on the **Monday before ${body.raceDate}** and include ${body.raceDate} itself.
+- Each week object should include:
+  - label (e.g. "Week 6: Taper & Race Week")
+  - focus (short 1-sentence summary)
+  - days: a map of ISO dates (YYYY-MM-DD) to 0–2 session strings
 
 ---
 
-Plan Generation Rules:
-1. Periodize clearly: base → build → peak → taper → race week
-2. Each week includes:
-   - label: (e.g. “Week 4: Aerobic Threshold Focus”)
-   - focus: a short 1-sentence summary
-   - days: an object where each key is an ISO date (e.g. "2025-05-12") and the value is a list of 0–2 sessions
-
-3. Weekly structure:
-   - Include 1 rest day per week on their preferred day (or Sunday if not specified)
-   - Brick workouts 1x/week after base phase
-   - Long workouts should scale with race type
-
-4. Pacing/Intensity Guidelines:
-   - Use threshold paces or power **only if provided**
-   - Otherwise, use general effort levels like "easy", "moderate", "race pace"
-
-5. Experience Level Guidance:
-   - Beginner: simple structure, fewer intervals
-   - Advanced: more specificity, intensity, and variety
-
----
-
-Coach Note:
-Write a warm, short note from a supportive coach. Make it sound human.
-Example: “Hey Cam — here’s a 12-week Olympic plan. First few weeks are base fitness, then we layer in intensity, and finally we taper to race day. Stick with it — you’re gonna crush it.”
+💡 Formatting Instructions:
+Return a **single JSON object** like this:
+{
+  coachNote: string,
+  plan: [
+    {
+      label: string,
+      focus: string,
+      days: {
+        "2025-04-14": ["🏊 Swim: 3×400m aerobic"],
+        "2025-04-15": ["🚴 Bike: 60min Z2", "🏃 Run: 20min off bike"],
+        ...
+        "2025-05-31": ["🌟 Race Day: Olympic"]
+      }
+    },
+    ...
+  ]
+}
 
 ---
 
-Final Output Format:
-Return a single JSON object with:
-- coachNote: string
-- plan: array of week objects
+📚 Plan Guidelines:
+1. Periodization: base → build → peak → taper → race week
+2. Include 1 rest day per week (use preferred rest day if given)
+3. Brick sessions: 1x/week after base phase
+4. Use provided pacing data (FTP / threshold pace) only if given
+5. Respect race type — don’t overbuild (e.g., no 2hr runs for Sprint)
+6. Vary focus and session types week to week
+7. Keep weekday sessions shorter than weekends unless noted
 
-Each week object must include:
-- label: string
-- focus: string
-- days: { ISO_DATE: [“🏊 Swim: 3×400m aerobic”, “🏃 Run: 30min easy”] }
+---
 
-⚠️ Do not skip Race Day. It must appear as the final session, and must be on ${body.raceDate}.
-⚠️ Only return the raw JSON object — no markdown, no extra explanation.
+📣 Coach Note:
+Write a short, warm message as if you're a real triathlon coach. Reference the overall structure and motivate the athlete.
+Example: "Hey Cam — here’s your 6-week plan leading into your Olympic race. We'll start with aerobic base, build up volume and race-specific efforts, then taper into race day. Let’s go crush it."
+
+---
+
+⚠️ Warnings:
+- Race Day (${body.raceDate}) must appear as the final session
+- Do not return markdown, only raw JSON
+- Do not include explanation or surrounding text — only the final JSON object
 `;
+
   
   try {
     const completion = await openai.chat.completions.create({
