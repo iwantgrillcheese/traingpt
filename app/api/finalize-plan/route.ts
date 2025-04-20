@@ -1,10 +1,7 @@
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import { differenceInWeeks } from 'date-fns';
 
-export const runtime = 'nodejs'; // ✅ This is the correct config for Vercel App Router
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+export const runtime = 'nodejs';
 
 export async function POST(req: Request) {
   const body = await req.json();
@@ -104,19 +101,26 @@ Each session string should look like:
 ⚠️ Only return the raw JSON object. No markdown or explanation.
 `;
 
-  const completion = await openai.chat.completions.create({
-    model,
-    messages: [{ role: 'user', content: prompt }],
-    temperature: 0.7,
-  });
-
-  const content = completion.choices[0]?.message?.content || '{}';
-
   try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+      }),
+    });
+
+    const raw = await response.text();
+    const content = raw.startsWith('{') ? raw : '{}';
     const parsed = JSON.parse(content);
     return NextResponse.json(parsed);
   } catch (err) {
-    console.error('Failed to parse plan:', err);
+    console.error('Failed to fetch or parse plan:', err);
     return NextResponse.json({ error: 'Failed to parse plan.' }, { status: 500 });
   }
 }
