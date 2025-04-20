@@ -2,114 +2,119 @@ import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { differenceInWeeks } from 'date-fns';
 
-export const runtime = 'edge';
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(req: Request) {
   const body = await req.json();
 
-  // 👇 Ensure the race week is included by rounding up
-  const planLengthWeeks = differenceInWeeks(
-    new Date(body.raceDate),
-    new Date()
-  ) + 1;
-
+  const planLengthWeeks = differenceInWeeks(new Date(body.raceDate), new Date());
   const useGPT4 = body.experience === 'Advanced';
   const model = useGPT4 ? 'gpt-4-turbo' : 'gpt-3.5-turbo';
 
-  const prompt = `🛑 ABSOLUTELY REQUIRED: The final week must end with "🌟 Race Day: ${body.raceType}" on ${body.raceDate}. This week is mandatory and counts as the last week in the plan. Never skip or shift it.
+  const prompt = `
+You are a world-class triathlon coach building a structured, personalized training plan that ends on the athlete’s race day.
 
-You are a world-class triathlon coach creating a peak performance training plan that ends exactly on the athlete's race date (${body.raceDate}).
+Use your elite coaching expertise to design a periodized, realistic plan tailored to the athlete’s race type, experience, and available training time. Plans should build week to week and conclude with a confident taper into race day.
 
-Use your elite triathlon coaching experience to build a complete, periodized training plan tailored to the athlete's profile. The plan must include clear week-level guidance and practical daily sessions.
+---
 
 Athlete Profile:
 - Race Type: ${body.raceType}
 - Race Date: ${body.raceDate}
-- Bike FTP: ${body.bikeFTP} watts
-- Run Threshold Pace: ${body.runPace} per mile
-- Swim Threshold Pace: ${body.swimPace} per 100m
+- Bike FTP: ${body.bikeFTP || 'Not provided'}
+- Run Threshold Pace: ${body.runPace || 'Not provided'}
+- Swim Threshold Pace: ${body.swimPace || 'Not provided'}
 - Experience Level: ${body.experience}
 - Max Weekly Training Hours: ${body.maxHours}
-- Preferred Rest Day: ${body.restDay}
+- Preferred Rest Day: ${body.restDay || 'None specified'}
 
 Today's date is ${new Date().toISOString().split('T')[0]}.
-Count backward from ${body.raceDate} to create ${planLengthWeeks} weeks of training. 
-The final week must taper and prepare the athlete to peak, ending with "🌟 Race Day: ${body.raceType}" on ${body.raceDate}.
+There are ${planLengthWeeks} full calendar weeks between now and race week.
+
+Important constraints:
+- The training plan must start on the Monday ${planLengthWeeks} weeks before race day.
+- Each week runs Monday to Sunday.
+- Race Day (${body.raceDate}) must be the **final session** of the entire plan.
+- Label it exactly: “🌟 Race Day: ${body.raceType}”
+- Include this final session **even if it’s not on a Sunday**. Do not omit it.
+
+---
 
 Additional Notes from Athlete:
 ${body.userNote || 'None'}
 
-Core Rules:
-- Periodize into base, build, peak, taper, and a final race week.
-- Each week must include:
-  - A label (e.g. "Week 3: Threshold Development")
-  - A one-sentence focus (e.g. "Sharpen bike power and improve tempo run durability.")
-- End the final week with a "🌟 Race Day: ${body.raceType}" session on ${body.raceDate}.
-- Include 1 full rest day weekly (on athlete's preferred day).
-- Use the athlete’s threshold pace and power zones to set intensity (no made-up numbers).
-- Sessions should vary: aerobic endurance, tempo, threshold, brick workouts, drills, open water, etc.
-- Each day has no more than 2 sessions, realistically scheduled.
-- Sessions and race plan should be specific to the distance of the race selected. (i.e. no 90 min long runs on a sprint plan)
-- Total weekly training volume should reflect the race type — shorter races require lower overall volume and less weekly load.
-- The training plan is the most important part of the output. Spend the majority of effort and detail on it.
+---
 
-In addition to the training plan, return a short message from the coach (3–6 sentences) as a "coachNote".
+Plan Generation Rules:
+1. Periodize clearly: base → build → peak → taper → race week
+2. Each week includes:
+   - label (e.g. “Week 4: Aerobic Threshold Focus”)
+   - focus: 1-sentence summary
+   - days: an object with 7 keys (Monday–Sunday), each listing 0–2 training sessions
+3. Weekly structure:
+   - Include 1 full rest day on their preferred day (or Sunday if not specified)
+   - Long workouts must reflect the race distance (e.g. no 2hr runs for Sprint races)
+   - Brick workouts encouraged 1× weekly after base phase
 
-This message should:
-- Greet the athlete (use their first name if you know it)
-- Summarize how the plan is structured
-- Acknowledge anything unusual (e.g., short ramp, aggressive goal)
-- Offer encouragement or a disclaimer
-- Be helpful, realistic, and confident — like a real coach
+4. Pacing/Intensity Guidelines:
+   - Use threshold paces or power **only if provided**
+   - If missing, use general descriptions (e.g. “easy aerobic”, “moderate effort”)
+   - Avoid artificial intensity numbers
+
+5. Experience Level Guidance:
+   - If Beginner: use simpler language, lower volume, fewer intervals
+   - If Advanced: allow more specificity, intensity, and structured work
+
+---
+
+Coach Note:
+Return a short paragraph as if you are a real, supportive triathlon coach. Be optimistic, practical, and conversational.
+Use this style:
+“Hey Cam — here’s a 12-week half ironman plan for you. It’s broken into three 4-week blocks. First we build base fitness, then we dial in volume and some speed, and finally we focus on race pace work and a proper taper. Don’t sweat if you miss a workout here or there — just stay consistent and you’ll be ready to crush race day.”
+
+This note should:
+- Greet the athlete by name if available
+- Reference the training block structure
+- Encourage consistency without perfection
+- Feel human, not robotic
+- Be warm, confident, and helpful
+
+---
 
 Final Output Format:
-Return a single JSON object with two keys:
+Return a single JSON object with:
+- coachNote: string (a short 3–6 sentence message to the athlete)
+- plan: array of week objects
 
-- coachNote: string — a short message from the coach
-- plan: array — a full training plan, where each item is a week
+Each week object must include:
+- label: string
+- focus: string
+- days: { Monday–Sunday }: 0–2 short string sessions per day
 
-Each week object in "plan" must include:
-- label: string (e.g. "Week 4: Threshold Block")
-- focus: string (summary of the week)
-- days: object with 7 keys (Monday–Sunday), each mapping to 0–2 short strings like:
-  - "🏊 Swim: 1500m aerobic @ 1:45/100m"
-  - "🚴 Bike: 3×10min @ 240w (Z4), 5min recovery"
-  - "🏃 Run: 45min progression run"
-  - "Rest day"
-  - "🌟 Race Day: ${body.raceType}"
+Each session string should look like:
+- “🏊 Swim: 3×400m aerobic”
+- “🚴 Bike: 4×8min @ threshold”
+- “🏃 Run: 40min progression run”
+- “Rest day”
+- “🌟 Race Day: ${body.raceType}”
 
-Only return the raw JSON object. Do not include markdown or extra commentary.`;
+⚠️ Do not skip race day. It must appear as the final entry, with that exact label.
+⚠️ Only return the raw JSON object. No markdown or explanation.
+`;
+
+  const completion = await openai.chat.completions.create({
+    model,
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.7,
+  });
+
+  const content = completion.choices[0]?.message?.content || '{}';
 
   try {
-    const completion = await openai.chat.completions.create({
-      model,
-      stream: true,
-      temperature: 0.7,
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream({
-      async start(controller) {
-        for await (const chunk of completion) {
-          const content = chunk.choices?.[0]?.delta?.content;
-          if (content) {
-            controller.enqueue(encoder.encode(content));
-          }
-        }
-        controller.close();
-      },
-    });
-
-    return new Response(stream, {
-      headers: {
-        'Content-Type': 'text/plain; charset=utf-8',
-      },
-    });
+    const parsed = JSON.parse(content);
+    return NextResponse.json(parsed);
   } catch (err) {
-    console.error('Streaming error:', err);
-    return NextResponse.json({ error: 'Failed to generate plan.' }, { status: 500 });
+    console.error('Failed to parse plan:', err);
+    return NextResponse.json({ error: 'Failed to parse plan.' }, { status: 500 });
   }
 }
