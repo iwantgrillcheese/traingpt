@@ -93,6 +93,8 @@ export default function SchedulePage() {
       return;
     }
 
+    console.log('Session object:', session); // 👈 inserted for debugging
+
     const user = session.user;
 
     const { error } = await supabase
