@@ -20,111 +20,120 @@ export default function CoachingDashboard() {
   const [upcomingSessions, setUpcomingSessions] = useState<{ date: string; label: string; status: string }[]>([]);
 
   const fetchPlanAndSessions = async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session?.user) return;
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session?.user) return;
 
-    const { data: plans } = await supabase
-      .from('plans')
-      .select('*')
-      .eq('user_id', session.user.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+  const { data: plans } = await supabase
+    .from('plans')
+    .select('*')
+    .eq('user_id', session.user.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
 
-    if (!plans) return;
-    const parsed = plans.plan;
+  if (!plans) return;
+  const parsed = plans.plan;
 
-    if (!Array.isArray(parsed)) {
-      console.error('[COACHING_TAB] Invalid or missing plan data:', parsed);
-      return;
-    }
+  if (!Array.isArray(parsed)) {
+    console.error('[COACHING_TAB] Invalid or missing plan data:', parsed);
+    return;
+  }
 
-    setPlan(parsed);
-    setRaceDate(plans.race_date || null);
-    setRaceType(plans.race_type || null);
+  setPlan(parsed);
+  setRaceDate(plans.race_date || null);
+  setRaceType(plans.race_type || null);
 
-    const storedActivation = localStorage.getItem('trainGPTActivated');
-    if (storedActivation === 'true') setActivated(true);
+  const storedActivation = localStorage.getItem('trainGPTActivated');
+  if (storedActivation === 'true') setActivated(true);
 
-    const { data: completed } = await supabase
-      .from('completed_sessions')
-      .select('*')
-      .eq('user_id', session.user.id);
+  const { data: completed } = await supabase
+    .from('completed_sessions')
+    .select('*')
+    .eq('user_id', session.user.id);
 
-    let swim = 0, bike = 0, run = 0, total = 0;
-    let maxMin = 0;
-    let longest = '';
-    let completedCount = 0, plannedCount = 0;
+  let swim = 0, bike = 0, run = 0, total = 0;
+  let maxMin = 0;
+  let longest = '';
+  let completedCount = 0, plannedCount = 0;
 
-    const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    const upcoming: { date: string; label: string; status: string }[] = [];
+  const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const upcoming: { date: string; label: string; status: string }[] = [];
 
-    // Try to identify the plan's real start date
-    let planStartDate = new Date();
-    outer: for (const week of parsed) {
-      for (const day of Object.keys(week.days || {})) {
-        const sessions = week.days?.[day];
-        if (sessions && sessions.length > 0) {
-          const dayIndex = daysOfWeek.indexOf(day);
-          if (dayIndex >= 0) {
-            planStartDate = addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), dayIndex - new Date().getDay());
-            break outer;
-          }
+  // Identify start date from first valid session
+  let planStartDate = new Date();
+  outer: for (const week of parsed) {
+    for (const day of Object.keys(week.days || {})) {
+      const sessions = week.days?.[day];
+      if (sessions && sessions.length > 0) {
+        const dayIndex = daysOfWeek.indexOf(day);
+        if (dayIndex >= 0) {
+          planStartDate = addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), dayIndex - new Date().getDay());
+          break outer;
         }
       }
     }
+  }
 
-    parsed.forEach((week: any, wIdx: number) => {
-      const weekStart = addDays(planStartDate, wIdx * 7);
+  parsed.forEach((week: any, wIdx: number) => {
+    const weekStart = addDays(planStartDate, wIdx * 7);
 
-      daysOfWeek.forEach((day, dIdx) => {
-        const sessions = week.days?.[day] || [];
-        const sessionList = Array.isArray(sessions) ? sessions : [sessions];
-        const sessionDate = addDays(weekStart, dIdx);
-        const sessionDateStr = sessionDate.toISOString().split('T')[0];
+    daysOfWeek.forEach((day, dIdx) => {
+      const sessions = week.days?.[day] || [];
+      const sessionList = Array.isArray(sessions) ? sessions : [sessions];
+      const sessionDate = addDays(weekStart, dIdx);
+      const sessionDateStr = sessionDate.toISOString().split('T')[0];
 
-        sessionList.forEach((s: string) => {
-          const completedSession = completed?.find((item) => item.date === sessionDateStr && item.sport.toLowerCase() === s.toLowerCase());
-          const status = completedSession?.status || 'none';
+      sessionList.forEach((s: string) => {
+        const completedSession = completed?.find((item) => item.date === sessionDateStr && item.sport.toLowerCase() === s.toLowerCase());
+        const status = completedSession?.status || 'none';
 
-          if (sessionDate <= new Date()) {
-            if (!s.toLowerCase().includes('rest')) plannedCount++;
-            if (status === 'done') {
-              completedCount++;
-              const sLower = s.toLowerCase();
-              if (sLower.includes('swim')) swim += 0.75;
-              else if (sLower.includes('bike')) bike += 1.2;
-              else if (sLower.includes('run')) run += 0.9;
+        // Count stats and compliance for current/past days
+        if (differenceInCalendarDays(sessionDate, new Date()) <= 0) {
+          if (!s.toLowerCase().includes('rest')) plannedCount++;
+          if (status === 'done') {
+            completedCount++;
+            const sLower = s.toLowerCase();
+            if (sLower.includes('swim')) swim += 0.75;
+            else if (sLower.includes('bike')) bike += 1.2;
+            else if (sLower.includes('run')) run += 0.9;
 
-              const timeMatch = s.match(/(\d+)(h|hr|hrs)?\s?(\d+)?(min)?/i);
-              if (timeMatch) {
-                const minTotal = (parseInt(timeMatch[1]) || 0) * 60 + (parseInt(timeMatch[3]) || 0);
-                if (minTotal > maxMin) {
-                  maxMin = minTotal;
-                  longest = s;
-                }
+            const timeMatch = s.match(/(\d+)(h|hr|hrs)?\s?(\d+)?(min)?/i);
+            if (timeMatch) {
+              const minTotal = (parseInt(timeMatch[1]) || 0) * 60 + (parseInt(timeMatch[3]) || 0);
+              if (minTotal > maxMin) {
+                maxMin = minTotal;
+                longest = s;
               }
             }
           }
+        }
 
-          if (isAfter(sessionDate, new Date())) {
-            upcoming.push({
-              date: sessionDate.toDateString(),
-              label: `${day}: ${s}`,
-              status
-            });
-          }
-        });
+        // Push upcoming sessions: today and future
+        if (differenceInCalendarDays(sessionDate, new Date()) >= 0) {
+          console.log('[DEBUG] Upcoming session:', sessionDateStr, s);
+          upcoming.push({
+            date: sessionDate.toDateString(),
+            label: `${day}: ${s}`,
+            status,
+          });
+        }
       });
     });
+  });
 
-    total = swim + bike + run;
-    setWeeklyStats({ swim: +swim.toFixed(1), bike: +bike.toFixed(1), run: +run.toFixed(1), total: +total.toFixed(1), longest: longest || 'N/A' });
-    setCompliance(plannedCount > 0 ? Math.round((completedCount / plannedCount) * 100) : 0);
-    setUpcomingSessions(upcoming.slice(0, 5));
-  };
+  total = swim + bike + run;
+  setWeeklyStats({
+    swim: +swim.toFixed(1),
+    bike: +bike.toFixed(1),
+    run: +run.toFixed(1),
+    total: +total.toFixed(1),
+    longest: longest || 'N/A'
+  });
+  setCompliance(plannedCount > 0 ? Math.round((completedCount / plannedCount) * 100) : 0);
+  setUpcomingSessions(upcoming.slice(0, 5));
+};
 
   useEffect(() => {
     fetchPlanAndSessions();
