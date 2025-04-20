@@ -35,6 +35,12 @@ export default function CoachingDashboard() {
 
     if (!plans) return;
     const parsed = plans.plan?.plan;
+
+    if (!Array.isArray(parsed)) {
+      console.error('[COACHING_TAB] Invalid or missing plan data:', parsed);
+      return;
+    }
+
     setPlan(parsed);
     setRaceDate(plans.race_date || null);
     setRaceType(plans.race_type || null);
