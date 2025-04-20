@@ -34,7 +34,7 @@ export default function CoachingDashboard() {
       .single();
 
     if (!plans) return;
-    const parsed = plans.plan?.plan;
+    const parsed = plans.plan;
 
     if (!Array.isArray(parsed)) {
       console.error('[COACHING_TAB] Invalid or missing plan data:', parsed);
