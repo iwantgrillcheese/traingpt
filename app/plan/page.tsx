@@ -2,9 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import Footer from '../components/footer';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 const supabase = createClientComponentClient();
 
@@ -16,34 +15,16 @@ const quotes = [
   "The only bad workout is the one you didn’t do."
 ];
 
-const blogPosts = [
-  {
-    title: 'Crush Your Brick Workouts',
-    description: 'How to train your body to switch from bike to run like a pro.',
-    tag: 'Training Tip',
-    date: 'Apr 16, 2025',
-    href: '/blog/brick-workouts',
-    image: '/tiles/brick.webp',
-  },
-  {
-    title: 'You Don’t Need More Motivation',
-    description: 'Consistency beats hype. Here’s how to build it.',
-    tag: 'Mindset',
-    date: 'Apr 15, 2025',
-    href: '/blog/consistency-vs-motivation',
-    image: '/tiles/consistency.webp',
-  },
-  {
-    title: 'How We Train Smarter with AI',
-    description: 'The coaching logic behind your plan and why it works.',
-    tag: 'Product',
-    date: 'Apr 14, 2025',
-    href: '/blog/ai-training-engine',
-    image: '/tiles/ai-engine.webp',
-  },
-];
+// ✅ Field config type
+type FieldConfig = {
+  id: string;
+  label: string;
+  type: 'text' | 'number' | 'select' | 'date';
+  options?: string[];
+  placeholder?: string;
+};
 
-export default function Home() {
+export default function PlanPage() {
   const router = useRouter();
   const [formData, setFormData] = useState({
     raceType: '',
@@ -53,22 +34,14 @@ export default function Home() {
     swimPace: '',
     experience: '',
     maxHours: '',
-    restDay: ''
+    restDay: '',
   });
-
   const [userNote, setUserNote] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [previewPlan, setPreviewPlan] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [showOverlay, setShowOverlay] = useState(false);
   const [quote, setQuote] = useState('');
-
-  useEffect(() => {
-    (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      console.log('🧪 SESSION LOG:', session);
-    })();
-  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -80,13 +53,14 @@ export default function Home() {
     setQuote(quotes[Math.floor(Math.random() * quotes.length)]);
     setLoading(true);
     setError('');
+
     try {
       const res = await fetch('/api/preview-plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, userNote }),
       });
-      if (!res.ok) throw new Error('Failed to generate preview.');
+      if (!res.ok) throw new Error('Failed to generate preview');
       const preview = await res.json();
       setPreviewPlan(preview);
     } catch (err: any) {
@@ -97,10 +71,9 @@ export default function Home() {
   };
 
   const handleFinalize = async () => {
-    setQuote(quotes[Math.floor(Math.random() * quotes.length)]);
     setLoading(true);
-    setShowOverlay(true);
     setError('');
+
     try {
       const res = await fetch('/api/finalize-plan', {
         method: 'POST',
@@ -130,7 +103,7 @@ export default function Home() {
       });
 
       const saveResult = await saveRes.json();
-      console.log('✅ Supabase response:', saveResult);
+      console.log('✅ Saved to Supabase:', saveResult);
 
       localStorage.setItem('trainGPTPlan', JSON.stringify(finalPlan));
       router.push('/schedule');
@@ -139,13 +112,26 @@ export default function Home() {
       setError(err.message || 'Something went wrong');
     } finally {
       setLoading(false);
-      setShowOverlay(false);
     }
   };
 
+  const beginnerFields: FieldConfig[] = [
+    { id: 'raceType', label: 'Race Type', type: 'select', options: ['Half Ironman (70.3)', 'Ironman (140.6)', 'Olympic', 'Sprint'] },
+    { id: 'raceDate', label: 'Race Date', type: 'date' },
+    { id: 'maxHours', label: 'Max Weekly Training Hours', type: 'number' },
+    { id: 'experience', label: 'Experience Level', type: 'select', options: ['Beginner', 'Intermediate', 'Advanced'] }
+  ];
+
+  const advancedFields: FieldConfig[] = [
+    { id: 'bikeFTP', label: 'Bike FTP (watts)', type: 'number' },
+    { id: 'runPace', label: 'Run Threshold Pace (min/mi)', type: 'text', placeholder: 'e.g. 7:30' },
+    { id: 'swimPace', label: 'Swim Threshold Pace (per 100m)', type: 'text', placeholder: 'e.g. 1:38' },
+    { id: 'restDay', label: 'Preferred Rest Day', type: 'select', options: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] },
+  ];
+
   return (
     <div className="min-h-screen bg-white text-gray-900 relative">
-      {(loading || showOverlay) && (
+      {(loading && !previewPlan) && (
         <div className="fixed inset-0 z-50 bg-white bg-opacity-90 flex flex-col items-center justify-center text-center px-6">
           <div className="w-12 h-12 mb-4 relative">
             <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
@@ -157,33 +143,38 @@ export default function Home() {
 
       <main className="max-w-4xl mx-auto px-6 py-16">
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-semibold tracking-tight">Smarter Endurance Plans. Instantly.</h1>
-          <p className="mt-3 text-gray-500 text-lg">Generate your personalized triathlon training plan in seconds.</p>
+          <h1 className="text-4xl font-semibold tracking-tight">Generate Your Plan</h1>
+          <p className="mt-3 text-gray-500 text-lg">We’ll personalize your training based on your inputs.</p>
         </div>
 
         {error && <p className="text-center text-red-600 mb-6 font-medium">{error}</p>}
 
         {!previewPlan && (
-          <form onSubmit={handlePreview} className="bg-gray-50 border border-gray-200 shadow-sm rounded-xl p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-            {[
-              { id: 'raceType', label: 'Race Type', type: 'select', options: ['Half Ironman (70.3)', 'Ironman (140.6)', 'Olympic', 'Sprint'] },
-              { id: 'raceDate', label: 'Race Date', type: 'date' },
-              { id: 'bikeFTP', label: 'Bike FTP (watts)', type: 'number' },
-              { id: 'runPace', label: 'Run Threshold Pace (min/mi)', type: 'text', placeholder: 'e.g. 7:30' },
-              { id: 'swimPace', label: 'Swim Threshold Pace (per 100m)', type: 'text', placeholder: 'e.g. 1:38' },
-              { id: 'experience', label: 'Experience Level', type: 'select', options: ['Beginner', 'Intermediate', 'Advanced'] },
-              { id: 'maxHours', label: 'Max Weekly Training Hours', type: 'number' },
-              { id: 'restDay', label: 'Preferred Rest Day', type: 'select', options: ['Sunday', 'Monday', 'Friday'] }
-            ].map(({ id, label, type, options, placeholder }) => (
+          <form onSubmit={handlePreview} className="bg-gray-50 border border-gray-200 shadow-sm rounded-xl p-8 grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            {[...beginnerFields, ...(showAdvanced ? advancedFields : [])].map(({ id, label, type, options, placeholder }) => (
               <div key={id}>
                 <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
                 {type === 'select' ? (
-                  <select id={id} name={id} onChange={handleChange} className="w-full bg-white border border-gray-300 rounded-md p-2 text-sm">
+                  <select
+                    id={id}
+                    name={id}
+                    value={formData[id as keyof typeof formData]}
+                    onChange={handleChange}
+                    className="w-full bg-white border border-gray-300 rounded-md p-2 text-sm"
+                  >
                     <option value="">Select...</option>
-                    {options?.map(opt => <option key={opt}>{opt}</option>)}
+                    {options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
                 ) : (
-                  <input type={type} id={id} name={id} placeholder={placeholder} onChange={handleChange} className="w-full bg-white border border-gray-300 rounded-md p-2 text-sm" />
+                  <input
+                    type={type}
+                    id={id}
+                    name={id}
+                    placeholder={placeholder}
+                    value={formData[id as keyof typeof formData]}
+                    onChange={handleChange}
+                    className="w-full bg-white border border-gray-300 rounded-md p-2 text-sm"
+                  />
                 )}
               </div>
             ))}
@@ -201,9 +192,30 @@ export default function Home() {
               />
             </div>
 
+            <div className="md:col-span-2 flex items-center justify-center space-x-3 mt-2">
+              <span className="text-sm text-gray-600">Advanced Options</span>
+              <button
+                type="button"
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  showAdvanced ? 'bg-black' : 'bg-gray-300'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    showAdvanced ? 'translate-x-5' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+
             <div className="md:col-span-2 text-center mt-4">
-              <button type="submit" disabled={loading} className="bg-black text-white px-8 py-3 rounded-full font-medium hover:bg-gray-800 disabled:opacity-50">
-                Preview Plan
+              <button
+                type="submit"
+                disabled={loading}
+                className="bg-black text-white px-8 py-3 rounded-full font-medium hover:bg-gray-800 disabled:opacity-50"
+              >
+                {loading ? 'Generating...' : 'Preview Plan'}
               </button>
             </div>
           </form>
@@ -224,35 +236,24 @@ export default function Home() {
                 </div>
               ))}
             </div>
-
             <div className="mt-8 text-center space-x-4">
-              <button onClick={handleFinalize} disabled={loading} className="px-6 py-3 bg-black text-white font-semibold rounded-full hover:bg-gray-800 transition disabled:opacity-50">
-                ✅ Finalize Plan
+              <button
+                onClick={handleFinalize}
+                disabled={loading}
+                className="px-6 py-3 bg-black text-white font-semibold rounded-full hover:bg-gray-800 transition disabled:opacity-50"
+              >
+                {loading ? 'Saving Plan...' : '✅ Finalize Plan'}
               </button>
-              <button onClick={() => setPreviewPlan(null)} className="mt-3 px-6 py-2 bg-white border border-gray-300 text-gray-700 rounded-full hover:bg-gray-50 transition">
+              <button
+                onClick={() => setPreviewPlan(null)}
+                className="mt-3 px-6 py-2 bg-white border border-gray-300 text-gray-700 rounded-full hover:bg-gray-50 transition"
+              >
                 ⏪ Go Back
               </button>
             </div>
           </div>
         )}
-
-        <section className="mt-24">
-          <h2 className="text-2xl font-semibold mb-4 tracking-tight">Everything You Need to Crush Your Training</h2>
-          <div className="grid gap-6 md:grid-cols-3">
-            {blogPosts.map(({ title, description, tag, date, href, image }) => (
-              <Link key={href} href={href} className="block rounded-2xl overflow-hidden hover:shadow-xl transition">
-                <div className="h-48 bg-cover bg-center" style={{ backgroundImage: `url(${image})` }}></div>
-                <div className="p-4">
-                  <p className="text-sm text-gray-500 mb-1">{tag} · {date}</p>
-                  <h3 className="text-lg font-semibold leading-tight mb-1">{title}</h3>
-                  <p className="text-sm text-gray-600 line-clamp-2">{description}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
       </main>
-
       <Footer />
     </div>
   );
