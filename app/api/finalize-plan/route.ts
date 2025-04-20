@@ -1,14 +1,18 @@
 import { NextResponse } from 'next/server';
 import { differenceInWeeks } from 'date-fns';
 import OpenAI from 'openai';
-import { cookies } from 'next/headers';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 export const runtime = 'nodejs';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export async function POST(req: Request) {
   const body = await req.json();
@@ -120,19 +124,29 @@ Each session string should look like:
     const clean = content.replace(/```json|```/g, '').trim();
     const parsed = JSON.parse(clean);
 
-    const supabase = createServerComponentClient({ cookies });
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    const user_id = session?.user?.id;
-
-    if (!user_id) {
+    // Use auth.getSession via a server call to Supabase API directly
+    const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+    if (!token) {
       return NextResponse.json({ error: 'No Supabase access token found' }, { status: 401 });
     }
 
-    await supabase.from('plans').upsert({
-      user_id,
+    const serverSupabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { global: { headers: { Authorization: `Bearer ${token}` } } }
+    );
+
+    const {
+      data: { user },
+      error: userError,
+    } = await serverSupabase.auth.getUser();
+
+    if (!user || userError) {
+      return NextResponse.json({ error: 'Unable to authenticate user.' }, { status: 401 });
+    }
+
+    await serverSupabase.from('plans').upsert({
+      user_id: user.id,
       plan: parsed.plan,
       coach_note: parsed.coachNote,
     });
