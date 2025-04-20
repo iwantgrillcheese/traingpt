@@ -49,7 +49,7 @@ Today's date is ${new Date().toISOString().split('T')[0]}.
 There are ${planLengthWeeks} full calendar weeks between now and race week.
 
 Important constraints:
-- The training plan must start on the Monday ${planLengthWeeks} weeks before race day.
+- The training plan must start on the most recent Monday that allows the final session to land on race day (${body.raceDate}). The final session must fall exactly on race day — do not include any workouts after this.
 - Each week runs Monday to Sunday.
 - Race Day (${body.raceDate}) must be the **final session** of the entire plan.
 - Label it exactly: “🌟 Race Day: ${body.raceType}”
@@ -115,7 +115,8 @@ Each session string should look like:
 - “Rest day”
 - “🌟 Race Day: ${body.raceType}”
 
-⚠️ Do not skip race day. It must appear as the final entry, with that exact label.
+⚠️ Do not skip race day. It must appear as the final entry, with that exact label. Make sure the race day date is the date the user put in the submission form.
+⚠️ Race Day must be the final session in the plan. There must be no sessions after it. The plan must start on a Monday and end exactly on ${body.raceDate}.
 ⚠️ Only return the raw JSON object. No markdown or explanation.
 `;
   
