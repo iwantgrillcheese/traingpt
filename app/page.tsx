@@ -15,7 +15,9 @@ const supabase = createClient(
 const quotes = [
   "Don't count the days, make the days count.",
   "Discipline is doing it when you don’t feel like it.",
+  "You do not rise to the level of your goals. You fall to the level of your systems.",
   "Train hard, race easy.",
+  "Success is peace of mind that is the direct result of self-satisfaction in knowing you did your best to become the best that you are capable of becoming",
   "Little by little, a little becomes a lot.",
   "The only bad workout is the one you didn’t do."
 ];
@@ -26,10 +28,25 @@ export default function Home() {
   const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-    });
-  }, []);
+    const checkSessionAndPlan = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setSession(session);
+
+      if (session?.user) {
+        const { data: plans, error } = await supabase
+          .from('plans')
+          .select('id')
+          .eq('user_id', session.user.id)
+          .limit(1);
+
+        if (!error && plans && plans.length > 0) {
+          router.push('/schedule');
+        }
+      }
+    };
+
+    checkSessionAndPlan();
+  }, [router]);
 
   const handleCTA = () => {
     router.push('/login');
