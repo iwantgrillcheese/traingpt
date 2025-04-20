@@ -109,30 +109,45 @@ export default function CoachingDashboard() {
 
   const daysLeft = raceDate ? differenceInCalendarDays(new Date(raceDate), new Date()) : null;
 
-  const askCoach = async () => {
-    if (!userQuestion) return;
-    setFeedbackLoading(true);
+const askCoach = async () => {
+  if (!userQuestion) return;
+  setFeedbackLoading(true);
 
-    try {
-      const res = await fetch('/api/coach-feedback', {
-        method: 'POST',
-        body: JSON.stringify({
-          completedSessions: plan.flatMap((week) => Object.entries(week.days || {}).flatMap(([day, val]) => Array.isArray(val) ? val.map(v => `${day}: ${v}`) : [`${day}: ${val}`])),
-          raceType,
-          experienceLevel,
-          userNote: userQuestion,
-        }),
-        headers: { 'Content-Type': 'application/json' },
-      });
-      const data = await res.json();
-      setCoachNote(data.feedback);
-    } catch (err) {
-      console.error(err);
-      alert('Error asking coach.');
-    } finally {
-      setFeedbackLoading(false);
+  try {
+    const res = await fetch('/api/coach-feedback', {
+      method: 'POST',
+      body: JSON.stringify({
+        completedSessions: plan.flatMap((week) =>
+          Object.entries(week.days || {}).flatMap(([day, val]) =>
+            Array.isArray(val) ? val.map((v) => `${day}: ${v}`) : [`${day}: ${val}`]
+          )
+        ),
+        raceType,
+        experienceLevel,
+        userNote: userQuestion,
+      }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    const contentType = res.headers.get('content-type');
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`Server error: ${errorText}`);
     }
-  };
+
+    const data = contentType?.includes('application/json') ? await res.json() : null;
+    if (data?.feedback) {
+      setCoachNote(data.feedback);
+    } else {
+      throw new Error('No feedback received from the coach.');
+    }
+  } catch (err: any) {
+    console.error('[AskCoach] Failed:', err);
+    alert('Something went wrong asking your coach — try again in a bit.');
+  } finally {
+    setFeedbackLoading(false);
+  }
+};
 
   if (!plan.length) return <div className="text-center text-gray-500 py-20">Generate and finalize a plan first.</div>;
   if (!activated) {
