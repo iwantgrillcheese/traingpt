@@ -118,7 +118,7 @@ Each session string should look like:
 ⚠️ Do not skip race day. It must appear as the final entry, with that exact label.
 ⚠️ Only return the raw JSON object. No markdown or explanation.
 `;
-
+  
   try {
     const completion = await openai.chat.completions.create({
       model,
