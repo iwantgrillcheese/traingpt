@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { differenceInWeeks } from 'date-fns';
 import OpenAI from 'openai';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -120,10 +120,10 @@ Each session string should look like:
     const clean = content.replace(/```json|```/g, '').trim();
     const parsed = JSON.parse(clean);
 
-    const supabaseClient = createServerComponentClient({ cookies });
+    const supabase = createServerComponentClient({ cookies });
     const {
       data: { session },
-    } = await supabaseClient.auth.getSession();
+    } = await supabase.auth.getSession();
 
     const user_id = session?.user?.id;
 
@@ -131,7 +131,7 @@ Each session string should look like:
       return NextResponse.json({ error: 'No Supabase access token found' }, { status: 401 });
     }
 
-    await supabaseClient.from('plans').upsert({
+    await supabase.from('plans').upsert({
       user_id,
       plan: parsed.plan,
       coach_note: parsed.coachNote,
