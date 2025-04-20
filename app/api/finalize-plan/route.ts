@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { differenceInWeeks } from 'date-fns';
 
-export const runtime = 'nodejs';
+export const runtime = 'nodejs'; // ✅ This is the correct config for Vercel App Router
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
