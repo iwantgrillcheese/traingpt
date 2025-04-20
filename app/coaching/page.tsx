@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { differenceInCalendarDays, startOfWeek, addDays, isAfter } from 'date-fns';
+import { differenceInCalendarDays, addDays, isAfter } from 'date-fns';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 export default function CoachingDashboard() {
@@ -35,11 +35,8 @@ export default function CoachingDashboard() {
 
     if (!plans) return;
     const parsed = plans.plan;
-
-    if (!Array.isArray(parsed)) {
-      console.error('[COACHING_TAB] Invalid or missing plan data:', parsed);
-      return;
-    }
+    if (!Array.isArray(parsed)) return;
+    const planStartDate = new Date(Object.keys(parsed[0]?.days || {})[0] || new Date());
 
     setPlan(parsed);
     setRaceDate(plans.race_date || null);
@@ -63,7 +60,7 @@ export default function CoachingDashboard() {
     const upcoming: { date: string; label: string; status: string }[] = [];
 
     parsed.forEach((week: any, wIdx: number) => {
-      const weekStart = addDays(startOfWeek(today, { weekStartsOn: 1 }), wIdx * 7);
+      const weekStart = addDays(planStartDate, wIdx * 7);
 
       daysOfWeek.forEach((day, dIdx) => {
         const sessions = week.days?.[day] || [];
