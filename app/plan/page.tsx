@@ -15,7 +15,6 @@ const quotes = [
   "The only bad workout is the one you didn’t do."
 ];
 
-// ✅ Field config type
 type FieldConfig = {
   id: string;
   label: string;
@@ -82,8 +81,12 @@ export default function PlanPage() {
       });
 
       if (!res.ok) throw new Error('Failed to finalize plan');
-      const finalPlan = await res.json();
+      const { plan, coachNote } = await res.json(); // ✅ real plan object
 
+      // Save locally
+      localStorage.setItem('trainGPTPlan', JSON.stringify({ plan, coachNote }));
+
+      // Optional Supabase save
       const { data: { session } } = await supabase.auth.getSession();
       const access_token = session?.access_token;
       if (!access_token) throw new Error('No Supabase access token found');
@@ -95,7 +98,7 @@ export default function PlanPage() {
           Authorization: `Bearer ${access_token}`,
         },
         body: JSON.stringify({
-          plan: finalPlan,
+          plan,
           raceType: formData.raceType,
           raceDate: formData.raceDate,
           userNote: userNote || '',
@@ -105,7 +108,6 @@ export default function PlanPage() {
       const saveResult = await saveRes.json();
       console.log('✅ Saved to Supabase:', saveResult);
 
-      localStorage.setItem('trainGPTPlan', JSON.stringify(finalPlan));
       router.push('/schedule');
     } catch (err: any) {
       console.error('❌ Finalize plan error:', err);
