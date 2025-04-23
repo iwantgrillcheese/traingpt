@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Footer from '../components/footer';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
@@ -39,20 +39,9 @@ export default function PlanPage() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [previewPlan, setPreviewPlan] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isFinalizing, setIsFinalizing] = useState(false);
   const [error, setError] = useState('');
   const [quote, setQuote] = useState('');
-
-  useEffect(() => {
-    const clearRedirectLogic = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (session?.user) {
-        console.log('[PlanPage] User session active — allowing access to form');
-      }
-    };
-    clearRedirectLogic();
-  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -74,7 +63,6 @@ export default function PlanPage() {
       if (!res.ok) throw new Error('Failed to generate preview');
       const preview = await res.json();
       setPreviewPlan(preview);
-      localStorage.setItem('trainGPTPreview', JSON.stringify(preview)); // ✅ added this
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -83,22 +71,34 @@ export default function PlanPage() {
   };
 
   const handleFinalize = async () => {
-    setLoading(true);
+    setIsFinalizing(true);
     setError('');
+    setQuote(quotes[Math.floor(Math.random() * quotes.length)]);
 
     try {
+      let access_token: string | null = null;
+
+      if (process.env.NODE_ENV === 'development') {
+        access_token = 'dev-access-token'; // Fake token for dev
+      } else {
+        const { data: { session } } = await supabase.auth.getSession();
+        access_token = session?.access_token || null;
+        if (!access_token) throw new Error('No Supabase access token found');
+      }
+
       const res = await fetch('/api/finalize-plan', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${access_token}`,
+        },
         body: JSON.stringify({ ...formData, userNote }),
       });
 
       if (!res.ok) throw new Error('Failed to finalize plan');
-      const finalPlan = await res.json();
+      const { plan, coachNote } = await res.json();
 
-      const { data: { session } } = await supabase.auth.getSession();
-      const access_token = session?.access_token;
-      if (!access_token) throw new Error('No Supabase access token found');
+      localStorage.setItem('trainGPTPlan', JSON.stringify({ plan, coachNote }));
 
       const saveRes = await fetch('/api/save-plan', {
         method: 'POST',
@@ -107,7 +107,7 @@ export default function PlanPage() {
           Authorization: `Bearer ${access_token}`,
         },
         body: JSON.stringify({
-          plan: finalPlan,
+          plan,
           raceType: formData.raceType,
           raceDate: formData.raceDate,
           userNote: userNote || '',
@@ -117,13 +117,12 @@ export default function PlanPage() {
       const saveResult = await saveRes.json();
       console.log('✅ Saved to Supabase:', saveResult);
 
-      localStorage.setItem('trainGPTPlan', JSON.stringify(finalPlan));
       router.push('/schedule');
     } catch (err: any) {
       console.error('❌ Finalize plan error:', err);
       setError(err.message || 'Something went wrong');
     } finally {
-      setLoading(false);
+      setIsFinalizing(false);
     }
   };
 
@@ -143,7 +142,7 @@ export default function PlanPage() {
 
   return (
     <div className="min-h-screen bg-white text-gray-900 relative">
-      {(loading && !previewPlan) && (
+      {(loading && !previewPlan) || isFinalizing ? (
         <div className="fixed inset-0 z-50 bg-white bg-opacity-90 flex flex-col items-center justify-center text-center px-6">
           <div className="w-12 h-12 mb-4 relative">
             <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
@@ -151,7 +150,7 @@ export default function PlanPage() {
           </div>
           <p className="text-lg text-gray-700 font-medium italic">{quote}</p>
         </div>
-      )}
+      ) : null}
 
       <main className="max-w-4xl mx-auto px-6 py-16">
         <div className="text-center mb-12">
@@ -251,10 +250,10 @@ export default function PlanPage() {
             <div className="mt-8 text-center space-x-4">
               <button
                 onClick={handleFinalize}
-                disabled={loading}
+                disabled={isFinalizing}
                 className="px-6 py-3 bg-black text-white font-semibold rounded-full hover:bg-gray-800 transition disabled:opacity-50"
               >
-                {loading ? 'Saving Plan...' : '✅ Finalize Plan'}
+                {isFinalizing ? 'Saving Plan…' : '✅ Finalize Plan'}
               </button>
               <button
                 onClick={() => setPreviewPlan(null)}
