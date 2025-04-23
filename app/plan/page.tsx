@@ -15,7 +15,6 @@ const quotes = [
   "The only bad workout is the one you didn’t do."
 ];
 
-// ✅ Field config type
 type FieldConfig = {
   id: string;
   label: string;
@@ -49,7 +48,6 @@ export default function PlanPage() {
         data: { session },
       } = await supabase.auth.getSession();
       if (session?.user) {
-        // skip auto-redirect logic to allow plan generation even if a plan exists
         console.log('[PlanPage] User session active — allowing access to form');
       }
     };
@@ -76,6 +74,7 @@ export default function PlanPage() {
       if (!res.ok) throw new Error('Failed to generate preview');
       const preview = await res.json();
       setPreviewPlan(preview);
+      localStorage.setItem('trainGPTPreview', JSON.stringify(preview)); // ✅ added this
     } catch (err: any) {
       setError(err.message);
     } finally {
