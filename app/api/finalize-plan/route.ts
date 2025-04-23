@@ -41,6 +41,30 @@ function getDeload(index: number): boolean {
   return (index + 1) % 4 === 0;
 }
 
+async function safeGPTCall(prompt: string, model = 'gpt-4-turbo') {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 9500);
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model,
+      messages: [
+        { role: 'system', content: 'Reply with valid JSON only. No explanation.' },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.7,
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+    return completion.choices[0]?.message?.content || '{}';
+  } catch (err) {
+    clearTimeout(timeout);
+    console.error('[GPT TIMEOUT OR ERROR]', err);
+    throw new Error('GPT call timed out or failed.');
+  }
+}
+
 export async function POST(req: Request) {
   const body = await req.json();
   const supabase = createServerComponentClient({ cookies });
@@ -157,16 +181,7 @@ Return this format ONLY:
   }
 }`;
 
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4-turbo',
-      messages: [
-        { role: 'system', content: 'Reply with valid JSON only. No explanation.' },
-        { role: 'user', content: prompt },
-      ],
-      temperature: 0.7,
-    });
-
-    const content = response.choices[0]?.message?.content || '{}';
+    const content = await safeGPTCall(prompt);
     const parsed = JSON.parse(content.match(/\{[\s\S]*\}/)?.[0] || '{}');
     plan.push(parsed);
   }
