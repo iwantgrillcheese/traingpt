@@ -41,41 +41,34 @@ function getDeload(index: number): boolean {
   return (index + 1) % 4 === 0;
 }
 
-async function safeGPTCall(prompt: string, model = 'gpt-4-turbo', retries = 2): Promise<string> {
-  for (let i = 0; i <= retries; i++) {
-    try {
-      const completion = await openai.chat.completions.create({
-        model,
-        messages: [
-          { role: 'system', content: 'Reply with valid JSON only. No explanation.' },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.7,
-      });
+async function safeGPTCall(prompt: string, model = 'gpt-4-turbo') {
+  try {
+    const completion = await openai.chat.completions.create({
+      model,
+      messages: [
+        { role: 'system', content: 'Reply with valid JSON only. No explanation.' },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.7,
+    });
 
-      return completion.choices[0]?.message?.content || '{}';
-    } catch (err) {
-      if (i === retries) throw err;
-      console.warn(`[RETRYING GPT CALL] Attempt ${i + 1} failed.`);
-      await new Promise(res => setTimeout(res, 1000));
-    }
+    return completion.choices[0]?.message?.content || '{}';
+  } catch (err) {
+    console.error('[GPT TIMEOUT OR ERROR]', err);
+    throw new Error('GPT call timed out or failed.');
   }
-  return '{}';
 }
 
 export async function POST(req: Request) {
   const body = await req.json();
   const supabase = createServerComponentClient({ cookies });
+  const { data: { user } } = await supabase.auth.getUser();
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  const user_id = session?.user?.id;
-  if (!user_id) {
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const user_id = user.id;
   const today = new Date();
   const startDate = getNextMonday(today);
   const raceDate = new Date(body.raceDate);
@@ -112,9 +105,9 @@ export async function POST(req: Request) {
     };
   });
 
-  const plan = [];
-  for (const week of weeks) {
-    const prompt = `You are a world-class triathlon coach generating week-level training.
+  const plan = await Promise.all(
+    weeks.map(async (week, i) => {
+      const prompt = `You are a world-class triathlon coach generating week-level training.
 
 Athlete Profile:
 - Race Type: ${raceType}
@@ -169,9 +162,11 @@ Session duration should reflect phase and race type:
 - Build = higher intensity and longer bricks
 - Respect user input on max time available
 
+Avoid reverse bricks (run → bike). Only use bike → run format.
+
 Return this format ONLY:
 {
-  label: "${week.label}: ${week.phase}",
+  label: "Week ${i + 1}: ${week.phase}",
   focus: "...",
   days: {
     "YYYY-MM-DD": ["🏃 Run: ...", "🚴 Bike: ..."],
@@ -179,23 +174,21 @@ Return this format ONLY:
   }
 }`;
 
-    const content = await safeGPTCall(prompt);
+      const content = await safeGPTCall(prompt);
 
-    let parsed;
-    try {
-      parsed = JSON.parse(content.match(/\{[\s\S]*\}/)?.[0] || '{}');
-    } catch (err) {
-      console.error('❌ Failed to parse GPT content', content);
-      return NextResponse.json({ error: 'Failed to parse plan content' }, { status: 500 });
-    }
-
-    if (!parsed?.days || typeof parsed.days !== 'object') {
-      console.error('❌ Parsed plan missing days object:', parsed);
-      return NextResponse.json({ error: 'Malformed training plan' }, { status: 500 });
-    }
-
-    plan.push(parsed);
-  }
+      try {
+        const parsed = JSON.parse(content.match(/\{[\s\S]*\}/)?.[0] || '{}');
+        if (!parsed?.days || typeof parsed.days !== 'object') {
+          console.error('❌ Parsed plan missing days object:', parsed);
+          throw new Error('Malformed training plan');
+        }
+        return parsed;
+      } catch (err) {
+        console.error('❌ Failed to parse GPT content', content);
+        throw new Error('Failed to parse plan content');
+      }
+    })
+  );
 
   const coachNote = `Here's your ${totalWeeks}-week triathlon plan leading to your race on ${body.raceDate}. ${adjusted ? 'We adjusted the duration for optimal training.' : ''} Each week balances aerobic work, race specificity, and recovery. Stay consistent and trust the process.`;
 
