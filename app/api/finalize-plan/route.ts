@@ -46,15 +46,19 @@ async function safeGPTCall(prompt: string, model = 'gpt-4-turbo') {
   const timeout = setTimeout(() => controller.abort(), 9500);
 
   try {
-    const completion = await openai.chat.completions.create({
-      model,
-      messages: [
-        { role: 'system', content: 'Reply with valid JSON only. No explanation.' },
-        { role: 'user', content: prompt },
-      ],
-      temperature: 0.7,
-      signal: controller.signal,
-    });
+    const completion = await openai.chat.completions.create(
+      {
+        model,
+        messages: [
+          { role: 'system', content: 'Reply with valid JSON only. No explanation.' },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.7,
+      },
+      {
+        signal: controller.signal,
+      }
+    );
 
     clearTimeout(timeout);
     return completion.choices[0]?.message?.content || '{}';
