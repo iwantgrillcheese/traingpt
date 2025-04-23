@@ -25,32 +25,64 @@ export default function SchedulePage() {
 
   useEffect(() => {
     const fetchPlanAndChecks = async () => {
-      const stored = localStorage.getItem('trainGPTPlan');
-      if (!stored) return;
+      let fetchedPlan = null;
+      let fetchedCoachNote = null;
 
       try {
-        const parsed = JSON.parse(stored);
-        const extractedPlan = parsed.plan || parsed;
-        const note = parsed.coachNote || null;
-        setCoachNote(note);
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
 
-        if (Array.isArray(extractedPlan)) {
-          const normalized = extractedPlan.map((week, i) => {
-            const hasDays = typeof week?.days === 'object';
-            const daySource = hasDays ? week.days : week;
-            const days: any = {};
-            for (const day of Object.keys(daySource)) {
-              const val = daySource[day];
-              days[day] = Array.isArray(val) ? val : [val];
-            }
-            return {
-              label: week.label || `Week ${i + 1}`,
-              focus: week.focus || '',
-              days,
-            };
-          });
-          setPlan(normalized);
+        if (session?.user) {
+          const { data: plans, error } = await supabase
+            .from('plans')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
 
+          if (!error && plans?.plan) {
+            fetchedPlan = plans.plan;
+            fetchedCoachNote = plans.coach_note || null;
+          }
+        }
+      } catch (e) {
+        console.error('[SUPABASE_FETCH_ERROR]', e);
+      }
+
+      if (!fetchedPlan) {
+        const stored = localStorage.getItem('trainGPTPlan');
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            fetchedPlan = parsed.plan || parsed;
+            fetchedCoachNote = parsed.coachNote || null;
+          } catch (err) {
+            console.error('Failed to parse stored plan:', err);
+          }
+        }
+      }
+
+      if (Array.isArray(fetchedPlan)) {
+        const normalized = fetchedPlan.map((week, i) => {
+          const hasDays = typeof week?.days === 'object';
+          const daySource = hasDays ? week.days : week;
+          const days: any = {};
+          for (const day of Object.keys(daySource)) {
+            const val = daySource[day];
+            days[day] = Array.isArray(val) ? val : [val];
+          }
+          return {
+            label: week.label || `Week ${i + 1}`,
+            focus: week.focus || '',
+            days,
+          };
+        });
+        setPlan(normalized);
+        setCoachNote(fetchedCoachNote);
+
+        try {
           const { data: completedSessions, error } = await supabase
             .from('completed_sessions')
             .select('date, sport, status');
@@ -63,9 +95,9 @@ export default function SchedulePage() {
             checks[key] = status || 'none';
           });
           setChecked(checks);
+        } catch (err) {
+          console.error('[SUPABASE_COMPLETED_SESSIONS_FETCH_FAILED]', err);
         }
-      } catch (err) {
-        console.error('Failed to parse stored plan:', err);
       }
     };
 
@@ -79,32 +111,24 @@ export default function SchedulePage() {
 
     setChecked((prev) => ({ ...prev, [`${sessionDate}-${sport}`]: next }));
 
-    const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession();
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-    if (sessionError || !session?.user) {
-      console.error('[TOGGLE_CHECK_SESSION_ERROR]', sessionError);
-      return;
-    }
+      if (!session?.user) return;
 
-    console.log('Session object:', session);
-
-    const user = session.user;
-
-    const { error } = await supabase
-      .from('completed_sessions')
-      .upsert([
+      await supabase.from('completed_sessions').upsert([
         {
-          user_id: user.id,
+          user_id: session.user.id,
           date: sessionDate,
           sport,
           status: next === 'none' ? null : next,
         },
       ]);
-
-    if (error) console.error('Failed to save checkbox state:', error);
+    } catch (err) {
+      console.error('[TOGGLE_CHECK_ERROR]', err);
+    }
   };
 
   if (!plan.length) {
