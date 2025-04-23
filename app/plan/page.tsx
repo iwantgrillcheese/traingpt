@@ -73,26 +73,7 @@ export default function PlanPage() {
       });
 
       if (!res.ok) throw new Error('Failed to finalize plan');
-      const { plan, coachNote } = await res.json();
-
-      localStorage.setItem('trainGPTPlan', JSON.stringify({ plan, coachNote }));
-
-      const saveRes = await fetch('/api/save-plan', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${access_token}`,
-        },
-        body: JSON.stringify({
-          plan,
-          raceType: formData.raceType,
-          raceDate: formData.raceDate,
-          userNote: userNote || '',
-        }),
-      });
-
-      const saveResult = await saveRes.json();
-      console.log('✅ Saved to Supabase:', saveResult);
+      await res.json();
 
       router.push('/schedule');
     } catch (err: any) {
