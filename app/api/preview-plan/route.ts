@@ -1,5 +1,3 @@
-// app/api/preview-plan/route.ts
-
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
@@ -7,14 +5,17 @@ export const runtime = 'edge'; // Required for Next.js 14+ on Vercel
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+export async function GET() {
+  return NextResponse.json({ status: 'Preview plan endpoint is live ✅' });
+}
+
 export async function POST(req: Request) {
-  try {
-    const body = await req.json();
+  const body = await req.json();
 
-    const useGPT4 = body.experience === 'Advanced';
-    const model = useGPT4 ? 'gpt-4-turbo' : 'gpt-3.5-turbo';
+  const useGPT4 = body.experience === 'Advanced';
+  const model = useGPT4 ? 'gpt-4-turbo' : 'gpt-3.5-turbo';
 
-    const prompt = `You are a world-class triathlon coach creating a 5-day sample training block based on the following athlete's profile:
+  const prompt = `You are a world-class triathlon coach creating a 5-day sample training block based on the following athlete's profile:
 
 Athlete Profile:
 - Race Type: ${body.raceType}
@@ -52,19 +53,20 @@ Example:
 
 Return only the JSON object. No explanations.`;
 
-    const completion = await openai.chat.completions.create({
-      model,
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.6,
-    });
+  const completion = await openai.chat.completions.create({
+    model,
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.6,
+  });
 
-    const content = completion.choices[0]?.message?.content || '{}';
+  const content = completion.choices[0]?.message?.content || '{}';
+
+  try {
     const cleaned = content.replace(/```json|```/g, '').trim();
     const parsed = JSON.parse(cleaned);
-
     return NextResponse.json(parsed);
   } catch (err) {
-    console.error('[Preview Plan Error]', err);
-    return NextResponse.json({ error: 'Failed to generate preview' }, { status: 500 });
+    console.error('Failed to parse preview plan:', err);
+    return NextResponse.json({ error: 'Failed to parse preview plan.' }, { status: 500 });
   }
 }
