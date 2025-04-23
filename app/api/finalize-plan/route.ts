@@ -117,8 +117,11 @@ export async function POST(req: Request) {
   });
 
   const plan = [];
-  for (const week of weeks) {
-    const prompt = `You are a world-class triathlon coach generating week-level training.
+  for (let i = 0; i < weeks.length; i++) {
+    const week = weeks[i];
+    const endDate = format(addDays(new Date(week.startDate), 6), 'yyyy-MM-dd');
+
+    const prompt = `You are a world-class triathlon coach generating training for week ${i + 1} of a personalized triathlon plan.
 
 Athlete Profile:
 - Race Type: ${raceType}
@@ -131,54 +134,37 @@ Athlete Profile:
 - Phase: ${week.phase}
 - Deload Week: ${week.deload ? 'Yes' : 'No'}
 - Week Start: ${week.startDate}
+- Week End: ${endDate}
 
-Athlete Note:
+User Notes:
 ${userNote || 'None provided'}
-Incorporate this into your planning where appropriate.
 
-This athlete has a hard weekly time cap of ${maxHours} hours.
-Stay under this limit. Prioritize:
-- Long ride (Saturday)
-- Long run (Sunday)
-- 1 brick (Saturday only)
-- 1 threshold session
-- 1–2 swims
+**IMPORTANT RULES**
+- This plan ends in a race on ${format(raceDate, 'yyyy-MM-dd')}.
+- The final week **must** include the race on that date.
+- You must include exactly 1 full rest day (no sessions at all).
+- Long Ride always on Saturday. Long Run on Sunday.
+- Brick sessions are ONLY allowed on Saturdays, and must be in this format: bike ➝ run.
+- Do not use reverse bricks (run ➝ bike).
+- Only include bricks for long-course races (70.3 / Ironman).
+- Avoid back-to-back threshold or high intensity days.
+- Always stay under the ${maxHours} hour weekly cap. Trim non-essentials if needed.
 
-Skip strength or extras if time is tight.
-
-Rest Day Rules:
-- Each week must include exactly one full rest day
-- Default to Monday unless another day is specified
-- Never replace a rest day with any other session, including swimming
-
-Brick Guidelines:
-- Include 1 brick session per week, only on Saturday
-- Brick = bike followed by short run
-- Sprint: 10–15min run
-- Olympic: 20–30min run
-- 70.3 / Ironman: 30–45min run
-
-Suggested Weekday Structure:
+Suggested Weekly Layout:
 - Monday: Rest or Swim/Drill
 - Tuesday: Threshold Bike
 - Wednesday: Swim + Easy Bike
 - Thursday: Threshold Run
 - Friday: Swim or Z2 Ride
-- Saturday: Long Ride + Brick Run
+- Saturday: Long Ride + Brick Run (if applicable)
 - Sunday: Long Run
 
-Avoid back-to-back threshold days.
-Session duration should reflect phase and race type:
-- Base = shorter, consistent sessions
-- Build = higher intensity and longer bricks
-- Respect user input on max time available
-
-Return this format ONLY:
+Use this output format exactly:
 {
-  label: "${week.label}: ${week.phase}",
-  focus: "...",
+  label: "Week ${i + 1}: ${week.phase}",
+  focus: "<Summary of weekly focus>",
   days: {
-    "YYYY-MM-DD": ["🏃 Run: ...", "🚴 Bike: ..."],
+    "YYYY-MM-DD": ["🏊 Swim: ...", "🏃 Run: ..."],
     ...
   }
 }`;
@@ -202,8 +188,6 @@ Return this format ONLY:
   }
 
   const coachNote = `Here's your ${totalWeeks}-week triathlon plan leading to your race on ${body.raceDate}. ${adjusted ? 'We adjusted the duration for optimal training.' : ''} Each week balances aerobic work, race specificity, and recovery. Stay consistent and trust the process.`;
-
-  console.log('📦 Saving plan to Supabase', { user_id, planLength: plan.length });
 
   await supabase.from('plans').upsert({
     user_id,
