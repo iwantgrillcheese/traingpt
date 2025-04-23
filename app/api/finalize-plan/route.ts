@@ -55,9 +55,7 @@ async function safeGPTCall(prompt: string, model = 'gpt-4-turbo') {
         ],
         temperature: 0.7,
       },
-      {
-        signal: controller.signal,
-      }
+      { signal: controller.signal }
     );
 
     clearTimeout(timeout);
@@ -186,11 +184,26 @@ Return this format ONLY:
 }`;
 
     const content = await safeGPTCall(prompt);
-    const parsed = JSON.parse(content.match(/\{[\s\S]*\}/)?.[0] || '{}');
+
+    let parsed;
+    try {
+      parsed = JSON.parse(content.match(/\{[\s\S]*\}/)?.[0] || '{}');
+    } catch (err) {
+      console.error('❌ Failed to parse GPT content', content);
+      return NextResponse.json({ error: 'Failed to parse plan content' }, { status: 500 });
+    }
+
+    if (!parsed?.days || typeof parsed.days !== 'object') {
+      console.error('❌ Parsed plan missing days object:', parsed);
+      return NextResponse.json({ error: 'Malformed training plan' }, { status: 500 });
+    }
+
     plan.push(parsed);
   }
 
   const coachNote = `Here's your ${totalWeeks}-week triathlon plan leading to your race on ${body.raceDate}. ${adjusted ? 'We adjusted the duration for optimal training.' : ''} Each week balances aerobic work, race specificity, and recovery. Stay consistent and trust the process.`;
+
+  console.log('📦 Saving plan to Supabase', { user_id, planLength: plan.length });
 
   await supabase.from('plans').upsert({
     user_id,
