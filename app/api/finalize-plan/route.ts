@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { differenceInWeeks } from 'date-fns';
+import { addDays, addWeeks, differenceInCalendarWeeks, format } from 'date-fns';
 import OpenAI from 'openai';
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
@@ -10,9 +10,39 @@ export const runtime = 'nodejs';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+const MIN_WEEKS: Record<string, number> = {
+  Sprint: 4,
+  Olympic: 6,
+  'Half Ironman (70.3)': 10,
+  'Ironman (140.6)': 12,
+};
+
+const MAX_WEEKS: Record<string, number> = {
+  Sprint: 16,
+  Olympic: 20,
+  'Half Ironman (70.3)': 24,
+  'Ironman (140.6)': 30,
+};
+
+function getNextMonday(date: Date) {
+  const day = date.getDay();
+  const diff = (8 - day) % 7;
+  return addDays(date, diff);
+}
+
+function getPhase(index: number, totalWeeks: number): string {
+  if (index === totalWeeks - 1) return 'Race Week';
+  if (index >= totalWeeks - 2) return 'Taper';
+  if (index >= Math.floor(totalWeeks * 0.6)) return 'Build';
+  return 'Base';
+}
+
+function getDeload(index: number): boolean {
+  return (index + 1) % 4 === 0;
+}
+
 export async function POST(req: Request) {
   const body = await req.json();
-
   const supabase = createServerComponentClient({ cookies });
 
   const {
@@ -24,116 +54,135 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const planLengthWeeks = differenceInWeeks(new Date(body.raceDate), new Date());
-  const useGPT4 = body.experience === 'Advanced';
-  const model = useGPT4 ? 'gpt-4-turbo' : 'gpt-3.5-turbo';
+  const today = new Date();
+  const startDate = getNextMonday(today);
+  const raceDate = new Date(body.raceDate);
+  const experience = body.experience || 'Intermediate';
+  const raceType = body.raceType || 'Olympic';
+  const maxHours = body.maxHours || 8;
+  const restDay = body.restDay || 'Monday';
+  const bikeFTP = body.bikeFTP || 'Not provided';
+  const runPace = body.runPace || 'Not provided';
+  const swimPace = body.swimPace || 'Not provided';
+  const userNote = body.userNote || '';
 
-  const prompt = `
-You are a JSON API that replies with valid JSON only. You are a world-class triathlon coach building a structured, personalized training plan that ends on the athlete’s race day.
+  let totalWeeks = differenceInCalendarWeeks(raceDate, startDate);
+  const minWeeks = MIN_WEEKS[raceType] || 6;
+  const maxWeeks = MAX_WEEKS[raceType] || 20;
+  let adjusted = false;
 
-Use your elite coaching expertise to design a realistic, periodized plan tailored to the athlete’s goals, experience level, and available training hours.
+  if (totalWeeks < minWeeks) {
+    totalWeeks = minWeeks;
+    adjusted = true;
+  }
+  if (totalWeeks > maxWeeks) {
+    totalWeeks = maxWeeks;
+    adjusted = true;
+  }
 
----
+  const weeks = Array.from({ length: totalWeeks }, (_, i) => {
+    const start = addWeeks(startDate, i);
+    return {
+      label: `Week ${i + 1}`,
+      phase: getPhase(i, totalWeeks),
+      deload: getDeload(i),
+      startDate: format(start, 'yyyy-MM-dd'),
+    };
+  });
+
+  const plan = [];
+  for (const week of weeks) {
+    const prompt = `You are a world-class triathlon coach generating week-level training.
 
 Athlete Profile:
-- Race Type: ${body.raceType}
-- Race Date: ${body.raceDate}
-- Experience Level: ${body.experience}
-- Max Weekly Hours: ${body.maxHours}
-- Bike FTP: ${body.bikeFTP || 'Not provided'}
-- Run Threshold Pace: ${body.runPace || 'Not provided'}
-- Swim Threshold Pace: ${body.swimPace || 'Not provided'}
-- Preferred Rest Day: ${body.restDay || 'None specified'}
+- Race Type: ${raceType}
+- Experience: ${experience}
+- Max Weekly Hours: ${maxHours}
+- Preferred Rest Day: ${restDay}
+- Bike FTP: ${bikeFTP}
+- Run Threshold Pace: ${runPace}
+- Swim Threshold Pace: ${swimPace}
+- Phase: ${week.phase}
+- Deload Week: ${week.deload ? 'Yes' : 'No'}
+- Week Start: ${week.startDate}
 
-Athlete Notes:
-${body.userNote || 'None provided'}
+Athlete Note:
+${userNote || 'None provided'}
+Incorporate this into your planning where appropriate.
 
-Today’s date is ${new Date().toISOString().split('T')[0]}.
+This athlete has a hard weekly time cap of ${maxHours} hours.
+Stay under this limit. Prioritize:
+- Long ride (Saturday)
+- Long run (Sunday)
+- 1 brick (Saturday only)
+- 1 threshold session
+- 1–2 swims
 
----
+Skip strength or extras if time is tight.
 
 Rest Day Rules:
-- Each week must include **exactly one** full rest day.
-- Use the athlete’s preferred rest day if provided: ${body.restDay || 'None specified'}.
-- Do not assign Sunday as a rest day unless no preference is provided.
-- Never include multiple full rest days in a week.
+- Each week must include exactly one full rest day
+- Default to Monday unless another day is specified
+- Never replace a rest day with any other session, including swimming
 
----
+Brick Guidelines:
+- Include 1 brick session per week, only on Saturday
+- Brick = bike followed by short run
+- Sprint: 10–15min run
+- Olympic: 20–30min run
+- 70.3 / Ironman: 30–45min run
 
-Plan Structure:
-- Periodize the plan using common training blocks:
-  - Base Phase: focus on aerobic capacity and durability
-  - Build Phase: include race-specific intensity and brick workouts
-  - Taper Phase: reduce volume, maintain intensity, prepare for race
-  - Race Week: final sharpening, rest, and race day
+Suggested Weekday Structure:
+- Monday: Rest or Swim/Drill
+- Tuesday: Threshold Bike
+- Wednesday: Swim + Easy Bike
+- Thursday: Threshold Run
+- Friday: Swim or Z2 Ride
+- Saturday: Long Ride + Brick Run
+- Sunday: Long Run
 
-- Include for each week:
-  - label: “Week 3: Threshold Build” or similar
-  - focus: short sentence summarizing the training emphasis
-  - days: an object where each key is a date (YYYY-MM-DD) and value is 0–2 sessions
+Avoid back-to-back threshold days.
+Session duration should reflect phase and race type:
+- Base = shorter, consistent sessions
+- Build = higher intensity and longer bricks
+- Respect user input on max time available
 
-- Sessions should look like:
-  - “🏃 Run: 45min Z2”
-  - “🚴 Bike: 3×8min @ FTP”
-  - “🏊 Swim: 2000m aerobic”
-  - “🌟 Race Day: ${body.raceType}” (must appear exactly once)
-
----
-
-Pacing/Intensity Guidance:
-- Use threshold paces or FTP **only if provided**
-- Otherwise use general effort: “easy”, “Z2”, “moderate”, “race pace”
-- Include brick workouts 1x/week in build and taper phases
-
----
-
-Final Output Format:
-Return a single JSON object:
+Return this format ONLY:
 {
-  coachNote: string,
-  plan: array of week objects
-}
+  label: "${week.label}: ${week.phase}",
+  focus: "...",
+  days: {
+    "YYYY-MM-DD": ["🏃 Run: ...", "🚴 Bike: ..."],
+    ...
+  }
+}`;
 
-Each week object must include:
-- label
-- focus
-- days: { ISO_DATE: [“🏃 Run: 30min easy”, “🚴 Bike: 1hr endurance”] }
-
-⚠️ Race Day must appear exactly once and must be the final entry on the correct date: ${body.raceDate}
-⚠️ Only return valid JSON — no markdown, no explanation, no headings.
-`;
-
-  try {
-    const completion = await openai.chat.completions.create({
-      model,
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4-turbo',
       messages: [
-        { role: 'system', content: 'You are a JSON API that replies with valid JSON only.' },
-        { role: 'user', content: prompt }
+        { role: 'system', content: 'Reply with valid JSON only. No explanation.' },
+        { role: 'user', content: prompt },
       ],
       temperature: 0.7,
     });
 
-    const content = completion.choices[0]?.message?.content || '{}';
-    const match = content.match(/\{[\s\S]*\}/);
-    if (!match) {
-      throw new Error('❌ No valid JSON object found in AI response.');
-    }
-
-    const parsed = JSON.parse(match[0]);
-
-    await supabase.from('plans').upsert({
-      user_id,
-      plan: parsed.plan,
-      coach_note: parsed.coachNote,
-    });
-
-    return NextResponse.json({
-      success: true,
-      plan: parsed.plan,
-      coachNote: parsed.coachNote,
-    });
-  } catch (err) {
-    console.error('❌ Finalize Plan Error:', err);
-    return NextResponse.json({ error: 'Failed to finalize plan.' }, { status: 500 });
+    const content = response.choices[0]?.message?.content || '{}';
+    const parsed = JSON.parse(content.match(/\{[\s\S]*\}/)?.[0] || '{}');
+    plan.push(parsed);
   }
+
+  const coachNote = `Here's your ${totalWeeks}-week triathlon plan leading to your race on ${body.raceDate}. ${adjusted ? 'We adjusted the duration for optimal training.' : ''} Each week balances aerobic work, race specificity, and recovery. Stay consistent and trust the process.`;
+
+  await supabase.from('plans').upsert({
+    user_id,
+    plan,
+    coach_note: coachNote,
+  });
+
+  return NextResponse.json({
+    success: true,
+    plan,
+    coachNote,
+    adjusted,
+  });
 }
