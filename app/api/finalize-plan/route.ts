@@ -127,7 +127,8 @@ export async function POST(req: Request) {
       const content = await safeGPTCall(prompt);
 
 try {
-  const parsed = JSON.parse(content);
+  const cleaned = content.replace(/```json|```/g, '').trim();
+  const parsed = JSON.parse(cleaned);
   return parsed;
 } catch (err) {
   console.error('❌ Failed to parse GPT content', content);
