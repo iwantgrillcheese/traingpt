@@ -23,7 +23,7 @@ export default function SchedulePage() {
   const [coachNote, setCoachNote] = useState<string | null>(null);
   const [checked, setChecked] = useState<{ [key: string]: 'done' | 'skipped' | 'none' }>({});
   const [feedback, setFeedback] = useState('');
-  const [rerolling, setRerolling] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const fetchPlanAndChecks = async () => {
@@ -134,18 +134,20 @@ export default function SchedulePage() {
   };
 
   const handleReroll = async () => {
-    setRerolling(true);
+    if (!feedback) return;
+    setIsSubmitting(true);
     try {
-      await fetch('/api/reroll', {
+      const res = await fetch('/api/finalize-plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userNote: feedback }),
       });
-      location.reload();
+      if (res.ok) location.reload();
+      else throw new Error('Failed to regenerate plan');
     } catch (err) {
-      console.error('[REROLL_ERROR]', err);
+      console.error('[PLAN_REROLL_ERROR]', err);
     } finally {
-      setRerolling(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -164,22 +166,23 @@ export default function SchedulePage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-gray-50 px-6 py-5 mb-10 text-[15px] text-gray-700 leading-relaxed shadow-sm">
-        <label htmlFor="feedback" className="font-medium text-sm text-gray-700 block mb-2">Need tweaks? Submit feedback and reroll your plan</label>
-        <div className="flex gap-2 flex-col sm:flex-row">
+      <div className="rounded-xl border border-gray-200 bg-gray-50 px-6 py-5 mb-10 shadow-sm">
+        <p className="text-[15px] text-gray-700 mb-2 font-medium">Need tweaks? Submit feedback and reroll your plan</p>
+        <div className="flex flex-col sm:flex-row gap-3">
           <textarea
-            id="feedback"
-            className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-700 shadow-sm focus:outline-none focus:ring-1 focus:ring-black"
+            className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm text-gray-700"
             placeholder="This looks good, but can we reduce intensity in week 1?"
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
           />
           <button
             onClick={handleReroll}
-            disabled={rerolling || !feedback.trim()}
-            className="bg-black text-white px-4 py-2 rounded-md text-sm hover:bg-gray-800 transition disabled:opacity-50"
+            disabled={isSubmitting}
+            className={`px-6 py-2 rounded-full font-semibold text-sm text-white transition ${
+              isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-black hover:bg-gray-800'
+            }`}
           >
-            {rerolling ? 'Generating...' : 'Submit & Reroll'}
+            {isSubmitting ? 'Regenerating...' : 'Submit & Reroll'}
           </button>
         </div>
       </div>
