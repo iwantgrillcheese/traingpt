@@ -3,7 +3,6 @@ import { addDays, addWeeks, differenceInCalendarWeeks, format } from 'date-fns';
 import OpenAI from 'openai';
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { format } from 'date-fns';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
