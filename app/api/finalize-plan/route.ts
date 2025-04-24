@@ -194,11 +194,21 @@ Return this format ONLY:
 
   console.log('📦 Saving plan to Supabase', { user_id, planLength: plan.length });
 
-  await supabase.from('plans').upsert({
+const { data, error } = await supabase.from('plans').upsert(
+  {
     user_id,
     plan,
     coach_note: coachNote,
-  });
+  },
+  { onConflict: 'user_id' }
+);
+
+if (error) {
+  console.error('❌ Supabase Insert Error:', error);
+  return NextResponse.json({ error: error.message }, { status: 500 });
+} else {
+  console.log('✅ Successfully saved to Supabase:', data);
+}
 
   return NextResponse.json({
     success: true,
