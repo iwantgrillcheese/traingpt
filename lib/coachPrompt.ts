@@ -122,10 +122,10 @@ Use the athlete note to:
 
 # 📂 Output Format
 
-Return the full plan in valid **raw JSON only**. No markdown. No extra commentary.
+Return the full plan in valid raw JSON only. No markdown. No extra commentary.
 
-Format:
-```json
+Example:
+
 [
   {
     "label": "Week 1: Base",
