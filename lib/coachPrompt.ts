@@ -125,7 +125,7 @@ Use the athlete note to:
 Return the full plan in valid **raw JSON only**. No markdown. No extra commentary.
 
 Format:
-```
+```json
 [
   {
     "label": "Week 1: Base",
@@ -133,9 +133,7 @@ Format:
     "startDate": "YYYY-MM-DD",
     "deload": false,
     "days": {
-      "YYYY-MM-DD": ["🏃 Run: 45min easy", "🏊 Swim: 1000m drills"],
-      ...
+      "YYYY-MM-DD": ["🏃 Run: 45min easy", "🏊 Swim: 1000m drills"]
     }
-  },
-  ...
+  }
 ]
