@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+
 const supabase = createClientComponentClient();
 
 const getTopBar = (session: string) => {
@@ -22,6 +23,8 @@ export default function SchedulePage() {
   const [plan, setPlan] = useState<any[]>([]);
   const [coachNote, setCoachNote] = useState<string | null>(null);
   const [checked, setChecked] = useState<{ [key: string]: 'done' | 'skipped' | 'none' }>({});
+  const [feedback, setFeedback] = useState('');
+  const [rerolling, setRerolling] = useState(false);
 
   useEffect(() => {
     const fetchPlanAndChecks = async () => {
@@ -131,6 +134,26 @@ export default function SchedulePage() {
     }
   };
 
+  const handleReroll = async () => {
+    if (!feedback) return;
+    setRerolling(true);
+    try {
+      const res = await fetch('/api/reroll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userNote: feedback }),
+      });
+      const result = await res.json();
+      if (result?.plan) {
+        window.location.reload();
+      }
+    } catch (err) {
+      console.error('[REROLL_ERROR]', err);
+    } finally {
+      setRerolling(false);
+    }
+  };
+
   if (!plan.length) {
     return <div className="text-center py-20 text-gray-500">No plan found. Generate one to get started.</div>;
   }
@@ -147,10 +170,30 @@ export default function SchedulePage() {
       </div>
 
       {coachNote && (
-        <div className="rounded-xl border border-gray-200 bg-gray-50 px-6 py-5 mb-10 text-[15px] text-gray-700 leading-relaxed shadow-sm">
+        <div className="rounded-xl border border-gray-200 bg-gray-50 px-6 py-5 mb-6 text-[15px] text-gray-700 leading-relaxed shadow-sm">
           {coachNote}
         </div>
       )}
+
+      <div className="rounded-xl border border-gray-100 bg-white px-6 py-4 mb-10 shadow-sm">
+        <h2 className="text-md font-semibold mb-2">Need tweaks? Submit feedback and reroll your plan</h2>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+          <textarea
+            className="w-full sm:w-auto flex-grow px-3 py-2 border border-gray-300 rounded-md text-sm"
+            rows={2}
+            placeholder="This looks good, but can we reduce intensity in week 1?"
+            value={feedback}
+            onChange={(e) => setFeedback(e.target.value)}
+          />
+          <button
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50"
+            onClick={handleReroll}
+            disabled={rerolling}
+          >
+            {rerolling ? 'Rerolling…' : 'Submit & Reroll'}
+          </button>
+        </div>
+      </div>
 
       <div className="space-y-12">
         {plan.map((week, i) => {
