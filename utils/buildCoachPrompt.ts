@@ -13,6 +13,7 @@ export function buildCoachPrompt({
   runPace,
   swimPace,
   userNote,
+  weekMeta,
 }: {
   raceType: string;
   raceDate: Date;
@@ -25,6 +26,7 @@ export function buildCoachPrompt({
   runPace: string;
   swimPace: string;
   userNote: string;
+  weekMeta: { label: string; phase: string; deload: boolean; startDate: string };
 }) {
   return COACH_SYSTEM_PROMPT
     .replace('[RACE_TYPE]', raceType)
