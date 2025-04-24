@@ -98,21 +98,11 @@ export async function POST(req: Request) {
     adjusted = true;
   }
 
-  const weeks = Array.from({ length: totalWeeks }, (_, i) => {
-    const start = addWeeks(startDate, i);
-    return {
-      label: `Week ${i + 1}`,
-      phase: getPhase(i, totalWeeks),
-      deload: getDeload(i),
-      startDate: format(start, 'yyyy-MM-dd'),
-    };
-  });
-
-  const batchSize = 2;
   const plan = [];
-  for (let i = 0; i < weeks.length; i += batchSize) {
-    const batch = weeks.slice(i, i + batchSize);
-    const prompt = buildCoachPrompt({
+
+  for (let i = 0; i < totalWeeks; i++) {
+    const start = addWeeks(startDate, i);
+    const weekPrompt = buildCoachPrompt({
       raceType,
       raceDate,
       startDate,
@@ -124,17 +114,14 @@ export async function POST(req: Request) {
       runPace,
       swimPace,
       userNote,
-    });
+    }) + `\n\nPhase: ${getPhase(i, totalWeeks)}\nDeload: ${getDeload(i)}\nWeek Start: ${format(start, 'yyyy-MM-dd')}`;
 
-    const content = await safeGPTCall(prompt);
+    const content = await safeGPTCall(weekPrompt);
+
     try {
       const cleaned = content.replace(/```json|```/g, '').trim();
       const parsed = JSON.parse(cleaned);
-      if (Array.isArray(parsed)) {
-        plan.push(...parsed);
-      } else {
-        plan.push(parsed);
-      }
+      plan.push(parsed);
     } catch (err) {
       console.error('❌ Failed to parse GPT content', content);
       throw new Error('Failed to parse plan content');
@@ -145,8 +132,6 @@ export async function POST(req: Request) {
     raceDate,
     'yyyy-MM-dd'
   )}. ${adjusted ? 'We adjusted the duration for optimal training.' : ''} Each week balances aerobic work, race specificity, and recovery. Stay consistent and trust the process.`;
-
-  console.log('📦 Saving plan to Supabase', { user_id, planLength: plan.length });
 
   const { data, error } = await supabase.from('plans').upsert(
     {
@@ -163,8 +148,6 @@ export async function POST(req: Request) {
   if (error) {
     console.error('❌ Supabase Insert Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
-  } else {
-    console.log('✅ Successfully saved to Supabase:', data);
   }
 
   return NextResponse.json({
