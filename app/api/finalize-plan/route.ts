@@ -3,6 +3,7 @@ import { addDays, addWeeks, differenceInCalendarWeeks, format } from 'date-fns';
 import OpenAI from 'openai';
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { format } from 'date-fns';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -190,7 +191,7 @@ Return this format ONLY:
     })
   );
 
-  const coachNote = `Here's your ${totalWeeks}-week triathlon plan leading to your race on ${body.raceDate}. ${adjusted ? 'We adjusted the duration for optimal training.' : ''} Each week balances aerobic work, race specificity, and recovery. Stay consistent and trust the process.`;
+  const coachNote = `Here's your ${totalWeeks}-week triathlon plan leading to your race on ${format(raceDate, 'yyyy-MM-dd')}. ${adjusted ? 'We adjusted the duration for optimal training.' : ''} Each week balances aerobic work, race specificity, and recovery. Stay consistent and trust the process.`;
 
   console.log('📦 Saving plan to Supabase', { user_id, planLength: plan.length });
 
@@ -199,6 +200,9 @@ Return this format ONLY:
     user_id,
     plan,
     coach_note: coachNote,
+    note: userNote,
+    race_type: raceType,
+    race_date: raceDate,
   },
   { onConflict: 'user_id' }
 );
