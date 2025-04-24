@@ -48,7 +48,7 @@ async function safeGPTCall(prompt: string, model = 'gpt-4-turbo') {
     const completion = await openai.chat.completions.create({
       model,
       messages: [
-        { role: 'system', content: 'Reply with valid JSON only. No explanation.' },
+        { role: 'system', content: COACH_SYSTEM_PROMPT },
         { role: 'user', content: prompt },
       ],
       temperature: 0.7,
@@ -98,45 +98,42 @@ export async function POST(req: Request) {
     adjusted = true;
   }
 
-  const weeks = Array.from({ length: totalWeeks }, (_, i) => {
+  const plan = [];
+
+  for (let i = 0; i < totalWeeks; i++) {
     const start = addWeeks(startDate, i);
-    return {
+    const weekInfo = {
       label: `Week ${i + 1}`,
       phase: getPhase(i, totalWeeks),
       deload: getDeload(i),
       startDate: format(start, 'yyyy-MM-dd'),
     };
-  });
 
-  const plan = await Promise.all(
-    weeks.map(async (week, i) => {
-      const prompt = buildCoachPrompt({
-        raceType,
-        raceDate,
-        startDate,
-        totalWeeks,
-        experience,
-        maxHours,
-        restDay,
-        bikeFTP,
-        runPace,
-        swimPace,
-        userNote,
-      });
+    const prompt = buildCoachPrompt({
+      raceType,
+      raceDate,
+      startDate,
+      totalWeeks,
+      experience,
+      maxHours,
+      restDay,
+      bikeFTP,
+      runPace,
+      swimPace,
+      userNote,
+    });
 
-      const content = await safeGPTCall(prompt);
+    const content = await safeGPTCall(prompt);
 
-try {
-  const cleaned = content.replace(/```json|```/g, '').trim();
-  const parsed = JSON.parse(cleaned);
-  return parsed;
-} catch (err) {
-  console.error('❌ Failed to parse GPT content', content);
-  throw new Error('Failed to parse plan content');
-}
-
-    })
-  );
+    try {
+      const cleaned = content.replace(/```json|```/g, '').trim();
+      const parsed = JSON.parse(cleaned);
+      plan.push(parsed);
+    } catch (err) {
+      console.error('❌ Failed to parse GPT content', content);
+      throw new Error('Failed to parse plan content');
+    }
+  }
 
   const coachNote = `Here's your ${totalWeeks}-week triathlon plan leading to your race on ${format(
     raceDate,
