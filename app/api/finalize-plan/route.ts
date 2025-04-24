@@ -98,17 +98,20 @@ export async function POST(req: Request) {
     adjusted = true;
   }
 
-  const plan = [];
-
-  for (let i = 0; i < totalWeeks; i++) {
+  const weeks = Array.from({ length: totalWeeks }, (_, i) => {
     const start = addWeeks(startDate, i);
-    const weekInfo = {
+    return {
       label: `Week ${i + 1}`,
       phase: getPhase(i, totalWeeks),
       deload: getDeload(i),
       startDate: format(start, 'yyyy-MM-dd'),
     };
+  });
 
+  const batchSize = 2;
+  const plan = [];
+  for (let i = 0; i < weeks.length; i += batchSize) {
+    const batch = weeks.slice(i, i + batchSize);
     const prompt = buildCoachPrompt({
       raceType,
       raceDate,
@@ -124,11 +127,14 @@ export async function POST(req: Request) {
     });
 
     const content = await safeGPTCall(prompt);
-
     try {
       const cleaned = content.replace(/```json|```/g, '').trim();
       const parsed = JSON.parse(cleaned);
-      plan.push(parsed);
+      if (Array.isArray(parsed)) {
+        plan.push(...parsed);
+      } else {
+        plan.push(parsed);
+      }
     } catch (err) {
       console.error('❌ Failed to parse GPT content', content);
       throw new Error('Failed to parse plan content');
