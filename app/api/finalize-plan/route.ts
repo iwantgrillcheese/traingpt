@@ -126,17 +126,14 @@ export async function POST(req: Request) {
 
       const content = await safeGPTCall(prompt);
 
-      try {
-        const parsed = JSON.parse(content.match(/\{[\s\S]*\}/)?.[0] || '{}');
-        if (!parsed?.days || typeof parsed.days !== 'object') {
-          console.error('❌ Parsed plan missing days object:', parsed);
-          throw new Error('Malformed training plan');
-        }
-        return parsed;
-      } catch (err) {
-        console.error('❌ Failed to parse GPT content', content);
-        throw new Error('Failed to parse plan content');
-      }
+try {
+  const parsed = JSON.parse(content);
+  return parsed;
+} catch (err) {
+  console.error('❌ Failed to parse GPT content', content);
+  throw new Error('Failed to parse plan content');
+}
+
     })
   );
 
