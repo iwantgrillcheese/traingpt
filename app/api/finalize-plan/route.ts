@@ -1,3 +1,4 @@
+// NEW /api/finalize-plan/route.ts with single GPT call
 import { NextResponse } from 'next/server';
 import { addDays, addWeeks, differenceInCalendarWeeks, format } from 'date-fns';
 import OpenAI from 'openai';
@@ -43,23 +44,6 @@ function getDeload(index: number): boolean {
   return (index + 1) % 4 === 0;
 }
 
-async function safeGPTCall(prompt: string, model = 'gpt-4-turbo') {
-  try {
-    const completion = await openai.chat.completions.create({
-      model,
-      messages: [
-        { role: 'system', content: COACH_SYSTEM_PROMPT },
-        { role: 'user', content: prompt },
-      ],
-      temperature: 0.7,
-    });
-    return completion.choices[0]?.message?.content || '{}';
-  } catch (err) {
-    console.error('[GPT TIMEOUT OR ERROR]', err);
-    throw new Error('GPT call timed out or failed.');
-  }
-}
-
 export async function POST(req: Request) {
   const body = await req.json();
   const supabase = createServerComponentClient({ cookies });
@@ -98,62 +82,71 @@ export async function POST(req: Request) {
     adjusted = true;
   }
 
-  const plan = [];
-
-  for (let i = 0; i < totalWeeks; i++) {
+  const weekMeta = Array.from({ length: totalWeeks }, (_, i) => {
     const start = addWeeks(startDate, i);
-    const weekPrompt = buildCoachPrompt({
-      raceType,
-      raceDate,
-      startDate,
-      totalWeeks,
-      experience,
-      maxHours,
-      restDay,
-      bikeFTP,
-      runPace,
-      swimPace,
-      userNote,
-    }) + `\n\nPhase: ${getPhase(i, totalWeeks)}\nDeload: ${getDeload(i)}\nWeek Start: ${format(start, 'yyyy-MM-dd')}`;
-
-    const content = await safeGPTCall(weekPrompt);
-
-    try {
-      const cleaned = content.replace(/```json|```/g, '').trim();
-      const parsed = JSON.parse(cleaned);
-      plan.push(parsed);
-    } catch (err) {
-      console.error('❌ Failed to parse GPT content', content);
-      throw new Error('Failed to parse plan content');
-    }
-  }
-
-  const coachNote = `Here's your ${totalWeeks}-week triathlon plan leading to your race on ${format(
-    raceDate,
-    'yyyy-MM-dd'
-  )}. ${adjusted ? 'We adjusted the duration for optimal training.' : ''} Each week balances aerobic work, race specificity, and recovery. Stay consistent and trust the process.`;
-
-  const { data, error } = await supabase.from('plans').upsert(
-    {
-      user_id,
-      plan,
-      coach_note: coachNote,
-      note: userNote,
-      race_type: raceType,
-      race_date: raceDate,
-    },
-    { onConflict: 'user_id' }
-  );
-
-  if (error) {
-    console.error('❌ Supabase Insert Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({
-    success: true,
-    plan,
-    coachNote,
-    adjusted,
+    return {
+      label: `Week ${i + 1}`,
+      phase: getPhase(i, totalWeeks),
+      deload: getDeload(i),
+      startDate: format(start, 'yyyy-MM-dd'),
+    };
   });
+
+  const prompt = buildCoachPrompt({
+    raceType,
+    raceDate,
+    startDate,
+    totalWeeks,
+    experience,
+    maxHours,
+    restDay,
+    bikeFTP,
+    runPace,
+    swimPace,
+    userNote,
+    weekMeta,
+  });
+
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4-turbo',
+    messages: [
+      { role: 'system', content: COACH_SYSTEM_PROMPT },
+      { role: 'user', content: prompt },
+    ],
+    temperature: 0.7,
+  });
+
+  const content = response.choices[0]?.message?.content || '{}';
+
+  try {
+    const cleaned = content.replace(/```json|```/g, '').trim();
+    const plan = JSON.parse(cleaned);
+
+    const coachNote = `Here's your ${totalWeeks}-week triathlon plan leading to your race on ${format(
+      raceDate,
+      'yyyy-MM-dd'
+    )}. ${adjusted ? 'We adjusted the duration for optimal training.' : ''} Each week balances aerobic work, race specificity, and recovery. Stay consistent and trust the process.`;
+
+    const { data, error } = await supabase.from('plans').upsert(
+      {
+        user_id,
+        plan,
+        coach_note: coachNote,
+        note: userNote,
+        race_type: raceType,
+        race_date: raceDate,
+      },
+      { onConflict: 'user_id' }
+    );
+
+    if (error) {
+      console.error('❌ Supabase Insert Error:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, plan, coachNote, adjusted });
+  } catch (err) {
+    console.error('❌ Failed to parse GPT content', content);
+    return NextResponse.json({ error: 'Failed to parse plan content' }, { status: 500 });
+  }
 }
