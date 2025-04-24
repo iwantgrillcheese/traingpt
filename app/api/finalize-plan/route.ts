@@ -82,7 +82,12 @@ export async function POST(req: Request) {
     adjusted = true;
   }
 
-  const weekMeta = Array.from({ length: totalWeeks }, (_, i) => {
+  const weekMeta: {
+    label: string;
+    phase: string;
+    deload: boolean;
+    startDate: string;
+  }[] = Array.from({ length: totalWeeks }, (_, i) => {
     const start = addWeeks(startDate, i);
     return {
       label: `Week ${i + 1}`,
