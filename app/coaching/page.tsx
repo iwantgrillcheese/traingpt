@@ -1,15 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 const supabase = createClientComponentClient();
 
 export default function CoachingDashboard() {
   const [question, setQuestion] = useState('');
-  const [response, setResponse] = useState<string | null>(null);
-  const [plan, setPlan] = useState<any[]>([]);
+  const [responses, setResponses] = useState<{ question: string; answer: string }[]>([]);
+  const [plan, setPlan] = useState<any>(null);
   const [todaySessions, setTodaySessions] = useState<string[]>([]);
+  const [raceType, setRaceType] = useState('Olympic');
+  const [raceDate, setRaceDate] = useState('');
+  const [experienceLevel, setExperienceLevel] = useState('Intermediate');
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
   const today = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
@@ -29,9 +34,12 @@ export default function CoachingDashboard() {
         .single();
 
       if (!error && plans?.plan) {
-        setPlan(plans.plan);
+        setPlan(plans.plan.plan || []);
+        setRaceType(plans.plan.raceType || 'Olympic');
+        setRaceDate(plans.plan.raceDate || '');
+        setExperienceLevel(plans.plan.experience || 'Intermediate');
 
-        const weekToday = plans.plan.find((week: any) =>
+        const weekToday = plans.plan.plan.find((week: any) =>
           Object.keys(week.days).includes(today)
         );
         setTodaySessions(weekToday?.days[today] || []);
@@ -41,19 +49,43 @@ export default function CoachingDashboard() {
     fetchPlan();
   }, []);
 
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [responses]);
+
   const askCoach = async () => {
-    if (!question) return;
-    setResponse('Thinking...');
+    if (!question.trim()) return;
 
-    const res = await fetch('/api/coach-feedback', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userNote: question }),
-    });
+    setResponses(prev => [...prev, { question, answer: 'Thinking...' }]);
 
-    const data = await res.json();
-    if (res.ok && data?.response) setResponse(data.response);
-    else setResponse('Sorry, something went wrong. Try again.');
+    try {
+      const res = await fetch('/api/coach-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          completedSessions: todaySessions,
+          userNote: question,
+          raceType,
+          raceDate,
+          experienceLevel,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data?.feedback) {
+        setResponses(prev => [...prev.slice(0, -1), { question, answer: data.feedback }]);
+      } else {
+        setResponses(prev => [...prev.slice(0, -1), { question, answer: 'Sorry, something went wrong. Try again.' }]);
+      }
+    } catch (error) {
+      console.error('Error asking coach:', error);
+      setResponses(prev => [...prev.slice(0, -1), { question, answer: 'Sorry, something went wrong. Try again.' }]);
+    } finally {
+      setQuestion('');
+    }
   };
 
   return (
@@ -83,16 +115,27 @@ export default function CoachingDashboard() {
         />
         <button
           onClick={askCoach}
-          className="px-6 py-2 rounded-full bg-black text-white text-sm font-semibold"
+          disabled={!question.trim()}
+          className="px-6 py-2 rounded-full bg-black text-white text-sm font-semibold disabled:opacity-50"
         >
-          Send to Coach
+          {question.trim() ? 'Send to Coach' : 'Type a Question'}
         </button>
       </section>
 
       <section>
         <h2 className="text-lg font-semibold mb-2">Coach Responses</h2>
-        {response ? (
-          <p className="text-gray-700 whitespace-pre-wrap text-sm leading-relaxed">{response}</p>
+        {responses.length > 0 ? (
+          <div className="space-y-6">
+            {responses.map((item, i) => (
+              <div key={i} className="p-4 rounded-xl bg-gray-100">
+                <p className="text-sm text-gray-600 mb-2"><strong>You asked:</strong> {item.question}</p>
+                <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
+                  {item.answer === 'Thinking...' ? <span className="animate-pulse">Thinking...</span> : item.answer}
+                </p>
+              </div>
+            ))}
+            <div ref={messagesEndRef} />
+          </div>
         ) : (
           <p className="text-sm text-gray-500 italic">No questions asked yet.</p>
         )}
