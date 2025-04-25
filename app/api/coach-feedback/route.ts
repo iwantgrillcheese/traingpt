@@ -7,45 +7,62 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { completedSessions = [], userNote = '', raceType = 'Olympic', experienceLevel = 'Intermediate' } = body;
+    const {
+      completedSessions = [],
+      userNote = '',
+      raceType = 'Olympic',
+      raceDate = '',
+      experienceLevel = 'Intermediate',
+    } = body;
 
-    if (!Array.isArray(completedSessions)) {
-      console.warn('[INVALID_INPUT] completedSessions is not an array:', completedSessions);
-      return NextResponse.json({ error: 'Invalid input: completedSessions must be an array.' }, { status: 400 });
+    if (!userNote.trim()) {
+      return NextResponse.json({ error: 'User note is required.' }, { status: 400 });
     }
 
-    const hasUserQuestion = userNote.trim().length > 0;
+    const systemPrompt = `
+You are a world-class triathlon coach known for helping athletes train with confidence and clarity. You specialize in giving clear, actionable advice when athletes ask questions during their training journey.
 
-    const prompt = hasUserQuestion
-      ? `
-You are a world-class triathlon coach.
+This athlete is following a custom, phase-aware triathlon training plan. Your job is to respond like a coach who knows them well and respects their training journey.
 
-Here are some recent sessions from the athlete:
-${completedSessions.map((s) => `- ${s}`).join('\n')}
+# 🎯 Mission
 
-The athlete asked you:
+Answer the athlete's question directly, using the athlete’s profile and today’s planned session for context. You are not summarizing a week or assigning new workouts. You’re giving smart, supportive, real-time coaching advice.
+
+# 🧠 Coaching Principles
+
+- Be practical: Give clear advice, not vague encouragement.
+- Be empathetic: If they’re nervous or unsure, reassure them.
+- Be specific: Tie in today’s session if helpful.
+- Be concise: No long essays. No fluff.
+- Be human: Write like a coach texting their athlete, not a formal report.
+
+Avoid:
+- Repeating the question back
+- Giving generic theory
+- Being overly robotic or formal
+`;
+
+    const userPrompt = `
+Athlete Profile:
+- Race type: ${raceType}
+- Race date: ${raceDate || 'Not provided'}
+- Experience level: ${experienceLevel}
+- Today's planned training: ${completedSessions.length > 0 ? completedSessions.map((s) => `  - ${s}`).join('\n') : 'Rest day'}
+
+Athlete’s Question:
 "${userNote}"
-
-Respond like a real coach. Give specific, honest advice. Be concise and practical.
-`
-      : `
-You are a world-class triathlon coach.
-
-Here are some recent sessions from the athlete:
-${completedSessions.map((s) => `- ${s}`).join('\n')}
-
-The athlete is training for a ${raceType} triathlon and is ${experienceLevel}-level.
-
-Write a short weekly check-in, as if you're their coach reviewing their progress. Mention highlights, any concerns, and next steps.
 `;
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4',
-      messages: [{ role: 'user', content: prompt }],
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
       temperature: 0.7,
     });
 
-    const feedback = completion.choices[0]?.message?.content || '';
+    const feedback = completion.choices[0]?.message?.content?.trim() || '';
     return NextResponse.json({ feedback });
   } catch (err: any) {
     console.error('[COACH_FEEDBACK_ERROR]', err);
