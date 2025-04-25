@@ -1,247 +1,139 @@
-// CoachingDashboard.tsx
-"use client";
+// app/coaching/page.tsx
+'use client';
 
 import { useEffect, useState } from 'react';
-import { differenceInCalendarDays, startOfWeek, addDays } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+const supabase = createClientComponentClient();
 
-export default function CoachingDashboard() {
-  const supabase = createClientComponentClient();
+export default function CoachingPage() {
   const [plan, setPlan] = useState<any[]>([]);
-  const [raceDate, setRaceDate] = useState<string | null>(null);
-  const [raceType, setRaceType] = useState<string | null>(null);
-  const [experienceLevel, setExperienceLevel] = useState<string>('intermediate');
-  const [activated, setActivated] = useState(false);
-  const [coachNote, setCoachNote] = useState('');
-  const [userQuestion, setUserQuestion] = useState('');
-  const [feedbackLoading, setFeedbackLoading] = useState(false);
-  const [weeklyStats, setWeeklyStats] = useState({ total: 0, swim: 0, bike: 0, run: 0, longest: '' });
-  const [compliance, setCompliance] = useState(0);
-  const [upcomingSessions, setUpcomingSessions] = useState<{ date: string; label: string; status: string }[]>([]);
-
-  const fetchPlanAndSessions = async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session?.user) return;
-
-    const { data: plans } = await supabase
-      .from('plans')
-      .select('*')
-      .eq('user_id', session.user.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (!plans) return;
-    const parsed = plans.plan;
-
-    if (!Array.isArray(parsed)) {
-      console.error('[COACHING_TAB] Invalid or missing plan data:', parsed);
-      return;
-    }
-
-    setPlan(parsed);
-    setRaceDate(plans.race_date || null);
-    setRaceType(plans.race_type || null);
-
-    const storedActivation = localStorage.getItem('trainGPTActivated');
-    if (storedActivation === 'true') setActivated(true);
-
-    const { data: completed } = await supabase
-      .from('completed_sessions')
-      .select('*')
-      .eq('user_id', session.user.id);
-
-    let swim = 0, bike = 0, run = 0, total = 0;
-    let maxMin = 0;
-    let longest = '';
-    let completedCount = 0, plannedCount = 0;
-
-    const today = new Date();
-    const allUpcoming: { date: string; label: string; status: string }[] = [];
-
-    for (const week of parsed) {
-      for (const [isoDate, sessions] of Object.entries(week.days || {})) {
-        const date = new Date(isoDate);
-        const list = Array.isArray(sessions) ? sessions : [sessions];
-
-        list.forEach((s) => {
-          const completedSession = completed?.find((item) => item.date === isoDate && item.sport.toLowerCase() === s.toLowerCase());
-          const status = completedSession?.status || 'none';
-
-          if (differenceInCalendarDays(date, today) <= 0) {
-            if (!s.toLowerCase().includes('rest')) plannedCount++;
-            if (status === 'done') {
-              completedCount++;
-              const sLower = s.toLowerCase();
-              if (sLower.includes('swim')) swim += 0.75;
-              else if (sLower.includes('bike')) bike += 1.2;
-              else if (sLower.includes('run')) run += 0.9;
-
-              const timeMatch = s.match(/(\d+)(h|hr|hrs)?\s?(\d+)?(min)?/i);
-              if (timeMatch) {
-                const minTotal = (parseInt(timeMatch[1]) || 0) * 60 + (parseInt(timeMatch[3]) || 0);
-                if (minTotal > maxMin) {
-                  maxMin = minTotal;
-                  longest = s;
-                }
-              }
-            }
-          }
-
-          if (differenceInCalendarDays(date, today) >= 0) {
-            allUpcoming.push({ date: isoDate, label: s, status });
-          }
-        });
-      }
-    }
-
-    total = swim + bike + run;
-    setWeeklyStats({ swim: +swim.toFixed(1), bike: +bike.toFixed(1), run: +run.toFixed(1), total: +total.toFixed(1), longest: longest || 'N/A' });
-    setCompliance(plannedCount > 0 ? Math.round((completedCount / plannedCount) * 100) : 0);
-    setUpcomingSessions(allUpcoming.slice(0, 3));
-  };
+  const [question, setQuestion] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [messages, setMessages] = useState<{ user: string; coach: string; date: string }[]>([]);
 
   useEffect(() => {
-    fetchPlanAndSessions();
+    const fetchPlanAndMessages = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session?.user) return;
+
+        const { data: plans } = await supabase
+          .from('plans')
+          .select('plan')
+          .eq('user_id', session.user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (plans?.plan) setPlan(plans.plan);
+
+        const { data: coachingMessages } = await supabase
+          .from('coaching_messages')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .order('created_at', { ascending: true });
+
+        if (coachingMessages) setMessages(coachingMessages);
+      } catch (err) {
+        console.error('Error fetching data:', err);
+      }
+    };
+
+    fetchPlanAndMessages();
   }, []);
 
-  const daysLeft = raceDate ? differenceInCalendarDays(new Date(raceDate), new Date()) : null;
-
-const askCoach = async () => {
-  if (!userQuestion) return;
-  setFeedbackLoading(true);
-
-  try {
-    const res = await fetch('/api/coach-feedback', {
-      method: 'POST',
-      body: JSON.stringify({
-        completedSessions: plan.flatMap((week) =>
-          Object.entries(week.days || {}).flatMap(([day, val]) =>
-            Array.isArray(val) ? val.map((v) => `${day}: ${v}`) : [`${day}: ${val}`]
-          )
-        ),
-        raceType,
-        experienceLevel,
-        userNote: userQuestion,
-      }),
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-    const contentType = res.headers.get('content-type');
-    if (!res.ok) {
-      const errorText = await res.text();
-      throw new Error(`Server error: ${errorText}`);
+  const handleAskCoach = async () => {
+    if (!question.trim()) return;
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/ask-coach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question }),
+      });
+      if (res.ok) {
+        const { userMessage, coachReply } = await res.json();
+        setMessages(prev => [...prev, { user: userMessage, coach: coachReply, date: new Date().toISOString() }]);
+        setQuestion('');
+      } else {
+        throw new Error('Failed to send question');
+      }
+    } catch (err) {
+      console.error('Error asking coach:', err);
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const data = contentType?.includes('application/json') ? await res.json() : null;
-    if (data?.feedback) {
-      setCoachNote(data.feedback);
-    } else {
-      throw new Error('No feedback received from the coach.');
-    }
-  } catch (err: any) {
-    console.error('[AskCoach] Failed:', err);
-    alert('Something went wrong asking your coach — try again in a bit.');
-  } finally {
-    setFeedbackLoading(false);
-  }
-};
-
-  if (!plan.length) return <div className="text-center text-gray-500 py-20">Generate and finalize a plan first.</div>;
-  if (!activated) {
-    return (
-      <div className="max-w-xl mx-auto text-center py-32 px-4">
-        <h2 className="text-2xl font-semibold mb-4">Activate AI Coaching</h2>
-        <p className="text-gray-600 mb-6">Get race countdowns, compliance stats, and weekly feedback tailored to your plan.</p>
-        <button
-          onClick={() => {
-            setActivated(true);
-            localStorage.setItem('trainGPTActivated', 'true');
-          }}
-          className="px-6 py-3 bg-black text-white rounded-full hover:bg-gray-800 transition"
-        >✅ Yes, activate coaching</button>
-      </div>
-    );
-  }
+  };
 
   return (
-    <main className="max-w-6xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-8 gap-4">
-        <h1 className="text-2xl sm:text-3xl font-semibold">Coaching Dashboard</h1>
-        <button onClick={() => window.location.reload()} className="px-4 py-2 text-sm bg-gray-200 text-gray-800 rounded-full hover:bg-gray-300 transition">🔄 Refresh</button>
-      </div>
+    <main className="max-w-4xl mx-auto px-4 sm:px-8 py-12">
+      <h1 className="text-3xl font-bold mb-8">Coaching Dashboard</h1>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-10">
-        <div className="bg-white border rounded-xl p-6 shadow-sm">
-          <p className="text-sm text-gray-500 mb-1">Race Countdown</p>
-          <p className="text-xl font-bold text-gray-900">{daysLeft !== null ? `${daysLeft} days to ${raceType || 'your race'}` : 'No race date'}</p>
+      {/* Today's Sessions */}
+      <section className="mb-12">
+        <h2 className="text-xl font-semibold mb-4">Today's Sessions</h2>
+        <div className="space-y-2">
+          {plan.length > 0 ? plan.flatMap((week: any) =>
+            Object.entries(week.days || {}).map(([dateStr, sessions]: [string, any]) => {
+              if (format(parseISO(dateStr), 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')) {
+                return sessions.map((session: string, idx: number) => (
+                  <div key={idx} className="border rounded-lg p-3 bg-white shadow-sm">
+                    {session}
+                  </div>
+                ));
+              }
+              return null;
+            })
+          ).filter(Boolean) : <p className="text-gray-500">No sessions today.</p>}
         </div>
-        <div className="bg-white border rounded-xl p-6 shadow-sm">
-          <p className="text-sm text-gray-500 mb-1">This Week’s Training Time</p>
-          <p className="text-xl font-bold">{weeklyStats.total} hrs</p>
-        </div>
-        <div className="bg-white border rounded-xl p-6 shadow-sm">
-          <p className="text-sm text-gray-500 mb-1">This Week’s Compliance</p>
-          <p className={`text-xl font-bold ${compliance === 100 ? 'text-green-600' : compliance === 0 ? 'text-red-500' : 'text-yellow-500'}`}>{compliance}%</p>
-        </div>
-      </div>
+      </section>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 mb-10">
-        <div className="bg-white border rounded-xl p-4 text-center">
-          <p className="text-xs text-gray-500">Swim</p>
-          <p className="font-bold text-lg">{weeklyStats.swim} hrs</p>
-        </div>
-        <div className="bg-white border rounded-xl p-4 text-center">
-          <p className="text-xs text-gray-500">Bike</p>
-          <p className="font-bold text-lg">{weeklyStats.bike} hrs</p>
-        </div>
-        <div className="bg-white border rounded-xl p-4 text-center">
-          <p className="text-xs text-gray-500">Run</p>
-          <p className="font-bold text-lg">{weeklyStats.run} hrs</p>
-        </div>
-        <div className="bg-white border rounded-xl p-4 text-center">
-          <p className="text-xs text-gray-500">Longest Session</p>
-          <p className="font-bold text-lg">{weeklyStats.longest}</p>
-        </div>
-      </div>
-
-      <div className="mb-12">
-        <h2 className="text-lg font-semibold mb-4">Ask Your Coach</h2>
+      {/* Ask your coach */}
+      <section className="mb-12">
+        <h2 className="text-xl font-semibold mb-4">Ask Your Coach</h2>
         <textarea
-          className="w-full border rounded-lg p-3 text-sm bg-white shadow-sm"
-          rows={3}
-          placeholder="e.g. 'What drills should I do Monday?' or 'How hard should I push on Tuesday’s bike ride?'"
-          value={userQuestion}
-          onChange={(e) => setUserQuestion(e.target.value)}
+          className="w-full border border-gray-300 rounded-lg px-4 py-3 mb-4 text-sm"
+          placeholder="Ask your coach anything about your training..."
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          rows={4}
         />
         <button
-          onClick={askCoach}
-          disabled={feedbackLoading}
-          className={`mt-3 px-5 py-2 rounded-full text-sm flex items-center justify-center transition ${feedbackLoading ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-black text-white hover:bg-gray-800'}`}
+          onClick={handleAskCoach}
+          disabled={isSubmitting}
+          className={`w-full sm:w-auto px-6 py-2 rounded-full font-semibold text-sm text-white transition ${
+            isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-black hover:bg-gray-800'
+          }`}
         >
-          {feedbackLoading ? <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Ask Coach'}
+          {isSubmitting ? 'Sending...' : 'Send to Coach'}
         </button>
-      </div>
+      </section>
 
-      <div className="mb-10">
-        <h2 className="text-lg font-semibold mb-2">Upcoming Sessions</h2>
-        <p className="text-gray-500 mb-4">Here’s what’s coming up. Want more detail? Ask your coach above.</p>
-        <div className="flex gap-4 overflow-x-auto pb-4">
-          {upcomingSessions.map((s, i) => (
-            <div key={i} className="min-w-[220px] bg-white border rounded-xl p-4 shadow-sm shrink-0">
-              <p className="text-xs text-gray-500 mb-1">{s.date}</p>
-              <p className="text-sm font-medium text-gray-800">{s.label}</p>
+      {/* Conversation History */}
+      <section>
+        <h2 className="text-xl font-semibold mb-4">Coach Responses</h2>
+        <div className="space-y-6">
+          {messages.length > 0 ? messages.map((m, idx) => (
+            <div key={idx} className="bg-white border rounded-lg p-4 shadow-sm">
+              <div className="text-sm text-gray-500 mb-2">{format(parseISO(m.date), 'MMM d, yyyy')}</div>
+              <div className="mb-2">
+                <strong className="text-gray-700">You:</strong>
+                <p className="text-gray-800 mt-1">{m.user}</p>
+              </div>
+              <div>
+                <strong className="text-gray-700">Coach:</strong>
+                <p className="text-gray-800 mt-1">{m.coach}</p>
+              </div>
             </div>
-          ))}
+          )) : (
+            <p className="text-gray-500">No questions asked yet.</p>
+          )}
         </div>
-      </div>
-
-      <div className="bg-white border rounded-xl p-6 shadow-sm">
-        <p className="text-sm text-gray-500 font-semibold mb-2">Coach Notes</p>
-        <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{coachNote || 'Ask a question to generate some coach notes.'}</p>
-      </div>
+      </section>
     </main>
   );
 }
