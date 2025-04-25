@@ -47,7 +47,7 @@ Athlete Profile:
 - Race type: ${raceType}
 - Race date: ${raceDate || 'Not provided'}
 - Experience level: ${experienceLevel}
-- Today's planned training: ${completedSessions.length > 0 ? completedSessions.map((s) => `  - ${s}`).join('\n') : 'Rest day'}
+- Today's planned training: ${completedSessions.length > 0 ? completedSessions.map((s: string) => `  - ${s}`).join('\n') : 'Rest day'}
 
 Athlete’s Question:
 "${userNote}"
