@@ -1,3 +1,4 @@
+// /api/finalize-plan/route.ts (patched to support reroll by reusing plan metadata)
 import { NextResponse } from 'next/server';
 import { addDays, addWeeks, differenceInCalendarWeeks, format } from 'date-fns';
 import OpenAI from 'openai';
@@ -45,6 +46,8 @@ function getDeload(index: number): boolean {
 
 export async function POST(req: Request) {
   const body = await req.json();
+  const userNote = body.userNote || '';
+
   const supabase = createServerComponentClient({ cookies });
   const {
     data: { user },
@@ -57,15 +60,27 @@ export async function POST(req: Request) {
   const user_id = user.id;
   const today = new Date();
   const startDate = getNextMonday(today);
-  const raceDate = new Date(body.raceDate);
-  const experience = body.experience || 'Intermediate';
-  const raceType = body.raceType || 'Olympic';
-  const maxHours = body.maxHours || 8;
-  const restDay = body.restDay || 'Monday';
-  const bikeFTP = body.bikeFTP || 'Not provided';
-  const runPace = body.runPace || 'Not provided';
-  const swimPace = body.swimPace || 'Not provided';
-  const userNote = body.userNote || '';
+
+  const { data: latestPlan, error: fetchError } = await supabase
+    .from('plans')
+    .select('*')
+    .eq('user_id', user_id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (fetchError || !latestPlan?.plan) {
+    console.error('❌ Failed to fetch existing plan metadata:', fetchError);
+    return NextResponse.json({ error: 'Missing base plan for reroll' }, { status: 400 });
+  }
+
+  const { race_type, race_date, experience, max_hours, rest_day } = latestPlan;
+
+  const raceDate = new Date(race_date);
+  const raceType = race_type;
+  const experienceLevel = experience || 'Intermediate';
+  const maxHours = max_hours || 8;
+  const restDay = rest_day || 'Monday';
 
   let totalWeeks = differenceInCalendarWeeks(raceDate, startDate);
   const minWeeks = MIN_WEEKS[raceType] || 6;
@@ -81,12 +96,7 @@ export async function POST(req: Request) {
     adjusted = true;
   }
 
-  const weekMeta: {
-    label: string;
-    phase: string;
-    deload: boolean;
-    startDate: string;
-  }[] = Array.from({ length: totalWeeks }, (_, i) => {
+  const weekMeta = Array.from({ length: totalWeeks }, (_, i) => {
     const start = addWeeks(startDate, i);
     return {
       label: `Week ${i + 1}`,
@@ -101,12 +111,12 @@ export async function POST(req: Request) {
     raceDate,
     startDate,
     totalWeeks,
-    experience,
+    experience: experienceLevel,
     maxHours,
     restDay,
-    bikeFTP,
-    runPace,
-    swimPace,
+    bikeFTP: 'Not provided',
+    runPace: 'Not provided',
+    swimPace: 'Not provided',
     userNote,
     weekMeta,
   });
@@ -139,6 +149,9 @@ export async function POST(req: Request) {
         note: userNote,
         race_type: raceType,
         race_date: raceDate,
+        experience: experienceLevel,
+        max_hours: maxHours,
+        rest_day: restDay,
       },
       { onConflict: 'user_id' }
     );
