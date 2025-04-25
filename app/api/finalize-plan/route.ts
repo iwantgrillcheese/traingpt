@@ -1,4 +1,3 @@
-// NEW /api/finalize-plan/route.ts with single GPT call
 import { NextResponse } from 'next/server';
 import { addDays, addWeeks, differenceInCalendarWeeks, format } from 'date-fns';
 import OpenAI from 'openai';
