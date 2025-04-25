@@ -133,23 +133,35 @@ export default function SchedulePage() {
     }
   };
 
-  const handleReroll = async () => {
-    if (!feedback) return;
-    setIsSubmitting(true);
-    try {
-      const res = await fetch('/api/finalize-plan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userNote: feedback }),
-      });
-      if (res.ok) location.reload();
-      else throw new Error('Failed to regenerate plan');
-    } catch (err) {
-      console.error('[PLAN_REROLL_ERROR]', err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+ const handleReroll = async () => {
+  if (!feedback) return;
+  setIsSubmitting(true);
+  try {
+    const stored = localStorage.getItem('trainGPTPlan');
+    const parsed = stored ? JSON.parse(stored) : null;
+
+    const res = await fetch('/api/finalize-plan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        raceType: parsed?.raceType,
+        raceDate: parsed?.raceDate,
+        experience: parsed?.experience,
+        maxHours: parsed?.maxHours,
+        restDay: parsed?.restDay,
+        userNote: feedback,
+      }),
+    });
+
+    if (res.ok) location.reload();
+    else throw new Error('Failed to regenerate plan');
+  } catch (err) {
+    console.error('[PLAN_REROLL_ERROR]', err);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+
 
   if (!plan.length) {
     return <div className="text-center py-20 text-gray-500">No plan found. Generate one to get started.</div>;
