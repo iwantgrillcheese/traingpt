@@ -1,3 +1,4 @@
+// NEW /api/finalize-plan/route.ts with single GPT call
 import { NextResponse } from 'next/server';
 import { addDays, addWeeks, differenceInCalendarWeeks, format } from 'date-fns';
 import OpenAI from 'openai';
@@ -55,50 +56,19 @@ export async function POST(req: Request) {
   }
 
   const user_id = user.id;
-  let {
-    raceType,
-    raceDate,
-    experience,
-    maxHours,
-    restDay,
-    bikeFTP,
-    runPace,
-    swimPace,
-    userNote,
-    startDate,
-    totalWeeks,
-  } = body;
+  const today = new Date();
+  const startDate = getNextMonday(today);
+  const raceDate = new Date(body.raceDate);
+  const experience = body.experience || 'Intermediate';
+  const raceType = body.raceType || 'Olympic';
+  const maxHours = body.maxHours || 8;
+  const restDay = body.restDay || 'Monday';
+  const bikeFTP = body.bikeFTP || 'Not provided';
+  const runPace = body.runPace || 'Not provided';
+  const swimPace = body.swimPace || 'Not provided';
+  const userNote = body.userNote || '';
 
-  // If reroll with just userNote, pull last saved plan
-  if (!raceType || !raceDate) {
-    const { data: lastPlan, error } = await supabase
-      .from('plans')
-      .select('*')
-      .eq('user_id', user_id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (error || !lastPlan) {
-      return NextResponse.json({ error: 'No existing plan to reroll' }, { status: 400 });
-    }
-
-    raceType = lastPlan.race_type;
-    raceDate = lastPlan.race_date;
-    restDay = lastPlan.rest_day || 'Monday';
-    bikeFTP = lastPlan.bike_ftp || 'Not provided';
-    runPace = lastPlan.run_pace || 'Not provided';
-    swimPace = lastPlan.swim_pace || 'Not provided';
-    experience = lastPlan.experience || 'Intermediate';
-    maxHours = lastPlan.max_hours || 8;
-    startDate = getNextMonday(new Date());
-    totalWeeks = differenceInCalendarWeeks(new Date(raceDate), startDate);
-  }
-
-  raceDate = new Date(raceDate);
-  startDate = startDate ? new Date(startDate) : getNextMonday(new Date());
-  totalWeeks = totalWeeks || differenceInCalendarWeeks(raceDate, startDate);
-
+  let totalWeeks = differenceInCalendarWeeks(raceDate, startDate);
   const minWeeks = MIN_WEEKS[raceType] || 6;
   const maxWeeks = MAX_WEEKS[raceType] || 20;
   let adjusted = false;
@@ -170,12 +140,6 @@ export async function POST(req: Request) {
         note: userNote,
         race_type: raceType,
         race_date: raceDate,
-        rest_day: restDay,
-        bike_ftp: bikeFTP,
-        run_pace: runPace,
-        swim_pace: swimPace,
-        experience,
-        max_hours: maxHours,
       },
       { onConflict: 'user_id' }
     );
