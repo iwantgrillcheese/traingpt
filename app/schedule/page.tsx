@@ -167,26 +167,26 @@ export default function SchedulePage() {
       </div>
 
       <div className="rounded-xl border border-gray-200 bg-gray-50 px-6 py-5 mb-10 shadow-sm">
-  <p className="text-[15px] text-gray-700 mb-2 font-medium">
-    Need tweaks? Submit feedback and reroll your plan
-  </p>
-  <textarea
-    className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm text-gray-700 mb-3"
-    placeholder="This looks good, but can we reduce intensity in week 1?"
-    value={feedback}
-    onChange={(e) => setFeedback(e.target.value)}
-  />
-  <button
-    onClick={handleReroll}
-    disabled={isSubmitting}
-    className={`w-full sm:w-auto px-6 py-2 rounded-full font-semibold text-sm text-white transition ${
-      isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-black hover:bg-gray-800'
-    }`}
-  >
-    {isSubmitting ? 'Regenerating...' : 'Regenerate Plan'}
-  </button>
-</div>
-
+        <p className="text-[15px] text-gray-700 mb-2 font-medium">
+          Need tweaks? Submit feedback and reroll your plan
+        </p>
+        <textarea
+          className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm text-gray-700 mb-3"
+          placeholder="This looks good, but can we reduce intensity in week 1?"
+          value={feedback}
+          onChange={(e) => setFeedback(e.target.value)}
+        />
+        <div className="flex justify-end">
+          <button
+            onClick={handleReroll}
+            disabled={isSubmitting}
+            className={`px-6 py-2 rounded-full font-semibold text-sm text-white transition ${
+              isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-black hover:bg-gray-800'
+            }`}
+          >
+            {isSubmitting ? 'Regenerating...' : 'Regenerate Plan'}
+          </button>
+        </div>
       </div>
 
       <div className="space-y-12">
