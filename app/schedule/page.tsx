@@ -133,24 +133,28 @@ export default function SchedulePage() {
     }
   };
 
- const handleReroll = async () => {
+const handleReroll = async () => {
   if (!feedback) return;
   setIsSubmitting(true);
   try {
     const stored = localStorage.getItem('trainGPTPlan');
     const parsed = stored ? JSON.parse(stored) : null;
 
+    const payload = {
+      raceType: parsed?.raceType,
+      raceDate: parsed?.raceDate,
+      experience: parsed?.experience,
+      maxHours: parsed?.maxHours,
+      restDay: parsed?.restDay,
+      userNote: feedback,
+    };
+
+    console.log('[REROLL_PAYLOAD]', payload); // 👈 add this
+
     const res = await fetch('/api/finalize-plan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        raceType: parsed?.raceType,
-        raceDate: parsed?.raceDate,
-        experience: parsed?.experience,
-        maxHours: parsed?.maxHours,
-        restDay: parsed?.restDay,
-        userNote: feedback,
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (res.ok) location.reload();
@@ -161,6 +165,7 @@ export default function SchedulePage() {
     setIsSubmitting(false);
   }
 };
+
 
 
   if (!plan.length) {
