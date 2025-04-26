@@ -52,7 +52,7 @@ export default function CoachingDashboard() {
           for (const [date, sessionList] of Object.entries(week.days)) {
             const parsedDate = new Date(date);
             if (parsedDate >= todayDate && sessions.length < 7) {
-              sessions.push({ date, sessions: sessionList });
+              sessions.push({ date, sessions: sessionList as string[] });
             }
           }
         }
