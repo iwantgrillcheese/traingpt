@@ -6,7 +6,10 @@ import { format, parseISO, isSameDay } from 'date-fns';
 
 const supabase = createClientComponentClient();
 
-const getColor = (session: string) => {
+// --- Helper functions ---
+
+const getColor = (session: string | undefined) => {
+  if (!session) return 'before:bg-gray-300';
   const s = session.toLowerCase();
   if (s.includes('interval') || s.includes('brick') || s.includes('race pace')) return 'before:bg-red-400';
   if (s.includes('threshold') || s.includes('tempo')) return 'before:bg-yellow-400';
@@ -26,7 +29,6 @@ export default function SchedulePage() {
   const [completed, setCompleted] = useState<{ [key: string]: string }>({});
   const [stravaActivities, setStravaActivities] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -74,28 +76,11 @@ export default function SchedulePage() {
     fetchAll();
   }, []);
 
-  const handleSyncStrava = async () => {
-    setSyncing(true);
-    try {
-      const res = await fetch('/api/strava/sync', { method: 'POST' });
-      if (res.ok) {
-        window.location.reload();
-      } else {
-        console.error('Strava sync failed');
-      }
-    } catch (err) {
-      console.error('Strava sync error', err);
-    } finally {
-      setSyncing(false);
-    }
-  };
-
   const today = new Date();
   const raceCountdown = raceDate ? Math.max(0, Math.floor((parseISO(raceDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))) : null;
 
   const matchStrava = (date: string, session: string) => {
-    if (!stravaActivities.length) return null;
-    const dayActivities = stravaActivities.filter((a: any) => isSameDay(new Date(a.start_date_local), parseISO(date)));
+    const dayActivities = stravaActivities.filter((a) => isSameDay(new Date(a.start_date_local), parseISO(date)));
     const lower = session.toLowerCase();
     if (!dayActivities.length) return null;
 
@@ -127,23 +112,16 @@ export default function SchedulePage() {
   return (
     <main className="max-w-[1440px] mx-auto px-4 sm:px-8 py-10 sm:py-16">
       {/* Top Header */}
-      <div className="flex flex-col items-center justify-center mb-10 relative">
+      <div className="text-center mb-10">
         <h1 className="text-3xl font-bold mb-2">Your Training Plan</h1>
         {raceCountdown !== null && (
           <p className="text-gray-600 text-lg">{raceCountdown} days until race day</p>
         )}
         {coachNote && (
-          <div className="mt-4 bg-blue-50 border border-blue-200 text-blue-700 rounded-xl px-5 py-3 text-sm shadow-md max-w-xl text-center">
+          <div className="mt-4 inline-block bg-blue-50 border border-blue-200 text-blue-700 rounded-xl px-5 py-3 text-sm shadow-sm">
             {coachNote}
           </div>
         )}
-        <button
-          onClick={handleSyncStrava}
-          disabled={syncing}
-          className="absolute right-0 top-0 px-4 py-2 bg-black text-white rounded-full text-sm hover:bg-gray-800 transition"
-        >
-          {syncing ? 'Syncing...' : 'Sync Strava'}
-        </button>
       </div>
 
       {/* Plan Weeks */}
@@ -172,12 +150,12 @@ export default function SchedulePage() {
                   return (
                     <div
                       key={dateStr}
-                      className={`relative rounded-2xl border p-4 shadow-lg bg-white flex flex-col justify-between min-h-[180px] transition-all hover:shadow-xl hover:-translate-y-1 before:content-[''] before:absolute before:top-0 before:left-1/2 before:-translate-x-1/2 before:w-1/2 before:h-1 before:rounded-full ${getColor(sessions[0])}`}
+                      className={`relative rounded-2xl border p-4 shadow-md bg-white flex flex-col justify-between min-h-[180px] before:content-[''] before:absolute before:top-0 before:left-1/2 before:-translate-x-1/2 before:w-1/2 before:h-1 before:rounded-full ${getColor(sessions?.[0])}`}
                     >
                       <div>
-                        <h3 className="text-xs font-bold text-gray-700 mb-3">{dayLabel}</h3>
+                        <h3 className="text-xs font-bold text-gray-800 mb-3">{dayLabel}</h3>
                         <div className="space-y-2">
-                          {sessions.length > 0 ? (
+                          {sessions?.length > 0 ? (
                             sessions.map((s: string, idx: number) => {
                               const statusKey = `${dateStr}-${s.toLowerCase()}`;
                               const status = completed[statusKey] || 'none';
@@ -185,13 +163,13 @@ export default function SchedulePage() {
 
                               return (
                                 <div key={idx} className="flex flex-col">
-                                  <div className="flex items-start gap-2 text-sm">
-                                    <span>{getStatusIcon(status)}</span>
-                                    <span>{s}</span>
+                                  <div className="flex items-start gap-2">
+                                    <span className="text-xs">{getStatusIcon(status)}</span>
+                                    <span className="text-sm text-gray-800">{s}</span>
                                   </div>
                                   {matched && (
-                                    <div className="ml-5 mt-1 text-xs bg-orange-50 p-2 rounded-lg text-orange-600 shadow-sm animate-fadeIn">
-                                      🏁 {matched.distance}km • {matched.timeMin}min
+                                    <div className="ml-5 mt-1 text-xs bg-orange-50 p-2 rounded-lg text-orange-600 shadow-sm">
+                                      {matched.distance}km • {matched.timeMin}min
                                     </div>
                                   )}
                                 </div>
