@@ -72,7 +72,7 @@ export default function CoachingDashboard() {
   const askCoach = async () => {
     if (!question.trim()) return;
 
-    const newMessages = [
+    const newMessages: { role: 'user' | 'assistant'; content: string; timestamp: number; error?: boolean }[] = [
       ...messages,
       { role: 'user', content: question, timestamp: Date.now() },
       { role: 'assistant', content: 'Thinking...', timestamp: Date.now() },
@@ -85,7 +85,7 @@ export default function CoachingDashboard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: [...messages, { role: 'user', content: question }].slice(-8),
+          messages: [...messages, { role: 'user' as const, content: question }].slice(-8),
           completedSessions: upcomingSessions.flatMap((s) => s.sessions),
           userNote: question,
           raceType,
