@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
+import Link from 'next/link';
 
 const supabase = createClientComponentClient();
 
@@ -23,6 +24,7 @@ export default function CoachingDashboard() {
   const [raceType, setRaceType] = useState('Olympic');
   const [raceDate, setRaceDate] = useState('');
   const [experienceLevel, setExperienceLevel] = useState('Intermediate');
+  const [coachNote, setCoachNote] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const today = new Date().toISOString().split('T')[0];
@@ -34,7 +36,7 @@ export default function CoachingDashboard() {
 
       const { data: plans, error } = await supabase
         .from('plans')
-        .select('plan, race_type, race_date, experience')
+        .select('plan, race_type, race_date, experience, coach_note')
         .eq('user_id', session.user.id)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -44,6 +46,7 @@ export default function CoachingDashboard() {
         setRaceType(plans.race_type || 'Olympic');
         setRaceDate(plans.race_date || '');
         setExperienceLevel(plans.experience || 'Intermediate');
+        setCoachNote(plans.coach_note || '');
 
         const sessions: { date: string; sessions: string[] }[] = [];
         const todayDate = new Date(today);
@@ -114,6 +117,10 @@ export default function CoachingDashboard() {
         <h1 className="text-2xl font-bold mb-2">Coaching Dashboard</h1>
         <div className="text-sm text-gray-500 mb-1">Race type: {raceType} | Experience: {experienceLevel}</div>
         {raceDate && <div className="text-sm text-gray-500">Race in {formatDistanceToNow(new Date(raceDate), { addSuffix: true })}</div>}
+        <div className="mt-3 text-[15px] text-gray-700 bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <strong className="block font-medium text-gray-800 mb-1">Your Week at a Glance:</strong>
+          <p>{coachNote || 'Key sessions: long ride, long run, interval bike, threshold run. Try to get to the pool at least once. If you miss a day, let me know and we can adjust the plan.'}</p>
+        </div>
       </div>
 
       <section className="mb-10">
@@ -176,6 +183,15 @@ export default function CoachingDashboard() {
           </button>
         </div>
       </section>
+
+      <div className="text-center mt-6">
+        <Link
+          href={`https://www.strava.com/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID}&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_STRAVA_REDIRECT_URI}&approval_prompt=force&scope=activity:read_all`}
+          className="inline-block px-6 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-full text-sm font-semibold"
+        >
+          Connect to Strava
+        </Link>
+      </div>
     </main>
   );
 }
