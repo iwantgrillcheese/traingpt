@@ -1,4 +1,4 @@
-// /api/finalize-plan/route.ts
+// /api/finalize-plan/route.ts (patched to support reroll by reusing plan metadata)
 import { NextResponse } from 'next/server';
 import { addDays, addWeeks, differenceInCalendarWeeks, format } from 'date-fns';
 import OpenAI from 'openai';
@@ -61,13 +61,14 @@ export async function POST(req: Request) {
   const today = new Date();
   const startDate = getNextMonday(today);
 
-  const { data: latestPlan, error: fetchError } = await supabase
+  const { data: latestPlanRows, error: fetchError } = await supabase
     .from('plans')
     .select('*')
     .eq('user_id', user_id)
     .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
+    .limit(1);
+
+  const latestPlan = latestPlanRows?.[0];
 
   if (fetchError || !latestPlan?.plan) {
     console.error('❌ Failed to fetch existing plan metadata:', fetchError);
@@ -134,16 +135,7 @@ export async function POST(req: Request) {
 
   try {
     const cleaned = content.replace(/```json|```/g, '').trim();
-    const parsedPlan = JSON.parse(cleaned);
-
-    const wrappedPlan = {
-      raceType,
-      raceDate,
-      experience: experienceLevel,
-      maxHours,
-      restDay,
-      plan: parsedPlan,
-    };
+    const plan = JSON.parse(cleaned);
 
     const coachNote = `Here's your ${totalWeeks}-week triathlon plan leading to your race on ${format(
       raceDate,
@@ -153,7 +145,7 @@ export async function POST(req: Request) {
     const { data, error } = await supabase.from('plans').upsert(
       {
         user_id,
-        plan: wrappedPlan,
+        plan,
         coach_note: coachNote,
         note: userNote,
         race_type: raceType,
@@ -170,7 +162,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, plan: wrappedPlan, coachNote, adjusted });
+    return NextResponse.json({ success: true, plan, coachNote, adjusted });
   } catch (err) {
     console.error('❌ Failed to parse GPT content', content);
     return NextResponse.json({ error: 'Failed to parse plan content' }, { status: 500 });
