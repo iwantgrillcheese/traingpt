@@ -154,7 +154,8 @@ export default function SchedulePage() {
                         <div className="space-y-2">
                           {sessions.length > 0 ? (
                             sessions.map((s: string, idx: number) => {
-                              const statusKey = `${dateStr}-${s.toLowerCase()}`;
+                              const safeSession = typeof s === 'string' ? s : '';
+                              const statusKey = `${dateStr}-${safeSession.toLowerCase()}`;
                               const status = completed[statusKey] || 'none';
                               const matched = matchStrava(dateStr, s);
 
