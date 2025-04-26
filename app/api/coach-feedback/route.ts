@@ -9,7 +9,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const {
       messages = [],
-      completedSessions = [],
+      upcomingSessions = [],
       userNote = '',
       raceType = 'Olympic',
       raceDate = '',
@@ -27,13 +27,13 @@ This athlete is following a custom, phase-aware triathlon training plan. Your jo
 
 # 🎯 Mission
 
-Answer the athlete's question directly, using the athlete’s profile and today’s planned session for context. You are not summarizing a week or assigning new workouts. You’re giving smart, supportive, real-time coaching advice.
+Answer the athlete's question directly, using the athlete’s profile and their upcoming training sessions for context. You are not summarizing a week or assigning new workouts. You’re giving smart, supportive, real-time coaching advice.
 
 # 🧠 Coaching Principles
 
 - Be practical: Give clear advice, not vague encouragement.
 - Be empathetic: If they’re nervous or unsure, reassure them.
-- Be specific: Tie in today’s session if helpful.
+- Be specific: Tie in upcoming sessions if helpful.
 - Be concise: No long essays. No fluff.
 - Be human: Write like a coach texting their athlete, not a formal report.
 
@@ -48,7 +48,8 @@ Athlete Profile:
 - Race type: ${raceType}
 - Race date: ${raceDate || 'Not provided'}
 - Experience level: ${experienceLevel}
-- Today's planned training: ${completedSessions.length > 0 ? completedSessions.map((s: string) => `  - ${s}`).join('\n') : 'Rest day'}
+- Upcoming sessions:
+${upcomingSessions.length > 0 ? upcomingSessions.map((s: string) => `  - ${s}`).join('\n') : '  - None scheduled'}
 
 Athlete’s Question:
 "${userNote}"
@@ -59,7 +60,7 @@ Athlete’s Question:
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
-        ...messages.slice(-8), // Only include last 8 convo turns to save tokens
+        ...messages.slice(-8), // Only include last 8 convo turns
       ],
       temperature: 0.7,
       max_tokens: 600,
