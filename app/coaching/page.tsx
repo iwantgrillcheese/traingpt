@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { formatDistanceToNow, format, isToday, isTomorrow, parseISO } from 'date-fns';
+import { format, formatDistanceToNow, parseISO } from 'date-fns';
 
 const supabase = createClientComponentClient();
 
@@ -34,34 +34,30 @@ export default function CoachingDashboard() {
 
       const { data: plans, error } = await supabase
         .from('plans')
-        .select('plan')
+        .select('plan, race_type, race_date, experience')
         .eq('user_id', session.user.id)
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
 
       if (!error && plans?.plan) {
-        setRaceType(plans.plan.raceType || 'Olympic');
-        setRaceDate(plans.plan.raceDate || '');
-        setExperienceLevel(plans.plan.experience || 'Intermediate');
+        setRaceType(plans.race_type || 'Olympic');
+        setRaceDate(plans.race_date || '');
+        setExperienceLevel(plans.experience || 'Intermediate');
 
-        const upcoming: { date: string; sessions: string[] }[] = [];
-        const allWeeks = plans.plan;
-        let dayCount = 0;
+        const sessions: { date: string; sessions: string[] }[] = [];
+        const todayDate = new Date(today);
 
-        for (const week of allWeeks) {
-          const sortedDays = Object.keys(week.days).sort();
-          for (const day of sortedDays) {
-            if (new Date(day) >= new Date(today)) {
-              upcoming.push({ date: day, sessions: week.days[day] });
-              dayCount++;
-              if (dayCount >= 3) break;
+        for (const week of plans.plan) {
+          for (const [date, sessionList] of Object.entries(week.days)) {
+            const parsedDate = new Date(date);
+            if (parsedDate >= todayDate && sessions.length < 7) {
+              sessions.push({ date, sessions: sessionList });
             }
           }
-          if (dayCount >= 3) break;
         }
 
-        setUpcomingSessions(upcoming);
+        setUpcomingSessions(sessions);
       }
     };
     fetchPlan();
@@ -76,9 +72,7 @@ export default function CoachingDashboard() {
   const askCoach = async () => {
     if (!question.trim()) return;
 
-    const flatSessions = upcomingSessions.flatMap((d) => d.sessions);
-
-    const newMessages: { role: 'user' | 'assistant'; content: string; timestamp: number; error?: boolean }[] = [
+    const newMessages = [
       ...messages,
       { role: 'user', content: question, timestamp: Date.now() },
       { role: 'assistant', content: 'Thinking...', timestamp: Date.now() },
@@ -92,7 +86,7 @@ export default function CoachingDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [...messages, { role: 'user', content: question }].slice(-8),
-          upcomingSessions: flatSessions,
+          completedSessions: upcomingSessions.flatMap((s) => s.sessions),
           userNote: question,
           raceType,
           raceDate,
@@ -103,48 +97,35 @@ export default function CoachingDashboard() {
       const data = await res.json();
 
       if (res.ok && data?.feedback) {
-        setMessages((prev) => [
-          ...prev.slice(0, -1),
-          { role: 'assistant', content: data.feedback, timestamp: Date.now() },
-        ]);
+        setMessages((prev) => [...prev.slice(0, -1), { role: 'assistant', content: data.feedback, timestamp: Date.now() }]);
       } else {
-        setMessages((prev) => [
-          ...prev.slice(0, -1),
-          { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true },
-        ]);
+        setMessages((prev) => [...prev.slice(0, -1), { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true }]);
       }
-    } catch (err) {
-      setMessages((prev) => [
-        ...prev.slice(0, -1),
-        { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true },
-      ]);
+    } catch {
+      setMessages((prev) => [...prev.slice(0, -1), { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true }]);
     } finally {
       setQuestion('');
     }
   };
 
   return (
-    <main className="flex flex-col h-screen max-w-4xl mx-auto">
-      <header className="px-4 pt-6 pb-4 sm:px-6">
-        <h1 className="text-2xl font-bold">Coaching Dashboard</h1>
-      </header>
+    <main className="flex flex-col min-h-screen max-w-4xl mx-auto px-4 py-6 sm:px-6">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold mb-2">Coaching Dashboard</h1>
+        <div className="text-sm text-gray-500 mb-1">Race type: {raceType} | Experience: {experienceLevel}</div>
+        {raceDate && <div className="text-sm text-gray-500">Race in {formatDistanceToNow(new Date(raceDate), { addSuffix: true })}</div>}
+      </div>
 
-      <section className="px-4 sm:px-6">
+      <section className="mb-10">
         <h2 className="text-lg font-semibold mb-2">Upcoming Sessions</h2>
         {upcomingSessions.length > 0 ? (
-          <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {upcomingSessions.map(({ date, sessions }, i) => (
-              <div key={i}>
-                <p className="text-xs text-gray-500 mb-1">
-                  {isToday(parseISO(date)) ? 'Today' : isTomorrow(parseISO(date)) ? 'Tomorrow' : format(parseISO(date), 'EEEE, MMM d')}
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {sessions.map((s, j) => (
-                    <div key={j} className="bg-white border rounded-xl p-4 shadow-sm text-sm text-gray-800">
-                      {s}
-                    </div>
-                  ))}
-                </div>
+              <div key={i} className="border border-gray-200 rounded-xl p-4 shadow-sm bg-white">
+                <p className="text-sm font-medium text-gray-700 mb-2">{format(parseISO(date), 'EEEE, MMM d')}</p>
+                <ul className="text-sm text-gray-700 space-y-1">
+                  {sessions.map((s, j) => <li key={j}>• {s}</li>)}
+                </ul>
               </div>
             ))}
           </div>
@@ -153,51 +134,48 @@ export default function CoachingDashboard() {
         )}
       </section>
 
-      <section className="flex-1 overflow-y-auto px-4 sm:px-6 mt-6 space-y-6">
-        {messages.length === 0 ? (
-          <p className="text-sm text-gray-500 italic">Ask your coach anything about your training...</p>
-        ) : (
-          messages.map((msg, i) => (
-            <div key={i} className={`p-4 rounded-xl ${msg.role === 'user' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-900'} animate-fade-in`}>
-              <div className="flex justify-between items-center mb-1">
-                <p className="text-xs font-semibold">{msg.role === 'user' ? 'You' : '🏆 Coach'}</p>
-                <p className="text-[10px] text-gray-400">
-                  {formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}
-                </p>
+      <section className="flex-1 border border-gray-200 rounded-xl p-4 shadow-md bg-white mb-6">
+        <h3 className="text-base font-medium text-gray-800 mb-2">Ask Your Coach</h3>
+        <div className="space-y-4 max-h-[40vh] overflow-y-auto mb-4">
+          {messages.length === 0 ? (
+            <p className="text-sm text-gray-500 italic">Ask your coach anything about your training...</p>
+          ) : (
+            messages.map((msg, i) => (
+              <div key={i} className={`p-3 rounded-xl text-sm ${msg.role === 'user' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-900'}`}>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="font-semibold text-xs">{msg.role === 'user' ? 'You' : '🏆 Coach'}</span>
+                  <span className="text-[10px] text-gray-400">{formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}</span>
+                </div>
+                {msg.content === 'Thinking...' ? <TypingDots /> : <p>{msg.content}</p>}
+                {msg.error && (
+                  <button
+                    className="mt-1 text-xs text-red-600 underline"
+                    onClick={() => setQuestion(messages[messages.length - 2]?.content || '')}
+                  >Retry</button>
+                )}
               </div>
-              <p className="text-sm whitespace-pre-wrap leading-relaxed">
-                {msg.content === 'Thinking...' ? <TypingDots /> : msg.content}
-              </p>
-              {msg.error && (
-                <button
-                  className="mt-2 text-xs text-red-600 underline"
-                  onClick={() => setQuestion(messages[messages.length - 2]?.content || '')}
-                >
-                  Retry
-                </button>
-              )}
-            </div>
-          ))
-        )}
-        <div ref={messagesEndRef} />
-      </section>
+            ))
+          )}
+          <div ref={messagesEndRef} />
+        </div>
 
-      <div className="sticky bottom-0 bg-white px-4 sm:px-6 py-4 border-t flex flex-col sm:flex-row gap-3">
-        <textarea
-          className="flex-1 border rounded-xl px-4 py-2 text-sm resize-none"
-          placeholder="Ask your coach anything..."
-          value={question}
-          onChange={(e) => setQuestion(e.target.value)}
-          rows={1}
-        />
-        <button
-          onClick={askCoach}
-          disabled={!question.trim()}
-          className="px-6 py-2 bg-black text-white rounded-xl text-sm font-semibold disabled:opacity-50"
-        >
-          {question.trim() ? 'Send' : 'Type...'}
-        </button>
-      </div>
+        <div className="flex gap-3">
+          <textarea
+            className="flex-1 border rounded-xl px-4 py-2 text-sm resize-none"
+            placeholder="Ask your coach anything..."
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            rows={1}
+          />
+          <button
+            onClick={askCoach}
+            disabled={!question.trim()}
+            className="px-6 py-2 bg-black text-white rounded-xl text-sm font-semibold disabled:opacity-50"
+          >
+            {question.trim() ? 'Send' : 'Type...'}
+          </button>
+        </div>
+      </section>
     </main>
   );
 }
