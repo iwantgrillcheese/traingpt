@@ -54,7 +54,7 @@ export async function GET(req: Request) {
     }));
 
     if (rows.length > 0) {
-      const { error: insertError } = await supabase.from('strava_activities').upsert(rows, { onConflict: ['id'] });
+      const { error: insertError } = await supabase.from('strava_activities').upsert(rows, { onConflict: 'id' });
 
       if (insertError) {
         console.error('[SUPABASE_INSERT_ERROR]', insertError);
