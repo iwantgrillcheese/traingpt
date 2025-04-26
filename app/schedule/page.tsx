@@ -172,7 +172,6 @@ export default function SchedulePage() {
 
   return (
     <main className="max-w-[1440px] mx-auto px-4 sm:px-8 py-12 sm:py-16">
-      {/* rest of the file unchanged... */}
     </main>
   );
 }
