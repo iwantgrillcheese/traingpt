@@ -46,7 +46,7 @@ export default function CoachingDashboard() {
         setExperienceLevel(plans.plan.experience || 'Intermediate');
 
         const upcoming: { date: string; sessions: string[] }[] = [];
-        const allWeeks = plans.plan.plan;
+        const allWeeks = plans.plan;
         let dayCount = 0;
 
         for (const week of allWeeks) {
