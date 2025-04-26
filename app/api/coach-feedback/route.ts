@@ -16,9 +16,9 @@ export async function POST(req: Request) {
       experienceLevel = 'Intermediate',
     } = body;
 
-    if (!userNote.trim()) {
-      return NextResponse.json({ error: 'User note is required.' }, { status: 400 });
-    }
+    const chatHistory = messages
+      .map((msg: any) => `${msg.role === 'user' ? 'Athlete' : 'Coach'}: ${msg.content}`)
+      .join('\n');
 
     const systemPrompt = `
 You are a world-class triathlon coach known for helping athletes train with confidence and clarity. You specialize in giving clear, actionable advice when athletes ask questions during their training journey.
@@ -51,7 +51,10 @@ Athlete Profile:
 - Upcoming sessions:
 ${upcomingSessions.length > 0 ? upcomingSessions.map((s: string) => `  - ${s}`).join('\n') : '  - None scheduled'}
 
-Athlete’s Question:
+Recent Conversation:
+${chatHistory}
+
+Latest Question:
 "${userNote}"
 `;
 
@@ -60,7 +63,6 @@ Athlete’s Question:
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
-        ...messages.slice(-8), // Only include last 8 convo turns
       ],
       temperature: 0.7,
       max_tokens: 600,
