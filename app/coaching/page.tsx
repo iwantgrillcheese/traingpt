@@ -18,7 +18,7 @@ function TypingDots() {
 
 export default function CoachingDashboard() {
   const [question, setQuestion] = useState('');
-  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string; timestamp: number }[]>([]);
+  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string; timestamp: number; error?: boolean }[]>([]);
   const [todaySessions, setTodaySessions] = useState<string[]>([]);
   const [raceType, setRaceType] = useState('Olympic');
   const [raceDate, setRaceDate] = useState('');
@@ -62,7 +62,7 @@ export default function CoachingDashboard() {
   const askCoach = async () => {
     if (!question.trim()) return;
 
-    const newMessages = [
+    const newMessages: { role: 'user' | 'assistant'; content: string; timestamp: number; error?: boolean }[] = [
       ...messages,
       { role: 'user', content: question, timestamp: Date.now() },
       { role: 'assistant', content: 'Thinking...', timestamp: Date.now() },
@@ -94,13 +94,13 @@ export default function CoachingDashboard() {
       } else {
         setMessages((prev) => [
           ...prev.slice(0, -1),
-          { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now() },
+          { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true },
         ]);
       }
     } catch (err) {
       setMessages((prev) => [
         ...prev.slice(0, -1),
-        { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now() },
+        { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true },
       ]);
     } finally {
       setQuestion('');
@@ -130,19 +130,31 @@ export default function CoachingDashboard() {
 
       {/* Chat Area */}
       <section className="flex-1 overflow-y-auto px-4 sm:px-6 mt-6 space-y-6">
-        {messages.map((msg, i) => (
-          <div key={i} className={`p-4 rounded-xl ${msg.role === 'user' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-900'} animate-fade-in`}>
-            <div className="flex justify-between items-center mb-1">
-              <p className="text-xs font-semibold">{msg.role === 'user' ? 'You' : '🏆 Coach'}</p>
-              <p className="text-[10px] text-gray-400">
-                {formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}
+        {messages.length === 0 ? (
+          <p className="text-sm text-gray-500 italic">Ask your coach anything about today's training...</p>
+        ) : (
+          messages.map((msg, i) => (
+            <div key={i} className={`p-4 rounded-xl ${msg.role === 'user' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-900'} animate-fade-in`}>
+              <div className="flex justify-between items-center mb-1">
+                <p className="text-xs font-semibold">{msg.role === 'user' ? 'You' : '🏆 Coach'}</p>
+                <p className="text-[10px] text-gray-400">
+                  {formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}
+                </p>
+              </div>
+              <p className="text-sm whitespace-pre-wrap leading-relaxed">
+                {msg.content === 'Thinking...' ? <TypingDots /> : msg.content}
               </p>
+              {msg.error && (
+                <button
+                  className="mt-2 text-xs text-red-600 underline"
+                  onClick={() => setQuestion(messages[messages.length - 2]?.content || '')}
+                >
+                  Retry
+                </button>
+              )}
             </div>
-            <p className="text-sm whitespace-pre-wrap leading-relaxed">
-              {msg.content === 'Thinking...' ? <TypingDots /> : msg.content}
-            </p>
-          </div>
-        ))}
+          ))
+        )}
         <div ref={messagesEndRef} />
       </section>
 
