@@ -1,4 +1,4 @@
-// /api/finalize-plan/route.ts (patched to support reroll by reusing plan metadata)
+// /api/finalize-plan/route.ts
 import { NextResponse } from 'next/server';
 import { addDays, addWeeks, differenceInCalendarWeeks, format } from 'date-fns';
 import OpenAI from 'openai';
@@ -134,7 +134,16 @@ export async function POST(req: Request) {
 
   try {
     const cleaned = content.replace(/```json|```/g, '').trim();
-    const plan = JSON.parse(cleaned);
+    const parsedPlan = JSON.parse(cleaned);
+
+    const wrappedPlan = {
+      raceType,
+      raceDate,
+      experience: experienceLevel,
+      maxHours,
+      restDay,
+      plan: parsedPlan,
+    };
 
     const coachNote = `Here's your ${totalWeeks}-week triathlon plan leading to your race on ${format(
       raceDate,
@@ -144,7 +153,7 @@ export async function POST(req: Request) {
     const { data, error } = await supabase.from('plans').upsert(
       {
         user_id,
-        plan,
+        plan: wrappedPlan,
         coach_note: coachNote,
         note: userNote,
         race_type: raceType,
@@ -161,7 +170,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, plan, coachNote, adjusted });
+    return NextResponse.json({ success: true, plan: wrappedPlan, coachNote, adjusted });
   } catch (err) {
     console.error('❌ Failed to parse GPT content', content);
     return NextResponse.json({ error: 'Failed to parse plan content' }, { status: 500 });
