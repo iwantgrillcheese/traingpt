@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format, isToday, isTomorrow, parseISO } from 'date-fns';
 
 const supabase = createClientComponentClient();
 
@@ -19,7 +19,7 @@ function TypingDots() {
 export default function CoachingDashboard() {
   const [question, setQuestion] = useState('');
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string; timestamp: number; error?: boolean }[]>([]);
-  const [upcomingSessions, setUpcomingSessions] = useState<string[]>([]);
+  const [upcomingSessions, setUpcomingSessions] = useState<{ date: string; sessions: string[] }[]>([]);
   const [raceType, setRaceType] = useState('Olympic');
   const [raceDate, setRaceDate] = useState('');
   const [experienceLevel, setExperienceLevel] = useState('Intermediate');
@@ -45,7 +45,7 @@ export default function CoachingDashboard() {
         setRaceDate(plans.plan.raceDate || '');
         setExperienceLevel(plans.plan.experience || 'Intermediate');
 
-        const upcoming: string[] = [];
+        const upcoming: { date: string; sessions: string[] }[] = [];
         const allWeeks = plans.plan.plan;
         let dayCount = 0;
 
@@ -53,7 +53,7 @@ export default function CoachingDashboard() {
           const sortedDays = Object.keys(week.days).sort();
           for (const day of sortedDays) {
             if (new Date(day) >= new Date(today)) {
-              upcoming.push(...week.days[day]);
+              upcoming.push({ date: day, sessions: week.days[day] });
               dayCount++;
               if (dayCount >= 3) break;
             }
@@ -76,6 +76,8 @@ export default function CoachingDashboard() {
   const askCoach = async () => {
     if (!question.trim()) return;
 
+    const flatSessions = upcomingSessions.flatMap((d) => d.sessions);
+
     const newMessages: { role: 'user' | 'assistant'; content: string; timestamp: number; error?: boolean }[] = [
       ...messages,
       { role: 'user', content: question, timestamp: Date.now() },
@@ -90,7 +92,7 @@ export default function CoachingDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [...messages, { role: 'user', content: question }].slice(-8),
-          upcomingSessions,
+          upcomingSessions: flatSessions,
           userNote: question,
           raceType,
           raceDate,
@@ -130,11 +132,22 @@ export default function CoachingDashboard() {
       <section className="px-4 sm:px-6">
         <h2 className="text-lg font-semibold mb-2">Upcoming Sessions</h2>
         {upcomingSessions.length > 0 ? (
-          <ul className="space-y-1 text-gray-700">
-            {upcomingSessions.map((s, i) => (
-              <li key={i}>• {s}</li>
+          <div className="space-y-4">
+            {upcomingSessions.map(({ date, sessions }, i) => (
+              <div key={i}>
+                <p className="text-xs text-gray-500 mb-1">
+                  {isToday(parseISO(date)) ? 'Today' : isTomorrow(parseISO(date)) ? 'Tomorrow' : format(parseISO(date), 'EEEE, MMM d')}
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {sessions.map((s, j) => (
+                    <div key={j} className="bg-white border rounded-xl p-4 shadow-sm text-sm text-gray-800">
+                      {s}
+                    </div>
+                  ))}
+                </div>
+              </div>
             ))}
-          </ul>
+          </div>
         ) : (
           <p className="text-sm text-gray-500 italic">No upcoming training sessions found.</p>
         )}
