@@ -2,13 +2,23 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { formatDistanceToNow } from 'date-fns';
 
 const supabase = createClientComponentClient();
 
+function TypingDots() {
+  return (
+    <div className="flex space-x-1 justify-start items-center">
+      <div className="h-2 w-2 bg-gray-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+      <div className="h-2 w-2 bg-gray-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+      <div className="h-2 w-2 bg-gray-500 rounded-full animate-bounce"></div>
+    </div>
+  );
+}
+
 export default function CoachingDashboard() {
   const [question, setQuestion] = useState('');
-  const [responses, setResponses] = useState<{ question: string; answer: string }[]>([]);
-  const [plan, setPlan] = useState<any>(null);
+  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string; timestamp: number }[]>([]);
   const [todaySessions, setTodaySessions] = useState<string[]>([]);
   const [raceType, setRaceType] = useState('Olympic');
   const [raceDate, setRaceDate] = useState('');
@@ -19,10 +29,7 @@ export default function CoachingDashboard() {
 
   useEffect(() => {
     const fetchPlan = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
+      const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) return;
 
       const { data: plans, error } = await supabase
@@ -34,18 +41,15 @@ export default function CoachingDashboard() {
         .single();
 
       if (!error && plans?.plan) {
-        setPlan(plans.plan.plan || []);
         setRaceType(plans.plan.raceType || 'Olympic');
         setRaceDate(plans.plan.raceDate || '');
         setExperienceLevel(plans.plan.experience || 'Intermediate');
-
         const weekToday = plans.plan.plan.find((week: any) =>
           Object.keys(week.days).includes(today)
         );
         setTodaySessions(weekToday?.days[today] || []);
       }
     };
-
     fetchPlan();
   }, []);
 
@@ -53,18 +57,25 @@ export default function CoachingDashboard() {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [responses]);
+  }, [messages]);
 
   const askCoach = async () => {
     if (!question.trim()) return;
 
-    setResponses(prev => [...prev, { question, answer: 'Thinking...' }]);
+    const newMessages = [
+      ...messages,
+      { role: 'user', content: question, timestamp: Date.now() },
+      { role: 'assistant', content: 'Thinking...', timestamp: Date.now() },
+    ];
+
+    setMessages(newMessages);
 
     try {
       const res = await fetch('/api/coach-feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          messages: [...messages, { role: 'user', content: question }].slice(-8),
           completedSessions: todaySessions,
           userNote: question,
           raceType,
@@ -76,28 +87,40 @@ export default function CoachingDashboard() {
       const data = await res.json();
 
       if (res.ok && data?.feedback) {
-        setResponses(prev => [...prev.slice(0, -1), { question, answer: data.feedback }]);
+        setMessages((prev) => [
+          ...prev.slice(0, -1),
+          { role: 'assistant', content: data.feedback, timestamp: Date.now() },
+        ]);
       } else {
-        setResponses(prev => [...prev.slice(0, -1), { question, answer: 'Sorry, something went wrong. Try again.' }]);
+        setMessages((prev) => [
+          ...prev.slice(0, -1),
+          { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now() },
+        ]);
       }
-    } catch (error) {
-      console.error('Error asking coach:', error);
-      setResponses(prev => [...prev.slice(0, -1), { question, answer: 'Sorry, something went wrong. Try again.' }]);
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev.slice(0, -1),
+        { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now() },
+      ]);
     } finally {
       setQuestion('');
     }
   };
 
   return (
-    <main className="max-w-4xl mx-auto px-6 py-12">
-      <h1 className="text-2xl font-bold mb-6">Coaching Dashboard</h1>
+    <main className="flex flex-col h-screen max-w-4xl mx-auto">
+      {/* Top Header */}
+      <header className="px-4 pt-6 pb-4 sm:px-6">
+        <h1 className="text-2xl font-bold">Coaching Dashboard</h1>
+      </header>
 
-      <section className="mb-10">
+      {/* Today's Sessions */}
+      <section className="px-4 sm:px-6">
         <h2 className="text-lg font-semibold mb-2">Today's Sessions</h2>
         {todaySessions.length > 0 ? (
-          <ul className="space-y-1">
+          <ul className="space-y-1 text-gray-700">
             {todaySessions.map((s, i) => (
-              <li key={i} className="text-gray-800">• {s}</li>
+              <li key={i}>• {s}</li>
             ))}
           </ul>
         ) : (
@@ -105,41 +128,41 @@ export default function CoachingDashboard() {
         )}
       </section>
 
-      <section className="mb-10">
-        <h2 className="text-lg font-semibold mb-2">Ask Your Coach</h2>
+      {/* Chat Area */}
+      <section className="flex-1 overflow-y-auto px-4 sm:px-6 mt-6 space-y-6">
+        {messages.map((msg, i) => (
+          <div key={i} className={`p-4 rounded-xl ${msg.role === 'user' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-900'} animate-fade-in`}>
+            <div className="flex justify-between items-center mb-1">
+              <p className="text-xs font-semibold">{msg.role === 'user' ? 'You' : '🏆 Coach'}</p>
+              <p className="text-[10px] text-gray-400">
+                {formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}
+              </p>
+            </div>
+            <p className="text-sm whitespace-pre-wrap leading-relaxed">
+              {msg.content === 'Thinking...' ? <TypingDots /> : msg.content}
+            </p>
+          </div>
+        ))}
+        <div ref={messagesEndRef} />
+      </section>
+
+      {/* Input Bar */}
+      <div className="sticky bottom-0 bg-white px-4 sm:px-6 py-4 border-t flex flex-col sm:flex-row gap-3">
         <textarea
-          className="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm text-gray-700 mb-3"
-          placeholder="Ask your coach anything about your training..."
+          className="flex-1 border rounded-xl px-4 py-2 text-sm resize-none"
+          placeholder="Ask your coach anything..."
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
+          rows={1}
         />
         <button
           onClick={askCoach}
           disabled={!question.trim()}
-          className="px-6 py-2 rounded-full bg-black text-white text-sm font-semibold disabled:opacity-50"
+          className="px-6 py-2 bg-black text-white rounded-xl text-sm font-semibold disabled:opacity-50"
         >
-          {question.trim() ? 'Send to Coach' : 'Type a Question'}
+          {question.trim() ? 'Send' : 'Type...'}
         </button>
-      </section>
-
-      <section>
-        <h2 className="text-lg font-semibold mb-2">Coach Responses</h2>
-        {responses.length > 0 ? (
-          <div className="space-y-6">
-            {responses.map((item, i) => (
-              <div key={i} className="p-4 rounded-xl bg-gray-100">
-                <p className="text-sm text-gray-600 mb-2"><strong>You asked:</strong> {item.question}</p>
-                <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
-                  {item.answer === 'Thinking...' ? <span className="animate-pulse">Thinking...</span> : item.answer}
-                </p>
-              </div>
-            ))}
-            <div ref={messagesEndRef} />
-          </div>
-        ) : (
-          <p className="text-sm text-gray-500 italic">No questions asked yet.</p>
-        )}
-      </section>
+      </div>
     </main>
   );
 }
