@@ -144,7 +144,7 @@ export default function SchedulePage() {
         raceType: parsed?.raceType,
         raceDate: parsed?.raceDate,
         experience: parsed?.experience,
-        maxHours: parsed?.maxHours,
+        maxHours: parsed?.maxHours
         restDay: parsed?.restDay,
         userNote: feedback,
       };
