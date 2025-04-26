@@ -19,7 +19,7 @@ function TypingDots() {
 export default function CoachingDashboard() {
   const [question, setQuestion] = useState('');
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string; timestamp: number; error?: boolean }[]>([]);
-  const [todaySessions, setTodaySessions] = useState<string[]>([]);
+  const [upcomingSessions, setUpcomingSessions] = useState<string[]>([]);
   const [raceType, setRaceType] = useState('Olympic');
   const [raceDate, setRaceDate] = useState('');
   const [experienceLevel, setExperienceLevel] = useState('Intermediate');
@@ -44,10 +44,20 @@ export default function CoachingDashboard() {
         setRaceType(plans.plan.raceType || 'Olympic');
         setRaceDate(plans.plan.raceDate || '');
         setExperienceLevel(plans.plan.experience || 'Intermediate');
-        const weekToday = plans.plan.plan.find((week: any) =>
-          Object.keys(week.days).includes(today)
-        );
-        setTodaySessions(weekToday?.days[today] || []);
+
+        const upcoming: string[] = [];
+        const allWeeks = plans.plan.plan;
+        
+        for (const week of allWeeks) {
+          const dayKeys = Object.keys(week.days).sort();
+          for (const day of dayKeys) {
+            if (new Date(day) >= new Date(today) && upcoming.length < 3) {
+              upcoming.push(...week.days[day]);
+            }
+          }
+        }
+
+        setUpcomingSessions(upcoming);
       }
     };
     fetchPlan();
@@ -76,7 +86,7 @@ export default function CoachingDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [...messages, { role: 'user', content: question }].slice(-8),
-          completedSessions: todaySessions,
+          completedSessions: upcomingSessions,
           userNote: question,
           raceType,
           raceDate,
@@ -114,24 +124,24 @@ export default function CoachingDashboard() {
         <h1 className="text-2xl font-bold">Coaching Dashboard</h1>
       </header>
 
-      {/* Today's Sessions */}
+      {/* Upcoming Sessions */}
       <section className="px-4 sm:px-6">
-        <h2 className="text-lg font-semibold mb-2">Today's Sessions</h2>
-        {todaySessions.length > 0 ? (
+        <h2 className="text-lg font-semibold mb-2">Upcoming Sessions</h2>
+        {upcomingSessions.length > 0 ? (
           <ul className="space-y-1 text-gray-700">
-            {todaySessions.map((s, i) => (
+            {upcomingSessions.map((s, i) => (
               <li key={i}>• {s}</li>
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-gray-500 italic">No training today — rest up!</p>
+          <p className="text-sm text-gray-500 italic">No upcoming training sessions found.</p>
         )}
       </section>
 
       {/* Chat Area */}
       <section className="flex-1 overflow-y-auto px-4 sm:px-6 mt-6 space-y-6">
         {messages.length === 0 ? (
-          <p className="text-sm text-gray-500 italic">Ask your coach anything about today's training...</p>
+          <p className="text-sm text-gray-500 italic">Ask your coach anything about your training...</p>
         ) : (
           messages.map((msg, i) => (
             <div key={i} className={`p-4 rounded-xl ${msg.role === 'user' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-900'} animate-fade-in`}>
