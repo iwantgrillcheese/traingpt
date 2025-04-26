@@ -13,7 +13,7 @@ const getTopBarColor = (session: string) => {
   return 'before:bg-green-400';
 };
 
-const getSessionStatusIcon = (status: 'done' | 'skipped' | 'none') => {
+const getStatusIcon = (status: 'done' | 'skipped' | 'none') => {
   if (status === 'done') return '✅';
   if (status === 'skipped') return '⛔';
   return '⚪';
