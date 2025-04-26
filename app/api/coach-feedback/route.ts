@@ -8,6 +8,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const {
+      messages = [],
       completedSessions = [],
       userNote = '',
       raceType = 'Olympic',
@@ -54,15 +55,18 @@ Athlete’s Question:
 `;
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4',
+      model: 'gpt-4-turbo',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
+        ...messages.slice(-8), // Only include last 8 convo turns to save tokens
       ],
       temperature: 0.7,
+      max_tokens: 600,
     });
 
     const feedback = completion.choices[0]?.message?.content?.trim() || '';
+
     return NextResponse.json({ feedback });
   } catch (err: any) {
     console.error('[COACH_FEEDBACK_ERROR]', err);
