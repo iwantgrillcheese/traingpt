@@ -178,24 +178,27 @@ export default function SchedulePage() {
                       <div className="space-y-2 text-sm">
                         {sessions.length > 0 ? (
                           sessions.map((s: string, idx: number) => {
-                            const statusKey = `${dateStr}-${s.toLowerCase()}`;
-                            const status = completed[statusKey] || 'none';
-                            const match = matchStravaActivity(dateStr, s);
+  if (!s) return null; // prevent blowing up on undefined/null sessions
 
-                            return (
-                              <div key={idx} className="flex flex-col gap-1">
-                                <div className="flex items-start gap-2 truncate">
-                                  <span>{getSessionStatusIcon(status)}</span>
-                                  <span className="truncate" title={s}>{s}</span>
-                                </div>
-                                {match && (
-                                  <div className="text-[11px] bg-orange-50 p-2 rounded-md mt-1">
-                                    🏁 {match.distance_km}km • {match.moving_time}min
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })
+  const statusKey = `${dateStr}-${s.toLowerCase()}`;
+  const status = completed[statusKey] || 'none';
+  const matched = matchStrava(dateStr, s);
+
+  return (
+    <div key={idx} className="flex flex-col gap-1">
+      <div className="flex items-start gap-2">
+        <span>{getStatusIcon(status)}</span>
+        <span>{s}</span>
+      </div>
+      {matched && (
+        <div className="text-xs bg-orange-50 p-2 rounded-lg shadow-sm">
+          <div className="font-medium text-orange-600">🏁 Synced from Strava</div>
+          <div>{matched.distance_km}km • {matched.moving_time}min</div>
+        </div>
+      )}
+    </div>
+  );
+})
                         ) : (
                           <p className="text-gray-400 italic">Mobility/Recovery</p>
                         )}
