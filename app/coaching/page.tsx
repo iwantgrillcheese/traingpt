@@ -94,7 +94,7 @@ export default function CoachingDashboard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: [...messages, { role: 'user' as const, content: question }].slice(-8),
+          messages: messages.slice(-6).map((m) => ({ role: m.role, content: m.content })),
           completedSessions: upcomingSessions.flatMap((s) => s.sessions),
           userNote: question,
           raceType,
