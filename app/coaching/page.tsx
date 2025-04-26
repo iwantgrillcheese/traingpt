@@ -25,6 +25,7 @@ export default function CoachingDashboard() {
   const [raceDate, setRaceDate] = useState('');
   const [experienceLevel, setExperienceLevel] = useState('Intermediate');
   const [coachNote, setCoachNote] = useState<string>('');
+  const [stravaConnected, setStravaConnected] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const today = new Date().toISOString().split('T')[0];
@@ -59,10 +60,20 @@ export default function CoachingDashboard() {
             }
           }
         }
-
         setUpcomingSessions(sessions);
       }
+
+      const { data: stravaData } = await supabase
+        .from('profiles')
+        .select('strava_access_token')
+        .eq('id', session.user.id)
+        .single();
+
+      if (stravaData?.strava_access_token) {
+        setStravaConnected(true);
+      }
     };
+
     fetchPlan();
   }, []);
 
@@ -75,12 +86,7 @@ export default function CoachingDashboard() {
   const askCoach = async () => {
     if (!question.trim()) return;
 
-    const newMessages: { role: 'user' | 'assistant'; content: string; timestamp: number; error?: boolean }[] = [
-      ...messages,
-      { role: 'user', content: question, timestamp: Date.now() },
-      { role: 'assistant', content: 'Thinking...', timestamp: Date.now() },
-    ];
-
+    const newMessages = [...messages, { role: 'user', content: question, timestamp: Date.now() }, { role: 'assistant', content: 'Thinking...', timestamp: Date.now() }];
     setMessages(newMessages);
 
     try {
@@ -184,13 +190,21 @@ export default function CoachingDashboard() {
         </div>
       </section>
 
-      <div className="text-center mt-6">
-        <Link
-          href={`https://www.strava.com/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID}&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_STRAVA_REDIRECT_URI}&approval_prompt=force&scope=activity:read_all`}
-          className="inline-block px-6 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-full text-sm font-semibold"
-        >
-          Connect to Strava
-        </Link>
+      <div className="text-center mt-8">
+        {stravaConnected ? (
+          <div className="inline-flex items-center gap-2 px-5 py-3 border border-green-500 text-green-600 bg-green-50 rounded-xl">
+            <img src="/strava-2.svg" alt="Strava" className="h-5 w-auto" />
+            <span className="font-semibold text-sm">Connected to Strava ✅</span>
+          </div>
+        ) : (
+          <Link
+            href={`https://www.strava.com/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID}&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_STRAVA_REDIRECT_URI}&approval_prompt=force&scope=activity:read_all`}
+            className="inline-flex items-center gap-2 px-5 py-3 border border-orange-500 text-orange-600 hover:bg-orange-50 rounded-xl"
+          >
+            <img src="/strava-2.svg" alt="Strava" className="h-5 w-auto" />
+            <span className="font-semibold text-sm">Connect to Strava</span>
+          </Link>
+        )}
       </div>
     </main>
   );
