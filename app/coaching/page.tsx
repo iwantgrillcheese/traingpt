@@ -9,9 +9,9 @@ const supabase = createClientComponentClient();
 function TypingDots() {
   return (
     <div className="flex space-x-1 justify-start items-center">
-      <div className="h-2 w-2 bg-gray-500 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-      <div className="h-2 w-2 bg-gray-500 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-      <div className="h-2 w-2 bg-gray-500 rounded-full animate-bounce"></div>
+      <div className="h-2 w-2 bg-gray-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+      <div className="h-2 w-2 bg-gray-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+      <div className="h-2 w-2 bg-gray-500 rounded-full animate-bounce" />
     </div>
   );
 }
@@ -47,14 +47,18 @@ export default function CoachingDashboard() {
 
         const upcoming: string[] = [];
         const allWeeks = plans.plan.plan;
-        
+        let dayCount = 0;
+
         for (const week of allWeeks) {
-          const dayKeys = Object.keys(week.days).sort();
-          for (const day of dayKeys) {
-            if (new Date(day) >= new Date(today) && upcoming.length < 3) {
+          const sortedDays = Object.keys(week.days).sort();
+          for (const day of sortedDays) {
+            if (new Date(day) >= new Date(today)) {
               upcoming.push(...week.days[day]);
+              dayCount++;
+              if (dayCount >= 3) break;
             }
           }
+          if (dayCount >= 3) break;
         }
 
         setUpcomingSessions(upcoming);
@@ -86,7 +90,7 @@ export default function CoachingDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [...messages, { role: 'user', content: question }].slice(-8),
-          completedSessions: upcomingSessions,
+          upcomingSessions,
           userNote: question,
           raceType,
           raceDate,
@@ -119,12 +123,10 @@ export default function CoachingDashboard() {
 
   return (
     <main className="flex flex-col h-screen max-w-4xl mx-auto">
-      {/* Top Header */}
       <header className="px-4 pt-6 pb-4 sm:px-6">
         <h1 className="text-2xl font-bold">Coaching Dashboard</h1>
       </header>
 
-      {/* Upcoming Sessions */}
       <section className="px-4 sm:px-6">
         <h2 className="text-lg font-semibold mb-2">Upcoming Sessions</h2>
         {upcomingSessions.length > 0 ? (
@@ -138,7 +140,6 @@ export default function CoachingDashboard() {
         )}
       </section>
 
-      {/* Chat Area */}
       <section className="flex-1 overflow-y-auto px-4 sm:px-6 mt-6 space-y-6">
         {messages.length === 0 ? (
           <p className="text-sm text-gray-500 italic">Ask your coach anything about your training...</p>
@@ -168,7 +169,6 @@ export default function CoachingDashboard() {
         <div ref={messagesEndRef} />
       </section>
 
-      {/* Input Bar */}
       <div className="sticky bottom-0 bg-white px-4 sm:px-6 py-4 border-t flex flex-col sm:flex-row gap-3">
         <textarea
           className="flex-1 border rounded-xl px-4 py-2 text-sm resize-none"
