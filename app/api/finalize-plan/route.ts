@@ -1,4 +1,4 @@
-// /api/finalize-plan/route.ts (patched to support reroll by reusing plan metadata)
+// /api/finalize-plan/route.ts (patched to support reroll or fresh plan generation)
 import { NextResponse } from 'next/server';
 import { addDays, addWeeks, differenceInCalendarWeeks, format } from 'date-fns';
 import OpenAI from 'openai';
@@ -61,27 +61,24 @@ export async function POST(req: Request) {
   const today = new Date();
   const startDate = getNextMonday(today);
 
-  const { data: latestPlanRows, error: fetchError } = await supabase
+  const { data: latestPlan, error: fetchError } = await supabase
     .from('plans')
     .select('*')
     .eq('user_id', user_id)
     .order('created_at', { ascending: false })
-    .limit(1);
+    .limit(1)
+    .maybeSingle();
 
-  const latestPlan = latestPlanRows?.[0];
-
-  if (fetchError || !latestPlan?.plan) {
+  if (fetchError && fetchError.code !== 'PGRST116') {
     console.error('❌ Failed to fetch existing plan metadata:', fetchError);
-    return NextResponse.json({ error: 'Missing base plan for reroll' }, { status: 400 });
+    return NextResponse.json({ error: 'Unexpected Supabase error' }, { status: 500 });
   }
 
-  const { race_type, race_date, experience, max_hours, rest_day } = latestPlan;
-
-  const raceDate = new Date(race_date);
-  const raceType = race_type;
-  const experienceLevel = experience || 'Intermediate';
-  const maxHours = max_hours || 8;
-  const restDay = rest_day || 'Monday';
+  const raceType = latestPlan?.race_type || body.raceType;
+  const raceDate = new Date(latestPlan?.race_date || body.raceDate);
+  const experienceLevel = latestPlan?.experience || body.experience || 'Intermediate';
+  const maxHours = latestPlan?.max_hours || body.maxHours || 8;
+  const restDay = latestPlan?.rest_day || body.restDay || 'Monday';
 
   let totalWeeks = differenceInCalendarWeeks(raceDate, startDate);
   const minWeeks = MIN_WEEKS[raceType] || 6;
