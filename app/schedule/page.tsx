@@ -86,31 +86,32 @@ export default function SchedulePage() {
     fetchAllData();
   }, []);
 
-  const matchStravaActivity = (date: string, session: string) => {
-    const dayActivities = stravaActivities.filter((a) => isSameDay(new Date(a.start_date_local), parseISO(date)));
-    const sport = session.toLowerCase();
-    if (!dayActivities.length) return null;
+const matchStrava = (date: string, session: string) => {
+  const dayActivities = stravaActivities.filter((a) => isSameDay(new Date(a.start_date_local), parseISO(date)));
+  const sport = session.toLowerCase();
+  if (!dayActivities.length) return null;
 
-    for (const activity of dayActivities) {
-      const actType = (activity.sport_type || '').toLowerCase();
-      const durationMin = activity.moving_time ? activity.moving_time / 60 : 0;
+  for (const activity of dayActivities) {
+    const actType = (activity.sport_type || '').toLowerCase();
+    const durationMin = activity.moving_time ? activity.moving_time / 60 : 0;
 
-      if (
-        (sport.includes('run') && actType.includes('run')) ||
-        (sport.includes('bike') && actType.includes('ride')) ||
-        (sport.includes('swim') && actType.includes('swim'))
-      ) {
-        if (!activity.manual && Math.abs(differenceInMinutes(new Date(activity.start_date_local), parseISO(date))) < 1440) {
-          return {
-            name: activity.name,
-            distance_km: (activity.distance / 1000).toFixed(1),
-            moving_time: Math.round(durationMin),
-          };
-        }
+    // Fuzzy match: match run to run, ride to bike, swim to swim, and +/- 20min duration window
+    if (
+      (sport.includes('run') && actType.includes('run')) ||
+      (sport.includes('bike') && actType.includes('ride')) ||
+      (sport.includes('swim') && actType.includes('swim'))
+    ) {
+      if (!activity.manual && Math.abs(differenceInMinutes(new Date(activity.start_date_local), parseISO(date))) < 1440) {
+        return {
+          name: activity.name,
+          distance_km: (activity.distance / 1000).toFixed(1),
+          moving_time: Math.round(durationMin),
+        };
       }
     }
-    return null;
-  };
+  }
+  return null;
+};
 
   if (loading) {
     return (
