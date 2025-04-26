@@ -1,215 +1,70 @@
-'use client';
+// app/api/strava/sync/route.ts
+import { NextResponse } from 'next/server';
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
 
-import { useEffect, useState } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { format, parseISO, isSameDay } from 'date-fns';
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
-const supabase = createClientComponentClient();
+export async function GET(req: Request) {
+  const supabase = createServerComponentClient({ cookies });
 
-const getColor = (session: string) => {
-  const s = session.toLowerCase();
-  if (s.includes('interval') || s.includes('brick') || s.includes('race pace')) return 'before:bg-red-400';
-  if (s.includes('threshold') || s.includes('tempo')) return 'before:bg-yellow-400';
-  return 'before:bg-green-400';
-};
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
 
-const getStatusIcon = (status: string) => {
-  if (status === 'done') return '✅';
-  if (status === 'skipped') return '⛔';
-  return '⚪';
-};
-
-export default function SchedulePage() {
-  const [plan, setPlan] = useState<any[]>([]);
-  const [raceDate, setRaceDate] = useState<string | null>(null);
-  const [coachNote, setCoachNote] = useState<string | null>(null);
-  const [completed, setCompleted] = useState<{ [key: string]: string }>({});
-  const [stravaActivities, setStravaActivities] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-
-  useEffect(() => {
-    const fetchAll = async () => {
-      setLoading(true);
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) return;
-
-        const { data: plans } = await supabase
-          .from('plans')
-          .select('plan, race_date, coach_note')
-          .eq('user_id', session.user.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single();
-
-        const { data: completedSessions } = await supabase
-          .from('completed_sessions')
-          .select('date, sport, status');
-
-        const { data: activities } = await supabase
-          .from('strava_activities')
-          .select('*')
-          .eq('user_id', session.user.id);
-
-        const checks: { [key: string]: string } = {};
-        completedSessions?.forEach(({ date, sport, status }) => {
-          checks[`${date}-${sport}`] = status;
-        });
-
-        if (plans) {
-          setPlan(plans.plan || []);
-          setRaceDate(plans.race_date || null);
-          setCoachNote(plans.coach_note || null);
-        }
-        setCompleted(checks);
-        setStravaActivities(activities || []);
-      } catch (e) {
-        console.error('[DATA_FETCH_ERROR]', e);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAll();
-  }, []);
-
-  const handleSyncStrava = async () => {
-    setSyncing(true);
-    try {
-      const res = await fetch('/api/strava/sync', { method: 'POST' });
-      if (res.ok) {
-        window.location.reload();
-      } else {
-        console.error('Strava sync failed');
-      }
-    } catch (err) {
-      console.error('Strava sync error', err);
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  const today = new Date();
-  const raceCountdown = raceDate ? Math.max(0, Math.floor((parseISO(raceDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))) : null;
-
-  const matchStrava = (date: string, session: string) => {
-    if (!stravaActivities.length) return null;
-    const dayActivities = stravaActivities.filter((a: any) => isSameDay(new Date(a.start_date_local), parseISO(date)));
-    const lower = session.toLowerCase();
-    if (!dayActivities.length) return null;
-
-    for (const activity of dayActivities) {
-      const actType = (activity.sport_type || '').toLowerCase();
-      if (
-        (lower.includes('run') && actType.includes('run')) ||
-        (lower.includes('bike') && actType.includes('ride')) ||
-        (lower.includes('swim') && actType.includes('swim'))
-      ) {
-        return {
-          name: activity.name,
-          distance: (activity.distance / 1000).toFixed(1),
-          timeMin: Math.round(activity.moving_time / 60),
-        };
-      }
-    }
-    return null;
-  };
-
-  if (loading) {
-    return <div className="py-32 text-center text-gray-400">Loading your schedule...</div>;
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
-  if (!plan.length) {
-    return <div className="py-32 text-center text-gray-400">No plan found. Generate one to get started.</div>;
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('strava_access_token')
+    .eq('id', session.user.id)
+    .single();
+
+  if (!profile?.strava_access_token) {
+    return NextResponse.json({ error: 'No Strava access token found' }, { status: 400 });
   }
 
-  return (
-    <main className="max-w-[1440px] mx-auto px-4 sm:px-8 py-10 sm:py-16">
-      {/* Top Header */}
-      <div className="flex flex-col items-center justify-center mb-10 relative">
-        <h1 className="text-3xl font-bold mb-2">Your Training Plan</h1>
-        {raceCountdown !== null && (
-          <p className="text-gray-600 text-lg">{raceCountdown} days until race day</p>
-        )}
-        {coachNote && (
-          <div className="mt-4 bg-blue-50 border border-blue-200 text-blue-700 rounded-xl px-5 py-3 text-sm shadow-md max-w-xl text-center">
-            {coachNote}
-          </div>
-        )}
-        <button
-          onClick={handleSyncStrava}
-          disabled={syncing}
-          className="absolute right-0 top-0 px-4 py-2 bg-black text-white rounded-full text-sm hover:bg-gray-800 transition"
-        >
-          {syncing ? 'Syncing...' : 'Sync Strava'}
-        </button>
-      </div>
+  try {
+    const res = await fetch('https://www.strava.com/api/v3/athlete/activities?per_page=50', {
+      headers: {
+        Authorization: `Bearer ${profile.strava_access_token}`,
+      },
+    });
 
-      {/* Plan Weeks */}
-      <div className="space-y-14">
-        {plan.map((week, i) => {
-          const sortedDays = Object.keys(week.days).sort();
-          return (
-            <section key={i}>
-              <div className="flex justify-between items-end mb-5">
-                <div>
-                  <h2 className="text-xl font-semibold">{week.label || `Week ${i + 1}`}</h2>
-                  {week.focus && (
-                    <p className="text-sm text-gray-500 italic">{week.focus}</p>
-                  )}
-                </div>
-                <p className="text-sm text-gray-400">
-                  {format(parseISO(sortedDays[0]), 'MMM d')} – {format(parseISO(sortedDays[sortedDays.length - 1]), 'MMM d')}
-                </p>
-              </div>
+    const activities = await res.json();
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-5">
-                {sortedDays.map((dateStr) => {
-                  const sessions = week.days[dateStr];
-                  const dayLabel = format(parseISO(dateStr), 'EEE, MMM d');
+    if (!Array.isArray(activities)) {
+      console.error('[STRAVA_API_ERROR]', activities);
+      return NextResponse.json({ error: 'Invalid Strava response' }, { status: 500 });
+    }
 
-                  return (
-                    <div
-                      key={dateStr}
-                      className={`relative rounded-2xl border p-4 shadow-lg bg-white flex flex-col justify-between min-h-[180px] transition-all hover:shadow-xl hover:-translate-y-1 before:content-[''] before:absolute before:top-0 before:left-1/2 before:-translate-x-1/2 before:w-1/2 before:h-1 before:rounded-full ${getColor(sessions[0])}`}
-                    >
-                      <div>
-                        <h3 className="text-xs font-bold text-gray-700 mb-3">{dayLabel}</h3>
-                        <div className="space-y-2">
-                          {sessions.length > 0 ? (
-                            sessions.map((s: string, idx: number) => {
-                              const statusKey = `${dateStr}-${s.toLowerCase()}`;
-                              const status = completed[statusKey] || 'none';
-                              const matched = matchStrava(dateStr, s);
+    const rows = activities.map((act) => ({
+      id: act.id,
+      user_id: session.user.id,
+      name: act.name,
+      sport_type: act.sport_type,
+      start_date: act.start_date,
+      start_date_local: act.start_date_local,
+      moving_time: act.moving_time,
+      distance: act.distance,
+      manual: act.manual || false,
+    }));
 
-                              return (
-                                <div key={idx} className="flex flex-col">
-                                  <div className="flex items-start gap-2 text-sm">
-                                    <span>{getStatusIcon(status)}</span>
-                                    <span>{s}</span>
-                                  </div>
-                                  {matched && (
-                                    <div className="ml-5 mt-1 text-xs bg-orange-50 p-2 rounded-lg text-orange-600 shadow-sm animate-fadeIn">
-                                      🏁 {matched.distance}km • {matched.timeMin}min
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })
-                          ) : (
-                            <p className="text-sm text-gray-400 italic">Mobility / Recovery</p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          );
-        })}
-      </div>
-    </main>
-  );
+    if (rows.length > 0) {
+      const { error: insertError } = await supabase.from('strava_activities').upsert(rows, { onConflict: ['id'] });
+
+      if (insertError) {
+        console.error('[SUPABASE_INSERT_ERROR]', insertError);
+        return NextResponse.json({ error: 'Failed to save activities' }, { status: 500 });
+      }
+    }
+
+    return NextResponse.json({ success: true, count: rows.length });
+  } catch (err) {
+    console.error('[STRAVA_SYNC_ERROR]', err);
+    return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });
+  }
 }
