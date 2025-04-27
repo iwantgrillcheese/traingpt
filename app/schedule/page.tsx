@@ -6,13 +6,6 @@ import { format, parseISO, isSameDay } from 'date-fns';
 
 const supabase = createClientComponentClient();
 
-const getColor = (session: string) => {
-  const lower = session.toLowerCase();
-  if (lower.includes('interval') || lower.includes('brick') || lower.includes('race pace')) return 'border-red-400';
-  if (lower.includes('tempo') || lower.includes('threshold')) return 'border-yellow-400';
-  return 'border-green-400';
-};
-
 const getStatusIcon = (status: string) => {
   if (status === 'done') return '✅';
   if (status === 'skipped') return '⛔';
@@ -99,7 +92,7 @@ export default function SchedulePage() {
   };
 
   if (loading) {
-    return <div className="py-32 text-center text-gray-400">Loading your schedule...</div>;
+    return <div className="py-32 text-center text-gray-400">Loading your plan...</div>;
   }
 
   if (!plan.length) {
@@ -107,88 +100,76 @@ export default function SchedulePage() {
   }
 
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      {/* Header */}
-      <div className="text-center mb-10">
+    <main className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
+      {/* Top Header */}
+      <div className="text-center mb-8">
         <h1 className="text-3xl font-bold mb-2">Your Training Plan</h1>
         {raceCountdown !== null && (
-          <p className="text-gray-500 text-lg">{raceCountdown} days until race day</p>
+          <p className="text-gray-500 text-sm">{raceCountdown} days until race day</p>
         )}
         {coachNote && (
-          <div className="mt-5 max-w-xl mx-auto border border-blue-300 bg-white rounded-xl p-4 text-sm text-blue-700 shadow-sm">
+          <div className="mt-4 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-xl text-sm shadow-sm">
             {coachNote}
           </div>
         )}
       </div>
 
-      {/* Plan */}
-      <div className="space-y-14">
-        {plan.map((week, i) => {
-          const sortedDays = Object.keys(week.days).sort();
-          return (
-            <section key={i}>
-              <div className="flex justify-between items-center mb-5">
-                <div>
-                  <h2 className="text-xl font-semibold">{week.label || `Week ${i + 1}`}</h2>
-                  {week.focus && (
-                    <p className="text-sm text-gray-500 italic">{week.focus}</p>
-                  )}
-                </div>
-                <p className="text-sm text-gray-400">
-                  {format(parseISO(sortedDays[0]), 'MMM d')} – {format(parseISO(sortedDays[sortedDays.length - 1]), 'MMM d')}
-                </p>
-              </div>
+      {/* Plan Weeks */}
+      <div className="flex flex-col gap-10">
+        {plan.map((week, weekIndex) => (
+          <div key={weekIndex} className="space-y-5">
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="text-xl font-semibold">{week.label || `Week ${weekIndex + 1}`}</h2>
+              {week.focus && (
+                <span className="text-xs text-gray-400 italic">{week.focus}</span>
+              )}
+            </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-                {sortedDays.map((dateStr) => {
-                  const sessions = week.days[dateStr];
-                  const dayLabel = format(parseISO(dateStr), 'EEE, MMM d');
+            <div className="flex flex-col gap-3">
+              {Object.keys(week.days).sort().map((dateStr) => {
+                const sessions = week.days[dateStr];
+                const dayLabel = format(parseISO(dateStr), 'EEE, MMM d');
 
-                  return (
-                    <div
-                      key={dateStr}
-                      className="relative flex flex-col justify-between rounded-2xl border p-4 shadow-sm bg-white transition hover:shadow-md"
-                    >
-                      <div>
-                        <h3 className="text-xs font-semibold text-gray-600 mb-2">{dayLabel}</h3>
-                        <div className="space-y-1.5">
-                          {sessions.length > 0 ? (
-                            sessions.map((s: string, idx: number) => {
-                              const statusKey = `${dateStr}-${s.toLowerCase()}`;
-                              const status = completed[statusKey] || 'none';
-                              const matched = matchStrava(dateStr, s);
+                return (
+                  <div
+                    key={dateStr}
+                    className="bg-white rounded-xl border shadow-sm p-4 flex flex-col gap-2 transition hover:shadow-md"
+                  >
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-sm font-bold text-gray-700">{dayLabel}</h3>
+                    </div>
 
-                              return (
-                                <div key={idx} className="flex flex-col gap-1">
-                                  <div className="flex items-start gap-2">
-                                    <span className="text-xs">{getStatusIcon(status)}</span>
-                                    <span className="text-sm font-medium">{s}</span>
+                    <div className="flex flex-col gap-2">
+                      {sessions.length > 0 ? (
+                        sessions.map((s: string, idx: number) => {
+                          const statusKey = `${dateStr}-${s.toLowerCase()}`;
+                          const status = completed[statusKey] || 'none';
+                          const matched = matchStrava(dateStr, s);
+
+                          return (
+                            <div key={idx} className="flex items-start gap-2 text-sm">
+                              <span>{getStatusIcon(status)}</span>
+                              <div>
+                                <p className="text-gray-800">{s}</p>
+                                {matched && (
+                                  <div className="text-xs text-orange-600 mt-1">
+                                    Synced: {matched.distance}km • {matched.timeMin}min
                                   </div>
-                                  {matched && (
-                                    <div className="ml-5 text-xs bg-orange-50 p-1 rounded-md text-orange-700">
-                                      {matched.distance}km • {matched.timeMin}min
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })
-                          ) : (
-                            <p className="text-gray-400 italic text-sm">Mobility / Recovery</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Top border indicator */}
-                      {sessions.length > 0 && (
-                        <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-1 rounded-full ${getColor(sessions[0])}`} />
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <p className="text-sm italic text-gray-400">Mobility / Recovery</p>
                       )}
                     </div>
-                  );
-                })}
-              </div>
-            </section>
-          );
-        })}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     </main>
   );
