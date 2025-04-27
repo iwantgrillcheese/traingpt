@@ -6,25 +6,25 @@ import { format, parseISO, isSameDay } from 'date-fns';
 
 const supabase = createClientComponentClient();
 
+const getColor = (session: string) => {
+  const s = session.toLowerCase();
+  if (s.includes('interval') || s.includes('brick') || s.includes('race pace')) return 'before:bg-red-400';
+  if (s.includes('threshold') || s.includes('tempo')) return 'before:bg-yellow-400';
+  return 'before:bg-green-400';
+};
+
 const getStatusIcon = (status: string) => {
   if (status === 'done') return '✅';
   if (status === 'skipped') return '⛔';
   return '⚪';
 };
 
-const getSessionColor = (session: string) => {
-  const lower = session.toLowerCase();
-  if (lower.includes('interval') || lower.includes('brick') || lower.includes('race pace')) return 'bg-red-400';
-  if (lower.includes('threshold') || lower.includes('tempo') || lower.includes('z3')) return 'bg-yellow-400';
-  return 'bg-green-400';
-};
-
 export default function SchedulePage() {
   const [plan, setPlan] = useState<any[]>([]);
-  const [completed, setCompleted] = useState<{ [key: string]: string }>({});
-  const [stravaActivities, setStravaActivities] = useState<any[]>([]);
   const [raceDate, setRaceDate] = useState<string | null>(null);
   const [coachNote, setCoachNote] = useState<string | null>(null);
+  const [completed, setCompleted] = useState<{ [key: string]: string }>({});
+  const [stravaActivities, setStravaActivities] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -106,16 +106,11 @@ export default function SchedulePage() {
     return <div className="py-32 text-center text-gray-400">No plan found. Generate one to get started.</div>;
   }
 
-  // Flatten weeks into days
-  const allDays = plan.flatMap(week => 
-    Object.entries(week.days).map(([date, sessions]) => ({ date, sessions }))
-  ).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
   return (
-    <main className="max-w-5xl mx-auto px-4 sm:px-8 py-10 sm:py-16">
+    <main className="max-w-[1440px] mx-auto px-4 sm:px-8 py-10 sm:py-16">
       {/* Top Header */}
-      <div className="text-center mb-12">
-        <h1 className="text-3xl sm:text-4xl font-bold mb-2">Your Training Plan</h1>
+      <div className="text-center mb-10">
+        <h1 className="text-3xl font-bold mb-2">Your Training Plan</h1>
         {raceCountdown !== null && (
           <p className="text-gray-600 text-lg">{raceCountdown} days until race day</p>
         )}
@@ -126,59 +121,51 @@ export default function SchedulePage() {
         )}
       </div>
 
-      {/* Daily List */}
-      <div className="flex flex-col gap-6">
-        {allDays.map(({ date, sessions }, idx) => (
-          <div
-            key={idx}
-            className="flex items-start gap-4 border-b pb-6 last:border-none"
-          >
-            <div className="flex flex-col items-center pt-2">
-              <div className="w-1 h-1 bg-gray-400 rounded-full mb-2" />
-              {idx !== allDays.length - 1 && (
-                <div className="w-px flex-1 bg-gray-200" />
-              )}
-            </div>
+      {/* Plan Sessions */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+        {plan.flatMap((week, weekIdx) =>
+          Object.entries(week.days).map(([date, sessionsRaw], dayIdx) => {
+            const sessions = sessionsRaw as string[];
+            const dateObj = parseISO(date);
+            const topSession = sessions[0] || '';
+            const colorBar = getColor(topSession);
 
-            <div className="flex-1">
-              <div className="flex justify-between items-center mb-2">
-                <h3 className="text-sm font-semibold text-gray-700">{format(parseISO(date), 'EEE, MMM d')}</h3>
-              </div>
+            return (
+              <div
+                key={`${weekIdx}-${dayIdx}`}
+                className={`relative rounded-2xl border p-4 shadow-md bg-white flex flex-col justify-between min-h-[160px] before:content-[''] before:absolute before:top-0 before:left-1/2 before:-translate-x-1/2 before:w-1/2 before:h-1 before:rounded-full ${colorBar}`}
+              >
+                <div>
+                  <h3 className="text-xs font-bold text-gray-800 mb-2">{format(dateObj, 'EEE, MMM d')}</h3>
 
-              {sessions.length > 0 ? (
-                sessions.map((s: string, sIdx: number) => {
-                  const statusKey = `${date}-${s.toLowerCase()}`;
-                  const status = completed[statusKey] || 'none';
-                  const matched = matchStrava(date, s);
+                  {(sessions as string[]).length > 0 ? (
+                    (sessions as string[]).map((s: string, sIdx: number) => {
+                      const statusKey = `${date}-${s.toLowerCase()}`;
+                      const status = completed[statusKey] || 'none';
+                      const matched = matchStrava(date, s);
 
-                  return (
-                    <div
-                      key={sIdx}
-                      className="flex items-start gap-3 text-sm py-1"
-                    >
-                      <div className={`h-2 w-2 rounded-full mt-2 ${getSessionColor(s)}`} />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span>{getStatusIcon(status)}</span>
-                          <span>{s}</span>
-                        </div>
-                        {matched && (
-                          <div className="ml-6 mt-1 text-xs text-orange-600 bg-orange-50 p-2 rounded-lg shadow-sm">
-                            {matched.distance}km • {matched.timeMin}min
+                      return (
+                        <div key={sIdx} className="flex flex-col gap-1 mb-2">
+                          <div className="flex items-start gap-2 text-sm text-gray-800">
+                            <span>{getStatusIcon(status)}</span>
+                            <span>{s}</span>
                           </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="flex items-center gap-2 text-sm text-gray-400">
-                  <span>⚪</span> Mobility / Recovery
+                          {matched && (
+                            <div className="ml-5 bg-orange-50 p-2 rounded-lg text-xs text-orange-600 shadow-sm">
+                              {matched.distance}km • {matched.timeMin}min
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="text-sm text-gray-400 italic">Mobility / Recovery</div>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
-        ))}
+              </div>
+            );
+          })
+        )}
       </div>
     </main>
   );
