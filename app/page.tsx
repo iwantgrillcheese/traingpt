@@ -46,12 +46,29 @@ export default function Home() {
   });
 
   useEffect(() => {
-    const checkSession = async () => {
+    const checkSessionAndPlan = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
+
+      if (!session?.user) return;
+
+      const { data: planData } = await supabase
+        .from('plans')
+        .select('id')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (planData) {
+        router.replace('/schedule');
+      } else {
+        router.replace('/plan');
+      }
     };
-    checkSession();
-  }, []);
+
+    checkSessionAndPlan();
+  }, [router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
