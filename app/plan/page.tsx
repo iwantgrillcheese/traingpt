@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Footer from '../components/footer';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
@@ -40,6 +40,36 @@ export default function PlanPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [quote, setQuote] = useState('');
+
+  const [checkingStatus, setCheckingStatus] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [hasPlan, setHasPlan] = useState(false);
+
+  useEffect(() => {
+    const fetchUserStatus = async () => {
+      setCheckingStatus(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        setIsLoggedIn(false);
+        setCheckingStatus(false);
+        return;
+      }
+      setIsLoggedIn(true);
+
+      const { data: plans } = await supabase
+        .from('plans')
+        .select('id')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      setHasPlan(!!plans);
+      setCheckingStatus(false);
+    };
+
+    fetchUserStatus();
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -97,6 +127,34 @@ export default function PlanPage() {
     { id: 'swimPace', label: 'Swim Threshold Pace (per 100m)', type: 'text', placeholder: 'e.g. 1:38' },
     { id: 'restDay', label: 'Preferred Rest Day', type: 'select', options: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] },
   ];
+
+  if (checkingStatus) {
+    return <div className="py-32 text-center text-gray-400">Loading...</div>;
+  }
+
+  if (isLoggedIn && hasPlan) {
+    return (
+      <div className="min-h-screen flex flex-col justify-center items-center text-center px-6">
+        <h1 className="text-3xl font-bold mb-4">🎯 You already have a training plan!</h1>
+        <p className="text-gray-600 mb-6">View your plan or create a new one.</p>
+        <div className="flex flex-col gap-4">
+          <button
+            onClick={() => router.push('/schedule')}
+            className="bg-black text-white px-8 py-3 rounded-full font-medium hover:bg-gray-800"
+          >
+            View My Plan
+          </button>
+          <button
+            onClick={() => router.push('/plan?reroll=true')}
+            className="text-sm text-gray-500 underline"
+          >
+            Don't love it? Re-roll a new plan
+          </button>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white text-gray-900 relative">
