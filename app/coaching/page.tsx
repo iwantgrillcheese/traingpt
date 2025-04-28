@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { format, formatDistanceToNow, parseISO, isAfter } from 'date-fns';
 import Link from 'next/link';
-import Head from 'next/head'; // ✅ THIS WAS MISSING
+import Head from 'next/head'; // ✅ now imported
 
 const supabase = createClientComponentClient();
 
@@ -104,8 +104,8 @@ export default function CoachingDashboard() {
 
     const newMessages = [
       ...messages,
-      { role: 'user' as 'user', content: question, timestamp: Date.now() },
-      { role: 'assistant' as 'assistant', content: 'Thinking...', timestamp: Date.now() },
+      { role: 'user', content: question, timestamp: Date.now() },
+      { role: 'assistant', content: 'Thinking...', timestamp: Date.now() },
     ];
     setMessages(newMessages);
 
@@ -114,7 +114,7 @@ export default function CoachingDashboard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: [...messages, { role: 'user' as const, content: question, timestamp: Date.now() }].slice(-8),
+          messages: [...messages, { role: 'user', content: question, timestamp: Date.now() }].slice(-8),
           completedSessions: upcomingSessions.flatMap((s) => s.sessions),
           userNote: question,
           raceType,
@@ -215,7 +215,42 @@ export default function CoachingDashboard() {
           </div>
         </section>
 
-        {/* Rest of your page (upcoming sessions, strava connect, etc.) */}
+        {/* Upcoming Sessions */}
+        <section className="mb-10">
+          <h2 className="text-lg font-semibold mb-2">Upcoming Sessions</h2>
+          {upcomingSessions.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {upcomingSessions.map(({ date, sessions }, i) => (
+                <div key={i} className="border border-gray-200 rounded-xl p-4 shadow-sm bg-white">
+                  <p className="text-sm font-medium text-gray-700 mb-2">{format(parseISO(date), 'EEEE, MMM d')}</p>
+                  <ul className="text-sm text-gray-700 space-y-1">
+                    {sessions.map((s, j) => <li key={j}>• {s}</li>)}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 italic">No upcoming training sessions found.</p>
+          )}
+        </section>
+
+        {/* Strava Connect */}
+        <div className="text-center mt-8">
+          {stravaConnected ? (
+            <div className="inline-flex items-center gap-2 px-5 py-3 border border-green-500 text-green-600 bg-green-50 rounded-xl">
+              <img src="/strava-2.svg" alt="Strava" className="h-5 w-auto" />
+              <span className="font-semibold text-sm">Connected to Strava ✅</span>
+            </div>
+          ) : (
+            <Link
+              href={`https://www.strava.com/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID}&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_STRAVA_REDIRECT_URI}&approval_prompt=force&scope=activity:read_all`}
+              className="inline-flex items-center gap-2 px-5 py-3 border border-orange-500 text-orange-600 hover:bg-orange-50 rounded-xl"
+            >
+              <img src="/strava-2.svg" alt="Strava" className="h-5 w-auto" />
+              <span className="font-semibold text-sm">Connect to Strava</span>
+            </Link>
+          )}
+        </div>
 
       </main>
     </>
