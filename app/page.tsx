@@ -62,9 +62,9 @@ export default function Home() {
         .eq('user_id', session.user.id)
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      if (planData) {
+      if (planData?.id) {
         router.replace('/schedule');
       } else {
         setChecking(false);
