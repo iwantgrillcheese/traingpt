@@ -107,15 +107,9 @@ export default function SchedulePage() {
                   {/* Session Cards */}
                   {sessions.map((sessionTitle, sessionIdx) => (
                     <SessionCard
-                      key={sessionIdx}
-                      title={sessionTitle}
-                      duration="" // Optional — we can parse later if you want (like "30min easy" → 30min)
-                      details={[
-                        'Warm up 10min Zone 1',
-                        'Main set based on session',
-                        'Cool down 5min easy',
-                      ]} // TEMP: placeholder details, you can make real ones later
-                    />
+  key={sessionIdx}
+  title={sessionTitle}
+/>
                   ))}
                 </div>
               );
