@@ -100,14 +100,14 @@ export default function CoachingDashboard() {
   }, [messages]);
 
   const askCoach = async () => {
-    if (!question.trim()) return;
+  if (!question.trim()) return;
 
-    const newMessages = [
-      ...messages,
-      { role: 'user', content: question, timestamp: Date.now() },
-      { role: 'assistant', content: 'Thinking...', timestamp: Date.now() },
-    ];
-    setMessages(newMessages);
+  const newMessages: { role: 'user' | 'assistant'; content: string; timestamp: number; error?: boolean }[] = [
+    ...messages,
+    { role: 'user', content: question, timestamp: Date.now() },
+    { role: 'assistant', content: 'Thinking...', timestamp: Date.now() },
+  ];
+  setMessages(newMessages);
 
     try {
       const res = await fetch('/api/coach-feedback', {
