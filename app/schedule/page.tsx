@@ -107,9 +107,10 @@ export default function SchedulePage() {
                   {/* Session Cards */}
                   {sessions.map((sessionTitle, sessionIdx) => (
                     <SessionCard
-  key={sessionIdx}
-  title={sessionTitle}
-/>
+                      key={sessionIdx}
+                      title={sessionTitle}
+                      date={date} // <-- passing date now!
+                    />
                   ))}
                 </div>
               );
