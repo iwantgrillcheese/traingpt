@@ -1,16 +1,21 @@
 'use client';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Link from 'next/link';
+import { format, parseISO } from 'date-fns';
 
 interface SessionCardProps {
   title: string;
   duration?: string; // optional
   details?: string[]; // optional
+  date?: string; // pass the ISO date too!
 }
 
-export function SessionCard({ title, duration = '', details = [] }: SessionCardProps) {
+export function SessionCard({ title, duration = '', details = [], date }: SessionCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [note, setNote] = useState('');
+
+  const dayFormatted = date ? format(parseISO(date), 'EEEE, MMMM d') : '';
 
   return (
     <div
@@ -52,7 +57,7 @@ export function SessionCard({ title, duration = '', details = [] }: SessionCardP
             </div>
 
             {/* Notes Section */}
-            <div>
+            <div className="mb-4">
               <textarea
                 className="w-full border border-gray-300 rounded-md p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition"
                 placeholder="Write your notes..."
@@ -63,6 +68,19 @@ export function SessionCard({ title, duration = '', details = [] }: SessionCardP
                 }}
               />
             </div>
+
+            {/* Ask Coach Link */}
+            {date && (
+              <div className="text-center mt-4">
+                <Link
+                  href={`/coaching?prefill=${encodeURIComponent(`Hey coach, can you give me a detailed workout for my "${title}" session on ${dayFormatted}?`)}`}
+                  className="inline-block text-sm text-blue-600 underline"
+                  onClick={(e) => e.stopPropagation()} // prevent collapsing when tapping link
+                >
+                  💬 Ask your coach for a detailed workout
+                </Link>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
