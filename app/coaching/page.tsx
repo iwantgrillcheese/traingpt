@@ -1,5 +1,3 @@
-// Full page with "Enter to send", "disable send while thinking", and "auto-focus after send"
-
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -28,9 +26,7 @@ export default function CoachingDashboard() {
   const [raceDate, setRaceDate] = useState('');
   const [experienceLevel, setExperienceLevel] = useState('Intermediate');
   const [stravaConnected, setStravaConnected] = useState(false);
-  const [thinking, setThinking] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const [isMobile, setIsMobile] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -38,9 +34,7 @@ export default function CoachingDashboard() {
   const today = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth <= 640);
-    };
+    const handleResize = () => setIsMobile(window.innerWidth <= 640);
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -75,11 +69,9 @@ export default function CoachingDashboard() {
             }
           }
         }
+
         setUpcomingSessions(
-          sessions
-            .filter(({ date }) => isAfter(parseISO(date), new Date()))
-            .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime())
-            .slice(0, 3)
+          sessions.filter(({ date }) => isAfter(parseISO(date), new Date())).sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime()).slice(0, 3)
         );
       }
 
@@ -106,20 +98,22 @@ export default function CoachingDashboard() {
   const askCoach = async () => {
     if (!question.trim()) return;
 
+    const now = Date.now();
+
     const newMessages = [
       ...messages,
-      { role: 'user', content: question, timestamp: Date.now() },
-      { role: 'assistant', content: 'Thinking...', timestamp: Date.now() },
+      { role: 'user' as const, content: question, timestamp: now },
+      { role: 'assistant' as const, content: 'Thinking...', timestamp: now },
     ];
+
     setMessages(newMessages);
-    setThinking(true);
 
     try {
       const res = await fetch('/api/coach-feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: [...messages, { role: 'user', content: question, timestamp: Date.now() }].slice(-8),
+          messages: [...messages, { role: 'user', content: question, timestamp: now }].slice(-8),
           completedSessions: upcomingSessions.flatMap((s) => s.sessions),
           userNote: question,
           raceType,
@@ -139,8 +133,13 @@ export default function CoachingDashboard() {
       setMessages((prev) => [...prev.slice(0, -1), { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true }]);
     } finally {
       setQuestion('');
-      setThinking(false);
-      setTimeout(() => textareaRef.current?.focus(), 100);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      askCoach();
     }
   };
 
@@ -151,16 +150,11 @@ export default function CoachingDashboard() {
       </Head>
 
       <main className="flex flex-col min-h-screen max-w-4xl mx-auto px-4 py-6 sm:px-6">
-
         {/* Top Info */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold mb-2">Coaching Dashboard</h1>
           <div className="text-sm text-gray-500 mb-1">Race type: {raceType} | Experience: {experienceLevel}</div>
-          {raceDate && (
-            <div className="text-sm text-gray-500">
-              Race in {formatDistanceToNow(new Date(raceDate), { addSuffix: true })}
-            </div>
-          )}
+          {raceDate && <div className="text-sm text-gray-500">Race in {formatDistanceToNow(new Date(raceDate), { addSuffix: true })}</div>}
         </div>
 
         {/* Ask Your Coach */}
@@ -177,11 +171,7 @@ export default function CoachingDashboard() {
                     <span className="text-[10px] text-gray-400">{formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}</span>
                   </div>
                   {msg.content === 'Thinking...' ? <TypingDots /> : <p>{msg.content}</p>}
-                  {msg.error && (
-                    <button className="mt-1 text-xs text-red-600 underline" onClick={() => setQuestion(messages[messages.length - 2]?.content || '')}>
-                      Retry
-                    </button>
-                  )}
+                  {msg.error && <button className="mt-1 text-xs text-red-600 underline" onClick={() => setQuestion(messages[messages.length - 2]?.content || '')}>Retry</button>}
                 </div>
               ))
             )}
@@ -190,25 +180,19 @@ export default function CoachingDashboard() {
 
           <div className="flex gap-3">
             <textarea
-              ref={textareaRef}
               className="flex-1 border rounded-xl px-4 py-2 text-sm resize-none"
               placeholder="Ask your coach anything..."
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
+              onKeyDown={handleKeyDown}
               rows={1}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  askCoach();
-                }
-              }}
             />
             <button
               onClick={askCoach}
-              disabled={!question.trim() || thinking}
+              disabled={!question.trim()}
               className="px-6 py-2 bg-black text-white rounded-xl text-sm font-semibold disabled:opacity-50"
             >
-              {thinking ? 'Thinking...' : question.trim() ? 'Send' : 'Type...'}
+              {question.trim() ? 'Send' : 'Type...'}
             </button>
           </div>
         </section>
@@ -240,16 +224,12 @@ export default function CoachingDashboard() {
               <span className="font-semibold text-sm">Connected to Strava ✅</span>
             </div>
           ) : (
-            <Link
-              href={`https://www.strava.com/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID}&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_STRAVA_REDIRECT_URI}&approval_prompt=force&scope=activity:read_all`}
-              className="inline-flex items-center gap-2 px-5 py-3 border border-orange-500 text-orange-600 hover:bg-orange-50 rounded-xl"
-            >
+            <Link href={`https://www.strava.com/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID}&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_STRAVA_REDIRECT_URI}&approval_prompt=force&scope=activity:read_all`} className="inline-flex items-center gap-2 px-5 py-3 border border-orange-500 text-orange-600 hover:bg-orange-50 rounded-xl">
               <img src="/strava-2.svg" alt="Strava" className="h-5 w-auto" />
               <span className="font-semibold text-sm">Connect to Strava</span>
             </Link>
           )}
         </div>
-
       </main>
     </>
   );
