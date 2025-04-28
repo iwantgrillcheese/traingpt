@@ -34,53 +34,53 @@ export default function Home() {
     bikeFTP: '',
     runPace: '',
     swimPace: '',
-    restDay: ''
+    restDay: '',
   });
 
   useEffect(() => {
-  const cachedSession = localStorage.getItem('user_session_exists');
-  const cachedPlan = localStorage.getItem('user_has_plan');
+    const checkSessionAndPlan = async (incomingSession?: Session | null) => {
+      const activeSession = incomingSession ?? (await supabase.auth.getSession()).data.session;
+      setSession(activeSession);
 
-  if (cachedSession === 'true') {
-    setSession({} as Session); // "fake" session to show logged-in view
-  }
-  if (cachedPlan === 'true') {
-    setHasPlan(true);
-  }
+      if (activeSession?.user) {
+        const { data: planData } = await supabase
+          .from('plans')
+          .select('id')
+          .eq('user_id', activeSession.user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-  const checkSessionAndPlan = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    setSession(session);
+        if (planData?.id) {
+          setHasPlan(true);
+          localStorage.setItem('user_has_plan', 'true');
+        } else {
+          setHasPlan(false);
+          localStorage.setItem('user_has_plan', 'false');
+        }
 
-    if (session?.user) {
-      const { data: planData } = await supabase
-        .from('plans')
-        .select('id')
-        .eq('user_id', session.user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (planData?.id) {
-        setHasPlan(true);
-        localStorage.setItem('user_has_plan', 'true');
+        localStorage.setItem('user_session_exists', 'true');
       } else {
         setHasPlan(false);
+        localStorage.setItem('user_session_exists', 'false');
         localStorage.setItem('user_has_plan', 'false');
       }
 
-      localStorage.setItem('user_session_exists', 'true');
-    } else {
-      setHasPlan(false);
-      localStorage.setItem('user_session_exists', 'false');
-      localStorage.setItem('user_has_plan', 'false');
-    }
+      setChecking(false);
+    };
 
-    setChecking(false);
-  };
+    // Initial check
+    checkSessionAndPlan();
 
-  checkSessionAndPlan();
-}, [router]);
+    // Listen for session changes too (important for reloads)
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, updatedSession) => {
+      checkSessionAndPlan(updatedSession);
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, [router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
