@@ -1,3 +1,5 @@
+// Full page with "Enter to send", "disable send while thinking", and "auto-focus after send"
+
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -26,7 +28,9 @@ export default function CoachingDashboard() {
   const [raceDate, setRaceDate] = useState('');
   const [experienceLevel, setExperienceLevel] = useState('Intermediate');
   const [stravaConnected, setStravaConnected] = useState(false);
+  const [thinking, setThinking] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const [isMobile, setIsMobile] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -108,6 +112,7 @@ export default function CoachingDashboard() {
       { role: 'assistant', content: 'Thinking...', timestamp: Date.now() },
     ];
     setMessages(newMessages);
+    setThinking(true);
 
     try {
       const res = await fetch('/api/coach-feedback', {
@@ -126,23 +131,16 @@ export default function CoachingDashboard() {
       const data = await res.json();
 
       if (res.ok && data?.feedback) {
-        setMessages((prev) => [
-          ...prev.slice(0, -1),
-          { role: 'assistant', content: data.feedback, timestamp: Date.now() },
-        ]);
+        setMessages((prev) => [...prev.slice(0, -1), { role: 'assistant', content: data.feedback, timestamp: Date.now() }]);
       } else {
-        setMessages((prev) => [
-          ...prev.slice(0, -1),
-          { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true },
-        ]);
+        setMessages((prev) => [...prev.slice(0, -1), { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true }]);
       }
     } catch {
-      setMessages((prev) => [
-        ...prev.slice(0, -1),
-        { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true },
-      ]);
+      setMessages((prev) => [...prev.slice(0, -1), { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true }]);
     } finally {
       setQuestion('');
+      setThinking(false);
+      setTimeout(() => textareaRef.current?.focus(), 100);
     }
   };
 
@@ -153,6 +151,8 @@ export default function CoachingDashboard() {
       </Head>
 
       <main className="flex flex-col min-h-screen max-w-4xl mx-auto px-4 py-6 sm:px-6">
+
+        {/* Top Info */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold mb-2">Coaching Dashboard</h1>
           <div className="text-sm text-gray-500 mb-1">Race type: {raceType} | Experience: {experienceLevel}</div>
@@ -163,6 +163,7 @@ export default function CoachingDashboard() {
           )}
         </div>
 
+        {/* Ask Your Coach */}
         <section className="flex-1 border border-gray-200 rounded-xl p-4 shadow-md bg-white mb-8">
           <h3 className="text-base font-medium text-gray-800 mb-2">Ask Your Coach</h3>
           <div className="space-y-4 max-h-[40vh] overflow-y-auto mb-4">
@@ -177,10 +178,7 @@ export default function CoachingDashboard() {
                   </div>
                   {msg.content === 'Thinking...' ? <TypingDots /> : <p>{msg.content}</p>}
                   {msg.error && (
-                    <button
-                      className="mt-1 text-xs text-red-600 underline"
-                      onClick={() => setQuestion(messages[messages.length - 2]?.content || '')}
-                    >
+                    <button className="mt-1 text-xs text-red-600 underline" onClick={() => setQuestion(messages[messages.length - 2]?.content || '')}>
                       Retry
                     </button>
                   )}
@@ -190,35 +188,32 @@ export default function CoachingDashboard() {
             <div ref={messagesEndRef} />
           </div>
 
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              askCoach();
-            }}
-            className="flex gap-3"
-          >
+          <div className="flex gap-3">
             <textarea
+              ref={textareaRef}
               className="flex-1 border rounded-xl px-4 py-2 text-sm resize-none"
               placeholder="Ask your coach anything..."
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               rows={1}
-              onFocus={() => {
-                if (isMobile) setModalOpen(true);
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  askCoach();
+                }
               }}
             />
             <button
-              type="submit"
-              disabled={!question.trim()}
+              onClick={askCoach}
+              disabled={!question.trim() || thinking}
               className="px-6 py-2 bg-black text-white rounded-xl text-sm font-semibold disabled:opacity-50"
             >
-              {question.trim() ? 'Send' : 'Type...'}
+              {thinking ? 'Thinking...' : question.trim() ? 'Send' : 'Type...'}
             </button>
-          </form>
+          </div>
         </section>
 
-        {/* rest of page untouched (sessions/strava) */}
-
+        {/* Upcoming Sessions */}
         <section className="mb-10">
           <h2 className="text-lg font-semibold mb-2">Upcoming Sessions</h2>
           {upcomingSessions.length > 0 ? (
@@ -237,6 +232,7 @@ export default function CoachingDashboard() {
           )}
         </section>
 
+        {/* Strava Connect */}
         <div className="text-center mt-8">
           {stravaConnected ? (
             <div className="inline-flex items-center gap-2 px-5 py-3 border border-green-500 text-green-600 bg-green-50 rounded-xl">
@@ -253,6 +249,7 @@ export default function CoachingDashboard() {
             </Link>
           )}
         </div>
+
       </main>
     </>
   );
