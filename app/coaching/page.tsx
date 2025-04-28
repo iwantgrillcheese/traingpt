@@ -253,50 +253,56 @@ export default function CoachingDashboard() {
 
         {/* Mobile Modal */}
         {modalOpen && (
-          <div className="fixed inset-0 bg-white z-50 flex flex-col">
-            <div className="flex justify-between items-center p-4 border-b">
-              <h2 className="font-semibold text-lg">Chat with Your Coach</h2>
-              <button onClick={() => setModalOpen(false)} className="text-sm text-blue-600">Close</button>
+          {modalOpen && (
+  <div className="fixed inset-0 z-50 bg-white flex flex-col p-4 overflow-hidden">
+    <div className="flex justify-between items-center mb-4">
+      <h2 className="font-semibold text-lg">Chat with Your Coach</h2>
+      <button onClick={() => setModalOpen(false)} className="text-sm text-blue-600">Close</button>
+    </div>
+    <div className="flex-1 overflow-y-auto">
+      {messages.length === 0 ? (
+        <p className="text-sm text-gray-500 italic">No messages yet...</p>
+      ) : (
+        messages.map((msg, i) => (
+          <div
+            key={i}
+            className={`p-3 mb-2 rounded-xl text-sm ${
+              msg.role === 'user' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-900'
+            }`}
+          >
+            <div className="flex justify-between items-center mb-1">
+              <span className="font-semibold text-xs">{msg.role === 'user' ? 'You' : '🏆 Coach'}</span>
+              <span className="text-[10px] text-gray-400">
+                {formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}
+              </span>
             </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              {messages.length === 0 ? (
-                <p className="text-sm text-gray-500 italic">No messages yet...</p>
-              ) : (
-                messages.map((msg, i) => (
-                  <div
-                    key={i}
-                    className={`p-3 rounded-xl text-sm ${msg.role === 'user' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-900'}`}
-                  >
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="font-semibold text-xs">{msg.role === 'user' ? 'You' : '🏆 Coach'}</span>
-                      <span className="text-[10px] text-gray-400">{formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}</span>
-                    </div>
-                    <p>{msg.content}</p>
-                  </div>
-                ))
-              )}
-            </div>
-            <div className="flex p-4 gap-2 border-t">
-              <textarea
-                className="flex-1 border rounded-lg p-2 text-sm resize-none"
-                placeholder="Type your message..."
-                value={question}
-                onChange={(e) => setQuestion(e.target.value)}
-                rows={1}
-              />
-              <button
-                onClick={() => {
-                  askCoach();
-                  setModalOpen(false);
-                }}
-                disabled={!question.trim()}
-                className="px-4 py-2 bg-black text-white rounded-lg text-sm"
-              >
-                Send
-              </button>
-            </div>
+            <p>{msg.content}</p>
           </div>
-        )}
+        ))
+      )}
+    </div>
+    <div className="flex mt-4 gap-2">
+      <textarea
+        className="flex-1 border rounded-lg p-2 text-sm resize-none"
+        placeholder="Type your message..."
+        value={question}
+        onChange={(e) => setQuestion(e.target.value)}
+        rows={1}
+      />
+      <button
+        onClick={() => {
+          askCoach();
+          setModalOpen(false);
+        }}
+        disabled={!question.trim()}
+        className="px-4 py-2 bg-black text-white rounded-lg text-sm"
+      >
+        Send
+      </button>
+    </div>
+  </div>
+)}
+
       </main>
     </>
   );
