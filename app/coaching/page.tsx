@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { format, formatDistanceToNow, parseISO, isAfter } from 'date-fns';
 import Link from 'next/link';
-import Head from 'next/head'; // ✅ now imported
+import Head from 'next/head';
 
 const supabase = createClientComponentClient();
 
@@ -99,63 +99,60 @@ export default function CoachingDashboard() {
     }
   }, [messages]);
 
- const askCoach = async () => {
-  if (!question.trim()) return;
+  const askCoach = async () => {
+    if (!question.trim()) return;
 
-  const newMessages: { role: 'user' | 'assistant'; content: string; timestamp: number; error?: boolean }[] = [
-    ...messages,
-    { role: 'user', content: question, timestamp: Date.now() },
-    { role: 'assistant', content: 'Thinking...', timestamp: Date.now() },
-  ];
-  setMessages(newMessages);
+    const newMessages = [
+      ...messages,
+      { role: 'user', content: question, timestamp: Date.now() },
+      { role: 'assistant', content: 'Thinking...', timestamp: Date.now() },
+    ];
+    setMessages(newMessages);
 
-  try {
-    const res = await fetch('/api/coach-feedback', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messages: [...messages, { role: 'user', content: question, timestamp: Date.now() }].slice(-8),
-        completedSessions: upcomingSessions.flatMap((s) => s.sessions),
-        userNote: question,
-        raceType,
-        raceDate,
-        experienceLevel,
-      }),
-    });
+    try {
+      const res = await fetch('/api/coach-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [...messages, { role: 'user', content: question, timestamp: Date.now() }].slice(-8),
+          completedSessions: upcomingSessions.flatMap((s) => s.sessions),
+          userNote: question,
+          raceType,
+          raceDate,
+          experienceLevel,
+        }),
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (res.ok && data?.feedback) {
-      setMessages((prev) => [
-        ...prev.slice(0, -1),
-        { role: 'assistant', content: data.feedback, timestamp: Date.now() },
-      ]);
-    } else {
+      if (res.ok && data?.feedback) {
+        setMessages((prev) => [
+          ...prev.slice(0, -1),
+          { role: 'assistant', content: data.feedback, timestamp: Date.now() },
+        ]);
+      } else {
+        setMessages((prev) => [
+          ...prev.slice(0, -1),
+          { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true },
+        ]);
+      }
+    } catch {
       setMessages((prev) => [
         ...prev.slice(0, -1),
         { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true },
       ]);
+    } finally {
+      setQuestion('');
     }
-  } catch {
-    setMessages((prev) => [
-      ...prev.slice(0, -1),
-      { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true },
-    ]);
-  } finally {
-    setQuestion('');
-  }
-};
+  };
 
   return (
     <>
-      {/* Meta tag for mobile scaling */}
       <Head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
       <main className="flex flex-col min-h-screen max-w-4xl mx-auto px-4 py-6 sm:px-6">
-
-        {/* Top Info */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold mb-2">Coaching Dashboard</h1>
           <div className="text-sm text-gray-500 mb-1">Race type: {raceType} | Experience: {experienceLevel}</div>
@@ -166,7 +163,6 @@ export default function CoachingDashboard() {
           )}
         </div>
 
-        {/* Ask Your Coach */}
         <section className="flex-1 border border-gray-200 rounded-xl p-4 shadow-md bg-white mb-8">
           <h3 className="text-base font-medium text-gray-800 mb-2">Ask Your Coach</h3>
           <div className="space-y-4 max-h-[40vh] overflow-y-auto mb-4">
@@ -194,7 +190,13 @@ export default function CoachingDashboard() {
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="flex gap-3">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              askCoach();
+            }}
+            className="flex gap-3"
+          >
             <textarea
               className="flex-1 border rounded-xl px-4 py-2 text-sm resize-none"
               placeholder="Ask your coach anything..."
@@ -206,16 +208,17 @@ export default function CoachingDashboard() {
               }}
             />
             <button
-              onClick={askCoach}
+              type="submit"
               disabled={!question.trim()}
               className="px-6 py-2 bg-black text-white rounded-xl text-sm font-semibold disabled:opacity-50"
             >
               {question.trim() ? 'Send' : 'Type...'}
             </button>
-          </div>
+          </form>
         </section>
 
-        {/* Upcoming Sessions */}
+        {/* rest of page untouched (sessions/strava) */}
+
         <section className="mb-10">
           <h2 className="text-lg font-semibold mb-2">Upcoming Sessions</h2>
           {upcomingSessions.length > 0 ? (
@@ -234,7 +237,6 @@ export default function CoachingDashboard() {
           )}
         </section>
 
-        {/* Strava Connect */}
         <div className="text-center mt-8">
           {stravaConnected ? (
             <div className="inline-flex items-center gap-2 px-5 py-3 border border-green-500 text-green-600 bg-green-50 rounded-xl">
@@ -251,7 +253,6 @@ export default function CoachingDashboard() {
             </Link>
           )}
         </div>
-
       </main>
     </>
   );
