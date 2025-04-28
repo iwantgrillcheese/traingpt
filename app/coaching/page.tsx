@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { format, formatDistanceToNow, parseISO } from 'date-fns';
+import { format, formatDistanceToNow, parseISO, isAfter } from 'date-fns';
 import Link from 'next/link';
 
 const supabase = createClientComponentClient();
@@ -24,7 +24,6 @@ export default function CoachingDashboard() {
   const [raceType, setRaceType] = useState('Olympic');
   const [raceDate, setRaceDate] = useState('');
   const [experienceLevel, setExperienceLevel] = useState('Intermediate');
-  const [coachNote, setCoachNote] = useState<string>('');
   const [stravaConnected, setStravaConnected] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -35,19 +34,18 @@ export default function CoachingDashboard() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) return;
 
-      const { data: plans, error } = await supabase
+      const { data: plans } = await supabase
         .from('plans')
-        .select('plan, race_type, race_date, experience, coach_note')
+        .select('plan, race_type, race_date, experience')
         .eq('user_id', session.user.id)
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
 
-      if (!error && plans?.plan) {
+      if (plans?.plan) {
         setRaceType(plans.race_type || 'Olympic');
         setRaceDate(plans.race_date || '');
         setExperienceLevel(plans.experience || 'Intermediate');
-        setCoachNote(plans.coach_note || '');
 
         const sessions: { date: string; sessions: string[] }[] = [];
         const todayDate = new Date(today);
@@ -60,7 +58,12 @@ export default function CoachingDashboard() {
             }
           }
         }
-        setUpcomingSessions(sessions);
+        setUpcomingSessions(
+          sessions
+            .filter(({ date }) => isAfter(parseISO(date), new Date()))
+            .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime())
+            .slice(0, 3) // limit to 3 sessions
+        );
       }
 
       const { data: stravaData } = await supabase
@@ -83,83 +86,69 @@ export default function CoachingDashboard() {
     }
   }, [messages]);
 
- const askCoach = async () => {
-  if (!question.trim()) return;
+  const askCoach = async () => {
+    if (!question.trim()) return;
 
-  const newMessages: { role: 'user' | 'assistant'; content: string; timestamp: number; error?: boolean }[] = [
-    ...messages,
-    { role: 'user', content: question, timestamp: Date.now() },
-    { role: 'assistant', content: 'Thinking...', timestamp: Date.now() },
-  ];
-  setMessages(newMessages);
+    const newMessages = [
+      ...messages,
+      { role: 'user', content: question, timestamp: Date.now() },
+      { role: 'assistant', content: 'Thinking...', timestamp: Date.now() },
+    ];
+    setMessages(newMessages);
 
-  try {
-    const res = await fetch('/api/coach-feedback', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messages: [...messages, { role: 'user' as const, content: question, timestamp: Date.now() }].slice(-8),
-        completedSessions: upcomingSessions.flatMap((s) => s.sessions),
-        userNote: question,
-        raceType,
-        raceDate,
-        experienceLevel,
-      }),
-    });
+    try {
+      const res = await fetch('/api/coach-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [...messages, { role: 'user' as const, content: question, timestamp: Date.now() }].slice(-8),
+          completedSessions: upcomingSessions.flatMap((s) => s.sessions),
+          userNote: question,
+          raceType,
+          raceDate,
+          experienceLevel,
+        }),
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (res.ok && data?.feedback) {
-      setMessages((prev) => [
-        ...prev.slice(0, -1),
-        { role: 'assistant', content: data.feedback, timestamp: Date.now() },
-      ]);
-    } else {
+      if (res.ok && data?.feedback) {
+        setMessages((prev) => [
+          ...prev.slice(0, -1),
+          { role: 'assistant', content: data.feedback, timestamp: Date.now() },
+        ]);
+      } else {
+        setMessages((prev) => [
+          ...prev.slice(0, -1),
+          { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true },
+        ]);
+      }
+    } catch {
       setMessages((prev) => [
         ...prev.slice(0, -1),
         { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true },
       ]);
+    } finally {
+      setQuestion('');
     }
-  } catch {
-    setMessages((prev) => [
-      ...prev.slice(0, -1),
-      { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true },
-    ]);
-  } finally {
-    setQuestion('');
-  }
-};
+  };
+
   return (
     <main className="flex flex-col min-h-screen max-w-4xl mx-auto px-4 py-6 sm:px-6">
-      <div className="mb-8">
+      
+      {/* Top Info */}
+      <div className="mb-6">
         <h1 className="text-2xl font-bold mb-2">Coaching Dashboard</h1>
         <div className="text-sm text-gray-500 mb-1">Race type: {raceType} | Experience: {experienceLevel}</div>
-        {raceDate && <div className="text-sm text-gray-500">Race in {formatDistanceToNow(new Date(raceDate), { addSuffix: true })}</div>}
-        <div className="mt-3 text-[15px] text-gray-700 bg-blue-50 border border-blue-200 rounded-xl p-4">
-          <strong className="block font-medium text-gray-800 mb-1">Your Week at a Glance:</strong>
-          <p>{coachNote || 'Key sessions: long ride, long run, interval bike, threshold run. Try to get to the pool at least once. If you miss a day, let me know and we can adjust the plan.'}</p>
-        </div>
+        {raceDate && (
+          <div className="text-sm text-gray-500">
+            Race in {formatDistanceToNow(new Date(raceDate), { addSuffix: true })}
+          </div>
+        )}
       </div>
 
-      <section className="mb-10">
-        <h2 className="text-lg font-semibold mb-2">Upcoming Sessions</h2>
-        {upcomingSessions.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {upcomingSessions.map(({ date, sessions }, i) => (
-              <div key={i} className="border border-gray-200 rounded-xl p-4 shadow-sm bg-white">
-                <p className="text-sm font-medium text-gray-700 mb-2">{format(parseISO(date), 'EEEE, MMM d')}</p>
-                <ul className="text-sm text-gray-700 space-y-1">
-                  {sessions.map((s, j) => <li key={j}>• {s}</li>)}
-                </ul>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-gray-500 italic">No upcoming training sessions found.</p>
-        )}
-      </section>
-
-      <section className="flex-1 border border-gray-200 rounded-xl p-4 shadow-md bg-white mb-6">
+      {/* Ask Your Coach */}
+      <section className="flex-1 border border-gray-200 rounded-xl p-4 shadow-md bg-white mb-8">
         <h3 className="text-base font-medium text-gray-800 mb-2">Ask Your Coach</h3>
         <div className="space-y-4 max-h-[40vh] overflow-y-auto mb-4">
           {messages.length === 0 ? (
@@ -176,7 +165,9 @@ export default function CoachingDashboard() {
                   <button
                     className="mt-1 text-xs text-red-600 underline"
                     onClick={() => setQuestion(messages[messages.length - 2]?.content || '')}
-                  >Retry</button>
+                  >
+                    Retry
+                  </button>
                 )}
               </div>
             ))
@@ -202,6 +193,26 @@ export default function CoachingDashboard() {
         </div>
       </section>
 
+      {/* Upcoming Sessions */}
+      <section className="mb-10">
+        <h2 className="text-lg font-semibold mb-2">Upcoming Sessions</h2>
+        {upcomingSessions.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {upcomingSessions.map(({ date, sessions }, i) => (
+              <div key={i} className="border border-gray-200 rounded-xl p-4 shadow-sm bg-white">
+                <p className="text-sm font-medium text-gray-700 mb-2">{format(parseISO(date), 'EEEE, MMM d')}</p>
+                <ul className="text-sm text-gray-700 space-y-1">
+                  {sessions.map((s, j) => <li key={j}>• {s}</li>)}
+                </ul>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500 italic">No upcoming training sessions found.</p>
+        )}
+      </section>
+
+      {/* Strava Connect */}
       <div className="text-center mt-8">
         {stravaConnected ? (
           <div className="inline-flex items-center gap-2 px-5 py-3 border border-green-500 text-green-600 bg-green-50 rounded-xl">
