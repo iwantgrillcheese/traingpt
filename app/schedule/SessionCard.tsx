@@ -8,7 +8,7 @@ interface SessionCardProps {
   title: string;
   duration?: string; // optional
   details?: string[]; // optional
-  date?: string; // pass the ISO date too!
+  date?: string; // ISO string
 }
 
 export function SessionCard({ title, duration = '', details = [], date }: SessionCardProps) {
@@ -40,21 +40,21 @@ export function SessionCard({ title, duration = '', details = [], date }: Sessio
             transition={{ duration: 0.3 }}
             className="border-t px-4 pt-4 pb-6 text-sm text-gray-700"
           >
-            {/* Session Details */}
-            <div className="mb-4">
-              <div className="font-semibold mb-2">Session Details</div>
-              <ul className="list-disc list-inside space-y-1">
-                {details.length > 0 ? (
-                  details.map((step, idx) => <li key={idx}>{step}</li>)
-                ) : (
-                  <>
-                    <li>Warm up 10min Zone 1</li>
-                    <li>Main set based on session</li>
-                    <li>Cool down 5min easy</li>
-                  </>
-                )}
-              </ul>
-            </div>
+            {/* Session Details or Message */}
+            {details.length > 0 ? (
+              <div className="mb-4">
+                <div className="font-semibold mb-2">Session Details</div>
+                <ul className="list-disc list-inside space-y-1">
+                  {details.map((step, idx) => (
+                    <li key={idx}>{step}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="text-gray-500 text-center mb-4">
+                No full workout loaded yet.
+              </div>
+            )}
 
             {/* Notes Section */}
             <div className="mb-4">
@@ -64,18 +64,18 @@ export function SessionCard({ title, duration = '', details = [], date }: Sessio
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 onBlur={() => {
-                  console.log('Auto-saving note:', note); // 🔥 Later: Save to Supabase
+                  console.log('Auto-saving note:', note); // 🔥 hook to backend later
                 }}
               />
             </div>
 
-            {/* Ask Coach Link */}
+            {/* Ask Coach Button */}
             {date && (
-              <div className="text-center mt-4">
+              <div className="flex justify-center">
                 <Link
                   href={`/coaching?prefill=${encodeURIComponent(`Hey coach, can you give me a detailed workout for my "${title}" session on ${dayFormatted}?`)}`}
-                  className="inline-block text-sm text-blue-600 underline"
-                  onClick={(e) => e.stopPropagation()} // prevent collapsing when tapping link
+                  className="inline-flex items-center gap-2 px-4 py-2 border border-blue-600 text-blue-600 rounded-full text-sm hover:bg-blue-50 transition"
+                  onClick={(e) => e.stopPropagation()}
                 >
                   💬 Ask your coach for a detailed workout
                 </Link>
