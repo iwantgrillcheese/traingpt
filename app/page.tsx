@@ -11,16 +11,6 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-const quotes = [
-  "Don't count the days, make the days count.",
-  "Discipline is doing it when you don’t feel like it.",
-  "You do not rise to the level of your goals. You fall to the level of your systems.",
-  "Train hard, race easy.",
-  "Success is peace of mind that is the direct result of self-satisfaction in knowing you did your best to become the best that you are capable of becoming",
-  "Little by little, a little becomes a lot.",
-  "The only bad workout is the one you didn’t do."
-];
-
 type FieldConfig = {
   id: string;
   label: string;
@@ -52,21 +42,18 @@ export default function Home() {
       const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
 
-      if (!session?.user) {
-        setChecking(false);
-        return;
-      }
+      if (session?.user) {
+        const { data: planData } = await supabase
+          .from('plans')
+          .select('id')
+          .eq('user_id', session.user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-      const { data: planData } = await supabase
-        .from('plans')
-        .select('id')
-        .eq('user_id', session.user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (planData?.id) {
-        setHasPlan(true);
+        if (planData?.id) {
+          setHasPlan(true);
+        }
       }
 
       setChecking(false);
