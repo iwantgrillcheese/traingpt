@@ -38,29 +38,49 @@ export default function Home() {
   });
 
   useEffect(() => {
-    const checkSessionAndPlan = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setSession(session);
+  const cachedSession = localStorage.getItem('user_session_exists');
+  const cachedPlan = localStorage.getItem('user_has_plan');
 
-      if (session?.user) {
-        const { data: planData } = await supabase
-          .from('plans')
-          .select('id')
-          .eq('user_id', session.user.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+  if (cachedSession === 'true') {
+    setSession({} as Session); // "fake" session to show logged-in view
+  }
+  if (cachedPlan === 'true') {
+    setHasPlan(true);
+  }
 
-        if (planData?.id) {
-          setHasPlan(true);
-        }
+  const checkSessionAndPlan = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    setSession(session);
+
+    if (session?.user) {
+      const { data: planData } = await supabase
+        .from('plans')
+        .select('id')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (planData?.id) {
+        setHasPlan(true);
+        localStorage.setItem('user_has_plan', 'true');
+      } else {
+        setHasPlan(false);
+        localStorage.setItem('user_has_plan', 'false');
       }
 
-      setChecking(false);
-    };
+      localStorage.setItem('user_session_exists', 'true');
+    } else {
+      setHasPlan(false);
+      localStorage.setItem('user_session_exists', 'false');
+      localStorage.setItem('user_has_plan', 'false');
+    }
 
-    checkSessionAndPlan();
-  }, [router]);
+    setChecking(false);
+  };
+
+  checkSessionAndPlan();
+}, [router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
