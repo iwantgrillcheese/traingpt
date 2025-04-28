@@ -32,6 +32,7 @@ type FieldConfig = {
 export default function Home() {
   const router = useRouter();
   const [session, setSession] = useState<Session | null>(null);
+  const [checking, setChecking] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [userNote, setUserNote] = useState('');
   const [formData, setFormData] = useState({
@@ -50,7 +51,10 @@ export default function Home() {
       const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
 
-      if (!session?.user) return;
+      if (!session?.user) {
+        setChecking(false);
+        return;
+      }
 
       const { data: planData } = await supabase
         .from('plans')
@@ -63,7 +67,7 @@ export default function Home() {
       if (planData) {
         router.replace('/schedule');
       } else {
-        router.replace('/plan');
+        setChecking(false);
       }
     };
 
@@ -88,6 +92,18 @@ export default function Home() {
     { id: 'swimPace', label: 'Swim Threshold Pace (per 100m)', type: 'text', placeholder: 'e.g. 1:38' },
     { id: 'restDay', label: 'Preferred Rest Day', type: 'select', options: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] },
   ];
+
+  if (checking) {
+    return (
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center text-gray-500 text-center px-6">
+        <div className="w-12 h-12 mb-4 relative">
+          <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
+          <div className="absolute inset-0 rounded-full border-4 border-t-black border-b-transparent animate-spin"></div>
+        </div>
+        <p className="text-sm text-gray-600">Loading your training...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white text-gray-900">
