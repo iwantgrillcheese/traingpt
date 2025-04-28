@@ -27,7 +27,19 @@ export default function CoachingDashboard() {
   const [stravaConnected, setStravaConnected] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
+  const [isMobile, setIsMobile] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+
   const today = new Date().toISOString().split('T')[0];
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 640);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     const fetchPlan = async () => {
@@ -62,7 +74,7 @@ export default function CoachingDashboard() {
           sessions
             .filter(({ date }) => isAfter(parseISO(date), new Date()))
             .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime())
-            .slice(0, 3) // limit to 3 sessions
+            .slice(0, 3)
         );
       }
 
@@ -86,57 +98,56 @@ export default function CoachingDashboard() {
     }
   }, [messages]);
 
-const askCoach = async () => {
-  if (!question.trim()) return;
+  const askCoach = async () => {
+    if (!question.trim()) return;
 
-  const newMessages = [
-    ...messages,
-    { role: 'user' as 'user', content: question, timestamp: Date.now() },
-    { role: 'assistant' as 'assistant', content: 'Thinking...', timestamp: Date.now() },
-  ];
-  setMessages(newMessages);
+    const newMessages = [
+      ...messages,
+      { role: 'user' as 'user', content: question, timestamp: Date.now() },
+      { role: 'assistant' as 'assistant', content: 'Thinking...', timestamp: Date.now() },
+    ];
+    setMessages(newMessages);
 
-  try {
-    const res = await fetch('/api/coach-feedback', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messages: [...messages, { role: 'user' as const, content: question, timestamp: Date.now() }].slice(-8),
-        completedSessions: upcomingSessions.flatMap((s) => s.sessions),
-        userNote: question,
-        raceType,
-        raceDate,
-        experienceLevel,
-      }),
-    });
+    try {
+      const res = await fetch('/api/coach-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [...messages, { role: 'user' as const, content: question, timestamp: Date.now() }].slice(-8),
+          completedSessions: upcomingSessions.flatMap((s) => s.sessions),
+          userNote: question,
+          raceType,
+          raceDate,
+          experienceLevel,
+        }),
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (res.ok && data?.feedback) {
-      setMessages((prev) => [
-        ...prev.slice(0, -1),
-        { role: 'assistant', content: data.feedback, timestamp: Date.now() },
-      ]);
-    } else {
+      if (res.ok && data?.feedback) {
+        setMessages((prev) => [
+          ...prev.slice(0, -1),
+          { role: 'assistant', content: data.feedback, timestamp: Date.now() },
+        ]);
+      } else {
+        setMessages((prev) => [
+          ...prev.slice(0, -1),
+          { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true },
+        ]);
+      }
+    } catch {
       setMessages((prev) => [
         ...prev.slice(0, -1),
         { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true },
       ]);
+    } finally {
+      setQuestion('');
     }
-  } catch {
-    setMessages((prev) => [
-      ...prev.slice(0, -1),
-      { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true },
-    ]);
-  } finally {
-    setQuestion('');
-  }
-};
-
+  };
 
   return (
     <main className="flex flex-col min-h-screen max-w-4xl mx-auto px-4 py-6 sm:px-6">
-      
+
       {/* Top Info */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold mb-2">Coaching Dashboard</h1>
@@ -183,6 +194,9 @@ const askCoach = async () => {
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             rows={1}
+            onFocus={() => {
+              if (isMobile) setModalOpen(true);
+            }}
           />
           <button
             onClick={askCoach}
@@ -230,6 +244,54 @@ const askCoach = async () => {
           </Link>
         )}
       </div>
+
+      {/* Mobile Modal */}
+      {modalOpen && (
+        <div className="fixed inset-0 bg-white z-50 flex flex-col">
+          <div className="flex justify-between items-center p-4 border-b">
+            <h2 className="font-semibold text-lg">Chat with Your Coach</h2>
+            <button onClick={() => setModalOpen(false)} className="text-sm text-blue-600">Close</button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4">
+            {messages.length === 0 ? (
+              <p className="text-sm text-gray-500 italic">No messages yet...</p>
+            ) : (
+              messages.map((msg, i) => (
+                <div
+                  key={i}
+                  className={`p-3 rounded-xl text-sm ${msg.role === 'user' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-900'}`}
+                >
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="font-semibold text-xs">{msg.role === 'user' ? 'You' : '🏆 Coach'}</span>
+                    <span className="text-[10px] text-gray-400">{formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}</span>
+                  </div>
+                  <p>{msg.content}</p>
+                </div>
+              ))
+            )}
+          </div>
+          <div className="flex p-4 gap-2 border-t">
+            <textarea
+              className="flex-1 border rounded-lg p-2 text-sm resize-none"
+              placeholder="Type your message..."
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              rows={1}
+            />
+            <button
+              onClick={() => {
+                askCoach();
+                setModalOpen(false);
+              }}
+              disabled={!question.trim()}
+              className="px-4 py-2 bg-black text-white rounded-lg text-sm"
+            >
+              Send
+            </button>
+          </div>
+        </div>
+      )}
+
     </main>
   );
 }
