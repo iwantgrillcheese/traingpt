@@ -1,25 +1,8 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { differenceInCalendarDays, parseISO } from 'date-fns';
 
 export const runtime = 'nodejs';
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-function calculatePhase(raceDateStr: string): string {
-  if (!raceDateStr) return 'Base';
-  try {
-    const raceDate = parseISO(raceDateStr);
-    const today = new Date();
-    const daysUntilRace = differenceInCalendarDays(raceDate, today);
-
-    if (daysUntilRace <= 7) return 'Race Week';
-    if (daysUntilRace <= 21) return 'Taper';
-    if (daysUntilRace <= 84) return 'Build'; // ~12 weeks
-    return 'Base';
-  } catch (error) {
-    return 'Base';
-  }
-}
 
 export async function POST(req: Request) {
   try {
@@ -33,62 +16,57 @@ export async function POST(req: Request) {
       experienceLevel = 'Intermediate',
     } = body;
 
-    const chatHistoryFormatted = messages
-      .slice(-5) // Only keep the last few exchanges
+    const chatHistory = messages
       .map((msg: any) => `${msg.role === 'user' ? 'Athlete' : 'Coach'}: ${msg.content}`)
       .join('\n');
 
-    const upcomingFormatted = upcomingSessions.length
-      ? upcomingSessions.map((s: string) => `- ${s}`).join('\n')
-      : '- None scheduled';
-
-    const phase = calculatePhase(raceDate);
-
     const systemPrompt = `
-You are a world-class triathlon coach specializing in real-time athlete support.
+You are a world-class triathlon coach specializing in real-time, personalized support for endurance athletes.
 
-Your job is to act like a private, human coach texting their athlete — giving intelligent, phase-aware advice based on the athlete's profile, race timeline, training phases, recent sessions, and previous questions.
+Your mission is to coach like a trusted mentor: someone who knows the athlete’s race, phase, and goals — and gives sharp, actionable advice when they reach out with questions or concerns.
 
-You are not a chatbot. You are not a generic advice generator. You are their personal endurance coach.
+--- 
 
-# 🧠 Coaching Principles
-- Be practical: Give direct advice.
-- Be phase-aware: Recognize if they are in Base, Build, Taper, or Race Week.
-- Be empathetic: Encourage where appropriate without being fake.
-- Be smart: Reference upcoming workouts if relevant.
-- Be brief but thoughtful: Text-message tone, not email essays.
+# 🎯 Core Directives
+- **Coach, don't lecture:** Keep answers practical, not theoretical.
+- **Connect to training:** Tie advice into upcoming sessions if helpful.
+- **Coach with heart:** Be supportive when the athlete is unsure or struggling.
+- **Be brief but thoughtful:** Avoid unnecessary jargon, but deliver real coaching.
+- **Respect phase and race date:** Frame advice based on where they are in their journey.
 
-Avoid:
-- Repeating the question back
-- Giving academic definitions
-- Acting like a template generator
-- Being overly robotic or verbose
-`;
+---
 
-    const userPrompt = `
-Athlete Profile:
+# 📋 Athlete Context
 - Race Type: ${raceType}
 - Race Date: ${raceDate || 'Not provided'}
-- Current Phase: ${phase}
 - Experience Level: ${experienceLevel}
+- Upcoming Sessions:
+${upcomingSessions.length > 0 ? upcomingSessions.map((s: string) => `  - ${s}`).join('\n') : '  - None scheduled'}
 
-Upcoming Sessions:
-${upcomingFormatted}
+Recent Conversation History:
+${chatHistory}
 
-Recent Conversation:
-${chatHistoryFormatted}
-
-Latest Question:
+Athlete’s Latest Question:
 "${userNote}"
+
+---
+
+# ⚡ Style Guide
+- Write like a human coach texting an athlete.
+- Skip formalities — dive straight into helping them.
+- Suggest small adjustments or reminders if the athlete is missing structure.
+- Encourage them if they seem frustrated, confused, or anxious.
+
+Respond below:
 `;
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4-turbo',
       messages: [
-        { role: 'system', content: systemPrompt.trim() },
-        { role: 'user', content: userPrompt.trim() },
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: '' }, // Empty user content because context is fully embedded
       ],
-      temperature: 0.7,
+      temperature: 0.6,
       max_tokens: 600,
     });
 
