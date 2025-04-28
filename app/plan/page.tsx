@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Footer from '../components/footer';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
@@ -25,6 +25,9 @@ type FieldConfig = {
 
 export default function PlanPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const rerolling = searchParams.get('reroll') === 'true';
+
   const [formData, setFormData] = useState({
     raceType: '',
     raceDate: '',
@@ -132,7 +135,7 @@ export default function PlanPage() {
     return <div className="py-32 text-center text-gray-400">Loading...</div>;
   }
 
-  if (isLoggedIn && hasPlan) {
+  if (isLoggedIn && hasPlan && !rerolling) {
     return (
       <div className="min-h-screen flex flex-col justify-center items-center text-center px-6">
         <h1 className="text-3xl font-bold mb-4">🎯 You already have a training plan!</h1>
