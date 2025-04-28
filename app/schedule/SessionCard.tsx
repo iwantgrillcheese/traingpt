@@ -4,29 +4,35 @@ import { FlipCard } from './FlipCard';
 
 interface SessionCardProps {
   title: string;
-  duration: string;
-  details: string[];
+  duration?: string; // optional for now
+  details?: string[]; // optional for now
 }
 
-export function SessionCard({ title, duration, details }: SessionCardProps) {
+export function SessionCard({ title, duration = '', details = [] }: SessionCardProps) {
   const [note, setNote] = useState('');
 
   const front = (
-    <div className="flex flex-col items-center justify-center text-center">
-      <div className="text-lg font-semibold">{title}</div>
-      <div className="text-sm text-gray-500">{duration}</div>
-      <div className="text-xs mt-2 text-gray-400">(Tap to view details)</div>
+    <div className="flex flex-col items-center justify-center text-center p-4">
+      <div className="text-md font-semibold">{title}</div>
+      {duration && <div className="text-sm text-gray-500 mt-1">{duration}</div>}
+      <div className="text-xs text-gray-400 mt-2">(Tap to view details)</div>
     </div>
   );
 
   const back = (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 mb-2">
-        <div className="text-md font-bold mb-2">Session Details</div>
+    <div className="flex flex-col h-full p-4">
+      <div className="flex-1 mb-2 overflow-y-auto">
+        <div className="text-sm font-semibold mb-2">Session Details</div>
         <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
-          {details.map((step, idx) => (
-            <li key={idx}>{step}</li>
-          ))}
+          {details.length > 0 ? (
+            details.map((step, idx) => <li key={idx}>{step}</li>)
+          ) : (
+            <>
+              <li>Warm up 10min Zone 1</li>
+              <li>Main set based on session</li>
+              <li>Cool down 5min easy</li>
+            </>
+          )}
         </ul>
       </div>
       <div className="mt-auto">
@@ -36,13 +42,14 @@ export function SessionCard({ title, duration, details }: SessionCardProps) {
           value={note}
           onChange={(e) => setNote(e.target.value)}
           onBlur={() => {
-            // TODO: save note to db/local storage if needed
-            console.log('Auto-saving note:', note);
+            console.log('Auto-saving note:', note); // TODO: later, hook to Supabase save
           }}
         />
       </div>
     </div>
   );
 
-  return <FlipCard front={front} back={back} />;
+  return (
+    <FlipCard front={front} back={back} />
+  );
 }
