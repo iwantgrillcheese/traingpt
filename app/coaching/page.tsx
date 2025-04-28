@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { format, formatDistanceToNow, parseISO, isAfter } from 'date-fns';
 import Link from 'next/link';
+import Head from 'next/head'; // <== Added Head for meta tag
 
 const supabase = createClientComponentClient();
 
@@ -103,8 +104,8 @@ export default function CoachingDashboard() {
 
     const newMessages = [
       ...messages,
-      { role: 'user' as 'user', content: question, timestamp: Date.now() },
-      { role: 'assistant' as 'assistant', content: 'Thinking...', timestamp: Date.now() },
+      { role: 'user', content: question, timestamp: Date.now() },
+      { role: 'assistant', content: 'Thinking...', timestamp: Date.now() },
     ];
     setMessages(newMessages);
 
@@ -113,7 +114,7 @@ export default function CoachingDashboard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: [...messages, { role: 'user' as const, content: question, timestamp: Date.now() }].slice(-8),
+          messages: [...messages, { role: 'user', content: question, timestamp: Date.now() }].slice(-8),
           completedSessions: upcomingSessions.flatMap((s) => s.sessions),
           userNote: question,
           raceType,
@@ -141,157 +142,162 @@ export default function CoachingDashboard() {
         { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true },
       ]);
     } finally {
-      setQuestion('');
+      setQuestion(''); // ✅ Clear input after sending
     }
   };
 
   return (
-    <main className="flex flex-col min-h-screen max-w-4xl mx-auto px-4 py-6 sm:px-6">
+    <>
+      {/* Meta tag for mobile scaling */}
+      <Head>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </Head>
 
-      {/* Top Info */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-2">Coaching Dashboard</h1>
-        <div className="text-sm text-gray-500 mb-1">Race type: {raceType} | Experience: {experienceLevel}</div>
-        {raceDate && (
-          <div className="text-sm text-gray-500">
-            Race in {formatDistanceToNow(new Date(raceDate), { addSuffix: true })}
-          </div>
-        )}
-      </div>
-
-      {/* Ask Your Coach */}
-      <section className="flex-1 border border-gray-200 rounded-xl p-4 shadow-md bg-white mb-8">
-        <h3 className="text-base font-medium text-gray-800 mb-2">Ask Your Coach</h3>
-        <div className="space-y-4 max-h-[40vh] overflow-y-auto mb-4">
-          {messages.length === 0 ? (
-            <p className="text-sm text-gray-500 italic">Ask your coach anything about your training...</p>
-          ) : (
-            messages.map((msg, i) => (
-              <div key={i} className={`p-3 rounded-xl text-sm ${msg.role === 'user' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-900'}`}>
-                <div className="flex justify-between items-center mb-1">
-                  <span className="font-semibold text-xs">{msg.role === 'user' ? 'You' : '🏆 Coach'}</span>
-                  <span className="text-[10px] text-gray-400">{formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}</span>
-                </div>
-                {msg.content === 'Thinking...' ? <TypingDots /> : <p>{msg.content}</p>}
-                {msg.error && (
-                  <button
-                    className="mt-1 text-xs text-red-600 underline"
-                    onClick={() => setQuestion(messages[messages.length - 2]?.content || '')}
-                  >
-                    Retry
-                  </button>
-                )}
-              </div>
-            ))
+      <main className="flex flex-col min-h-screen max-w-4xl mx-auto px-4 py-6 sm:px-6">
+        {/* Top Info */}
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold mb-2">Coaching Dashboard</h1>
+          <div className="text-sm text-gray-500 mb-1">Race type: {raceType} | Experience: {experienceLevel}</div>
+          {raceDate && (
+            <div className="text-sm text-gray-500">
+              Race in {formatDistanceToNow(new Date(raceDate), { addSuffix: true })}
+            </div>
           )}
-          <div ref={messagesEndRef} />
         </div>
 
-        <div className="flex gap-3">
-          <textarea
-            className="flex-1 border rounded-xl px-4 py-2 text-sm resize-none"
-            placeholder="Ask your coach anything..."
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            rows={1}
-            onFocus={() => {
-              if (isMobile) setModalOpen(true);
-            }}
-          />
-          <button
-            onClick={askCoach}
-            disabled={!question.trim()}
-            className="px-6 py-2 bg-black text-white rounded-xl text-sm font-semibold disabled:opacity-50"
-          >
-            {question.trim() ? 'Send' : 'Type...'}
-          </button>
-        </div>
-      </section>
-
-      {/* Upcoming Sessions */}
-      <section className="mb-10">
-        <h2 className="text-lg font-semibold mb-2">Upcoming Sessions</h2>
-        {upcomingSessions.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {upcomingSessions.map(({ date, sessions }, i) => (
-              <div key={i} className="border border-gray-200 rounded-xl p-4 shadow-sm bg-white">
-                <p className="text-sm font-medium text-gray-700 mb-2">{format(parseISO(date), 'EEEE, MMM d')}</p>
-                <ul className="text-sm text-gray-700 space-y-1">
-                  {sessions.map((s, j) => <li key={j}>• {s}</li>)}
-                </ul>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-gray-500 italic">No upcoming training sessions found.</p>
-        )}
-      </section>
-
-      {/* Strava Connect */}
-      <div className="text-center mt-8">
-        {stravaConnected ? (
-          <div className="inline-flex items-center gap-2 px-5 py-3 border border-green-500 text-green-600 bg-green-50 rounded-xl">
-            <img src="/strava-2.svg" alt="Strava" className="h-5 w-auto" />
-            <span className="font-semibold text-sm">Connected to Strava ✅</span>
-          </div>
-        ) : (
-          <Link
-            href={`https://www.strava.com/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID}&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_STRAVA_REDIRECT_URI}&approval_prompt=force&scope=activity:read_all`}
-            className="inline-flex items-center gap-2 px-5 py-3 border border-orange-500 text-orange-600 hover:bg-orange-50 rounded-xl"
-          >
-            <img src="/strava-2.svg" alt="Strava" className="h-5 w-auto" />
-            <span className="font-semibold text-sm">Connect to Strava</span>
-          </Link>
-        )}
-      </div>
-
-      {/* Mobile Modal */}
-      {modalOpen && (
-        <div className="fixed inset-0 bg-white z-50 flex flex-col">
-          <div className="flex justify-between items-center p-4 border-b">
-            <h2 className="font-semibold text-lg">Chat with Your Coach</h2>
-            <button onClick={() => setModalOpen(false)} className="text-sm text-blue-600">Close</button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-4">
+        {/* Ask Your Coach */}
+        <section className="flex-1 border border-gray-200 rounded-xl p-4 shadow-md bg-white mb-8">
+          <h3 className="text-base font-medium text-gray-800 mb-2">Ask Your Coach</h3>
+          <div className="space-y-4 max-h-[40vh] overflow-y-auto mb-4">
             {messages.length === 0 ? (
-              <p className="text-sm text-gray-500 italic">No messages yet...</p>
+              <p className="text-sm text-gray-500 italic">Ask your coach anything about your training...</p>
             ) : (
               messages.map((msg, i) => (
-                <div
-                  key={i}
-                  className={`p-3 rounded-xl text-sm ${msg.role === 'user' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-900'}`}
-                >
+                <div key={i} className={`p-3 rounded-xl text-sm ${msg.role === 'user' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-900'}`}>
                   <div className="flex justify-between items-center mb-1">
                     <span className="font-semibold text-xs">{msg.role === 'user' ? 'You' : '🏆 Coach'}</span>
                     <span className="text-[10px] text-gray-400">{formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}</span>
                   </div>
-                  <p>{msg.content}</p>
+                  {msg.content === 'Thinking...' ? <TypingDots /> : <p>{msg.content}</p>}
+                  {msg.error && (
+                    <button
+                      className="mt-1 text-xs text-red-600 underline"
+                      onClick={() => setQuestion(messages[messages.length - 2]?.content || '')}
+                    >
+                      Retry
+                    </button>
+                  )}
                 </div>
               ))
             )}
+            <div ref={messagesEndRef} />
           </div>
-          <div className="flex p-4 gap-2 border-t">
+
+          <div className="flex gap-3">
             <textarea
-              className="flex-1 border rounded-lg p-2 text-sm resize-none"
-              placeholder="Type your message..."
+              className="flex-1 border rounded-xl px-4 py-2 text-sm resize-none"
+              placeholder="Ask your coach anything..."
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               rows={1}
+              onFocus={() => {
+                if (isMobile) setModalOpen(true);
+              }}
             />
             <button
-              onClick={() => {
-                askCoach();
-                setModalOpen(false);
-              }}
+              onClick={askCoach}
               disabled={!question.trim()}
-              className="px-4 py-2 bg-black text-white rounded-lg text-sm"
+              className="px-6 py-2 bg-black text-white rounded-xl text-sm font-semibold disabled:opacity-50"
             >
-              Send
+              {question.trim() ? 'Send' : 'Type...'}
             </button>
           </div>
-        </div>
-      )}
+        </section>
 
-    </main>
+        {/* Upcoming Sessions */}
+        <section className="mb-10">
+          <h2 className="text-lg font-semibold mb-2">Upcoming Sessions</h2>
+          {upcomingSessions.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {upcomingSessions.map(({ date, sessions }, i) => (
+                <div key={i} className="border border-gray-200 rounded-xl p-4 shadow-sm bg-white">
+                  <p className="text-sm font-medium text-gray-700 mb-2">{format(parseISO(date), 'EEEE, MMM d')}</p>
+                  <ul className="text-sm text-gray-700 space-y-1">
+                    {sessions.map((s, j) => <li key={j}>• {s}</li>)}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 italic">No upcoming training sessions found.</p>
+          )}
+        </section>
+
+        {/* Strava Connect */}
+        <div className="text-center mt-8">
+          {stravaConnected ? (
+            <div className="inline-flex items-center gap-2 px-5 py-3 border border-green-500 text-green-600 bg-green-50 rounded-xl">
+              <img src="/strava-2.svg" alt="Strava" className="h-5 w-auto" />
+              <span className="font-semibold text-sm">Connected to Strava ✅</span>
+            </div>
+          ) : (
+            <Link
+              href={`https://www.strava.com/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID}&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_STRAVA_REDIRECT_URI}&approval_prompt=force&scope=activity:read_all`}
+              className="inline-flex items-center gap-2 px-5 py-3 border border-orange-500 text-orange-600 hover:bg-orange-50 rounded-xl"
+            >
+              <img src="/strava-2.svg" alt="Strava" className="h-5 w-auto" />
+              <span className="font-semibold text-sm">Connect to Strava</span>
+            </Link>
+          )}
+        </div>
+
+        {/* Mobile Modal */}
+        {modalOpen && (
+          <div className="fixed inset-0 bg-white z-50 flex flex-col">
+            <div className="flex justify-between items-center p-4 border-b">
+              <h2 className="font-semibold text-lg">Chat with Your Coach</h2>
+              <button onClick={() => setModalOpen(false)} className="text-sm text-blue-600">Close</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              {messages.length === 0 ? (
+                <p className="text-sm text-gray-500 italic">No messages yet...</p>
+              ) : (
+                messages.map((msg, i) => (
+                  <div
+                    key={i}
+                    className={`p-3 rounded-xl text-sm ${msg.role === 'user' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-900'}`}
+                  >
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-semibold text-xs">{msg.role === 'user' ? 'You' : '🏆 Coach'}</span>
+                      <span className="text-[10px] text-gray-400">{formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}</span>
+                    </div>
+                    <p>{msg.content}</p>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="flex p-4 gap-2 border-t">
+              <textarea
+                className="flex-1 border rounded-lg p-2 text-sm resize-none"
+                placeholder="Type your message..."
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                rows={1}
+              />
+              <button
+                onClick={() => {
+                  askCoach();
+                  setModalOpen(false);
+                }}
+                disabled={!question.trim()}
+                className="px-4 py-2 bg-black text-white rounded-lg text-sm"
+              >
+                Send
+              </button>
+            </div>
+          </div>
+        )}
+      </main>
+    </>
   );
 }
