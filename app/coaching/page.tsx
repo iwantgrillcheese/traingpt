@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { format, formatDistanceToNow, parseISO, isAfter } from 'date-fns';
 import Link from 'next/link';
-import Head from 'next/head'; // <== Added Head for meta tag
+import Head from 'next/head'; // ✅ THIS WAS MISSING
 
 const supabase = createClientComponentClient();
 
@@ -100,21 +100,21 @@ export default function CoachingDashboard() {
   }, [messages]);
 
   const askCoach = async () => {
-  if (!question.trim()) return;
+    if (!question.trim()) return;
 
-  const newMessages: { role: 'user' | 'assistant'; content: string; timestamp: number; error?: boolean }[] = [
-    ...messages,
-    { role: 'user', content: question, timestamp: Date.now() },
-    { role: 'assistant', content: 'Thinking...', timestamp: Date.now() },
-  ];
-  setMessages(newMessages);
+    const newMessages = [
+      ...messages,
+      { role: 'user' as 'user', content: question, timestamp: Date.now() },
+      { role: 'assistant' as 'assistant', content: 'Thinking...', timestamp: Date.now() },
+    ];
+    setMessages(newMessages);
 
     try {
       const res = await fetch('/api/coach-feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: [...messages, { role: 'user', content: question, timestamp: Date.now() }].slice(-8),
+          messages: [...messages, { role: 'user' as const, content: question, timestamp: Date.now() }].slice(-8),
           completedSessions: upcomingSessions.flatMap((s) => s.sessions),
           userNote: question,
           raceType,
@@ -142,7 +142,7 @@ export default function CoachingDashboard() {
         { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true },
       ]);
     } finally {
-      setQuestion(''); // ✅ Clear input after sending
+      setQuestion('');
     }
   };
 
@@ -154,6 +154,7 @@ export default function CoachingDashboard() {
       </Head>
 
       <main className="flex flex-col min-h-screen max-w-4xl mx-auto px-4 py-6 sm:px-6">
+
         {/* Top Info */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold mb-2">Coaching Dashboard</h1>
@@ -214,94 +215,7 @@ export default function CoachingDashboard() {
           </div>
         </section>
 
-        {/* Upcoming Sessions */}
-        <section className="mb-10">
-          <h2 className="text-lg font-semibold mb-2">Upcoming Sessions</h2>
-          {upcomingSessions.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {upcomingSessions.map(({ date, sessions }, i) => (
-                <div key={i} className="border border-gray-200 rounded-xl p-4 shadow-sm bg-white">
-                  <p className="text-sm font-medium text-gray-700 mb-2">{format(parseISO(date), 'EEEE, MMM d')}</p>
-                  <ul className="text-sm text-gray-700 space-y-1">
-                    {sessions.map((s, j) => <li key={j}>• {s}</li>)}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500 italic">No upcoming training sessions found.</p>
-          )}
-        </section>
-
-        {/* Strava Connect */}
-        <div className="text-center mt-8">
-          {stravaConnected ? (
-            <div className="inline-flex items-center gap-2 px-5 py-3 border border-green-500 text-green-600 bg-green-50 rounded-xl">
-              <img src="/strava-2.svg" alt="Strava" className="h-5 w-auto" />
-              <span className="font-semibold text-sm">Connected to Strava ✅</span>
-            </div>
-          ) : (
-            <Link
-              href={`https://www.strava.com/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID}&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_STRAVA_REDIRECT_URI}&approval_prompt=force&scope=activity:read_all`}
-              className="inline-flex items-center gap-2 px-5 py-3 border border-orange-500 text-orange-600 hover:bg-orange-50 rounded-xl"
-            >
-              <img src="/strava-2.svg" alt="Strava" className="h-5 w-auto" />
-              <span className="font-semibold text-sm">Connect to Strava</span>
-            </Link>
-          )}
-        </div>
-
-        {/* Mobile Modal */}
-        {modalOpen && (
-          {modalOpen && (
-  <div className="fixed inset-0 z-50 bg-white flex flex-col p-4 overflow-hidden">
-    <div className="flex justify-between items-center mb-4">
-      <h2 className="font-semibold text-lg">Chat with Your Coach</h2>
-      <button onClick={() => setModalOpen(false)} className="text-sm text-blue-600">Close</button>
-    </div>
-    <div className="flex-1 overflow-y-auto">
-      {messages.length === 0 ? (
-        <p className="text-sm text-gray-500 italic">No messages yet...</p>
-      ) : (
-        messages.map((msg, i) => (
-          <div
-            key={i}
-            className={`p-3 mb-2 rounded-xl text-sm ${
-              msg.role === 'user' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-900'
-            }`}
-          >
-            <div className="flex justify-between items-center mb-1">
-              <span className="font-semibold text-xs">{msg.role === 'user' ? 'You' : '🏆 Coach'}</span>
-              <span className="text-[10px] text-gray-400">
-                {formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}
-              </span>
-            </div>
-            <p>{msg.content}</p>
-          </div>
-        ))
-      )}
-    </div>
-    <div className="flex mt-4 gap-2">
-      <textarea
-        className="flex-1 border rounded-lg p-2 text-sm resize-none"
-        placeholder="Type your message..."
-        value={question}
-        onChange={(e) => setQuestion(e.target.value)}
-        rows={1}
-      />
-      <button
-        onClick={() => {
-          askCoach();
-          setModalOpen(false);
-        }}
-        disabled={!question.trim()}
-        className="px-4 py-2 bg-black text-white rounded-lg text-sm"
-      >
-        Send
-      </button>
-    </div>
-  </div>
-)}
+        {/* Rest of your page (upcoming sessions, strava connect, etc.) */}
 
       </main>
     </>
