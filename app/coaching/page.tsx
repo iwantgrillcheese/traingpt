@@ -99,52 +99,52 @@ export default function CoachingDashboard() {
     }
   }, [messages]);
 
-  const askCoach = async () => {
-    if (!question.trim()) return;
+ const askCoach = async () => {
+  if (!question.trim()) return;
 
-    const newMessages = [
-      ...messages,
-      { role: 'user', content: question, timestamp: Date.now() },
-      { role: 'assistant', content: 'Thinking...', timestamp: Date.now() },
-    ];
-    setMessages(newMessages);
+  const newMessages: { role: 'user' | 'assistant'; content: string; timestamp: number; error?: boolean }[] = [
+    ...messages,
+    { role: 'user', content: question, timestamp: Date.now() },
+    { role: 'assistant', content: 'Thinking...', timestamp: Date.now() },
+  ];
+  setMessages(newMessages);
 
-    try {
-      const res = await fetch('/api/coach-feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [...messages, { role: 'user', content: question, timestamp: Date.now() }].slice(-8),
-          completedSessions: upcomingSessions.flatMap((s) => s.sessions),
-          userNote: question,
-          raceType,
-          raceDate,
-          experienceLevel,
-        }),
-      });
+  try {
+    const res = await fetch('/api/coach-feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [...messages, { role: 'user', content: question, timestamp: Date.now() }].slice(-8),
+        completedSessions: upcomingSessions.flatMap((s) => s.sessions),
+        userNote: question,
+        raceType,
+        raceDate,
+        experienceLevel,
+      }),
+    });
 
-      const data = await res.json();
+    const data = await res.json();
 
-      if (res.ok && data?.feedback) {
-        setMessages((prev) => [
-          ...prev.slice(0, -1),
-          { role: 'assistant', content: data.feedback, timestamp: Date.now() },
-        ]);
-      } else {
-        setMessages((prev) => [
-          ...prev.slice(0, -1),
-          { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true },
-        ]);
-      }
-    } catch {
+    if (res.ok && data?.feedback) {
+      setMessages((prev) => [
+        ...prev.slice(0, -1),
+        { role: 'assistant', content: data.feedback, timestamp: Date.now() },
+      ]);
+    } else {
       setMessages((prev) => [
         ...prev.slice(0, -1),
         { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true },
       ]);
-    } finally {
-      setQuestion('');
     }
-  };
+  } catch {
+    setMessages((prev) => [
+      ...prev.slice(0, -1),
+      { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true },
+    ]);
+  } finally {
+    setQuestion('');
+  }
+};
 
   return (
     <>
