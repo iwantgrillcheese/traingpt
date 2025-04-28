@@ -20,7 +20,11 @@ export function SessionCard({ title, duration = '', details = [], date }: Sessio
   return (
     <div
       className="rounded-2xl border shadow-sm bg-white cursor-pointer overflow-hidden transition-all"
-      onClick={() => setExpanded(!expanded)}
+      onClick={(e) => {
+        if ((e.target as HTMLElement).tagName !== 'TEXTAREA') {
+          setExpanded(!expanded);
+        }
+      }}
     >
       {/* Collapsed View */}
       <div className="p-4 flex flex-col">
