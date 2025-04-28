@@ -105,7 +105,17 @@ export default function Home() {
           </p>
         </div>
 
-        {session && hasPlan ? (
+        {!session ? (
+          <div className="bg-gray-50 border border-gray-200 shadow-sm rounded-xl p-8 flex flex-col items-center text-center space-y-4">
+            <p className="text-sm text-gray-600">Sign in to start building your plan!</p>
+            <button
+              className="bg-black text-white px-8 py-3 rounded-full font-medium hover:bg-gray-800"
+              onClick={() => router.push('/login')}
+            >
+              Sign in to Generate Your Plan
+            </button>
+          </div>
+        ) : hasPlan ? (
           <div className="bg-gray-50 border border-gray-200 shadow-sm rounded-xl p-8 flex flex-col items-center text-center space-y-4">
             <h2 className="text-lg font-semibold text-gray-800">You already have a training plan!</h2>
             <p className="text-sm text-gray-600">Don't love it? You can re-roll a new one below.</p>
@@ -191,13 +201,10 @@ export default function Home() {
             <div className="md:col-span-2 text-center mt-4">
               <button
                 type="button"
-                onClick={() => {
-                  if (!session) router.push('/login');
-                  else router.push('/plan');
-                }}
+                onClick={() => router.push('/plan')}
                 className="bg-black text-white px-8 py-3 rounded-full font-medium hover:bg-gray-800"
               >
-                {session ? 'Generate Plan' : 'Sign in to Generate Your Plan'}
+                Generate Plan
               </button>
             </div>
           </form>
