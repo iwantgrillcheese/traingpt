@@ -3,21 +3,9 @@
 import { useEffect, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { format, parseISO, isSameDay } from 'date-fns';
+import { SessionCard } from './SessionCard';
 
 const supabase = createClientComponentClient();
-
-const getColor = (session: string) => {
-  const s = session.toLowerCase();
-  if (s.includes('interval') || s.includes('brick') || s.includes('race pace')) return 'before:bg-red-400';
-  if (s.includes('threshold') || s.includes('tempo')) return 'before:bg-yellow-400';
-  return 'before:bg-green-400';
-};
-
-const getStatusIcon = (status: string) => {
-  if (status === 'done') return '✅';
-  if (status === 'skipped') return '⛔';
-  return '⚪';
-};
 
 export default function SchedulePage() {
   const [plan, setPlan] = useState<any[]>([]);
@@ -76,28 +64,6 @@ export default function SchedulePage() {
   const today = new Date();
   const raceCountdown = raceDate ? Math.max(0, Math.floor((parseISO(raceDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))) : null;
 
-  const matchStrava = (date: string, session: string) => {
-    const dayActivities = stravaActivities.filter((a) => isSameDay(new Date(a.start_date_local), parseISO(date)));
-    const lower = session.toLowerCase();
-    if (!dayActivities.length) return null;
-
-    for (const activity of dayActivities) {
-      const actType = (activity.sport_type || '').toLowerCase();
-      if (
-        (lower.includes('run') && actType.includes('run')) ||
-        (lower.includes('bike') && actType.includes('ride')) ||
-        (lower.includes('swim') && actType.includes('swim'))
-      ) {
-        return {
-          name: activity.name,
-          distance: (activity.distance / 1000).toFixed(1),
-          timeMin: Math.round(activity.moving_time / 60),
-        };
-      }
-    }
-    return null;
-  };
-
   if (loading) {
     return <div className="py-32 text-center text-gray-400">Loading your schedule...</div>;
   }
@@ -122,50 +88,40 @@ export default function SchedulePage() {
       </div>
 
       {/* Plan Sessions */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-        {plan.flatMap((week, weekIdx) =>
-          Object.entries(week.days).map(([date, sessionsRaw], dayIdx) => {
-            const sessions = sessionsRaw as string[];
-            const dateObj = parseISO(date);
-            const topSession = sessions[0] || '';
-            const colorBar = getColor(topSession);
+      <div className="flex flex-col gap-10">
+        {plan.map((week, weekIdx) => (
+          <div key={weekIdx} className="flex flex-col gap-6">
+            {/* Week Header */}
+            <div className="text-xl font-semibold text-gray-800">{week.label}</div>
 
-            return (
-              <div
-                key={`${weekIdx}-${dayIdx}`}
-                className={`relative rounded-2xl border p-4 shadow-md bg-white flex flex-col justify-between min-h-[160px] before:content-[''] before:absolute before:top-0 before:left-1/2 before:-translate-x-1/2 before:w-1/2 before:h-1 before:rounded-full ${colorBar}`}
-              >
-                <div>
-                  <h3 className="text-xs font-bold text-gray-800 mb-2">{format(dateObj, 'EEE, MMM d')}</h3>
+            {/* Days */}
+            {Object.entries(week.days).map(([date, sessionsRaw], dayIdx) => {
+              const sessions = sessionsRaw as string[];
+              const dateObj = parseISO(date);
 
-                  {(sessions as string[]).length > 0 ? (
-                    (sessions as string[]).map((s: string, sIdx: number) => {
-                      const statusKey = `${date}-${s.toLowerCase()}`;
-                      const status = completed[statusKey] || 'none';
-                      const matched = matchStrava(date, s);
+              return (
+                <div key={`${weekIdx}-${dayIdx}`} className="flex flex-col gap-4">
+                  {/* Day Header */}
+                  <div className="text-md font-bold text-gray-600">{format(dateObj, 'EEEE, MMM d')}</div>
 
-                      return (
-                        <div key={sIdx} className="flex flex-col gap-1 mb-2">
-                          <div className="flex items-start gap-2 text-sm text-gray-800">
-                            <span>{getStatusIcon(status)}</span>
-                            <span>{s}</span>
-                          </div>
-                          {matched && (
-                            <div className="ml-5 bg-orange-50 p-2 rounded-lg text-xs text-orange-600 shadow-sm">
-                              {matched.distance}km • {matched.timeMin}min
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="text-sm text-gray-400 italic">Mobility / Recovery</div>
-                  )}
+                  {/* Session Cards */}
+                  {sessions.map((sessionTitle, sessionIdx) => (
+                    <SessionCard
+                      key={sessionIdx}
+                      title={sessionTitle}
+                      duration="" // Optional — we can parse later if you want (like "30min easy" → 30min)
+                      details={[
+                        'Warm up 10min Zone 1',
+                        'Main set based on session',
+                        'Cool down 5min easy',
+                      ]} // TEMP: placeholder details, you can make real ones later
+                    />
+                  ))}
                 </div>
-              </div>
-            );
-          })
-        )}
+              );
+            })}
+          </div>
+        ))}
       </div>
     </main>
   );
