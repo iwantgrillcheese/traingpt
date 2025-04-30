@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { format, parseISO, isSameDay } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { SessionCard } from './SessionCard';
 
 const supabase = createClientComponentClient();
@@ -14,6 +14,8 @@ export default function SchedulePage() {
   const [completed, setCompleted] = useState<{ [key: string]: string }>({});
   const [stravaActivities, setStravaActivities] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [planId, setPlanId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -21,10 +23,11 @@ export default function SchedulePage() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.user) return;
+        setUserId(session.user.id);
 
         const { data: plans } = await supabase
           .from('plans')
-          .select('plan, race_date, coach_note')
+          .select('plan, race_date, coach_note, id')
           .eq('user_id', session.user.id)
           .order('created_at', { ascending: false })
           .limit(1)
@@ -32,7 +35,8 @@ export default function SchedulePage() {
 
         const { data: completedSessions } = await supabase
           .from('completed_sessions')
-          .select('date, sport, status');
+          .select('date, sport, status')
+          .eq('user_id', session.user.id);
 
         const { data: activities } = await supabase
           .from('strava_activities')
@@ -48,6 +52,7 @@ export default function SchedulePage() {
           setPlan(plans.plan || []);
           setRaceDate(plans.race_date || null);
           setCoachNote(plans.coach_note || null);
+          setPlanId(plans.id || null);
         }
         setCompleted(checks);
         setStravaActivities(activities || []);
@@ -60,6 +65,25 @@ export default function SchedulePage() {
 
     fetchAll();
   }, []);
+
+  const saveSessionStatus = async ({ date, sport, status }: { date: string; sport: string; status: string }) => {
+    if (!userId || !planId) return;
+
+    await supabase
+      .from('completed_sessions')
+      .upsert(
+        [{
+          user_id: userId,
+          plan_id: planId,
+          date,
+          sport,
+          status,
+        }],
+        { onConflict: 'user_id,date,sport' }
+      );
+
+    setCompleted((prev) => ({ ...prev, [`${date}-${sport}`]: status }));
+  };
 
   const today = new Date();
   const raceCountdown = raceDate ? Math.max(0, Math.floor((parseISO(raceDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))) : null;
@@ -109,7 +133,9 @@ export default function SchedulePage() {
                     <SessionCard
                       key={sessionIdx}
                       title={sessionTitle}
-                      date={date} // <-- passing date now!
+                      date={date}
+                      initialStatus={completed[`${date}-${sessionTitle}`] as 'done' | 'skipped' | undefined}
+                      onStatusChange={(newStatus) => saveSessionStatus({ date, sport: sessionTitle, status: newStatus })}
                     />
                   ))}
                 </div>
