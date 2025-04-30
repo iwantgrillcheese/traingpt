@@ -6,9 +6,11 @@ import { format, parseISO } from 'date-fns';
 
 interface SessionCardProps {
   title: string;
-  duration?: string; // optional
-  details?: string[]; // optional
-  date?: string; // ISO string
+  duration?: string;
+  details?: string[];
+  date?: string;
+  initialStatus?: 'done' | 'skipped';
+  onStatusChange?: (status: 'done' | 'skipped') => void;
 }
 
 type SessionStatus = 'not_started' | 'completed' | 'skipped';
@@ -16,7 +18,9 @@ type SessionStatus = 'not_started' | 'completed' | 'skipped';
 export function SessionCard({ title, duration = '', details = [], date }: SessionCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [note, setNote] = useState('');
-  const [status, setStatus] = useState<SessionStatus>('not_started');
+const [status, setStatus] = useState<'not_started' | 'done' | 'skipped'>(
+  initialStatus || 'not_started'
+);
 
   const dayFormatted = date ? format(parseISO(date), 'EEEE, MMMM d') : '';
 
