@@ -165,10 +165,16 @@ export default function CoachingDashboard() {
 
           <div className="flex gap-3">
             <textarea
-              className="flex-1 border rounded-xl px-4 py-2 text-sm resize-none"
-              placeholder="Ask your coach anything..."
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
+  className="flex-1 border rounded-xl px-4 py-2 text-sm resize-none"
+  placeholder="Ask your coach anything..."
+  value={question}
+  onChange={(e) => setQuestion(e.target.value)}
+  onKeyDown={(e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      askCoach();
+    }
+  }}
               rows={1}
             />
             <button
