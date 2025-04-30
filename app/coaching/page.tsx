@@ -20,15 +20,20 @@ function TypingDots() {
   );
 }
 
+type ChatMessage = {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+  error?: boolean;
+};
+
 export default function CoachingDashboard() {
   const [question, setQuestion] = useState('');
-  const [messages, setMessages] = useState([
-    {
-      role: 'assistant' as const,
-      content: "Hey, I’m your AI coach. Ask me anything about your training and I’ll do my best to help.",
-      timestamp: Date.now(),
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([{
+    role: 'assistant',
+    content: "Hey, I’m your AI coach. Ask me anything about your training and I’ll do my best to help.",
+    timestamp: Date.now(),
+  }]);
   const [upcomingSessions, setUpcomingSessions] = useState<{ date: string; sessions: string[] }[]>([]);
   const [raceType, setRaceType] = useState('Olympic');
   const [raceDate, setRaceDate] = useState('');
@@ -97,8 +102,8 @@ export default function CoachingDashboard() {
     if (!question.trim()) return;
 
     const now = Date.now();
-    const userMessage = { role: 'user' as const, content: question.trim(), timestamp: now };
-    const loadingMessage = { role: 'assistant' as const, content: 'Thinking...', timestamp: now };
+    const userMessage: ChatMessage = { role: 'user', content: question.trim(), timestamp: now };
+    const loadingMessage: ChatMessage = { role: 'assistant', content: 'Thinking...', timestamp: now };
     setMessages((prev) => [...prev, userMessage, loadingMessage]);
     setQuestion('');
 
