@@ -1,4 +1,4 @@
-// CoachingDashboard.tsx with voice input support
+// CoachingDashboard.tsx — Modal-based chat interface with mic support
 
 'use client';
 
@@ -28,8 +28,9 @@ export default function CoachingDashboard() {
   const [raceDate, setRaceDate] = useState('');
   const [experienceLevel, setExperienceLevel] = useState('Intermediate');
   const [stravaConnected, setStravaConnected] = useState(false);
-  const [isListening, setIsListening] = useState(false);
 
+  const [isListening, setIsListening] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const recognitionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const today = new Date().toISOString().split('T')[0];
@@ -42,7 +43,7 @@ export default function CoachingDashboard() {
       recognitionRef.current.interimResults = false;
       recognitionRef.current.lang = 'en-US';
 
-      recognitionRef.current.onresult = (event: SpeechRecognitionEvent) => {
+      recognitionRef.current.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
         setQuestion((prev) => prev + (prev ? ' ' : '') + transcript);
         setIsListening(false);
@@ -141,17 +142,11 @@ export default function CoachingDashboard() {
       } else {
         setMessages((prev) => [...prev.slice(0, -1), { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true }]);
       }
-    } catch {
+    } catch (e) {
+      console.error('[ASK_COACH_ERROR]', e);
       setMessages((prev) => [...prev.slice(0, -1), { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true }]);
     } finally {
       setQuestion('');
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      askCoach();
     }
   };
 
@@ -161,59 +156,105 @@ export default function CoachingDashboard() {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
-      <main className="flex flex-col min-h-screen max-w-4xl mx-auto px-4 pb-28 sm:px-6">
-        {/* Ask Your Coach Section */}
-        <section className="flex-1 border border-gray-200 rounded-xl p-4 shadow-md bg-white mb-8 overflow-y-auto max-h-[50vh]">
-          <h3 className="text-base font-medium text-gray-800 mb-2">Ask Your Coach</h3>
-          <div className="space-y-4">
-            {messages.length === 0 ? (
-              <p className="text-sm text-gray-500 italic">Ask your coach anything about your training...</p>
-            ) : (
-              messages.map((msg, i) => (
-                <div key={i} className={`p-3 rounded-xl text-sm ${msg.role === 'user' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-900'}`}>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="font-semibold text-xs">{msg.role === 'user' ? 'You' : '🏆 Coach'}</span>
-                    <span className="text-[10px] text-gray-400">{formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}</span>
-                  </div>
-                  {msg.content === 'Thinking...' ? <TypingDots /> : <p>{msg.content}</p>}
-                  {msg.error && <button className="mt-1 text-xs text-red-600 underline" onClick={() => setQuestion(messages[messages.length - 2]?.content || '')}>Retry</button>}
-                </div>
-              ))
-            )}
-            <div ref={messagesEndRef} />
+      <main className="flex flex-col min-h-screen max-w-4xl mx-auto px-4 py-6 sm:px-6">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold mb-2">Coaching Dashboard</h1>
+          <div className="text-sm text-gray-500 mb-1">Race type: {raceType} | Experience: {experienceLevel}</div>
+          {raceDate && <div className="text-sm text-gray-500">Race in {formatDistanceToNow(new Date(raceDate), { addSuffix: true })}</div>}
+        </div>
+
+        <div className="mb-8">
+          <button onClick={() => setModalOpen(true)} className="px-4 py-2 bg-black text-white rounded-xl text-sm font-semibold">
+            💬 Ask Your Coach
+          </button>
+        </div>
+
+        {modalOpen && (
+          <div className="fixed inset-0 z-50 bg-black/40 flex justify-center items-center">
+            <div className="bg-white w-full max-w-lg rounded-xl shadow-xl p-4 relative">
+              <button onClick={() => setModalOpen(false)} className="absolute top-2 right-3 text-gray-400 hover:text-black">✕</button>
+              <h3 className="text-base font-medium text-gray-800 mb-2">Ask Your Coach</h3>
+              <div className="space-y-4 max-h-[40vh] overflow-y-auto mb-4">
+                {messages.length === 0 ? (
+                  <p className="text-sm text-gray-500 italic">Ask your coach anything about your training...</p>
+                ) : (
+                  messages.map((msg, i) => (
+                    <div key={i} className={`p-3 rounded-xl text-sm ${msg.role === 'user' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-900'}`}>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="font-semibold text-xs">{msg.role === 'user' ? 'You' : '🏆 Coach'}</span>
+                        <span className="text-[10px] text-gray-400">{formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}</span>
+                      </div>
+                      {msg.content === 'Thinking...' ? <TypingDots /> : <p>{msg.content}</p>}
+                      {msg.error && <button className="mt-1 text-xs text-red-600 underline" onClick={() => setQuestion(messages[messages.length - 2]?.content || '')}>Retry</button>}
+                    </div>
+                  ))
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              <div className="flex gap-2">
+                <textarea
+                  className="flex-1 border rounded-xl px-4 py-2 text-sm resize-none"
+                  placeholder="Ask your coach anything..."
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  rows={1}
+                />
+                <button
+                  onClick={() => {
+                    if (isListening) {
+                      recognitionRef.current?.stop();
+                    } else {
+                      recognitionRef.current?.start();
+                      setIsListening(true);
+                    }
+                  }}
+                  className={`px-4 py-2 rounded-xl text-sm font-semibold border ${isListening ? 'bg-red-100 text-red-600 border-red-500' : 'bg-white text-gray-700 border-gray-300'}`}
+                >
+                  🎙️
+                </button>
+                <button
+                  onClick={askCoach}
+                  disabled={!question.trim()}
+                  className="px-4 py-2 bg-black text-white rounded-xl text-sm font-semibold disabled:opacity-50"
+                >
+                  Send
+                </button>
+              </div>
+            </div>
           </div>
+        )}
+
+        <section className="mb-10">
+          <h2 className="text-lg font-semibold mb-2">Upcoming Sessions</h2>
+          {upcomingSessions.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {upcomingSessions.map(({ date, sessions }, i) => (
+                <div key={i} className="border border-gray-200 rounded-xl p-4 shadow-sm bg-white">
+                  <p className="text-sm font-medium text-gray-700 mb-2">{format(parseISO(date), 'EEEE, MMM d')}</p>
+                  <ul className="text-sm text-gray-700 space-y-1">
+                    {sessions.map((s, j) => <li key={j}>• {s}</li>)}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 italic">No upcoming training sessions found.</p>
+          )}
         </section>
 
-        {/* Sticky Input Bar with Mic */}
-        <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 px-4 py-3 z-10 max-w-4xl mx-auto flex gap-2">
-          <textarea
-            className="flex-1 border rounded-xl px-4 py-2 text-sm resize-none focus:outline-none"
-            placeholder="Ask your coach anything..."
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            onKeyDown={handleKeyDown}
-            rows={1}
-          />
-          <button
-            onClick={() => {
-              if (isListening) {
-                recognitionRef.current?.stop();
-              } else {
-                recognitionRef.current?.start();
-                setIsListening(true);
-              }
-            }}
-            className={`px-4 py-2 rounded-xl text-sm font-semibold border ${isListening ? 'bg-red-100 text-red-600 border-red-500' : 'bg-white text-gray-700 border-gray-300'}`}
-          >
-            🎙️
-          </button>
-          <button
-            onClick={askCoach}
-            disabled={!question.trim()}
-            className="px-6 py-2 bg-black text-white rounded-xl text-sm font-semibold disabled:opacity-50"
-          >
-            {question.trim() ? 'Send' : 'Type...'}
-          </button>
+        <div className="text-center mt-8">
+          {stravaConnected ? (
+            <div className="inline-flex items-center gap-2 px-5 py-3 border border-green-500 text-green-600 bg-green-50 rounded-xl">
+              <img src="/strava-2.svg" alt="Strava" className="h-5 w-auto" />
+              <span className="font-semibold text-sm">Connected to Strava ✅</span>
+            </div>
+          ) : (
+            <Link href={`https://www.strava.com/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID}&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_STRAVA_REDIRECT_URI}&approval_prompt=force&scope=activity:read_all`} className="inline-flex items-center gap-2 px-5 py-3 border border-orange-500 text-orange-600 hover:bg-orange-50 rounded-xl">
+              <img src="/strava-2.svg" alt="Strava" className="h-5 w-auto" />
+              <span className="font-semibold text-sm">Connect to Strava</span>
+            </Link>
+          )}
         </div>
       </main>
     </>
