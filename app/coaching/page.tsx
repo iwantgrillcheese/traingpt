@@ -1,4 +1,4 @@
-// CoachingDashboard.tsx — Modal-based chat interface with mic support
+// CoachingDashboard.tsx — Modal chat with embedded preview and no voice input
 
 'use client';
 
@@ -22,37 +22,21 @@ function TypingDots() {
 
 export default function CoachingDashboard() {
   const [question, setQuestion] = useState('');
-  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string; timestamp: number; error?: boolean }[]>([]);
+  const [messages, setMessages] = useState([
+    {
+      role: 'assistant' as const,
+      content: "Hey, I’m your AI coach. Ask me anything about your training and I’ll do my best to help.",
+      timestamp: Date.now(),
+    },
+  ]);
   const [upcomingSessions, setUpcomingSessions] = useState<{ date: string; sessions: string[] }[]>([]);
   const [raceType, setRaceType] = useState('Olympic');
   const [raceDate, setRaceDate] = useState('');
   const [experienceLevel, setExperienceLevel] = useState('Intermediate');
   const [stravaConnected, setStravaConnected] = useState(false);
-
-  const [isListening, setIsListening] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
-  const recognitionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
   const today = new Date().toISOString().split('T')[0];
-
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'webkitSpeechRecognition' in window) {
-      const SpeechRecognition = (window as any).webkitSpeechRecognition;
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = false;
-      recognitionRef.current.interimResults = false;
-      recognitionRef.current.lang = 'en-US';
-
-      recognitionRef.current.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        setQuestion((prev) => prev + (prev ? ' ' : '') + transcript);
-        setIsListening(false);
-      };
-
-      recognitionRef.current.onerror = () => setIsListening(false);
-      recognitionRef.current.onend = () => setIsListening(false);
-    }
-  }, []);
 
   useEffect(() => {
     const fetchPlan = async () => {
@@ -113,20 +97,17 @@ export default function CoachingDashboard() {
     if (!question.trim()) return;
 
     const now = Date.now();
-    const newMessages = [
-      ...messages,
-      { role: 'user' as const, content: question, timestamp: now },
-      { role: 'assistant' as const, content: 'Thinking...', timestamp: now },
-    ];
-
-    setMessages(newMessages);
+    const userMessage = { role: 'user' as const, content: question.trim(), timestamp: now };
+    const loadingMessage = { role: 'assistant' as const, content: 'Thinking...', timestamp: now };
+    setMessages((prev) => [...prev, userMessage, loadingMessage]);
+    setQuestion('');
 
     try {
       const res = await fetch('/api/coach-feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: [...messages, { role: 'user', content: question, timestamp: now }].slice(-8),
+          messages: [...messages, userMessage].slice(-8),
           completedSessions: upcomingSessions.flatMap((s) => s.sessions),
           userNote: question,
           raceType,
@@ -142,11 +123,8 @@ export default function CoachingDashboard() {
       } else {
         setMessages((prev) => [...prev.slice(0, -1), { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true }]);
       }
-    } catch (e) {
-      console.error('[ASK_COACH_ERROR]', e);
+    } catch {
       setMessages((prev) => [...prev.slice(0, -1), { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true }]);
-    } finally {
-      setQuestion('');
     }
   };
 
@@ -163,68 +141,42 @@ export default function CoachingDashboard() {
           {raceDate && <div className="text-sm text-gray-500">Race in {formatDistanceToNow(new Date(raceDate), { addSuffix: true })}</div>}
         </div>
 
-        <div className="mb-8">
-          <button onClick={() => setModalOpen(true)} className="px-4 py-2 bg-black text-white rounded-xl text-sm font-semibold">
-            💬 Ask Your Coach
-          </button>
-        </div>
-
-        {modalOpen && (
-          <div className="fixed inset-0 z-50 bg-black/40 flex justify-center items-center">
-            <div className="bg-white w-full max-w-lg rounded-xl shadow-xl p-4 relative">
-              <button onClick={() => setModalOpen(false)} className="absolute top-2 right-3 text-gray-400 hover:text-black">✕</button>
-              <h3 className="text-base font-medium text-gray-800 mb-2">Ask Your Coach</h3>
-              <div className="space-y-4 max-h-[40vh] overflow-y-auto mb-4">
-                {messages.length === 0 ? (
-                  <p className="text-sm text-gray-500 italic">Ask your coach anything about your training...</p>
-                ) : (
-                  messages.map((msg, i) => (
-                    <div key={i} className={`p-3 rounded-xl text-sm ${msg.role === 'user' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-900'}`}>
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="font-semibold text-xs">{msg.role === 'user' ? 'You' : '🏆 Coach'}</span>
-                        <span className="text-[10px] text-gray-400">{formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}</span>
-                      </div>
-                      {msg.content === 'Thinking...' ? <TypingDots /> : <p>{msg.content}</p>}
-                      {msg.error && <button className="mt-1 text-xs text-red-600 underline" onClick={() => setQuestion(messages[messages.length - 2]?.content || '')}>Retry</button>}
-                    </div>
-                  ))
-                )}
-                <div ref={messagesEndRef} />
+        {/* Coaching Chat Canvas */}
+        <section className="mb-8 border border-gray-200 rounded-xl p-4 shadow-md bg-white">
+          <h3 className="text-base font-medium text-gray-800 mb-2">Ask Your Coach</h3>
+          <div className="space-y-4 max-h-[40vh] overflow-y-auto mb-4">
+            {messages.map((msg, i) => (
+              <div key={i} className={`p-3 rounded-xl text-sm ${msg.role === 'user' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-900'}`}>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="font-semibold text-xs">{msg.role === 'user' ? 'You' : '🏆 Coach'}</span>
+                  <span className="text-[10px] text-gray-400">{formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}</span>
+                </div>
+                {msg.content === 'Thinking...' ? <TypingDots /> : <p>{msg.content}</p>}
+                {msg.error && <button className="mt-1 text-xs text-red-600 underline" onClick={() => setQuestion(messages[messages.length - 2]?.content || '')}>Retry</button>}
               </div>
-
-              <div className="flex gap-2">
-                <textarea
-                  className="flex-1 border rounded-xl px-4 py-2 text-sm resize-none"
-                  placeholder="Ask your coach anything..."
-                  value={question}
-                  onChange={(e) => setQuestion(e.target.value)}
-                  rows={1}
-                />
-                <button
-                  onClick={() => {
-                    if (isListening) {
-                      recognitionRef.current?.stop();
-                    } else {
-                      recognitionRef.current?.start();
-                      setIsListening(true);
-                    }
-                  }}
-                  className={`px-4 py-2 rounded-xl text-sm font-semibold border ${isListening ? 'bg-red-100 text-red-600 border-red-500' : 'bg-white text-gray-700 border-gray-300'}`}
-                >
-                  🎙️
-                </button>
-                <button
-                  onClick={askCoach}
-                  disabled={!question.trim()}
-                  className="px-4 py-2 bg-black text-white rounded-xl text-sm font-semibold disabled:opacity-50"
-                >
-                  Send
-                </button>
-              </div>
-            </div>
+            ))}
+            <div ref={messagesEndRef} />
           </div>
-        )}
 
+          <div className="flex gap-3">
+            <textarea
+              className="flex-1 border rounded-xl px-4 py-2 text-sm resize-none"
+              placeholder="Ask your coach anything..."
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              rows={1}
+            />
+            <button
+              onClick={askCoach}
+              disabled={!question.trim()}
+              className="px-6 py-2 bg-black text-white rounded-xl text-sm font-semibold disabled:opacity-50"
+            >
+              Send
+            </button>
+          </div>
+        </section>
+
+        {/* Upcoming Sessions */}
         <section className="mb-10">
           <h2 className="text-lg font-semibold mb-2">Upcoming Sessions</h2>
           {upcomingSessions.length > 0 ? (
@@ -243,6 +195,7 @@ export default function CoachingDashboard() {
           )}
         </section>
 
+        {/* Strava Connect */}
         <div className="text-center mt-8">
           {stravaConnected ? (
             <div className="inline-flex items-center gap-2 px-5 py-3 border border-green-500 text-green-600 bg-green-50 rounded-xl">
