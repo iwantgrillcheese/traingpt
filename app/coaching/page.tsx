@@ -1,3 +1,5 @@
+// CoachingDashboard.tsx with voice input support
+
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -26,9 +28,30 @@ export default function CoachingDashboard() {
   const [raceDate, setRaceDate] = useState('');
   const [experienceLevel, setExperienceLevel] = useState('Intermediate');
   const [stravaConnected, setStravaConnected] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const [isListening, setIsListening] = useState(false);
 
+  const recognitionRef = useRef<any>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const today = new Date().toISOString().split('T')[0];
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'webkitSpeechRecognition' in window) {
+      const SpeechRecognition = (window as any).webkitSpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = false;
+      recognitionRef.current.lang = 'en-US';
+
+      recognitionRef.current.onresult = (event: SpeechRecognitionEvent) => {
+        const transcript = event.results[0][0].transcript;
+        setQuestion((prev) => prev + (prev ? ' ' : '') + transcript);
+        setIsListening(false);
+      };
+
+      recognitionRef.current.onerror = () => setIsListening(false);
+      recognitionRef.current.onend = () => setIsListening(false);
+    }
+  }, []);
 
   useEffect(() => {
     const fetchPlan = async () => {
@@ -89,7 +112,6 @@ export default function CoachingDashboard() {
     if (!question.trim()) return;
 
     const now = Date.now();
-
     const newMessages = [
       ...messages,
       { role: 'user' as const, content: question, timestamp: now },
@@ -140,14 +162,7 @@ export default function CoachingDashboard() {
       </Head>
 
       <main className="flex flex-col min-h-screen max-w-4xl mx-auto px-4 pb-28 sm:px-6">
-        {/* Top Info */}
-        <div className="mb-6 pt-6">
-          <h1 className="text-2xl font-bold mb-2">Coaching Dashboard</h1>
-          <div className="text-sm text-gray-500 mb-1">Race type: {raceType} | Experience: {experienceLevel}</div>
-          {raceDate && <div className="text-sm text-gray-500">Race in {formatDistanceToNow(new Date(raceDate), { addSuffix: true })}</div>}
-        </div>
-
-        {/* Ask Your Coach */}
+        {/* Ask Your Coach Section */}
         <section className="flex-1 border border-gray-200 rounded-xl p-4 shadow-md bg-white mb-8 overflow-y-auto max-h-[50vh]">
           <h3 className="text-base font-medium text-gray-800 mb-2">Ask Your Coach</h3>
           <div className="space-y-4">
@@ -169,7 +184,7 @@ export default function CoachingDashboard() {
           </div>
         </section>
 
-        {/* Sticky Input Bar */}
+        {/* Sticky Input Bar with Mic */}
         <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 px-4 py-3 z-10 max-w-4xl mx-auto flex gap-2">
           <textarea
             className="flex-1 border rounded-xl px-4 py-2 text-sm resize-none focus:outline-none"
@@ -180,46 +195,25 @@ export default function CoachingDashboard() {
             rows={1}
           />
           <button
+            onClick={() => {
+              if (isListening) {
+                recognitionRef.current?.stop();
+              } else {
+                recognitionRef.current?.start();
+                setIsListening(true);
+              }
+            }}
+            className={`px-4 py-2 rounded-xl text-sm font-semibold border ${isListening ? 'bg-red-100 text-red-600 border-red-500' : 'bg-white text-gray-700 border-gray-300'}`}
+          >
+            🎙️
+          </button>
+          <button
             onClick={askCoach}
             disabled={!question.trim()}
             className="px-6 py-2 bg-black text-white rounded-xl text-sm font-semibold disabled:opacity-50"
           >
             {question.trim() ? 'Send' : 'Type...'}
           </button>
-        </div>
-
-        {/* Upcoming Sessions */}
-        <section className="mb-10 mt-8">
-          <h2 className="text-lg font-semibold mb-2">Upcoming Sessions</h2>
-          {upcomingSessions.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {upcomingSessions.map(({ date, sessions }, i) => (
-                <div key={i} className="border border-gray-200 rounded-xl p-4 shadow-sm bg-white">
-                  <p className="text-sm font-medium text-gray-700 mb-2">{format(parseISO(date), 'EEEE, MMM d')}</p>
-                  <ul className="text-sm text-gray-700 space-y-1">
-                    {sessions.map((s, j) => <li key={j}>• {s}</li>)}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500 italic">No upcoming training sessions found.</p>
-          )}
-        </section>
-
-        {/* Strava Connect */}
-        <div className="text-center mt-8">
-          {stravaConnected ? (
-            <div className="inline-flex items-center gap-2 px-5 py-3 border border-green-500 text-green-600 bg-green-50 rounded-xl">
-              <img src="/strava-2.svg" alt="Strava" className="h-5 w-auto" />
-              <span className="font-semibold text-sm">Connected to Strava ✅</span>
-            </div>
-          ) : (
-            <Link href={`https://www.strava.com/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID}&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_STRAVA_REDIRECT_URI}&approval_prompt=force&scope=activity:read_all`} className="inline-flex items-center gap-2 px-5 py-3 border border-orange-500 text-orange-600 hover:bg-orange-50 rounded-xl">
-              <img src="/strava-2.svg" alt="Strava" className="h-5 w-auto" />
-              <span className="font-semibold text-sm">Connect to Strava</span>
-            </Link>
-          )}
         </div>
       </main>
     </>
