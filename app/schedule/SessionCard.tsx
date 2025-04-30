@@ -13,14 +13,19 @@ interface SessionCardProps {
   onStatusChange?: (status: 'done' | 'skipped') => void;
 }
 
-type SessionStatus = 'not_started' | 'completed' | 'skipped';
+type SessionStatus = 'not_started' | 'done' | 'skipped';
 
-export function SessionCard({ title, duration = '', details = [], date }: SessionCardProps) {
+export function SessionCard({
+  title,
+  duration = '',
+  details = [],
+  date,
+  initialStatus,
+  onStatusChange,
+}: SessionCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [note, setNote] = useState('');
-const [status, setStatus] = useState<'not_started' | 'done' | 'skipped'>(
-  initialStatus || 'not_started'
-);
+  const [status, setStatus] = useState<SessionStatus>(initialStatus || 'not_started');
 
   const dayFormatted = date ? format(parseISO(date), 'EEEE, MMMM d') : '';
 
@@ -62,9 +67,7 @@ const [status, setStatus] = useState<'not_started' | 'done' | 'skipped'>(
                 </ul>
               </div>
             ) : (
-              <div className="text-gray-500 text-center mb-4">
-                No full workout loaded yet.
-              </div>
+              <div className="text-gray-500 text-center mb-4">No full workout loaded yet.</div>
             )}
 
             {/* Status Buttons */}
@@ -72,10 +75,11 @@ const [status, setStatus] = useState<'not_started' | 'done' | 'skipped'>(
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setStatus('completed');
+                  setStatus('done');
+                  onStatusChange?.('done');
                 }}
                 className={`text-sm px-3 py-1 rounded-full border transition ${
-                  status === 'completed'
+                  status === 'done'
                     ? 'bg-green-100 border-green-600 text-green-800'
                     : 'border-gray-300 text-gray-600'
                 }`}
@@ -87,6 +91,7 @@ const [status, setStatus] = useState<'not_started' | 'done' | 'skipped'>(
                 onClick={(e) => {
                   e.stopPropagation();
                   setStatus('skipped');
+                  onStatusChange?.('skipped');
                 }}
                 className={`text-sm px-3 py-1 rounded-full border transition ${
                   status === 'skipped'
@@ -115,7 +120,9 @@ const [status, setStatus] = useState<'not_started' | 'done' | 'skipped'>(
             {date && (
               <div className="flex justify-center">
                 <Link
-                  href={`/coaching?prefill=${encodeURIComponent(`Hey coach, can you give me a detailed workout for my "${title}" session on ${dayFormatted}?`)}`}
+                  href={`/coaching?prefill=${encodeURIComponent(
+                    `Hey coach, can you give me a detailed workout for my "${title}" session on ${dayFormatted}?`
+                  )}`}
                   className="inline-flex items-center gap-2 px-4 py-2 border border-blue-600 text-blue-600 rounded-full text-sm hover:bg-blue-50 transition"
                   onClick={(e) => e.stopPropagation()}
                 >
