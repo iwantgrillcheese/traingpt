@@ -28,17 +28,7 @@ export default function CoachingDashboard() {
   const [stravaConnected, setStravaConnected] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  const [isMobile, setIsMobile] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
-
   const today = new Date().toISOString().split('T')[0];
-
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth <= 640);
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   useEffect(() => {
     const fetchPlan = async () => {
@@ -149,18 +139,18 @@ export default function CoachingDashboard() {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
-      <main className="flex flex-col min-h-screen max-w-4xl mx-auto px-4 py-6 sm:px-6">
+      <main className="flex flex-col min-h-screen max-w-4xl mx-auto px-4 pb-28 sm:px-6">
         {/* Top Info */}
-        <div className="mb-6">
+        <div className="mb-6 pt-6">
           <h1 className="text-2xl font-bold mb-2">Coaching Dashboard</h1>
           <div className="text-sm text-gray-500 mb-1">Race type: {raceType} | Experience: {experienceLevel}</div>
           {raceDate && <div className="text-sm text-gray-500">Race in {formatDistanceToNow(new Date(raceDate), { addSuffix: true })}</div>}
         </div>
 
         {/* Ask Your Coach */}
-        <section className="flex-1 border border-gray-200 rounded-xl p-4 shadow-md bg-white mb-8">
+        <section className="flex-1 border border-gray-200 rounded-xl p-4 shadow-md bg-white mb-8 overflow-y-auto max-h-[50vh]">
           <h3 className="text-base font-medium text-gray-800 mb-2">Ask Your Coach</h3>
-          <div className="space-y-4 max-h-[40vh] overflow-y-auto mb-4">
+          <div className="space-y-4">
             {messages.length === 0 ? (
               <p className="text-sm text-gray-500 italic">Ask your coach anything about your training...</p>
             ) : (
@@ -177,28 +167,29 @@ export default function CoachingDashboard() {
             )}
             <div ref={messagesEndRef} />
           </div>
-
-          <div className="flex gap-3">
-            <textarea
-              className="flex-1 border rounded-xl px-4 py-2 text-sm resize-none"
-              placeholder="Ask your coach anything..."
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              onKeyDown={handleKeyDown}
-              rows={1}
-            />
-            <button
-              onClick={askCoach}
-              disabled={!question.trim()}
-              className="px-6 py-2 bg-black text-white rounded-xl text-sm font-semibold disabled:opacity-50"
-            >
-              {question.trim() ? 'Send' : 'Type...'}
-            </button>
-          </div>
         </section>
 
+        {/* Sticky Input Bar */}
+        <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 px-4 py-3 z-10 max-w-4xl mx-auto flex gap-2">
+          <textarea
+            className="flex-1 border rounded-xl px-4 py-2 text-sm resize-none focus:outline-none"
+            placeholder="Ask your coach anything..."
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            onKeyDown={handleKeyDown}
+            rows={1}
+          />
+          <button
+            onClick={askCoach}
+            disabled={!question.trim()}
+            className="px-6 py-2 bg-black text-white rounded-xl text-sm font-semibold disabled:opacity-50"
+          >
+            {question.trim() ? 'Send' : 'Type...'}
+          </button>
+        </div>
+
         {/* Upcoming Sessions */}
-        <section className="mb-10">
+        <section className="mb-10 mt-8">
           <h2 className="text-lg font-semibold mb-2">Upcoming Sessions</h2>
           {upcomingSessions.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
