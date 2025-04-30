@@ -11,9 +11,12 @@ interface SessionCardProps {
   date?: string; // ISO string
 }
 
+type SessionStatus = 'not_started' | 'completed' | 'skipped';
+
 export function SessionCard({ title, duration = '', details = [], date }: SessionCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [note, setNote] = useState('');
+  const [status, setStatus] = useState<SessionStatus>('not_started');
 
   const dayFormatted = date ? format(parseISO(date), 'EEEE, MMMM d') : '';
 
@@ -59,6 +62,37 @@ export function SessionCard({ title, duration = '', details = [], date }: Sessio
                 No full workout loaded yet.
               </div>
             )}
+
+            {/* Status Buttons */}
+            <div className="flex gap-2 mb-4">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setStatus('completed');
+                }}
+                className={`text-sm px-3 py-1 rounded-full border transition ${
+                  status === 'completed'
+                    ? 'bg-green-100 border-green-600 text-green-800'
+                    : 'border-gray-300 text-gray-600'
+                }`}
+              >
+                ✓ Completed
+              </button>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setStatus('skipped');
+                }}
+                className={`text-sm px-3 py-1 rounded-full border transition ${
+                  status === 'skipped'
+                    ? 'bg-gray-100 border-gray-500 text-gray-700'
+                    : 'border-gray-300 text-gray-600'
+                }`}
+              >
+                ⏭️ Skipped
+              </button>
+            </div>
 
             {/* Notes Section */}
             <div className="mb-4">
