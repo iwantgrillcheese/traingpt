@@ -23,7 +23,13 @@ function TypingDots() {
 
 export default function CoachingDashboard() {
   const [question, setQuestion] = useState('');
-  const [messages, setMessages] = useState([{ role: 'assistant', content: "Hey, I’m your AI coach. Ask me anything about your training and I’ll do my best to help.", timestamp: Date.now() }]);
+const [messages, setMessages] = useState<{ role: string; content: string; timestamp: number; error?: boolean }[]>([
+  {
+    role: 'assistant',
+    content: "Hey, I’m your AI coach. Ask me anything about your training and I’ll do my best to help.",
+    timestamp: Date.now(),
+  }
+]);
   const [upcomingSessions, setUpcomingSessions] = useState<{ date: string; sessions: string[] }[]>([]);
   const [raceType, setRaceType] = useState('Olympic');
   const [raceDate, setRaceDate] = useState('');
