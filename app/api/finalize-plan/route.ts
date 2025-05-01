@@ -74,11 +74,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Unexpected Supabase error' }, { status: 500 });
   }
 
-  const raceType = latestPlan?.race_type || body.raceType;
-  const raceDate = new Date(latestPlan?.race_date || body.raceDate);
-  const experienceLevel = latestPlan?.experience || body.experience || 'Intermediate';
-  const maxHours = latestPlan?.max_hours || body.maxHours || 8;
-  const restDay = latestPlan?.rest_day || body.restDay || 'Monday';
+  const raceType = body.raceType || latestPlan?.race_type;
+  const raceDate = new Date(body.raceDate || latestPlan?.race_date);
+  const experienceLevel = body.experience || latestPlan?.experience || 'Intermediate';
+  const maxHours = body.maxHours || latestPlan?.max_hours || 8;
+  const restDay = body.restDay || latestPlan?.rest_day || 'Monday';
 
   let totalWeeks = differenceInCalendarWeeks(raceDate, startDate);
   const minWeeks = MIN_WEEKS[raceType] || 6;
