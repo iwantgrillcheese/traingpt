@@ -28,7 +28,7 @@ export default function CoachingDashboard() {
     content: "Hey, I’m your AI coach. Ask me anything about your training and I’ll do my best to help.",
     timestamp: Date.now(),
   }]);
-  const [upcomingSessions, setUpcomingSessions] = useState([]);
+  const [upcomingSessions, setUpcomingSessions] = useState<{ date: string; sessions: string[] }[]>([]);
   const [raceType, setRaceType] = useState('Olympic');
   const [raceDate, setRaceDate] = useState('');
   const [experienceLevel, setExperienceLevel] = useState('Intermediate');
