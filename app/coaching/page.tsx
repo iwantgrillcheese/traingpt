@@ -61,13 +61,13 @@ export default function CoachingDashboard() {
         const todayDate = new Date(today);
 
         for (const week of plans.plan) {
-          for (const [date, sessionList] of Object.entries(week.days)) {
-            const parsedDate = new Date(date);
-            if (parsedDate >= todayDate && sessions.length < 7) {
-              sessions.push({ date, sessions: sessionList });
-            }
-          }
-        }
+  for (const [date, sessionList] of Object.entries(week.days)) {
+    const parsedDate = new Date(date);
+    if (parsedDate >= todayDate && sessions.length < 7) {
+      sessions.push({ date, sessions: sessionList as string[] });
+    }
+  }
+}
 
         setUpcomingSessions(
           sessions.filter(({ date }) => isAfter(parseISO(date), new Date())).sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime()).slice(0, 3)
