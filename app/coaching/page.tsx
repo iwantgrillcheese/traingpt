@@ -140,9 +140,9 @@ export default function CoachingDashboard() {
   };
 
   const ChatBox = () => (
-    <div className="border border-gray-200 rounded-xl p-4 shadow-md bg-white max-h-[40vh] overflow-y-auto mb-4">
+    <div className="border border-gray-200 rounded-xl p-3 sm:p-4 shadow-md bg-white max-h-[50vh] overflow-y-auto mb-4">
       {messages.map((msg, i) => (
-        <div key={i} className={`p-3 rounded-xl text-sm ${msg.role === 'user' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-900'}`}>
+        <div key={i} className={`p-2 sm:p-3 rounded-xl text-sm ${msg.role === 'user' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-900'}`}>
           <div className="flex justify-between items-center mb-1">
             <span className="font-semibold text-xs">{msg.role === 'user' ? 'You' : '🏆 Coach'}</span>
             <span className="text-[10px] text-gray-400">{formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}</span>
@@ -168,44 +168,33 @@ export default function CoachingDashboard() {
           {raceDate && <div className="text-sm text-gray-500">Race in {formatDistanceToNow(new Date(raceDate), { addSuffix: true })}</div>}
         </div>
 
-        {isMobile ? (
+        <h3 className="text-base font-medium text-gray-800 mb-2">Ask Your Coach</h3>
+        <ChatBox />
+        <div className="flex gap-2 sm:gap-3">
+          <textarea
+            className="flex-1 border rounded-xl px-4 py-2 text-sm resize-none"
+            placeholder="Ask your coach anything..."
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                askCoach();
+              }
+            }}
+            rows={1}
+          />
           <button
-            onClick={() => setModalOpen(true)}
-            className="mb-4 w-fit px-4 py-2 rounded-full bg-black text-white font-semibold"
+            onClick={askCoach}
+            disabled={!question.trim()}
+            className="px-4 sm:px-6 py-2 bg-black text-white rounded-xl text-sm font-semibold disabled:opacity-50"
           >
-            Ask Your Coach
+            Send
           </button>
-        ) : (
-          <>
-            <h3 className="text-base font-medium text-gray-800 mb-2">Ask Your Coach</h3>
-            <ChatBox />
-            <div className="flex gap-3">
-              <textarea
-                className="flex-1 border rounded-xl px-4 py-2 text-sm resize-none"
-                placeholder="Ask your coach anything..."
-                value={question}
-                onChange={(e) => setQuestion(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    askCoach();
-                  }
-                }}
-                rows={1}
-              />
-              <button
-                onClick={askCoach}
-                disabled={!question.trim()}
-                className="px-6 py-2 bg-black text-white rounded-xl text-sm font-semibold disabled:opacity-50"
-              >
-                Send
-              </button>
-            </div>
-          </>
-        )}
+        </div>
 
         {modalOpen && (
-          <div className="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center p-4">
             <div className="w-full max-w-md">
               <div className="flex justify-between items-center mb-2">
                 <h3 className="text-base font-semibold">Ask Your Coach</h3>
