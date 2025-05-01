@@ -21,9 +21,16 @@ function TypingDots() {
   );
 }
 
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+  error?: boolean;
+}
+
 export default function CoachingDashboard() {
   const [question, setQuestion] = useState('');
-  const [messages, setMessages] = useState([{
+  const [messages, setMessages] = useState<ChatMessage[]>([{
     role: 'assistant',
     content: "Hey, I’m your AI coach. Ask me anything about your training and I’ll do my best to help.",
     timestamp: Date.now(),
@@ -34,7 +41,7 @@ export default function CoachingDashboard() {
   const [experienceLevel, setExperienceLevel] = useState('Intermediate');
   const [stravaConnected, setStravaConnected] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const messagesEndRef = useRef(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const isMobile = useMediaQuery({ query: '(max-width: 640px)' });
   const today = new Date().toISOString().split('T')[0];
@@ -57,20 +64,23 @@ export default function CoachingDashboard() {
         setRaceDate(plans.race_date || '');
         setExperienceLevel(plans.experience || 'Intermediate');
 
-        const sessions = [];
+        const sessions: { date: string; sessions: string[] }[] = [];
         const todayDate = new Date(today);
 
         for (const week of plans.plan) {
-  for (const [date, sessionList] of Object.entries(week.days)) {
-    const parsedDate = new Date(date);
-    if (parsedDate >= todayDate && sessions.length < 7) {
-      sessions.push({ date, sessions: sessionList as string[] });
-    }
-  }
-}
+          for (const [date, sessionList] of Object.entries(week.days)) {
+            const parsedDate = new Date(date);
+            if (parsedDate >= todayDate && sessions.length < 7) {
+              sessions.push({ date, sessions: sessionList as string[] });
+            }
+          }
+        }
 
         setUpcomingSessions(
-          sessions.filter(({ date }) => isAfter(parseISO(date), new Date())).sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime()).slice(0, 3)
+          sessions
+            .filter(({ date }) => isAfter(parseISO(date), new Date()))
+            .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime())
+            .slice(0, 3)
         );
       }
 
@@ -98,8 +108,8 @@ export default function CoachingDashboard() {
     if (!question.trim()) return;
 
     const now = Date.now();
-    const userMessage = { role: 'user', content: question.trim(), timestamp: now };
-    const loadingMessage = { role: 'assistant', content: 'Thinking...', timestamp: now };
+    const userMessage: ChatMessage = { role: 'user', content: question.trim(), timestamp: now };
+    const loadingMessage: ChatMessage = { role: 'assistant', content: 'Thinking...', timestamp: now };
     setMessages((prev) => [...prev, userMessage, loadingMessage]);
     setQuestion('');
 
@@ -228,7 +238,6 @@ export default function CoachingDashboard() {
           </div>
         )}
 
-        {/* Upcoming Sessions */}
         <section className="mb-10 mt-8">
           <h2 className="text-lg font-semibold mb-2">Upcoming Sessions</h2>
           {upcomingSessions.length > 0 ? (
