@@ -1,4 +1,4 @@
-// CoachingDashboard.tsx — Mobile-first with immersive modal
+// CoachingDashboard.tsx — Hybrid chat UI with embedded preview and immersive modal for mobile
 
 'use client';
 
@@ -34,13 +34,14 @@ export default function CoachingDashboard() {
     content: "Hey, I’m your AI coach. Ask me anything about your training and I’ll do my best to help.",
     timestamp: Date.now(),
   }]);
-  const [showModal, setShowModal] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const [upcomingSessions, setUpcomingSessions] = useState<{ date: string; sessions: string[] }[]>([]);
   const [raceType, setRaceType] = useState('Olympic');
   const [raceDate, setRaceDate] = useState('');
   const [experienceLevel, setExperienceLevel] = useState('Intermediate');
   const [stravaConnected, setStravaConnected] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
   const today = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
@@ -146,35 +147,32 @@ export default function CoachingDashboard() {
           {raceDate && <div className="text-sm text-gray-500">Race in {formatDistanceToNow(new Date(raceDate), { addSuffix: true })}</div>}
         </div>
 
-        <button
-          onClick={() => setShowModal(true)}
-          className="mb-6 px-4 py-2 bg-black text-white rounded-lg text-sm font-medium w-fit"
-        >
-          Ask Your Coach
-        </button>
+        <button onClick={() => setModalOpen(true)} className="bg-black text-white px-4 py-2 rounded-full text-sm font-medium mb-6 w-fit">Ask Your Coach</button>
 
-        {showModal && (
-          <div className="fixed inset-0 z-50 bg-white flex flex-col max-w-lg w-full mx-auto px-4 py-6 shadow-xl overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Ask Your Coach</h3>
-              <button onClick={() => setShowModal(false)} className="text-sm text-gray-500">Close</button>
+        {modalOpen && (
+          <div className="fixed inset-0 bg-white z-50 flex flex-col items-center justify-between px-4 pt-6 pb-4 sm:px-6">
+            <div className="flex justify-between items-center w-full mb-2">
+              <h3 className="text-base font-medium">Ask Your Coach</h3>
+              <button onClick={() => setModalOpen(false)} className="text-sm font-semibold">Close</button>
             </div>
 
-            <div className="space-y-4 flex-1 overflow-y-auto pb-4">
-              {messages.map((msg, i) => (
-                <div key={i} className={`p-3 rounded-xl text-sm ${msg.role === 'user' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-900'}`}>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="font-semibold text-xs">{msg.role === 'user' ? 'You' : '🏆 Coach'}</span>
-                    <span className="text-[10px] text-gray-400">{formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}</span>
+            <div className="w-full flex-1 overflow-y-auto border border-gray-200 rounded-xl p-4 bg-gray-50">
+              <div className="space-y-4">
+                {messages.map((msg, i) => (
+                  <div key={i} className={`p-3 rounded-xl text-sm ${msg.role === 'user' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-900'}`}>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-semibold text-xs">{msg.role === 'user' ? 'You' : '🏆 Coach'}</span>
+                      <span className="text-[10px] text-gray-400">{formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}</span>
+                    </div>
+                    {msg.content === 'Thinking...' ? <TypingDots /> : <p>{msg.content}</p>}
+                    {msg.error && <button className="mt-1 text-xs text-red-600 underline" onClick={() => setQuestion(messages[messages.length - 2]?.content || '')}>Retry</button>}
                   </div>
-                  {msg.content === 'Thinking...' ? <TypingDots /> : <p>{msg.content}</p>}
-                  {msg.error && <button className="mt-1 text-xs text-red-600 underline" onClick={() => setQuestion(messages[messages.length - 2]?.content || '')}>Retry</button>}
-                </div>
-              ))}
-              <div ref={messagesEndRef} />
+                ))}
+                <div ref={messagesEndRef} />
+              </div>
             </div>
 
-            <div className="flex gap-3 pt-4 sticky bottom-0 bg-white">
+            <div className="flex gap-3 w-full mt-4">
               <textarea
                 className="flex-1 border rounded-xl px-4 py-2 text-sm resize-none"
                 placeholder="Ask your coach anything..."
@@ -199,7 +197,6 @@ export default function CoachingDashboard() {
           </div>
         )}
 
-        {/* Upcoming Sessions */}
         <section className="mb-10">
           <h2 className="text-lg font-semibold mb-2">Upcoming Sessions</h2>
           {upcomingSessions.length > 0 ? (
@@ -218,7 +215,6 @@ export default function CoachingDashboard() {
           )}
         </section>
 
-        {/* Strava Connect */}
         <div className="text-center mt-8">
           {stravaConnected ? (
             <div className="inline-flex items-center gap-2 px-5 py-3 border border-green-500 text-green-600 bg-green-50 rounded-xl">
