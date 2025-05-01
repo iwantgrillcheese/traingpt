@@ -1,4 +1,4 @@
-// CoachingDashboard.tsx — Modal chat with embedded preview and no voice input
+// CoachingDashboard.tsx — Mobile-first with immersive modal
 
 'use client';
 
@@ -34,13 +34,13 @@ export default function CoachingDashboard() {
     content: "Hey, I’m your AI coach. Ask me anything about your training and I’ll do my best to help.",
     timestamp: Date.now(),
   }]);
+  const [showModal, setShowModal] = useState(false);
   const [upcomingSessions, setUpcomingSessions] = useState<{ date: string; sessions: string[] }[]>([]);
   const [raceType, setRaceType] = useState('Olympic');
   const [raceDate, setRaceDate] = useState('');
   const [experienceLevel, setExperienceLevel] = useState('Intermediate');
   const [stravaConnected, setStravaConnected] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-
   const today = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
@@ -146,46 +146,58 @@ export default function CoachingDashboard() {
           {raceDate && <div className="text-sm text-gray-500">Race in {formatDistanceToNow(new Date(raceDate), { addSuffix: true })}</div>}
         </div>
 
-        {/* Coaching Chat Canvas */}
-        <section className="mb-8 border border-gray-200 rounded-xl p-4 shadow-md bg-white">
-          <h3 className="text-base font-medium text-gray-800 mb-2">Ask Your Coach</h3>
-          <div className="space-y-4 max-h-[40vh] overflow-y-auto mb-4">
-            {messages.map((msg, i) => (
-              <div key={i} className={`p-3 rounded-xl text-sm ${msg.role === 'user' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-900'}`}>
-                <div className="flex justify-between items-center mb-1">
-                  <span className="font-semibold text-xs">{msg.role === 'user' ? 'You' : '🏆 Coach'}</span>
-                  <span className="text-[10px] text-gray-400">{formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}</span>
-                </div>
-                {msg.content === 'Thinking...' ? <TypingDots /> : <p>{msg.content}</p>}
-                {msg.error && <button className="mt-1 text-xs text-red-600 underline" onClick={() => setQuestion(messages[messages.length - 2]?.content || '')}>Retry</button>}
-              </div>
-            ))}
-            <div ref={messagesEndRef} />
-          </div>
+        <button
+          onClick={() => setShowModal(true)}
+          className="mb-6 px-4 py-2 bg-black text-white rounded-lg text-sm font-medium w-fit"
+        >
+          Ask Your Coach
+        </button>
 
-          <div className="flex gap-3">
-            <textarea
-  className="flex-1 border rounded-xl px-4 py-2 text-sm resize-none"
-  placeholder="Ask your coach anything..."
-  value={question}
-  onChange={(e) => setQuestion(e.target.value)}
-  onKeyDown={(e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      askCoach();
-    }
-  }}
-              rows={1}
-            />
-            <button
-              onClick={askCoach}
-              disabled={!question.trim()}
-              className="px-6 py-2 bg-black text-white rounded-xl text-sm font-semibold disabled:opacity-50"
-            >
-              Send
-            </button>
+        {showModal && (
+          <div className="fixed inset-0 z-50 bg-white flex flex-col max-w-lg w-full mx-auto px-4 py-6 shadow-xl overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Ask Your Coach</h3>
+              <button onClick={() => setShowModal(false)} className="text-sm text-gray-500">Close</button>
+            </div>
+
+            <div className="space-y-4 flex-1 overflow-y-auto pb-4">
+              {messages.map((msg, i) => (
+                <div key={i} className={`p-3 rounded-xl text-sm ${msg.role === 'user' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-900'}`}>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="font-semibold text-xs">{msg.role === 'user' ? 'You' : '🏆 Coach'}</span>
+                    <span className="text-[10px] text-gray-400">{formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}</span>
+                  </div>
+                  {msg.content === 'Thinking...' ? <TypingDots /> : <p>{msg.content}</p>}
+                  {msg.error && <button className="mt-1 text-xs text-red-600 underline" onClick={() => setQuestion(messages[messages.length - 2]?.content || '')}>Retry</button>}
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+
+            <div className="flex gap-3 pt-4 sticky bottom-0 bg-white">
+              <textarea
+                className="flex-1 border rounded-xl px-4 py-2 text-sm resize-none"
+                placeholder="Ask your coach anything..."
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    askCoach();
+                  }
+                }}
+                rows={1}
+              />
+              <button
+                onClick={askCoach}
+                disabled={!question.trim()}
+                className="px-6 py-2 bg-black text-white rounded-xl text-sm font-semibold disabled:opacity-50"
+              >
+                Send
+              </button>
+            </div>
           </div>
-        </section>
+        )}
 
         {/* Upcoming Sessions */}
         <section className="mb-10">
