@@ -7,6 +7,7 @@ import Link from 'next/link';
 import Head from 'next/head';
 import { useMediaQuery } from 'react-responsive';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import TypingDots from '@/components/TypingDots'; // ✅ Ensure this exists
 
 const supabase = createClientComponentClient();
 const COLORS = ['#60A5FA', '#34D399', '#FBBF24'];
@@ -17,16 +18,6 @@ type ChatMessage = {
   timestamp: number;
   error?: boolean;
 };
-
-function TypingDots() {
-  return (
-    <div className="flex space-x-1 items-center">
-      <div className="h-2 w-2 bg-gray-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
-      <div className="h-2 w-2 bg-gray-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
-      <div className="h-2 w-2 bg-gray-500 rounded-full animate-bounce" />
-    </div>
-  );
-}
 
 export default function CoachingDashboard() {
   const [question, setQuestion] = useState('');
@@ -147,9 +138,6 @@ export default function CoachingDashboard() {
     }
   };
 
-  // ... ChatBox, DashboardSummary, and return remain unchanged
-}
-
   const ChatBox = () => (
     <div className="border border-gray-200 rounded-xl p-4 shadow bg-white max-h-[60vh] overflow-y-auto mb-4">
       {messages.map((msg, i) => (
@@ -192,46 +180,31 @@ export default function CoachingDashboard() {
     return (
       <section className="mt-10 mb-4">
         <h2 className="text-lg font-semibold mb-2">Training Summary</h2>
-
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="border rounded-xl p-4 bg-white shadow-sm">
             <p className="text-sm text-gray-500 mb-1">Total Time This Week</p>
             <p className="text-xl font-bold text-gray-800">{totalTime}h</p>
           </div>
-
           <div className="border rounded-xl p-4 bg-white shadow-sm">
             <p className="text-sm text-gray-500 mb-1">Training Consistency</p>
             <p className="text-xl font-bold text-gray-800">{uniqueDays.size} of last 7 days</p>
           </div>
-
           <div className="border rounded-xl p-4 bg-white shadow-sm col-span-1 sm:col-span-2">
             <p className="text-sm text-gray-500 mb-2">Weekly Volume (hrs)</p>
             <div className="flex items-end gap-2 h-20">
               {weeklyVolume.map((val, i) => (
                 <div key={i} className="flex flex-col items-center">
-                  <div
-                    className="bg-blue-500 w-4 rounded"
-                    style={{ height: `${val * 10}px` }}
-                    title={`${val.toFixed(1)} hrs`}
-                  />
+                  <div className="bg-blue-500 w-4 rounded" style={{ height: `${val * 10}px` }} title={`${val.toFixed(1)} hrs`} />
                   <span className="text-[10px] text-gray-500 mt-1">W{i + 1}</span>
                 </div>
               ))}
             </div>
           </div>
-
           <div className="border rounded-xl p-4 bg-white shadow-sm col-span-1 sm:col-span-2">
             <p className="text-sm text-gray-500 mb-2">Sport Breakdown</p>
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
-                <Pie
-                  data={chartData}
-                  dataKey="value"
-                  nameKey="name"
-                  outerRadius={80}
-                  fill="#8884d8"
-                  label
-                >
+                <Pie data={chartData} dataKey="value" nameKey="name" outerRadius={80} fill="#8884d8" label>
                   {chartData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
@@ -257,12 +230,9 @@ export default function CoachingDashboard() {
       <Head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
-
       <main className="flex flex-col min-h-screen max-w-4xl mx-auto px-4 py-6 sm:px-6">
         <h1 className="text-2xl font-bold mb-4">Your AI Coach</h1>
-
         <ChatBox />
-
         <div className="flex gap-3 sticky bottom-0 bg-white pt-2 pb-4">
           <textarea
             className="flex-1 border rounded-xl px-4 py-2 text-sm resize-none"
