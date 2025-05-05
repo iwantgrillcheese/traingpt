@@ -18,6 +18,16 @@ type ChatMessage = {
   error?: boolean;
 };
 
+function TypingDots() {
+  return (
+    <div className="flex space-x-1 items-center">
+      <div className="h-2 w-2 bg-gray-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+      <div className="h-2 w-2 bg-gray-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+      <div className="h-2 w-2 bg-gray-500 rounded-full animate-bounce" />
+    </div>
+  );
+}
+
 export default function CoachingDashboard() {
   const [question, setQuestion] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -32,9 +42,9 @@ export default function CoachingDashboard() {
   const [raceDate, setRaceDate] = useState('');
   const [experienceLevel, setExperienceLevel] = useState('Intermediate');
   const [stravaConnected, setStravaConnected] = useState(false);
-const [stravaData, setStravaData] = useState<
-  { sport_type: string; moving_time: number; start_date_local: string }[] | null
->(null);
+  const [stravaData, setStravaData] = useState<
+    { sport_type: string; moving_time: number; start_date_local: string }[] | null
+  >(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isMobile = useMediaQuery({ query: '(max-width: 640px)' });
   const today = new Date().toISOString().split('T')[0];
@@ -136,6 +146,10 @@ const [stravaData, setStravaData] = useState<
       setMessages((prev) => [...prev.slice(0, -1), { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true }]);
     }
   };
+
+  // ... ChatBox, DashboardSummary, and return remain unchanged
+}
+
   const ChatBox = () => (
     <div className="border border-gray-200 rounded-xl p-4 shadow bg-white max-h-[60vh] overflow-y-auto mb-4">
       {messages.map((msg, i) => (
