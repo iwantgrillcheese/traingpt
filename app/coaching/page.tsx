@@ -11,26 +11,29 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 const supabase = createClientComponentClient();
 const COLORS = ['#60A5FA', '#34D399', '#FBBF24'];
 
-function TypingDots() {
-  return (
-    <div className="flex space-x-1 items-center">
-      <div className="h-2 w-2 bg-gray-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
-      <div className="h-2 w-2 bg-gray-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
-      <div className="h-2 w-2 bg-gray-500 rounded-full animate-bounce" />
-    </div>
-  );
-}
+type ChatMessage = {
+  role: string;
+  content: string;
+  timestamp: number;
+  error?: boolean;
+};
 
 export default function CoachingDashboard() {
   const [question, setQuestion] = useState('');
-  const [messages, setMessages] = useState([{ role: 'assistant', content: "Hey, I’m your AI coach. Ask me anything about your training and I’ll do my best to help.", timestamp: Date.now() }]);
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      role: 'assistant',
+      content: "Hey, I’m your AI coach. Ask me anything about your training and I’ll do my best to help.",
+      timestamp: Date.now(),
+    },
+  ]);
   const [upcomingSessions, setUpcomingSessions] = useState<{ date: string; sessions: string[] }[]>([]);
   const [raceType, setRaceType] = useState('Olympic');
   const [raceDate, setRaceDate] = useState('');
   const [experienceLevel, setExperienceLevel] = useState('Intermediate');
   const [stravaConnected, setStravaConnected] = useState(false);
-  const [stravaData, setStravaData] = useState<any[] | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const [stravaData, setStravaData] = useState(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const isMobile = useMediaQuery({ query: '(max-width: 640px)' });
   const today = new Date().toISOString().split('T')[0];
 
