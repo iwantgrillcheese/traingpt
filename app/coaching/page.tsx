@@ -9,7 +9,8 @@ import { useMediaQuery } from 'react-responsive';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 
 const supabase = createClientComponentClient();
-const COLORS = ['#60A5FA', '#34D399', '#FBBF24']; // Blue, Green, Yellow
+const COLORS = ['#60A5FA', '#34D399', '#FBBF24'];
+
 function TypingDots() {
   return (
     <div className="flex space-x-1 items-center">
@@ -20,113 +21,94 @@ function TypingDots() {
   );
 }
 
-type SessionBlock = {
-  date: string;
-  sessions: string[];
-};
-
-type ChatMessage = {
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: number;
-  error?: boolean;
-};
-
-type StravaActivity = {
-  sport_type: 'Swim' | 'Bike' | 'Run' | string;
-  moving_time: number;
-  start_date_local: string;
-};
-
 export default function CoachingDashboard() {
   const [question, setQuestion] = useState('');
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      role: 'assistant',
-      content: "Hey, I’m your AI coach. Ask me anything about your training and I’ll do my best to help.",
-      timestamp: Date.now(),
-    }
-  ]);
-  const [upcomingSessions, setUpcomingSessions] = useState<SessionBlock[]>([]);
+  const [messages, setMessages] = useState([{ role: 'assistant', content: "Hey, I’m your AI coach. Ask me anything about your training and I’ll do my best to help.", timestamp: Date.now() }]);
+  const [upcomingSessions, setUpcomingSessions] = useState([]);
   const [raceType, setRaceType] = useState('Olympic');
   const [raceDate, setRaceDate] = useState('');
   const [experienceLevel, setExperienceLevel] = useState('Intermediate');
   const [stravaConnected, setStravaConnected] = useState(false);
-  const [stravaData, setStravaData] = useState<StravaActivity[] | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [stravaData, setStravaData] = useState(null);
+  const messagesEndRef = useRef(null);
   const isMobile = useMediaQuery({ query: '(max-width: 640px)' });
   const today = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
-    const fetchData = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) return;
+    const fetchPlanAndStrava = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user?.id) return;
 
-      const { data: planData } = await supabase
+      const { data: plans } = await supabase
         .from('plans')
         .select('plan, race_type, race_date, experience')
-        .eq('user_id', session.user.id)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
 
-      if (planData?.plan) {
-        setRaceType(planData.race_type || 'Olympic');
-        setRaceDate(planData.race_date || '');
-        setExperienceLevel(planData.experience || 'Intermediate');
+      if (plans?.plan) {
+        setRaceType(plans.race_type || 'Olympic');
+        setRaceDate(plans.race_date || '');
+        setExperienceLevel(plans.experience || 'Intermediate');
 
-        const sessions: SessionBlock[] = [];
+        const sessions = [];
         const todayDate = new Date(today);
 
-        for (const week of planData.plan) {
+        for (const week of plans.plan) {
           for (const [date, sessionList] of Object.entries(week.days)) {
             const parsedDate = new Date(date);
             if (parsedDate >= todayDate && sessions.length < 7) {
-              sessions.push({ date, sessions: sessionList as string[] });
+              sessions.push({ date, sessions: sessionList });
             }
           }
         }
 
-        setUpcomingSessions(
-          sessions
-            .filter(({ date }) => isAfter(parseISO(date), new Date()))
-            .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime())
-            .slice(0, 3)
-        );
+        setUpcomingSessions(sessions
+          .filter(({ date }) => isAfter(parseISO(date), new Date()))
+          .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime())
+          .slice(0, 3));
       }
 
       const { data: stravaProfile } = await supabase
         .from('profiles')
         .select('strava_access_token')
-        .eq('id', session.user.id)
+        .eq('id', user.id)
         .single();
 
       if (stravaProfile?.strava_access_token) {
         setStravaConnected(true);
 
+        // Immediately trigger strava_sync API
+        await fetch('/api/strava_sync');
+
         const { data: activities } = await supabase
           .from('strava_activities')
           .select('sport_type, moving_time, start_date_local')
-          .eq('user_id', session.user.id)
+          .eq('user_id', user.id)
           .gte('start_date_local', startOfDay(subDays(new Date(), 28)).toISOString());
+
+        console.log('[STRAVA DATA]', activities);
 
         if (activities) setStravaData(activities);
       }
     };
 
-    fetchData();
+    fetchPlanAndStrava();
   }, []);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
 
   const askCoach = async () => {
     if (!question.trim()) return;
     const now = Date.now();
-    const userMessage: ChatMessage = { role: 'user', content: question.trim(), timestamp: now };
-    const loadingMessage: ChatMessage = { role: 'assistant', content: 'Thinking...', timestamp: now };
-    setMessages(prev => [...prev, userMessage, loadingMessage]);
+    const userMessage = { role: 'user', content: question.trim(), timestamp: now };
+    const loadingMessage = { role: 'assistant', content: 'Thinking...', timestamp: now };
+    setMessages((prev) => [...prev, userMessage, loadingMessage]);
     setQuestion('');
 
     try {
@@ -135,7 +117,7 @@ export default function CoachingDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [...messages, userMessage].slice(-8),
-          completedSessions: upcomingSessions.flatMap(s => s.sessions),
+          completedSessions: upcomingSessions.flatMap((s) => s.sessions),
           userNote: question,
           raceType,
           raceDate,
@@ -144,21 +126,37 @@ export default function CoachingDashboard() {
       });
 
       const data = await res.json();
-      const response: ChatMessage = res.ok && data?.feedback
+      const response = res.ok && data?.feedback
         ? { role: 'assistant', content: data.feedback, timestamp: Date.now() }
         : { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true };
 
-      setMessages(prev => [...prev.slice(0, -1), response]);
+      setMessages((prev) => [...prev.slice(0, -1), response]);
     } catch {
-      setMessages(prev => [...prev.slice(0, -1), { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true }]);
+      setMessages((prev) => [...prev.slice(0, -1), { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true }]);
     }
   };
+
+  const ChatBox = () => (
+    <div className="border border-gray-200 rounded-xl p-4 shadow bg-white max-h-[60vh] overflow-y-auto mb-4">
+      {messages.map((msg, i) => (
+        <div key={i} className={`max-w-[85%] mb-2 p-3 rounded-xl text-sm ${msg.role === 'user' ? 'bg-blue-100 text-blue-900 ml-auto' : 'bg-gray-100 text-gray-900 mr-auto'}`}>
+          <div className="flex justify-between items-center mb-1">
+            <span className="font-semibold text-xs">{msg.role === 'user' ? 'You' : '🏆 Coach'}</span>
+            <span className="text-[10px] text-gray-400">{formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}</span>
+          </div>
+          {msg.content === 'Thinking...' ? <TypingDots /> : <p>{msg.content}</p>}
+          {msg.error && <button className="mt-1 text-xs text-red-600 underline" onClick={() => setQuestion(messages[messages.length - 2]?.content || '')}>Retry</button>}
+        </div>
+      ))}
+      <div ref={messagesEndRef} />
+    </div>
+  );
 
   const DashboardSummary = () => {
     if (!stravaData) return null;
 
     const weeklyVolume = [0, 0, 0, 0];
-    const sportTotals: { [key: string]: number } = { Swim: 0, Bike: 0, Run: 0 };
+    const sportTotals = { Swim: 0, Bike: 0, Run: 0 };
     const uniqueDays = new Set();
 
     for (const session of stravaData) {
@@ -168,8 +166,9 @@ export default function CoachingDashboard() {
         weeklyVolume[3 - weekIndex] += session.moving_time / 3600;
       }
       uniqueDays.add(format(date, 'yyyy-MM-dd'));
-      if (sportTotals[session.sport_type] !== undefined) {
-        sportTotals[session.sport_type] += session.moving_time / 3600;
+      const type = session.sport_type;
+      if (sportTotals[type] !== undefined) {
+        sportTotals[type] += session.moving_time / 3600;
       }
     }
 
@@ -179,15 +178,18 @@ export default function CoachingDashboard() {
     return (
       <section className="mt-10 mb-4">
         <h2 className="text-lg font-semibold mb-2">Training Summary</h2>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="border rounded-xl p-4 bg-white shadow-sm">
             <p className="text-sm text-gray-500 mb-1">Total Time This Week</p>
             <p className="text-xl font-bold text-gray-800">{totalTime}h</p>
           </div>
+
           <div className="border rounded-xl p-4 bg-white shadow-sm">
             <p className="text-sm text-gray-500 mb-1">Training Consistency</p>
             <p className="text-xl font-bold text-gray-800">{uniqueDays.size} of last 7 days</p>
           </div>
+
           <div className="border rounded-xl p-4 bg-white shadow-sm col-span-1 sm:col-span-2">
             <p className="text-sm text-gray-500 mb-2">Weekly Volume (hrs)</p>
             <div className="flex items-end gap-2 h-20">
@@ -203,11 +205,19 @@ export default function CoachingDashboard() {
               ))}
             </div>
           </div>
+
           <div className="border rounded-xl p-4 bg-white shadow-sm col-span-1 sm:col-span-2">
             <p className="text-sm text-gray-500 mb-2">Sport Breakdown</p>
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
-                <Pie data={chartData} dataKey="value" nameKey="name" outerRadius={80} label>
+                <Pie
+                  data={chartData}
+                  dataKey="value"
+                  nameKey="name"
+                  outerRadius={80}
+                  fill="#8884d8"
+                  label
+                >
                   {chartData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
@@ -230,22 +240,14 @@ export default function CoachingDashboard() {
 
   return (
     <>
-      <Head><meta name="viewport" content="width=device-width, initial-scale=1" /></Head>
+      <Head>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </Head>
+
       <main className="flex flex-col min-h-screen max-w-4xl mx-auto px-4 py-6 sm:px-6">
         <h1 className="text-2xl font-bold mb-4">Your AI Coach</h1>
-        <div className="border border-gray-200 rounded-xl p-4 shadow bg-white max-h-[60vh] overflow-y-auto mb-4">
-          {messages.map((msg, i) => (
-            <div key={i} className={`max-w-[85%] mb-2 p-3 rounded-xl text-sm ${msg.role === 'user' ? 'bg-blue-100 text-blue-900 ml-auto' : 'bg-gray-100 text-gray-900 mr-auto'}`}>
-              <div className="flex justify-between items-center mb-1">
-                <span className="font-semibold text-xs">{msg.role === 'user' ? 'You' : '🏆 Coach'}</span>
-                <span className="text-[10px] text-gray-400">{formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}</span>
-              </div>
-              {msg.content === 'Thinking...' ? <TypingDots /> : <p>{msg.content}</p>}
-              {msg.error && <button className="mt-1 text-xs text-red-600 underline" onClick={() => setQuestion(messages[messages.length - 2]?.content || '')}>Retry</button>}
-            </div>
-          ))}
-          <div ref={messagesEndRef} />
-        </div>
+
+        <ChatBox />
 
         <div className="flex gap-3 sticky bottom-0 bg-white pt-2 pb-4">
           <textarea
@@ -270,7 +272,6 @@ export default function CoachingDashboard() {
           </button>
         </div>
 
-        {/* Sessions + Strava */}
         <section className="mb-10 mt-10">
           <h2 className="text-lg font-semibold mb-2">Upcoming Sessions</h2>
           {upcomingSessions.length > 0 ? (
