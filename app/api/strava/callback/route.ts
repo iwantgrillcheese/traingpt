@@ -43,15 +43,15 @@ export async function GET(req: Request) {
       return NextResponse.redirect(`https://www.traingpt.co/coaching?error=no_user_session`);
     }
 
-    await supabase
-      .from('profiles')
-      .update({
-        strava_access_token: access_token,
-        strava_refresh_token: refresh_token,
-        strava_expires_at: expires_at,
-        strava_athlete_id: athlete?.id,
-      })
-      .eq('id', user.id);
+    // 💡 Upsert guarantees a row is created if missing
+    await supabase.from('profiles').upsert({
+      id: user.id,
+      strava_access_token: access_token,
+      strava_refresh_token: refresh_token,
+      strava_expires_at: expires_at,
+      strava_athlete_id: athlete?.id,
+      updated_at: new Date().toISOString(),
+    });
 
     return NextResponse.redirect(`https://www.traingpt.co/coaching?success=strava_connected`);
   } catch (err) {
