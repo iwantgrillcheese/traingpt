@@ -53,7 +53,7 @@ export async function GET() {
 
   const { error } = await supabase
     .from('strava_activities')
-    .upsert(upserts, { onConflict: ['user_id', 'start_date'] });
+    .upsert(upserts, { onConflict: 'user_id,start_date' });
 
   if (error) {
     console.error('[SUPABASE_UPSERT_ERROR]', error);
