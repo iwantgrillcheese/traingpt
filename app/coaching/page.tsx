@@ -7,7 +7,6 @@ import Link from 'next/link';
 import Head from 'next/head';
 import { useMediaQuery } from 'react-responsive';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import TypingDots from '@/components/TypingDots'; // ✅ Ensure this exists
 
 const supabase = createClientComponentClient();
 const COLORS = ['#60A5FA', '#34D399', '#FBBF24'];
