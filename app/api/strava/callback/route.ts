@@ -11,7 +11,7 @@ export async function GET(req: Request) {
   const code = url.searchParams.get('code');
 
   if (!code) {
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_BASE_URL}/coaching?error=missing_code`);
+    return NextResponse.redirect(`https://www.traingpt.co/coaching?error=missing_code`);
   }
 
   try {
@@ -30,17 +30,17 @@ export async function GET(req: Request) {
 
     if (!tokenRes.ok) {
       console.error('[STRAVA_TOKEN_ERROR]', tokenData);
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_BASE_URL}/coaching?error=strava_token_failed`);
+      return NextResponse.redirect(`https://www.traingpt.co/coaching?error=strava_token_failed`);
     }
 
     const { access_token, refresh_token, expires_at, athlete } = tokenData;
 
     const {
-      data: { session },
-    } = await supabase.auth.getSession();
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    if (!session?.user?.id) {
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_BASE_URL}/coaching?error=no_user_session`);
+    if (!user?.id) {
+      return NextResponse.redirect(`https://www.traingpt.co/coaching?error=no_user_session`);
     }
 
     await supabase
@@ -51,11 +51,11 @@ export async function GET(req: Request) {
         strava_expires_at: expires_at,
         strava_athlete_id: athlete?.id,
       })
-      .eq('id', session.user.id);
+      .eq('id', user.id);
 
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_BASE_URL}/coaching?success=strava_connected`);
+    return NextResponse.redirect(`https://www.traingpt.co/coaching?success=strava_connected`);
   } catch (err) {
     console.error('[STRAVA_CALLBACK_ERROR]', err);
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_BASE_URL}/coaching?error=unexpected_error`);
+    return NextResponse.redirect(`https://www.traingpt.co/coaching?error=unexpected_error`);
   }
 }
