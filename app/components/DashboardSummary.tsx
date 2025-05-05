@@ -48,8 +48,14 @@ export default function DashboardSummary() {
         const hours = a.moving_time / 3600;
         totals[mapped] += hours;
 
-        const dateKey = format(new Date(a.start_date_local), 'yyyy-MM-dd');
-        activeDays.add(dateKey);
+const activityDate = new Date(a.start_date_local);
+const sevenDaysAgo = new Date();
+sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // includes today
+
+if (activityDate >= sevenDaysAgo) {
+  const dateKey = format(activityDate, 'yyyy-MM-dd');
+  activeDays.add(dateKey);
+}
 
         const weekKey = format(startOfWeek(new Date(a.start_date_local)), 'yyyy-MM-dd');
         weeks[weekKey] = (weeks[weekKey] || 0) + hours;
