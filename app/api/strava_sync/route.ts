@@ -1,70 +1,64 @@
-// app/api/strava/sync/route.ts
+// /app/api/strava_sync/route.ts
 import { NextResponse } from 'next/server';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
+import { subDays, formatISO } from 'date-fns';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-export async function GET(req: Request) {
-  const supabase = createServerComponentClient({ cookies });
-
+export async function GET() {
+  const supabase = createRouteHandlerClient({ cookies });
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (!user?.id) {
+    return NextResponse.json({ error: 'No user session' }, { status: 401 });
   }
 
   const { data: profile } = await supabase
     .from('profiles')
     .select('strava_access_token')
-    .eq('id', session.user.id)
+    .eq('id', user.id)
     .single();
 
-  if (!profile?.strava_access_token) {
-    return NextResponse.json({ error: 'No Strava access token found' }, { status: 400 });
+  const token = profile?.strava_access_token;
+  if (!token) {
+    return NextResponse.json({ error: 'No Strava access token' }, { status: 400 });
   }
 
-  try {
-    const res = await fetch('https://www.strava.com/api/v3/athlete/activities?per_page=50', {
-      headers: {
-        Authorization: `Bearer ${profile.strava_access_token}`,
-      },
-    });
+  const afterDate = Math.floor(subDays(new Date(), 28).getTime() / 1000); // 28 days ago
 
-    const activities = await res.json();
+  const res = await fetch(`https://www.strava.com/api/v3/athlete/activities?after=${afterDate}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
 
-    if (!Array.isArray(activities)) {
-      console.error('[STRAVA_API_ERROR]', activities);
-      return NextResponse.json({ error: 'Invalid Strava response' }, { status: 500 });
-    }
-
-    const rows = activities.map((act) => ({
-      id: act.id,
-      user_id: session.user.id,
-      name: act.name,
-      sport_type: act.sport_type,
-      start_date: act.start_date,
-      start_date_local: act.start_date_local,
-      moving_time: act.moving_time,
-      distance: act.distance,
-      manual: act.manual || false,
-    }));
-
-    if (rows.length > 0) {
-      const { error: insertError } = await supabase.from('strava_activities').upsert(rows, { onConflict: 'id' });
-
-      if (insertError) {
-        console.error('[SUPABASE_INSERT_ERROR]', insertError);
-        return NextResponse.json({ error: 'Failed to save activities' }, { status: 500 });
-      }
-    }
-
-    return NextResponse.json({ success: true, count: rows.length });
-  } catch (err) {
-    console.error('[STRAVA_SYNC_ERROR]', err);
-    return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });
+  const activities = await res.json();
+  if (!Array.isArray(activities)) {
+    return NextResponse.json({ error: 'Failed to fetch activities from Strava' }, { status: 500 });
   }
+
+  const upserts = activities.map((a) => ({
+    user_id: user.id,
+    name: a.name,
+    sport_type: a.sport_type,
+    start_date: a.start_date,
+    start_date_local: a.start_date_local,
+    moving_time: a.moving_time,
+    distance: a.distance,
+  }));
+
+  const { error } = await supabase
+    .from('strava_activities')
+    .upsert(upserts, { onConflict: ['user_id', 'start_date'] });
+
+  if (error) {
+    console.error('[SUPABASE_UPSERT_ERROR]', error);
+    return NextResponse.json({ error: 'Failed to store activities' }, { status: 500 });
+  }
+
+  return NextResponse.json({ message: 'Synced successfully', count: upserts.length });
 }
