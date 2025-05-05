@@ -1,5 +1,3 @@
-// CoachingDashboard.tsx — Always inline preview + modal popup on mobile
-
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -23,13 +21,13 @@ function TypingDots() {
 
 export default function CoachingDashboard() {
   const [question, setQuestion] = useState('');
-const [messages, setMessages] = useState<{ role: string; content: string; timestamp: number; error?: boolean }[]>([
-  {
-    role: 'assistant',
-    content: "Hey, I’m your AI coach. Ask me anything about your training and I’ll do my best to help.",
-    timestamp: Date.now(),
-  }
-]);
+  const [messages, setMessages] = useState<{ role: string; content: string; timestamp: number; error?: boolean }[]>([
+    {
+      role: 'assistant',
+      content: "Hey, I’m your AI coach. Ask me anything about your training and I’ll do my best to help.",
+      timestamp: Date.now(),
+    }
+  ]);
   const [upcomingSessions, setUpcomingSessions] = useState<{ date: string; sessions: string[] }[]>([]);
   const [raceType, setRaceType] = useState('Olympic');
   const [raceDate, setRaceDate] = useState('');
@@ -130,7 +128,7 @@ const [messages, setMessages] = useState<{ role: string; content: string; timest
   };
 
   const ChatBox = () => (
-    <div className="border border-gray-200 rounded-xl p-4 shadow bg-white max-h-[40vh] overflow-y-auto mb-4">
+    <div className="border border-gray-200 rounded-xl p-4 shadow bg-white max-h-[60vh] overflow-y-auto mb-4">
       {messages.map((msg, i) => (
         <div key={i} className={`max-w-[85%] mb-2 p-3 rounded-xl text-sm ${msg.role === 'user' ? 'bg-blue-100 text-blue-900 ml-auto' : 'bg-gray-100 text-gray-900 mr-auto'}`}>
           <div className="flex justify-between items-center mb-1">
@@ -152,15 +150,11 @@ const [messages, setMessages] = useState<{ role: string; content: string; timest
       </Head>
 
       <main className="flex flex-col min-h-screen max-w-4xl mx-auto px-4 py-6 sm:px-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold mb-2">Coaching Dashboard</h1>
-          <div className="text-sm text-gray-500 mb-1">Race type: {raceType} | Experience: {experienceLevel}</div>
-          {raceDate && <div className="text-sm text-gray-500">Race in {formatDistanceToNow(new Date(raceDate), { addSuffix: true })}</div>}
-        </div>
 
-        <h3 className="text-base font-medium text-gray-800 mb-2">Ask Your Coach</h3>
+        <h1 className="text-2xl font-bold mb-4">Your AI Coach</h1>
+
         <ChatBox />
-        <div className="flex gap-3">
+        <div className="flex gap-3 sticky bottom-0 bg-white pt-2 pb-4">
           <textarea
             className="flex-1 border rounded-xl px-4 py-2 text-sm resize-none"
             placeholder="Ask your coach anything..."
@@ -183,8 +177,32 @@ const [messages, setMessages] = useState<{ role: string; content: string; timest
           </button>
         </div>
 
+        {/* Compliance Section */}
+        <div className="mt-10 mb-8">
+          <h2 className="text-lg font-semibold mb-2">Your Progress</h2>
+          <div className="flex overflow-x-auto gap-2">
+            {['Week 1', 'Week 2', 'Week 3'].map((week, i) => (
+              <div key={i} className="flex flex-col items-center bg-gray-100 px-3 py-2 rounded-lg text-sm min-w-[80px]">
+                <span className="font-medium">{week}</span>
+                <span className="text-green-600">✓✓✓✗✓✓✗</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Race Details */}
+        <div className="mb-6">
+          <h3 className="text-base font-medium text-gray-800 mb-1">Plan Info</h3>
+          <div className="text-sm text-gray-500 mb-1">Race type: {raceType} | Experience: {experienceLevel}</div>
+          {raceDate && (
+            <div className="text-sm text-gray-500">
+              Race in {formatDistanceToNow(new Date(raceDate), { addSuffix: true })}
+            </div>
+          )}
+        </div>
+
         {/* Upcoming Sessions */}
-        <section className="mb-10 mt-8">
+        <section className="mb-10">
           <h2 className="text-lg font-semibold mb-2">Upcoming Sessions</h2>
           {upcomingSessions.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -202,7 +220,8 @@ const [messages, setMessages] = useState<{ role: string; content: string; timest
           )}
         </section>
 
-        <div className="text-center mt-8">
+        {/* Strava */}
+        <div className="text-center mt-auto">
           {stravaConnected ? (
             <div className="inline-flex items-center gap-2 px-5 py-3 border border-green-500 text-green-600 bg-green-50 rounded-xl">
               <img src="/strava-2.svg" alt="Strava" className="h-5 w-auto" />
