@@ -24,12 +24,12 @@ function TypingDots() {
 export default function CoachingDashboard() {
   const [question, setQuestion] = useState('');
   const [messages, setMessages] = useState([{ role: 'assistant', content: "Hey, I’m your AI coach. Ask me anything about your training and I’ll do my best to help.", timestamp: Date.now() }]);
-const [upcomingSessions, setUpcomingSessions] = useState<{ date: string; sessions: string[] }[]>([]);
+  const [upcomingSessions, setUpcomingSessions] = useState<{ date: string; sessions: string[] }[]>([]);
   const [raceType, setRaceType] = useState('Olympic');
   const [raceDate, setRaceDate] = useState('');
   const [experienceLevel, setExperienceLevel] = useState('Intermediate');
   const [stravaConnected, setStravaConnected] = useState(false);
-  const [stravaData, setStravaData] = useState(null);
+  const [stravaData, setStravaData] = useState<any[] | null>(null);
   const messagesEndRef = useRef(null);
   const isMobile = useMediaQuery({ query: '(max-width: 640px)' });
   const today = new Date().toISOString().split('T')[0];
@@ -52,14 +52,14 @@ const [upcomingSessions, setUpcomingSessions] = useState<{ date: string; session
         setRaceDate(plans.race_date || '');
         setExperienceLevel(plans.experience || 'Intermediate');
 
-        const sessions = [];
+        const sessions: { date: string; sessions: string[] }[] = [];
         const todayDate = new Date(today);
 
         for (const week of plans.plan) {
           for (const [date, sessionList] of Object.entries(week.days)) {
             const parsedDate = new Date(date);
             if (parsedDate >= todayDate && sessions.length < 7) {
-              sessions.push({ date, sessions: sessionList });
+              sessions.push({ date, sessions: sessionList as string[] });
             }
           }
         }
@@ -78,8 +78,6 @@ const [upcomingSessions, setUpcomingSessions] = useState<{ date: string; session
 
       if (stravaProfile?.strava_access_token) {
         setStravaConnected(true);
-
-        // Immediately trigger strava_sync API
         await fetch('/api/strava_sync');
 
         const { data: activities } = await supabase
@@ -87,8 +85,6 @@ const [upcomingSessions, setUpcomingSessions] = useState<{ date: string; session
           .select('sport_type, moving_time, start_date_local')
           .eq('user_id', user.id)
           .gte('start_date_local', startOfDay(subDays(new Date(), 28)).toISOString());
-
-        console.log('[STRAVA DATA]', activities);
 
         if (activities) setStravaData(activities);
       }
@@ -135,7 +131,6 @@ const [upcomingSessions, setUpcomingSessions] = useState<{ date: string; session
       setMessages((prev) => [...prev.slice(0, -1), { role: 'assistant', content: 'Sorry, something went wrong. Try again.', timestamp: Date.now(), error: true }]);
     }
   };
-
   const ChatBox = () => (
     <div className="border border-gray-200 rounded-xl p-4 shadow bg-white max-h-[60vh] overflow-y-auto mb-4">
       {messages.map((msg, i) => (
