@@ -1,13 +1,12 @@
-// /app/api/strava_sync/route.ts
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
-import { subDays, formatISO } from 'date-fns';
+import { subDays } from 'date-fns';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-export async function GET() 
+export async function GET(req: Request) {
   const supabase = createRouteHandlerClient({ cookies });
   const {
     data: { user },
@@ -53,8 +52,7 @@ export async function GET()
 
   const { error } = await supabase
     .from('strava_activities')
-    .upsert(upserts, { onConflict: ['user_id', 'start_date'] });
-
+    .upsert(upserts, { onConflict: 'user_id,start_date' });
 
   if (error) {
     console.error('[SUPABASE_UPSERT_ERROR]', error);
