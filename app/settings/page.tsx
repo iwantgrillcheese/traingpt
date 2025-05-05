@@ -5,7 +5,7 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 export default function ProfilePage() {
   const supabase = createClientComponentClient();
-  const [profile, setProfile] = useState<{ name: string; email: string; avatar: string } | null>(null);
+  const [profile, setProfile] = useState<any>(null);
   const [optIn, setOptIn] = useState<boolean>(true);
 
   useEffect(() => {
@@ -27,8 +27,9 @@ export default function ProfilePage() {
         avatar: user_metadata?.avatar_url || '',
       });
 
-      const { data: userData } = await supabase.from('users').select('marketing_opt_in').eq('id', session.user.id).single();
+      const { data: userData } = await supabase.from('users').select('marketing_opt_in, strava_access_token').eq('id', session.user.id).single();
       if (userData?.marketing_opt_in !== undefined) setOptIn(userData.marketing_opt_in);
+      if (userData) setProfile((prev: any) => ({ ...prev, ...userData }));
     };
 
     loadProfile();
@@ -43,6 +44,11 @@ export default function ProfilePage() {
     const newOpt = !optIn;
     setOptIn(newOpt);
     await supabase.from('users').update({ marketing_opt_in: newOpt }).eq('id', session.user.id);
+  };
+
+  const handleDisconnectStrava = async () => {
+    await fetch('/api/strava_disconnect', { method: 'POST' });
+    window.location.reload();
   };
 
   const handleDeleteAccount = async () => {
@@ -88,6 +94,33 @@ export default function ProfilePage() {
             <input type="checkbox" checked={optIn} onChange={toggleOptIn} className="w-4 h-4" />
             I’d like to receive occasional product updates and tips
           </label>
+        </section>
+
+        <section className="bg-white border rounded-xl p-6 shadow-sm">
+          <h2 className="text-lg font-medium mb-4">Connected Apps</h2>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-800">Strava</p>
+              <p className="text-sm text-gray-500">
+                {profile?.strava_access_token ? 'Connected' : 'Not connected'}
+              </p>
+            </div>
+            {profile?.strava_access_token ? (
+              <button
+                onClick={handleDisconnectStrava}
+                className="text-red-500 text-sm underline"
+              >
+                Disconnect
+              </button>
+            ) : (
+              <a
+                href={`https://www.strava.com/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID}&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_BASE_URL}/api/strava/callback&scope=activity:read_all,profile:read_all`}
+                className="text-blue-500 text-sm underline"
+              >
+                Connect
+              </a>
+            )}
+          </div>
         </section>
 
         <section className="bg-red-50 border border-red-200 rounded-xl p-6 shadow-sm">
