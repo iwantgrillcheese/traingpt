@@ -54,7 +54,12 @@ export async function GET(req: Request) {
         strava_athlete_id: athlete?.id,
       })
       .eq('id', user.id);
-
+    
+await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/strava_sync`, {
+  headers: {
+    Cookie: req.headers.get('cookie') ?? '',
+  },
+});
     return NextResponse.redirect(`https://www.traingpt.co/coaching?success=strava_connected`);
   } catch (err) {
     console.error('[STRAVA_CALLBACK_ERROR]', err);
