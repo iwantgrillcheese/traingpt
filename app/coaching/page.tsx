@@ -146,7 +146,7 @@ export default function CoachingDashboard() {
             <span className="font-semibold text-xs">{msg.role === 'user' ? 'You' : '🏆 Coach'}</span>
             <span className="text-[10px] text-gray-400">{formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}</span>
           </div>
-          {msg.content === 'Thinking...' ? <TypingDots /> : <p>{msg.content}</p>}
+          <p>{msg.content}</p>
           {msg.error && <button className="mt-1 text-xs text-red-600 underline" onClick={() => setQuestion(messages[messages.length - 2]?.content || '')}>Retry</button>}
         </div>
       ))}
