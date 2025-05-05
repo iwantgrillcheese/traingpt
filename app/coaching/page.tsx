@@ -10,6 +10,8 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 
 const supabase = createClientComponentClient();
 const COLORS = ['#60A5FA', '#34D399', '#FBBF24'];
+const validSports = ['Swim', 'Bike', 'Run'] as const;
+type Sport = (typeof validSports)[number];
 
 type ChatMessage = {
   role: string;
@@ -157,7 +159,7 @@ export default function CoachingDashboard() {
     if (!stravaData) return null;
 
     const weeklyVolume = [0, 0, 0, 0];
-    const sportTotals = { Swim: 0, Bike: 0, Run: 0 };
+    const sportTotals: Record<Sport, number> = { Swim: 0, Bike: 0, Run: 0 };
     const uniqueDays = new Set();
 
     for (const session of stravaData) {
@@ -167,9 +169,9 @@ export default function CoachingDashboard() {
         weeklyVolume[3 - weekIndex] += session.moving_time / 3600;
       }
       uniqueDays.add(format(date, 'yyyy-MM-dd'));
-      const type = session.sport_type;
-      if (sportTotals[type] !== undefined) {
-        sportTotals[type] += session.moving_time / 3600;
+
+      if (validSports.includes(session.sport_type as Sport)) {
+        sportTotals[session.sport_type as Sport] += session.moving_time / 3600;
       }
     }
 
