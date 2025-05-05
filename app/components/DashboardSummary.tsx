@@ -6,9 +6,9 @@ import { format, startOfWeek } from 'date-fns';
 
 const COLORS = ['#60A5FA', '#34D399', '#FBBF24']; // Swim, Bike, Run
 
-type RawSportType = 'Swim' | 'Ride' | 'Run';
+type SportCategory = 'Swim' | 'Bike' | 'Run';
 
-const displayMap: Record<RawSportType, string> = {
+const categoryMap: Record<string, SportCategory | null> = {
   Swim: 'Swim',
   Ride: 'Bike',
   Run: 'Run',
@@ -18,7 +18,7 @@ export default function DashboardSummary() {
   const [summary, setSummary] = useState<{
     totalTime: number;
     weeklyVolume: number[];
-    sportBreakdown: { name: string; value: number }[];
+    sportBreakdown: { name: SportCategory; value: number }[];
     consistency: string;
   }>({
     totalTime: 0,
@@ -32,9 +32,9 @@ export default function DashboardSummary() {
       const res = await fetch('/api/strava_sync');
       const { data } = await res.json();
 
-      const totals: Record<RawSportType, number> = {
+      const totals: Record<SportCategory, number> = {
         Swim: 0,
-        Ride: 0,
+        Bike: 0,
         Run: 0,
       };
 
@@ -42,11 +42,11 @@ export default function DashboardSummary() {
       const weeks: Record<string, number> = {};
 
       data.forEach((a: any) => {
+        const mapped = categoryMap[a.sport_type];
+        if (!mapped) return;
+
         const hours = a.moving_time / 3600;
-        const sport = a.sport_type as RawSportType;
-        if (sport in totals) {
-          totals[sport] += hours;
-        }
+        totals[mapped] += hours;
 
         const dateKey = format(new Date(a.start_date_local), 'yyyy-MM-dd');
         activeDays.add(dateKey);
@@ -60,9 +60,9 @@ export default function DashboardSummary() {
       setSummary({
         totalTime: Object.values(totals).reduce((a, b) => a + b, 0),
         weeklyVolume,
-        sportBreakdown: Object.entries(totals).map(([key, value]) => ({
-          name: displayMap[key as RawSportType],
-          value,
+        sportBreakdown: (['Swim', 'Bike', 'Run'] as SportCategory[]).map((sport, i) => ({
+          name: sport,
+          value: parseFloat(totals[sport].toFixed(1)),
         })),
         consistency: `${activeDays.size} of last 7 days`,
       });
@@ -118,7 +118,7 @@ export default function DashboardSummary() {
                   cy="50%"
                   outerRadius={60}
                   innerRadius={30}
-                  label={({ value }) => `${value.toFixed(1)}`}
+                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                 >
                   {summary.sportBreakdown.map((_, i) => (
                     <Cell key={i} fill={COLORS[i % COLORS.length]} />
