@@ -5,7 +5,7 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { format, formatDistanceToNow, parseISO, isAfter } from 'date-fns';
 import Link from 'next/link';
 import Head from 'next/head';
-import DashboardSummary from '@/components/DashboardSummary';
+import DashboardSummary from '../../components/DashboardSummary';
 import { useMediaQuery } from 'react-responsive';
 
 const supabase = createClientComponentClient();
