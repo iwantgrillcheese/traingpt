@@ -1,3 +1,4 @@
+// /app/api/strava/callback/route.ts
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
@@ -6,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function GET(req: Request) {
-  const supabase = createRouteHandlerClient({ cookies }); // ✅ FIXED HERE
+  const supabase = createRouteHandlerClient({ cookies });
   const url = new URL(req.url);
   const code = url.searchParams.get('code');
 
@@ -40,11 +41,11 @@ export async function GET(req: Request) {
     } = await supabase.auth.getUser();
 
     if (!user?.id) {
-      console.error('[NO_USER]', user);
+      console.error('[NO_USER]', null);
       return NextResponse.redirect(`https://www.traingpt.co/coaching?error=no_user_session`);
     }
 
-    const { error } = await supabase
+    await supabase
       .from('profiles')
       .update({
         strava_access_token: access_token,
@@ -53,11 +54,6 @@ export async function GET(req: Request) {
         strava_athlete_id: athlete?.id,
       })
       .eq('id', user.id);
-
-    if (error) {
-      console.error('[SUPABASE_UPDATE_ERROR]', error);
-      return NextResponse.redirect(`https://www.traingpt.co/coaching?error=update_failed`);
-    }
 
     return NextResponse.redirect(`https://www.traingpt.co/coaching?success=strava_connected`);
   } catch (err) {
