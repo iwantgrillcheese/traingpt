@@ -32,7 +32,9 @@ export default function CoachingDashboard() {
   const [raceDate, setRaceDate] = useState('');
   const [experienceLevel, setExperienceLevel] = useState('Intermediate');
   const [stravaConnected, setStravaConnected] = useState(false);
-  const [stravaData, setStravaData] = useState(null);
+const [stravaData, setStravaData] = useState<
+  { sport_type: string; moving_time: number; start_date_local: string }[] | null
+>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isMobile = useMediaQuery({ query: '(max-width: 640px)' });
   const today = new Date().toISOString().split('T')[0];
