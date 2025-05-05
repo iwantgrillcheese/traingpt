@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function GET(req: Request) {
-  const supabase = createServerComponentClient({ cookies });
+  const supabase = createRouteHandlerClient({ cookies }); // ✅ FIXED HERE
   const url = new URL(req.url);
   const code = url.searchParams.get('code');
 
@@ -40,18 +40,24 @@ export async function GET(req: Request) {
     } = await supabase.auth.getUser();
 
     if (!user?.id) {
+      console.error('[NO_USER]', user);
       return NextResponse.redirect(`https://www.traingpt.co/coaching?error=no_user_session`);
     }
 
-    // 💡 Upsert guarantees a row is created if missing
-    await supabase.from('profiles').upsert({
-      id: user.id,
-      strava_access_token: access_token,
-      strava_refresh_token: refresh_token,
-      strava_expires_at: expires_at,
-      strava_athlete_id: athlete?.id,
-      updated_at: new Date().toISOString(),
-    });
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        strava_access_token: access_token,
+        strava_refresh_token: refresh_token,
+        strava_expires_at: expires_at,
+        strava_athlete_id: athlete?.id,
+      })
+      .eq('id', user.id);
+
+    if (error) {
+      console.error('[SUPABASE_UPDATE_ERROR]', error);
+      return NextResponse.redirect(`https://www.traingpt.co/coaching?error=update_failed`);
+    }
 
     return NextResponse.redirect(`https://www.traingpt.co/coaching?success=strava_connected`);
   } catch (err) {
