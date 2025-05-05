@@ -151,93 +151,74 @@ export default function CoachingDashboard() {
 
       <main className="flex flex-col min-h-screen max-w-4xl mx-auto px-4 py-6 sm:px-6">
 
-        <h1 className="text-2xl font-bold mb-4">Your AI Coach</h1>
+  <h1 className="text-2xl font-bold mb-4">Your AI Coach</h1>
 
-        <ChatBox />
-        <div className="flex gap-3 sticky bottom-0 bg-white pt-2 pb-4">
-          <textarea
-            className="flex-1 border rounded-xl px-4 py-2 text-sm resize-none"
-            placeholder="Ask your coach anything..."
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                askCoach();
-              }
-            }}
-            rows={1}
-          />
-          <button
-            onClick={askCoach}
-            disabled={!question.trim()}
-            className="px-6 py-2 bg-black text-white rounded-xl text-sm font-semibold disabled:opacity-50"
-          >
-            Send
-          </button>
-        </div>
+  <ChatBox />
+  <div className="flex gap-3 sticky bottom-0 bg-white pt-2 pb-4">
+    <textarea
+      className="flex-1 border rounded-xl px-4 py-2 text-sm resize-none"
+      placeholder="Ask your coach anything..."
+      value={question}
+      onChange={(e) => setQuestion(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          askCoach();
+        }
+      }}
+      rows={1}
+    />
+    <button
+      onClick={askCoach}
+      disabled={!question.trim()}
+      className="px-6 py-2 bg-black text-white rounded-xl text-sm font-semibold disabled:opacity-50"
+    >
+      Send
+    </button>
+  </div>
 
-        {/* Compliance Section */}
-        <div className="mt-10 mb-8">
-          <h2 className="text-lg font-semibold mb-2">Your Progress</h2>
-          <div className="flex overflow-x-auto gap-2">
-            {['Week 1', 'Week 2', 'Week 3'].map((week, i) => (
-              <div key={i} className="flex flex-col items-center bg-gray-100 px-3 py-2 rounded-lg text-sm min-w-[80px]">
-                <span className="font-medium">{week}</span>
-                <span className="text-green-600">✓✓✓✗✓✓✗</span>
-              </div>
-            ))}
+  {/* Upcoming Sessions */}
+  <section className="mb-10 mt-10">
+    <h2 className="text-lg font-semibold mb-2">Upcoming Sessions</h2>
+    {upcomingSessions.length > 0 ? (
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {upcomingSessions.map(({ date, sessions }, i) => (
+          <div key={i} className="border border-gray-200 rounded-xl p-4 shadow-sm bg-white">
+            <p className="text-sm font-medium text-gray-700 mb-2">{format(parseISO(date), 'EEEE, MMM d')}</p>
+            <ul className="text-sm text-gray-700 space-y-1">
+              {sessions.map((s, j) => <li key={j}>• {s}</li>)}
+            </ul>
           </div>
-        </div>
+        ))}
+      </div>
+    ) : (
+      <p className="text-sm text-gray-500 italic">No upcoming training sessions found.</p>
+    )}
+  </section>
 
-        {/* Race Details */}
-        <div className="mb-6">
-          <h3 className="text-base font-medium text-gray-800 mb-1">Plan Info</h3>
-          <div className="text-sm text-gray-500 mb-1">Race type: {raceType} | Experience: {experienceLevel}</div>
-          {raceDate && (
-            <div className="text-sm text-gray-500">
-              Race in {formatDistanceToNow(new Date(raceDate), { addSuffix: true })}
-            </div>
-          )}
-        </div>
+  {/* Strava Connection */}
+  <div className="text-center mb-8">
+    {stravaConnected ? (
+      <div className="inline-flex items-center gap-2 px-5 py-3 border border-green-500 text-green-600 bg-green-50 rounded-xl">
+        <img src="/strava-2.svg" alt="Strava" className="h-5 w-auto" />
+        <span className="font-semibold text-sm">Connected to Strava ✅</span>
+      </div>
+    ) : (
+      <Link
+        href={`https://www.strava.com/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID}&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_STRAVA_REDIRECT_URI}&approval_prompt=force&scope=activity:read_all`}
+        className="inline-flex items-center gap-2 px-5 py-3 border border-orange-500 text-orange-600 hover:bg-orange-50 rounded-xl"
+      >
+        <img src="/strava-2.svg" alt="Strava" className="h-5 w-auto" />
+        <span className="font-semibold text-sm">Connect to Strava</span>
+      </Link>
+    )}
+  </div>
 
-        {/* Upcoming Sessions */}
-        <section className="mb-10">
-          <h2 className="text-lg font-semibold mb-2">Upcoming Sessions</h2>
-          {upcomingSessions.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {upcomingSessions.map(({ date, sessions }, i) => (
-                <div key={i} className="border border-gray-200 rounded-xl p-4 shadow-sm bg-white">
-                  <p className="text-sm font-medium text-gray-700 mb-2">{format(parseISO(date), 'EEEE, MMM d')}</p>
-                  <ul className="text-sm text-gray-700 space-y-1">
-                    {sessions.map((s, j) => <li key={j}>• {s}</li>)}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500 italic">No upcoming training sessions found.</p>
-          )}
-        </section>
-
-        {/* Strava */}
-        <div className="text-center mt-auto">
-          {stravaConnected ? (
-            <div className="inline-flex items-center gap-2 px-5 py-3 border border-green-500 text-green-600 bg-green-50 rounded-xl">
-              <img src="/strava-2.svg" alt="Strava" className="h-5 w-auto" />
-              <span className="font-semibold text-sm">Connected to Strava ✅</span>
-            </div>
-          ) : (
-            <Link
-              href={`https://www.strava.com/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID}&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_STRAVA_REDIRECT_URI}&approval_prompt=force&scope=activity:read_all`}
-              className="inline-flex items-center gap-2 px-5 py-3 border border-orange-500 text-orange-600 hover:bg-orange-50 rounded-xl"
-            >
-              <img src="/strava-2.svg" alt="Strava" className="h-5 w-auto" />
-              <span className="font-semibold text-sm">Connect to Strava</span>
-            </Link>
-          )}
-        </div>
-      </main>
+  {/* Race Details (minimized) */}
+  <div className="text-center text-sm text-gray-500 mt-auto">
+    {raceType} | {experienceLevel} | {raceDate && `Race in ${formatDistanceToNow(new Date(raceDate), { addSuffix: true })}`}
+  </div>
+</main>
     </>
   );
 }
