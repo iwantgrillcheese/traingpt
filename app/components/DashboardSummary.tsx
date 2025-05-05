@@ -6,9 +6,9 @@ import { format, startOfWeek } from 'date-fns';
 
 const COLORS = ['#60A5FA', '#34D399', '#FBBF24']; // Swim, Bike, Run
 
-type SportCategory = 'Swim' | 'Ride' | 'Run';
+type RawSportType = 'Swim' | 'Ride' | 'Run';
 
-const displayMap: Record<SportCategory, string> = {
+const displayMap: Record<RawSportType, string> = {
   Swim: 'Swim',
   Ride: 'Bike',
   Run: 'Run',
@@ -32,7 +32,7 @@ export default function DashboardSummary() {
       const res = await fetch('/api/strava_sync');
       const { data } = await res.json();
 
-      const totals: Record<SportCategory, number> = {
+      const totals: Record<RawSportType, number> = {
         Swim: 0,
         Ride: 0,
         Run: 0,
@@ -43,7 +43,7 @@ export default function DashboardSummary() {
 
       data.forEach((a: any) => {
         const hours = a.moving_time / 3600;
-        const sport = a.sport_type as SportCategory;
+        const sport = a.sport_type as RawSportType;
         if (sport in totals) {
           totals[sport] += hours;
         }
@@ -61,7 +61,7 @@ export default function DashboardSummary() {
         totalTime: Object.values(totals).reduce((a, b) => a + b, 0),
         weeklyVolume,
         sportBreakdown: Object.entries(totals).map(([key, value]) => ({
-          name: displayMap[key as SportCategory],
+          name: displayMap[key as RawSportType],
           value,
         })),
         consistency: `${activeDays.size} of last 7 days`,
@@ -118,7 +118,7 @@ export default function DashboardSummary() {
                   cy="50%"
                   outerRadius={60}
                   innerRadius={30}
-                  label
+                  label={({ value }) => `${value.toFixed(1)}`}
                 >
                   {summary.sportBreakdown.map((_, i) => (
                     <Cell key={i} fill={COLORS[i % COLORS.length]} />
