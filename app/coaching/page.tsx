@@ -155,76 +155,97 @@ export default function CoachingDashboard() {
     </div>
   );
 
-  const DashboardSummary = () => {
-    if (!stravaData) return null;
+const DashboardSummary = () => {
+  if (!stravaData || stravaData.length === 0) return null;
 
-    const weeklyVolume = [0, 0, 0, 0];
-    const sportTotals: Record<Sport, number> = { Swim: 0, Bike: 0, Run: 0 };
-    const uniqueDays = new Set();
+  const weeklyVolume = [0, 0, 0, 0];
+  const validTypes = ['Swim', 'Bike', 'Run'] as const;
+  type ValidSport = typeof validTypes[number];
+  const sportTotals: Record<ValidSport, number> = { Swim: 0, Bike: 0, Run: 0 };
+  const uniqueDays = new Set<string>();
 
-    for (const session of stravaData) {
-      const date = parseISO(session.start_date_local);
-      const weekIndex = Math.floor((Date.now() - date.getTime()) / (7 * 24 * 60 * 60 * 1000));
-      if (weekIndex >= 0 && weekIndex < 4) {
-        weeklyVolume[3 - weekIndex] += session.moving_time / 3600;
-      }
-      uniqueDays.add(format(date, 'yyyy-MM-dd'));
-
-      if (validSports.includes(session.sport_type as Sport)) {
-        sportTotals[session.sport_type as Sport] += session.moving_time / 3600;
-      }
+  for (const session of stravaData) {
+    const date = parseISO(session.start_date_local);
+    const weekIndex = Math.floor((Date.now() - date.getTime()) / (7 * 24 * 60 * 60 * 1000));
+    if (weekIndex >= 0 && weekIndex < 4) {
+      weeklyVolume[3 - weekIndex] += session.moving_time / 3600;
     }
+    uniqueDays.add(format(date, 'yyyy-MM-dd'));
 
-    const totalTime = Object.values(sportTotals).reduce((a, b) => a + b, 0).toFixed(1);
-    const chartData = Object.entries(sportTotals).map(([k, v]) => ({ name: k, value: v }));
+    const type = session.sport_type as ValidSport;
+    if (validTypes.includes(type)) {
+      sportTotals[type] += session.moving_time / 3600;
+    }
+  }
 
-    return (
-      <section className="mt-10 mb-4">
-        <h2 className="text-lg font-semibold mb-2">Training Summary</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="border rounded-xl p-4 bg-white shadow-sm">
-            <p className="text-sm text-gray-500 mb-1">Total Time This Week</p>
-            <p className="text-xl font-bold text-gray-800">{totalTime}h</p>
-          </div>
-          <div className="border rounded-xl p-4 bg-white shadow-sm">
-            <p className="text-sm text-gray-500 mb-1">Training Consistency</p>
-            <p className="text-xl font-bold text-gray-800">{uniqueDays.size} of last 7 days</p>
-          </div>
-          <div className="border rounded-xl p-4 bg-white shadow-sm col-span-1 sm:col-span-2">
-            <p className="text-sm text-gray-500 mb-2">Weekly Volume (hrs)</p>
-            <div className="flex items-end gap-2 h-20">
-              {weeklyVolume.map((val, i) => (
-                <div key={i} className="flex flex-col items-center">
-                  <div className="bg-blue-500 w-4 rounded" style={{ height: `${val * 10}px` }} title={`${val.toFixed(1)} hrs`} />
-                  <span className="text-[10px] text-gray-500 mt-1">W{i + 1}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="border rounded-xl p-4 bg-white shadow-sm col-span-1 sm:col-span-2">
-            <p className="text-sm text-gray-500 mb-2">Sport Breakdown</p>
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie data={chartData} dataKey="value" nameKey="name" outerRadius={80} fill="#8884d8" label>
-                  {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-            <ul className="flex gap-4 justify-center mt-4 text-sm">
-              {chartData.map((entry, i) => (
-                <li key={i} className="flex items-center gap-2">
-                  <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }}></span>
-                  {entry.name}: {entry.value.toFixed(1)}h
-                </li>
-              ))}
-            </ul>
+  const totalTime = Object.values(sportTotals).reduce((a, b) => a + b, 0).toFixed(1);
+  const chartData = Object.entries(sportTotals).map(([k, v]) => ({ name: k, value: v }));
+
+  return (
+    <section className="mt-10 mb-4">
+      <h2 className="text-lg font-semibold mb-2">Training Summary</h2>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="border rounded-xl p-4 bg-white shadow-sm">
+          <p className="text-sm text-gray-500 mb-1">Total Time This Week</p>
+          <p className="text-xl font-bold text-gray-800">{totalTime}h</p>
+        </div>
+
+        <div className="border rounded-xl p-4 bg-white shadow-sm">
+          <p className="text-sm text-gray-500 mb-1">Training Consistency</p>
+          <p className="text-xl font-bold text-gray-800">{uniqueDays.size} of last 7 days</p>
+        </div>
+
+        <div className="border rounded-xl p-4 bg-white shadow-sm col-span-1 sm:col-span-2">
+          <p className="text-sm text-gray-500 mb-2">Weekly Volume (hrs)</p>
+          <div className="flex items-end gap-2 h-20">
+            {weeklyVolume.map((val, i) => (
+              <div key={i} className="flex flex-col items-center">
+                <div
+                  className="bg-blue-500 w-4 rounded"
+                  style={{ height: `${val * 10}px` }}
+                  title={`${val.toFixed(1)} hrs`}
+                />
+                <span className="text-[10px] text-gray-500 mt-1">W{i + 1}</span>
+              </div>
+            ))}
           </div>
         </div>
-      </section>
-    );
-  };
+
+        <div className="border rounded-xl p-4 bg-white shadow-sm col-span-1 sm:col-span-2">
+          <p className="text-sm text-gray-500 mb-2">Sport Breakdown</p>
+          <ResponsiveContainer width="100%" height={250}>
+            <PieChart>
+              <Pie
+                data={chartData}
+                dataKey="value"
+                nameKey="name"
+                outerRadius={80}
+                fill="#8884d8"
+                label
+              >
+                {chartData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+            </PieChart>
+          </ResponsiveContainer>
+          <ul className="flex gap-4 justify-center mt-4 text-sm">
+            {chartData.map((entry, i) => (
+              <li key={i} className="flex items-center gap-2">
+                <span
+                  className="inline-block w-3 h-3 rounded-full"
+                  style={{ backgroundColor: COLORS[i % COLORS.length] }}
+                />
+                {entry.name}: {entry.value.toFixed(1)}h
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+  );
+};
 
   return (
     <>
