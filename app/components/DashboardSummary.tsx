@@ -6,19 +6,19 @@ import { format, startOfWeek } from 'date-fns';
 
 const COLORS = ['#60A5FA', '#34D399', '#FBBF24']; // Swim, Bike, Run
 
-const categoryMap = {
+type SportCategory = 'Swim' | 'Ride' | 'Run';
+
+const displayMap: Record<SportCategory, string> = {
   Swim: 'Swim',
   Ride: 'Bike',
   Run: 'Run',
-} as const;
-
-type SportCategory = keyof typeof categoryMap;
+};
 
 export default function DashboardSummary() {
   const [summary, setSummary] = useState<{
     totalTime: number;
     weeklyVolume: number[];
-    sportBreakdown: { name: SportCategory; value: number }[];
+    sportBreakdown: { name: string; value: number }[];
     consistency: string;
   }>({
     totalTime: 0,
@@ -34,7 +34,7 @@ export default function DashboardSummary() {
 
       const totals: Record<SportCategory, number> = {
         Swim: 0,
-        Bike: 0,
+        Ride: 0,
         Run: 0,
       };
 
@@ -43,8 +43,10 @@ export default function DashboardSummary() {
 
       data.forEach((a: any) => {
         const hours = a.moving_time / 3600;
-        const sport = categoryMap[a.sport_type as keyof typeof categoryMap];
-        if (sport) totals[sport] += hours;
+        const sport = a.sport_type as SportCategory;
+        if (sport in totals) {
+          totals[sport] += hours;
+        }
 
         const dateKey = format(new Date(a.start_date_local), 'yyyy-MM-dd');
         activeDays.add(dateKey);
@@ -58,7 +60,10 @@ export default function DashboardSummary() {
       setSummary({
         totalTime: Object.values(totals).reduce((a, b) => a + b, 0),
         weeklyVolume,
-        sportBreakdown: Object.entries(totals).map(([name, value]) => ({ name: name as SportCategory, value })),
+        sportBreakdown: Object.entries(totals).map(([key, value]) => ({
+          name: displayMap[key as SportCategory],
+          value,
+        })),
         consistency: `${activeDays.size} of last 7 days`,
       });
     };
