@@ -21,19 +21,27 @@ export default function ProfilePage() {
       }
 
       const { user_metadata, email } = session.user;
-      setProfile({
+      const baseProfile = {
         name: user_metadata?.full_name || 'Anonymous',
         email: email || '',
         avatar: user_metadata?.avatar_url || '',
-      });
+      };
 
       const { data: userData } = await supabase
-  .from('profiles')
-  .select('marketing_opt_in, strava_access_token')
-  .eq('id', session.user.id)
-  .single();
+        .from('users')
+        .select('marketing_opt_in')
+        .eq('id', session.user.id)
+        .single();
+
       if (userData?.marketing_opt_in !== undefined) setOptIn(userData.marketing_opt_in);
-      if (userData) setProfile((prev: any) => ({ ...prev, ...userData }));
+
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('strava_access_token')
+        .eq('id', session.user.id)
+        .single();
+
+      setProfile({ ...baseProfile, ...profileData });
     };
 
     loadProfile();
@@ -47,7 +55,7 @@ export default function ProfilePage() {
 
     const newOpt = !optIn;
     setOptIn(newOpt);
-    await supabase.from('profiles').update({ marketing_opt_in: newOpt }).eq('id', session.user.id);
+    await supabase.from('users').update({ marketing_opt_in: newOpt }).eq('id', session.user.id);
   };
 
   const handleDisconnectStrava = async () => {
