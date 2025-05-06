@@ -9,13 +9,10 @@ const COLORS = ['#60A5FA', '#34D399', '#FBBF24']; // Swim, Bike, Run
 type SportCategory = 'Swim' | 'Bike' | 'Run';
 
 const categoryMap: Record<string, SportCategory | null> = {
-  Swim: 'Swim',
-  Ride: 'Bike',
-  Run: 'Run',
+  swim: 'Swim',
+  ride: 'Bike',
+  run: 'Run',
 };
-
-const normalizeSport = (sport: string): string =>
-  sport.charAt(0).toUpperCase() + sport.slice(1).toLowerCase();
 
 export default function DashboardSummary() {
   const [summary, setSummary] = useState<{
@@ -43,34 +40,35 @@ export default function DashboardSummary() {
 
       const activeDays = new Set<string>();
       const weeks: Record<string, number> = {};
+      const today = new Date();
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(today.getDate() - 6);
 
       data.forEach((a: any) => {
-        const sportType = normalizeSport(a.sport_type);
-        const mapped = categoryMap[sportType];
+        const mapped = categoryMap[a.sport_type?.toLowerCase()];
         if (!mapped) return;
 
-        const hours = a.moving_time / 3600;
-        totals[mapped] += hours;
-
         const activityDate = new Date(a.start_date_local);
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // includes today
+        const dateKey = format(activityDate, 'yyyy-MM-dd');
+        const weekKey = format(startOfWeek(activityDate), 'yyyy-MM-dd');
+        const hours = a.moving_time / 3600;
 
-        if (activityDate >= sevenDaysAgo) {
-          const dateKey = format(activityDate, 'yyyy-MM-dd');
+        if (activityDate >= sevenDaysAgo && activityDate <= today) {
+          totals[mapped] += hours;
           activeDays.add(dateKey);
         }
 
-        const weekKey = format(startOfWeek(activityDate), 'yyyy-MM-dd');
         weeks[weekKey] = (weeks[weekKey] || 0) + hours;
       });
 
-      const weeklyVolume = Object.values(weeks).slice(-4); // last 4 weeks
+      const weeklyVolume = Object.values(weeks).slice(-4);
 
       setSummary({
-        totalTime: Object.values(totals).reduce((a, b) => a + b, 0),
+        totalTime: parseFloat(
+          Object.values(totals).reduce((a, b) => a + b, 0).toFixed(1)
+        ),
         weeklyVolume,
-        sportBreakdown: (['Swim', 'Bike', 'Run'] as SportCategory[]).map((sport) => ({
+        sportBreakdown: (['Swim', 'Bike', 'Run'] as SportCategory[]).map((sport, i) => ({
           name: sport,
           value: parseFloat(totals[sport].toFixed(1)),
         })),
@@ -86,6 +84,7 @@ export default function DashboardSummary() {
       <h2 className="text-lg font-semibold mb-2">Training Summary</h2>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Time and Consistency */}
         <div className="border rounded-xl p-4 bg-white shadow-sm">
           <p className="text-sm text-gray-500 mb-1">Total Time This Week</p>
           <p className="text-xl font-bold text-gray-800">{summary.totalTime.toFixed(1)}h</p>
@@ -96,6 +95,7 @@ export default function DashboardSummary() {
           <p className="text-xl font-bold text-gray-800">{summary.consistency}</p>
         </div>
 
+        {/* Weekly Volume */}
         <div className="border rounded-xl p-4 bg-white shadow-sm col-span-1 sm:col-span-2">
           <p className="text-sm text-gray-500 mb-2">Weekly Volume (hrs)</p>
           <div className="flex items-end gap-2 h-20">
@@ -112,6 +112,7 @@ export default function DashboardSummary() {
           </div>
         </div>
 
+        {/* Sport Breakdown */}
         <div className="border rounded-xl p-4 bg-white shadow-sm col-span-1 sm:col-span-2">
           <p className="text-sm text-gray-500 mb-2">Sport Breakdown</p>
           <div className="flex items-center justify-between gap-4 flex-col sm:flex-row">
