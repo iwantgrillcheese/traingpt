@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { format, startOfWeek, subDays, isAfter } from 'date-fns';
+import { format, startOfWeek } from 'date-fns';
 
 const COLORS = ['#60A5FA', '#34D399', '#FBBF24']; // Swim, Bike, Run
+
 type SportCategory = 'Swim' | 'Bike' | 'Run';
 
 const categoryMap: Record<string, SportCategory | null> = {
@@ -12,6 +13,9 @@ const categoryMap: Record<string, SportCategory | null> = {
   Ride: 'Bike',
   Run: 'Run',
 };
+
+const normalizeSport = (sport: string): string =>
+  sport.charAt(0).toUpperCase() + sport.slice(1).toLowerCase();
 
 export default function DashboardSummary() {
   const [summary, setSummary] = useState<{
@@ -40,18 +44,19 @@ export default function DashboardSummary() {
       const activeDays = new Set<string>();
       const weeks: Record<string, number> = {};
 
-      const sevenDaysAgo = subDays(new Date(), 6);
-
       data.forEach((a: any) => {
-        const rawType = a.sport_type as string;
-        const sport = categoryMap[rawType];
-        if (!sport) return;
+        const sportType = normalizeSport(a.sport_type);
+        const mapped = categoryMap[sportType];
+        if (!mapped) return;
 
         const hours = a.moving_time / 3600;
-        totals[sport] += hours;
+        totals[mapped] += hours;
 
         const activityDate = new Date(a.start_date_local);
-        if (isAfter(activityDate, sevenDaysAgo)) {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // includes today
+
+        if (activityDate >= sevenDaysAgo) {
           const dateKey = format(activityDate, 'yyyy-MM-dd');
           activeDays.add(dateKey);
         }
@@ -60,7 +65,7 @@ export default function DashboardSummary() {
         weeks[weekKey] = (weeks[weekKey] || 0) + hours;
       });
 
-      const weeklyVolume = Object.values(weeks).slice(-4);
+      const weeklyVolume = Object.values(weeks).slice(-4); // last 4 weeks
 
       setSummary({
         totalTime: Object.values(totals).reduce((a, b) => a + b, 0),
@@ -81,7 +86,6 @@ export default function DashboardSummary() {
       <h2 className="text-lg font-semibold mb-2">Training Summary</h2>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Time and Consistency */}
         <div className="border rounded-xl p-4 bg-white shadow-sm">
           <p className="text-sm text-gray-500 mb-1">Total Time This Week</p>
           <p className="text-xl font-bold text-gray-800">{summary.totalTime.toFixed(1)}h</p>
@@ -92,7 +96,6 @@ export default function DashboardSummary() {
           <p className="text-xl font-bold text-gray-800">{summary.consistency}</p>
         </div>
 
-        {/* Weekly Volume */}
         <div className="border rounded-xl p-4 bg-white shadow-sm col-span-1 sm:col-span-2">
           <p className="text-sm text-gray-500 mb-2">Weekly Volume (hrs)</p>
           <div className="flex items-end gap-2 h-20">
@@ -109,7 +112,6 @@ export default function DashboardSummary() {
           </div>
         </div>
 
-        {/* Sport Breakdown */}
         <div className="border rounded-xl p-4 bg-white shadow-sm col-span-1 sm:col-span-2">
           <p className="text-sm text-gray-500 mb-2">Sport Breakdown</p>
           <div className="flex items-center justify-between gap-4 flex-col sm:flex-row">
