@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { format, startOfWeek } from 'date-fns';
+import { format, startOfWeek, subDays, isAfter } from 'date-fns';
 
 const COLORS = ['#60A5FA', '#34D399', '#FBBF24']; // Swim, Bike, Run
-
 type SportCategory = 'Swim' | 'Bike' | 'Run';
 
 const categoryMap: Record<string, SportCategory | null> = {
@@ -41,32 +40,32 @@ export default function DashboardSummary() {
       const activeDays = new Set<string>();
       const weeks: Record<string, number> = {};
 
+      const sevenDaysAgo = subDays(new Date(), 6);
+
       data.forEach((a: any) => {
-        const mapped = categoryMap[a.sport_type];
-        if (!mapped) return;
+        const rawType = a.sport_type as string;
+        const sport = categoryMap[rawType];
+        if (!sport) return;
 
         const hours = a.moving_time / 3600;
-        totals[mapped] += hours;
+        totals[sport] += hours;
 
-const activityDate = new Date(a.start_date_local);
-const sevenDaysAgo = new Date();
-sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // includes today
+        const activityDate = new Date(a.start_date_local);
+        if (isAfter(activityDate, sevenDaysAgo)) {
+          const dateKey = format(activityDate, 'yyyy-MM-dd');
+          activeDays.add(dateKey);
+        }
 
-if (activityDate >= sevenDaysAgo) {
-  const dateKey = format(activityDate, 'yyyy-MM-dd');
-  activeDays.add(dateKey);
-}
-
-        const weekKey = format(startOfWeek(new Date(a.start_date_local)), 'yyyy-MM-dd');
+        const weekKey = format(startOfWeek(activityDate), 'yyyy-MM-dd');
         weeks[weekKey] = (weeks[weekKey] || 0) + hours;
       });
 
-      const weeklyVolume = Object.values(weeks).slice(-4); // last 4 weeks
+      const weeklyVolume = Object.values(weeks).slice(-4);
 
       setSummary({
         totalTime: Object.values(totals).reduce((a, b) => a + b, 0),
         weeklyVolume,
-        sportBreakdown: (['Swim', 'Bike', 'Run'] as SportCategory[]).map((sport, i) => ({
+        sportBreakdown: (['Swim', 'Bike', 'Run'] as SportCategory[]).map((sport) => ({
           name: sport,
           value: parseFloat(totals[sport].toFixed(1)),
         })),
