@@ -35,8 +35,16 @@ export async function GET(req: Request) {
     },
   });
 
-  const activities = await res.json();
+  let activities;
+  try {
+    activities = await res.json();
+  } catch (err) {
+    console.error('[STRAVA_JSON_ERROR]', err);
+    return NextResponse.json({ error: 'Failed to parse Strava response' }, { status: 500 });
+  }
+
   if (!Array.isArray(activities)) {
+    console.error('[STRAVA_ACTIVITY_FORMAT_ERROR]', activities);
     return NextResponse.json({ error: 'Failed to fetch activities from Strava' }, { status: 500 });
   }
 
