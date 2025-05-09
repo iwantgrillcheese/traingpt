@@ -30,68 +30,71 @@ export default function DashboardSummary() {
   useEffect(() => {
     const fetchData = async () => {
       console.log('[DashboardSummary] Fetch starting...');
-  
+
       try {
         const res = await fetch('/api/strava_sync');
         console.log('[DashboardSummary] Response status:', res.status);
-  
+
         if (!res.ok) {
           const errorText = await res.text();
           console.error('[DashboardSummary] Fetch failed:', errorText);
           return;
         }
-  
+
         const json = await res.json();
-        console.log('[Strava Dashboard Raw Data]', json);
-  
         const data = Array.isArray(json.data) ? json.data : [];
+        console.log('[Strava Dashboard Raw Data]', data);
+
         const totals: Record<SportCategory, number> = {
           Swim: 0,
           Ride: 0,
           Run: 0,
         };
-  
+
         const activeDays = new Set<string>();
         const weekBuckets: Record<string, number> = {};
         const today = new Date();
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(today.getDate() - 6);
-  
+
+        const currentWeekKey = format(startOfWeek(today), 'yyyy-MM-dd');
+        let thisWeekTotal = 0;
+
         data.forEach((a: any) => {
           const rawType = (a.sport_type ?? '').trim().toLowerCase();
           const mapped = categoryMap[rawType] ?? null;
           if (!mapped) return;
-  
+
           const activityDate = new Date(a.start_date_local || a.start_date);
           const dateKey = format(activityDate, 'yyyy-MM-dd');
           const weekKey = format(startOfWeek(activityDate), 'yyyy-MM-dd');
           const hours = a.moving_time / 3600;
-  
+
+          // Count toward this week's totals
+          if (weekKey === currentWeekKey) {
+            totals[mapped] += hours;
+            thisWeekTotal += hours;
+          }
+
+          // Weekly volume graph
+          weekBuckets[weekKey] = (weekBuckets[weekKey] || 0) + hours;
+
+          // Last 7 days activity for consistency
           if (
             activityDate >= startOfDay(sevenDaysAgo) &&
             activityDate <= endOfDay(today)
           ) {
-            totals[mapped] += hours;
             activeDays.add(dateKey);
           }
-  
-          weekBuckets[weekKey] = (weekBuckets[weekKey] || 0) + hours;
         });
-  
-        // ✅ Sort weeks chronologically before slicing
+
         const weeklyVolume = Object.entries(weekBuckets)
           .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
           .slice(-4)
           .map(([, value]) => parseFloat(value.toFixed(1)));
-  
-        console.log('[DashboardSummary] Totals:', totals);
-        console.log('[DashboardSummary] Active Days:', Array.from(activeDays));
-        console.log('[DashboardSummary] Weekly Volume:', weeklyVolume);
-  
+
         setSummary({
-          totalTime: parseFloat(
-            Object.values(totals).reduce((a, b) => a + b, 0).toFixed(1)
-          ),
+          totalTime: parseFloat(thisWeekTotal.toFixed(1)),
           weeklyVolume,
           sportBreakdown: (['Swim', 'Ride', 'Run'] as SportCategory[]).map((sport) => ({
             name: sport,
@@ -103,9 +106,9 @@ export default function DashboardSummary() {
         console.error('[DashboardSummary] Unexpected error:', err);
       }
     };
-  
+
     fetchData();
-  }, []);  
+  }, []);
 
   return (
     <section className="mt-10 mb-4">
