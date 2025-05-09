@@ -155,104 +155,113 @@ export default function CoachingDashboard() {
     </div>
   );
 
-const DashboardSummary = () => {
-  if (!stravaData || stravaData.length === 0) return null;
-
-  const weeklyVolume = [0, 0, 0, 0];
-  const validTypes = ['Swim', 'Bike', 'Run'] as const;
-  type ValidSport = typeof validTypes[number];
-  const sportTotals: Record<ValidSport, number> = { Swim: 0, Bike: 0, Run: 0 };
-  const uniqueDays = new Set<string>();
-
-  for (const session of stravaData) {
-    const date = parseISO(session.start_date_local);
-    const startOfThisWeek = startOfDay(startOfWeek(new Date()));
-    const weekDiff = Math.floor(
-      (startOfThisWeek.getTime() - startOfDay(startOfWeek(date)).getTime()) /
-      (7 * 24 * 60 * 60 * 1000)
-    );
+  const DashboardSummary = () => {
+    if (!stravaData || stravaData.length === 0) return null;
   
-    if (weekDiff >= 0 && weekDiff < 4) {
-      weeklyVolume[3 - weekDiff] += session.moving_time / 3600;
+    const weeklyVolume = [0, 0, 0, 0];
+    const sportTotals: Record<Sport, number> = { Swim: 0, Bike: 0, Run: 0 };
+    const uniqueDays = new Set<string>();
+  
+    const today = new Date();
+    const sevenDaysAgo = subDays(today, 6);
+    const startOfThisWeek = startOfDay(startOfWeek(today));
+  
+    for (const session of stravaData) {
+      if (!session.start_date_local) continue;
+  
+      const date = parseISO(session.start_date_local);
+      const sessionWeekStart = startOfDay(startOfWeek(date));
+      const hours = session.moving_time / 3600;
+  
+      // Weekly bar logic: W1 = 3 weeks ago, W4 = this week
+      const weekDiff = Math.floor((startOfThisWeek.getTime() - sessionWeekStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
+      if (weekDiff >= 0 && weekDiff < 4) {
+        weeklyVolume[3 - weekDiff] += hours;
+      }
+  
+      // Total time this week (only include current week)
+      if (weekDiff === 0) {
+        const type = session.sport_type as Sport;
+        if (validSports.includes(type)) {
+          sportTotals[type] += hours;
+        }
+      }
+  
+      // Consistency: last 7 days only
+      if (date >= startOfDay(sevenDaysAgo) && date <= today) {
+        uniqueDays.add(format(date, 'yyyy-MM-dd'));
+      }
     }
   
-    uniqueDays.add(format(date, 'yyyy-MM-dd'));
+    const totalTime = Object.values(sportTotals).reduce((a, b) => a + b, 0).toFixed(1);
+    const chartData = Object.entries(sportTotals).map(([k, v]) => ({ name: k, value: v }));
   
-    const type = session.sport_type as Sport;
-    if (validSports.includes(type)) {
-      sportTotals[type] += session.moving_time / 3600;
-    }
-  }  
-
-  const totalTime = Object.values(sportTotals).reduce((a, b) => a + b, 0).toFixed(1);
-  const chartData = Object.entries(sportTotals).map(([k, v]) => ({ name: k, value: v }));
-
-  return (
-    <section className="mt-10 mb-4">
-      <h2 className="text-lg font-semibold mb-2">Training Summary</h2>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="border rounded-xl p-4 bg-white shadow-sm">
-          <p className="text-sm text-gray-500 mb-1">Total Time This Week</p>
-          <p className="text-xl font-bold text-gray-800">{totalTime}h</p>
-        </div>
-
-        <div className="border rounded-xl p-4 bg-white shadow-sm">
-          <p className="text-sm text-gray-500 mb-1">Training Consistency</p>
-          <p className="text-xl font-bold text-gray-800">{uniqueDays.size} of last 7 days</p>
-        </div>
-
-        <div className="border rounded-xl p-4 bg-white shadow-sm col-span-1 sm:col-span-2">
-          <p className="text-sm text-gray-500 mb-2">Weekly Volume (hrs)</p>
-          <div className="flex items-end gap-2 h-20">
-            {weeklyVolume.map((val, i) => (
-              <div key={i} className="flex flex-col items-center">
-                <div
-                  className="bg-blue-500 w-4 rounded"
-                  style={{ height: `${val * 10}px` }}
-                  title={`${val.toFixed(1)} hrs`}
-                />
-                <span className="text-[10px] text-gray-500 mt-1">W{i + 1}</span>
-              </div>
-            ))}
+    return (
+      <section className="mt-10 mb-4">
+        <h2 className="text-lg font-semibold mb-2">Training Summary</h2>
+  
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="border rounded-xl p-4 bg-white shadow-sm">
+            <p className="text-sm text-gray-500 mb-1">Total Time This Week</p>
+            <p className="text-xl font-bold text-gray-800">{totalTime}h</p>
+          </div>
+  
+          <div className="border rounded-xl p-4 bg-white shadow-sm">
+            <p className="text-sm text-gray-500 mb-1">Training Consistency</p>
+            <p className="text-xl font-bold text-gray-800">{uniqueDays.size} of last 7 days</p>
+          </div>
+  
+          <div className="border rounded-xl p-4 bg-white shadow-sm col-span-1 sm:col-span-2">
+            <p className="text-sm text-gray-500 mb-2">Weekly Volume (hrs)</p>
+            <div className="flex items-end gap-2 h-20">
+              {weeklyVolume.map((val, i) => (
+                <div key={i} className="flex flex-col items-center">
+                  <div
+                    className="bg-blue-500 w-4 rounded"
+                    style={{ height: `${val * 10}px` }}
+                    title={`${val.toFixed(1)} hrs`}
+                  />
+                  <span className="text-[10px] text-gray-500 mt-1">W{i + 1}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+  
+          <div className="border rounded-xl p-4 bg-white shadow-sm col-span-1 sm:col-span-2">
+            <p className="text-sm text-gray-500 mb-2">Sport Breakdown</p>
+            <ResponsiveContainer width="100%" height={250}>
+              <PieChart>
+                <Pie
+                  data={chartData}
+                  dataKey="value"
+                  nameKey="name"
+                  outerRadius={80}
+                  fill="#8884d8"
+                  label
+                >
+                  {chartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+            <ul className="flex gap-4 justify-center mt-4 text-sm">
+              {chartData.map((entry, i) => (
+                <li key={i} className="flex items-center gap-2">
+                  <span
+                    className="inline-block w-3 h-3 rounded-full"
+                    style={{ backgroundColor: COLORS[i % COLORS.length] }}
+                  />
+                  {entry.name}: {entry.value.toFixed(1)}h
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
-
-        <div className="border rounded-xl p-4 bg-white shadow-sm col-span-1 sm:col-span-2">
-          <p className="text-sm text-gray-500 mb-2">Sport Breakdown</p>
-          <ResponsiveContainer width="100%" height={250}>
-            <PieChart>
-              <Pie
-                data={chartData}
-                dataKey="value"
-                nameKey="name"
-                outerRadius={80}
-                fill="#8884d8"
-                label
-              >
-                {chartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-            </PieChart>
-          </ResponsiveContainer>
-          <ul className="flex gap-4 justify-center mt-4 text-sm">
-            {chartData.map((entry, i) => (
-              <li key={i} className="flex items-center gap-2">
-                <span
-                  className="inline-block w-3 h-3 rounded-full"
-                  style={{ backgroundColor: COLORS[i % COLORS.length] }}
-                />
-                {entry.name}: {entry.value.toFixed(1)}h
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-    </section>
-  );
-};
-
+      </section>
+    );
+  };
+  
   return (
     <>
       <Head>
