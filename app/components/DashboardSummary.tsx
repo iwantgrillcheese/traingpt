@@ -31,6 +31,7 @@ export default function DashboardSummary() {
     const fetchData = async () => {
       const res = await fetch('/api/strava_sync');
       const json = await res.json();
+      console.log('[Strava Dashboard Raw Data]', json);
       const { data } = json;
 
       const totals: Record<SportCategory, number> = {
