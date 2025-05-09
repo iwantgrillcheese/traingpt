@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { format, startOfWeek } from 'date-fns';
+import { format, startOfWeek, startOfDay, endOfDay } from 'date-fns';
 
 const COLORS = ['#60A5FA', '#34D399', '#FBBF24']; // Swim, Bike, Run
 
@@ -11,6 +11,7 @@ type SportCategory = 'Swim' | 'Bike' | 'Run';
 const categoryMap: Record<string, SportCategory | null> = {
   swim: 'Swim',
   ride: 'Bike',
+  virtualride: 'Bike',
   run: 'Run',
 };
 
@@ -31,56 +32,59 @@ export default function DashboardSummary() {
     const fetchData = async () => {
       const res = await fetch('/api/strava_sync');
       const json = await res.json();
-      console.log('[Strava Dashboard Data]', json); // ✅ Key debug log
+      console.log('[Strava Dashboard Data]', json);
       const { data } = json;
-  
+
       const totals: Record<SportCategory, number> = {
         Swim: 0,
         Bike: 0,
         Run: 0,
       };
-  
+
       const activeDays = new Set<string>();
       const weeks: Record<string, number> = {};
       const today = new Date();
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(today.getDate() - 6);
-  
+
       data.forEach((a: any) => {
-        const mapped = categoryMap[a.sport_type?.toLowerCase()];
+        const rawType = a.sport_type?.toLowerCase() ?? '';
+        const mapped = categoryMap[rawType] ?? null;
         if (!mapped) return;
-  
+
         const activityDate = new Date(a.start_date_local);
         const dateKey = format(activityDate, 'yyyy-MM-dd');
         const weekKey = format(startOfWeek(activityDate), 'yyyy-MM-dd');
         const hours = a.moving_time / 3600;
-  
-        if (activityDate >= sevenDaysAgo && activityDate <= today) {
+
+        if (
+          activityDate >= startOfDay(sevenDaysAgo) &&
+          activityDate <= endOfDay(today)
+        ) {
           totals[mapped] += hours;
           activeDays.add(dateKey);
         }
-  
+
         weeks[weekKey] = (weeks[weekKey] || 0) + hours;
       });
-  
+
       const weeklyVolume = Object.values(weeks).slice(-4);
-  
+
       setSummary({
         totalTime: parseFloat(
           Object.values(totals).reduce((a, b) => a + b, 0).toFixed(1)
         ),
         weeklyVolume,
-        sportBreakdown: (['Swim', 'Bike', 'Run'] as SportCategory[]).map((sport, i) => ({
+        sportBreakdown: (['Swim', 'Bike', 'Run'] as SportCategory[]).map((sport) => ({
           name: sport,
           value: parseFloat(totals[sport].toFixed(1)),
         })),
         consistency: `${activeDays.size} of last 7 days`,
       });
     };
-  
+
     fetchData();
   }, []);
-  
 
   return (
     <section className="mt-10 mb-4">
