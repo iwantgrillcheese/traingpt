@@ -18,16 +18,49 @@ export async function GET(req: Request) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('strava_access_token')
+    .select('strava_access_token, strava_refresh_token, strava_expires_at')
     .eq('id', user.id)
     .single();
 
-  const token = profile?.strava_access_token;
-  if (!token) {
-    return NextResponse.json({ error: 'No Strava access token' }, { status: 400 });
+  if (!profile?.strava_access_token || !profile.strava_refresh_token) {
+    return NextResponse.json({ error: 'No Strava token info' }, { status: 400 });
   }
 
-  const afterDate = Math.floor(subDays(new Date(), 28).getTime() / 1000); // 28 days ago
+  let token = profile.strava_access_token;
+
+  // 🔁 Refresh token if expired
+  if (profile.strava_expires_at * 1000 < Date.now()) {
+    const refreshRes = await fetch('https://www.strava.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: process.env.STRAVA_CLIENT_ID,
+        client_secret: process.env.STRAVA_CLIENT_SECRET,
+        grant_type: 'refresh_token',
+        refresh_token: profile.strava_refresh_token,
+      }),
+    });
+
+    const refreshData = await refreshRes.json();
+
+    if (!refreshRes.ok) {
+      console.error('[STRAVA_REFRESH_ERROR]', refreshData);
+      return NextResponse.json({ error: 'Failed to refresh Strava token' }, { status: 401 });
+    }
+
+    token = refreshData.access_token;
+
+    await supabase
+      .from('profiles')
+      .update({
+        strava_access_token: refreshData.access_token,
+        strava_refresh_token: refreshData.refresh_token,
+        strava_expires_at: refreshData.expires_at,
+      })
+      .eq('id', user.id);
+  }
+
+  const afterDate = Math.floor(subDays(new Date(), 28).getTime() / 1000);
 
   const res = await fetch(`https://www.strava.com/api/v3/athlete/activities?after=${afterDate}`, {
     headers: {
