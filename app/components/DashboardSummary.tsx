@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { format, startOfWeek, startOfDay, endOfDay, isWithinInterval, parseISO } from 'date-fns';
+import { format, startOfWeek } from 'date-fns';
 
 const COLORS = ['#60A5FA', '#34D399', '#FBBF24']; // Swim, Ride, Run
-
 type SportCategory = 'Swim' | 'Ride' | 'Run';
 
 const categoryMap: Record<string, SportCategory | null> = {
@@ -43,33 +42,33 @@ export default function DashboardSummary() {
       const activeDays = new Set<string>();
       const weeks: Record<string, number> = {};
 
-      const today = new Date();
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(today.getDate() - 6);
+      const now = new Date();
+      const sevenDaysAgo = new Date(now);
+      sevenDaysAgo.setUTCDate(now.getUTCDate() - 6);
+      sevenDaysAgo.setUTCHours(0, 0, 0, 0);
+
+      const today = new Date(now);
+      today.setUTCHours(23, 59, 59, 999);
 
       data.forEach((a: any) => {
         const rawType = (a.sport_type ?? '').trim().toLowerCase();
         const mapped = categoryMap[rawType];
         if (!mapped) return;
 
-        const activityDate = parseISO(a.start_date_local);
+        const activityDate = new Date(a.start_date_local); // already in local time
         const hours = a.moving_time / 3600;
 
-        // Weekly buckets
-        const weekKey = format(startOfWeek(activityDate), 'yyyy-MM-dd');
-        weeks[weekKey] = (weeks[weekKey] || 0) + hours;
+        const activityTime = activityDate.getTime();
+        const isInLast7Days = activityTime >= sevenDaysAgo.getTime() && activityTime <= today.getTime();
 
-        // Consistency (only last 7 days)
-        if (
-          isWithinInterval(activityDate, {
-            start: startOfDay(sevenDaysAgo),
-            end: endOfDay(today),
-          })
-        ) {
+        if (isInLast7Days) {
+          totals[mapped] += hours;
           const dateKey = format(activityDate, 'yyyy-MM-dd');
           activeDays.add(dateKey);
-          totals[mapped] += hours;
         }
+
+        const weekKey = format(startOfWeek(activityDate), 'yyyy-MM-dd');
+        weeks[weekKey] = (weeks[weekKey] || 0) + hours;
       });
 
       const weeklyVolume = Object.values(weeks).slice(-4);
