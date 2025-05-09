@@ -4,14 +4,14 @@ import { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { format, startOfWeek, startOfDay, endOfDay } from 'date-fns';
 
-const COLORS = ['#60A5FA', '#34D399', '#FBBF24']; // Swim, Bike, Run
+const COLORS = ['#60A5FA', '#34D399', '#FBBF24']; // Swim, Ride, Run
 
-type SportCategory = 'Swim' | 'Bike' | 'Run';
+type SportCategory = 'Swim' | 'Ride' | 'Run';
 
 const categoryMap: Record<string, SportCategory | null> = {
   swim: 'Swim',
-  ride: 'Bike',
-  virtualride: 'Bike',
+  ride: 'Ride',
+  virtualride: 'Ride',
   run: 'Run',
 };
 
@@ -37,7 +37,7 @@ export default function DashboardSummary() {
 
       const totals: Record<SportCategory, number> = {
         Swim: 0,
-        Bike: 0,
+        Ride: 0,
         Run: 0,
       };
 
@@ -75,7 +75,7 @@ export default function DashboardSummary() {
           Object.values(totals).reduce((a, b) => a + b, 0).toFixed(1)
         ),
         weeklyVolume,
-        sportBreakdown: (['Swim', 'Bike', 'Run'] as SportCategory[]).map((sport) => ({
+        sportBreakdown: (['Swim', 'Ride', 'Run'] as SportCategory[]).map((sport) => ({
           name: sport,
           value: parseFloat(totals[sport].toFixed(1)),
         })),
