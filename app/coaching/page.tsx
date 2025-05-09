@@ -181,11 +181,18 @@ export default function CoachingDashboard() {
   
       // Total time this week (only include current week)
       if (weekDiff === 0) {
-        const type = session.sport_type as Sport;
-        if (validSports.includes(type)) {
-          sportTotals[type] += hours;
-        }
-      }
+        const rawType = (session.sport_type ?? '').trim().toLowerCase();
+const typeMap: Record<string, Sport | null> = {
+  swim: 'Swim',
+  ride: 'Bike',
+  virtualride: 'Bike',
+  run: 'Run',
+};
+
+const mapped = typeMap[rawType];
+if (mapped) {
+  sportTotals[mapped] += session.moving_time / 3600;
+}
   
       // Consistency: last 7 days only
       if (date >= startOfDay(sevenDaysAgo) && date <= today) {
@@ -336,4 +343,5 @@ export default function CoachingDashboard() {
       </main>
     </>
   );
+}
 }
