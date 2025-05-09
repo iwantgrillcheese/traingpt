@@ -28,7 +28,7 @@ export async function GET(req: Request) {
 
   let token = profile.strava_access_token;
 
-  // 🔁 Refresh token if expired
+  // Refresh if expired
   if (profile.strava_expires_at * 1000 < Date.now()) {
     const refreshRes = await fetch('https://www.strava.com/oauth/token', {
       method: 'POST',
@@ -63,9 +63,7 @@ export async function GET(req: Request) {
   const afterDate = Math.floor(subDays(new Date(), 28).getTime() / 1000);
 
   const res = await fetch(`https://www.strava.com/api/v3/athlete/activities?after=${afterDate}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    headers: { Authorization: `Bearer ${token}` },
   });
 
   let activities;
@@ -78,13 +76,13 @@ export async function GET(req: Request) {
 
   if (!Array.isArray(activities)) {
     console.error('[STRAVA_ACTIVITY_FORMAT_ERROR]', activities);
-    return NextResponse.json({ error: 'Failed to fetch activities from Strava' }, { status: 500 });
+    return NextResponse.json({ error: 'Invalid Strava response' }, { status: 500 });
   }
 
   const upserts = activities.map((a) => ({
     user_id: user.id,
     name: a.name,
-    sport_type: (a.sport_type ?? '').toLowerCase(),
+    sport_type: (a.sport_type ?? '').trim().toLowerCase(),
     start_date: a.start_date,
     start_date_local: a.start_date_local,
     moving_time: a.moving_time,
