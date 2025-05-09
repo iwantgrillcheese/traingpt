@@ -59,6 +59,10 @@ export default function DashboardSummary() {
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(today.getDate() - 6);
 
+        console.log('[DEBUG] currentWeekStart:', currentWeekStart.toISOString());
+        console.log('[DEBUG] weekEnd:', weekEnd.toISOString());
+        console.log('[DEBUG] sevenDaysAgo:', sevenDaysAgo.toISOString());
+
         let thisWeekTotal = 0;
 
         data.forEach((a: any) => {
@@ -76,8 +80,24 @@ export default function DashboardSummary() {
           const weekKey = format(startOfWeek(utcDate), 'yyyy-MM-dd');
           const hours = a.moving_time / 3600;
 
+          console.log('[ACTIVITY]', {
+            name: a.name,
+            sport_type: a.sport_type,
+            start_date_local: a.start_date_local,
+            parsedDate: activityDate.toISOString(),
+            utcDate: utcDate.toISOString(),
+            weekKey,
+          });
+
           // This week totals
           if (utcDate >= startOfDay(currentWeekStart) && utcDate <= weekEnd) {
+            console.log('[MATCHED THIS WEEK]', {
+              name: a.name,
+              sport: mapped,
+              utcDate: utcDate.toISOString(),
+              hours,
+            });
+
             totals[mapped] += hours;
             thisWeekTotal += hours;
           }
@@ -95,6 +115,12 @@ export default function DashboardSummary() {
           .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
           .slice(-4)
           .map(([, value]) => parseFloat(value.toFixed(1)));
+
+        console.log('[SUMMARY]', {
+          totals,
+          thisWeekTotal,
+          consistencyDays: Array.from(activeDays),
+        });
 
         setSummary({
           totalTime: parseFloat(thisWeekTotal.toFixed(1)),
