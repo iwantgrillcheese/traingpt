@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { format, startOfWeek } from 'date-fns';
+import { format, startOfWeek, startOfDay, endOfDay } from 'date-fns';
 
 const COLORS = ['#60A5FA', '#34D399', '#FBBF24']; // Swim, Ride, Run
 type SportCategory = 'Swim' | 'Ride' | 'Run';
@@ -29,64 +29,71 @@ export default function DashboardSummary() {
 
   useEffect(() => {
     const fetchData = async () => {
-      const res = await fetch('/api/strava_sync');
-      const json = await res.json();
-      console.log('[Strava Dashboard Raw Data]', json);
-      const { data } = json;
-
-      const totals: Record<SportCategory, number> = {
-        Swim: 0,
-        Ride: 0,
-        Run: 0,
-      };
-
-      const activeDays = new Set<string>();
-      const weeks: Record<string, number> = {};
-
-      const now = new Date();
-      const sevenDaysAgo = new Date(now);
-      sevenDaysAgo.setUTCDate(now.getUTCDate() - 6);
-      sevenDaysAgo.setUTCHours(0, 0, 0, 0);
-
-      const today = new Date(now);
-      today.setUTCHours(23, 59, 59, 999);
-
-      data.forEach((a: any) => {
-        const rawType = (a.sport_type ?? '').trim().toLowerCase();
-        const mapped = categoryMap[rawType];
-        if (!mapped) return;
-
-        const activityDate = new Date(a.start_date_local); // already in local time
-        const hours = a.moving_time / 3600;
-
-        const activityTime = activityDate.getTime();
-        const isInLast7Days = activityTime >= sevenDaysAgo.getTime() && activityTime <= today.getTime();
-
-        if (isInLast7Days) {
-          totals[mapped] += hours;
-          const dateKey = format(activityDate, 'yyyy-MM-dd');
-          activeDays.add(dateKey);
+      try {
+        const res = await fetch('/api/strava_sync');
+        const json = await res.json();
+        console.log('[Strava Dashboard Raw Data]', json);
+  
+        if (!Array.isArray(json.data)) {
+          console.error('[Invalid data format]', json);
+          return;
         }
-
-        const weekKey = format(startOfWeek(activityDate), 'yyyy-MM-dd');
-        weeks[weekKey] = (weeks[weekKey] || 0) + hours;
-      });
-
-      const weeklyVolume = Object.values(weeks).slice(-4);
-
-      setSummary({
-        totalTime: parseFloat(Object.values(totals).reduce((a, b) => a + b, 0).toFixed(1)),
-        weeklyVolume,
-        sportBreakdown: (['Swim', 'Ride', 'Run'] as SportCategory[]).map((sport) => ({
-          name: sport,
-          value: parseFloat(totals[sport].toFixed(1)),
-        })),
-        consistency: `${activeDays.size} of last 7 days`,
-      });
+  
+        const { data } = json;
+  
+        const totals: Record<SportCategory, number> = {
+          Swim: 0,
+          Ride: 0,
+          Run: 0,
+        };
+  
+        const activeDays = new Set<string>();
+        const weeks: Record<string, number> = {};
+        const today = new Date();
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(today.getDate() - 6);
+  
+        data.forEach((a: any) => {
+          const rawType = (a.sport_type ?? '').trim().toLowerCase();
+          const mapped = categoryMap[rawType] ?? null;
+          if (!mapped) return;
+  
+          const activityDate = new Date(a.start_date_local);
+          const dateKey = format(activityDate, 'yyyy-MM-dd');
+          const weekKey = format(startOfWeek(activityDate), 'yyyy-MM-dd');
+          const hours = a.moving_time / 3600;
+  
+          if (
+            activityDate >= startOfDay(sevenDaysAgo) &&
+            activityDate <= endOfDay(today)
+          ) {
+            totals[mapped] += hours;
+            activeDays.add(dateKey);
+          }
+  
+          weeks[weekKey] = (weeks[weekKey] || 0) + hours;
+        });
+  
+        const weeklyVolume = Object.values(weeks).slice(-4);
+  
+        setSummary({
+          totalTime: parseFloat(
+            Object.values(totals).reduce((a, b) => a + b, 0).toFixed(1)
+          ),
+          weeklyVolume,
+          sportBreakdown: (['Swim', 'Ride', 'Run'] as SportCategory[]).map((sport) => ({
+            name: sport,
+            value: parseFloat(totals[sport].toFixed(1)),
+          })),
+          consistency: `${activeDays.size} of last 7 days`,
+        });
+      } catch (err) {
+        console.error('[DASH FETCH ERROR]', err);
+      }
     };
-
+  
     fetchData();
-  }, []);
+  }, []);  
 
   return (
     <section className="mt-10 mb-4">

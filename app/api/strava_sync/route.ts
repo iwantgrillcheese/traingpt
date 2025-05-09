@@ -23,6 +23,7 @@ export async function GET(req: Request) {
     .single();
 
   if (!profile?.strava_access_token || !profile.strava_refresh_token) {
+    console.error('[NO TOKEN FOUND]', profile);
     return NextResponse.json({ error: 'No Strava token info' }, { status: 400 });
   }
 
