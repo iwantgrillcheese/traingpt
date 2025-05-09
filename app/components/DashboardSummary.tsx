@@ -48,7 +48,7 @@ export default function DashboardSummary() {
       sevenDaysAgo.setDate(today.getDate() - 6);
 
       data.forEach((a: any) => {
-        const rawType = a.sport_type?.toLowerCase() ?? '';
+        const rawType = (a.sport_type ?? '').trim().toLowerCase();
         const mapped = categoryMap[rawType] ?? null;
         if (!mapped) return;
 
@@ -62,8 +62,10 @@ export default function DashboardSummary() {
           activityDate <= endOfDay(today)
         ) {
           totals[mapped] += hours;
+        
+          const dateKey = format(activityDate, 'yyyy-MM-dd');
           activeDays.add(dateKey);
-        }
+        }        
 
         weeks[weekKey] = (weeks[weekKey] || 0) + hours;
       });
