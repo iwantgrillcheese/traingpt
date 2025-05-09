@@ -99,5 +99,22 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Failed to store activities' }, { status: 500 });
   }
 
-  return NextResponse.json({ message: 'Synced successfully', count: upserts.length, data: upserts });
+  // ✅ FINAL PATCH: return all recent activities from Supabase
+  const { data: allActivities, error: fetchError } = await supabase
+    .from('strava_activities')
+    .select('*')
+    .eq('user_id', user.id)
+    .gte('start_date_local', subDays(new Date(), 28).toISOString())
+    .order('start_date_local', { ascending: true });
+
+  if (fetchError) {
+    console.error('[SUPABASE_FETCH_ERROR]', fetchError);
+    return NextResponse.json({ error: 'Failed to fetch synced data' }, { status: 500 });
+  }
+
+  return NextResponse.json({
+    message: 'Synced successfully',
+    count: allActivities.length,
+    data: allActivities,
+  });
 }
