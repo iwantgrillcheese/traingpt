@@ -1,8 +1,16 @@
-'use client';
+"use client";
 
 import { useEffect, useRef, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { format, formatDistanceToNow, parseISO, isAfter, subDays, startOfDay, startOfWeek } from 'date-fns';
+import {
+  format,
+  formatDistanceToNow,
+  parseISO,
+  isAfter,
+  subDays,
+  startOfDay,
+  startOfWeek,
+} from 'date-fns';
 import Link from 'next/link';
 import Head from 'next/head';
 import { useMediaQuery } from 'react-responsive';
@@ -39,11 +47,13 @@ export default function CoachingDashboard() {
   >(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isMobile = useMediaQuery({ query: '(max-width: 640px)' });
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date();
 
   useEffect(() => {
     const fetchPlanAndStrava = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user?.id) return;
 
       const { data: plans } = await supabase
@@ -60,21 +70,21 @@ export default function CoachingDashboard() {
         setExperienceLevel(plans.experience || 'Intermediate');
 
         const sessions: { date: string; sessions: string[] }[] = [];
-        const todayDate = new Date(today);
-
         for (const week of plans.plan) {
           for (const [date, sessionList] of Object.entries(week.days)) {
             const parsedDate = new Date(date);
-            if (parsedDate >= todayDate && sessions.length < 7) {
+            if (parsedDate >= today && sessions.length < 7) {
               sessions.push({ date, sessions: sessionList as string[] });
             }
           }
         }
 
-        setUpcomingSessions(sessions
-          .filter(({ date }) => isAfter(parseISO(date), new Date()))
-          .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime())
-          .slice(0, 3));
+        setUpcomingSessions(
+          sessions
+            .filter(({ date }) => isAfter(parseISO(date), new Date()))
+            .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime())
+            .slice(0, 3)
+        );
       }
 
       const { data: stravaProfile } = await supabase
@@ -91,7 +101,7 @@ export default function CoachingDashboard() {
           .from('strava_activities')
           .select('sport_type, moving_time, start_date_local')
           .eq('user_id', user.id)
-          .gte('start_date_local', startOfDay(subDays(new Date(), 28)).toISOString());
+          .gte('start_date_local', startOfDay(subDays(today, 28)).toISOString());
 
         if (activities) setStravaData(activities);
       }
@@ -139,85 +149,59 @@ export default function CoachingDashboard() {
     }
   };
 
-  const ChatBox = () => (
-    <div className="border border-gray-200 rounded-xl p-4 shadow bg-white max-h-[60vh] overflow-y-auto mb-4">
-      {messages.map((msg, i) => (
-        <div key={i} className={`max-w-[85%] mb-2 p-3 rounded-xl text-sm ${msg.role === 'user' ? 'bg-blue-100 text-blue-900 ml-auto' : 'bg-gray-100 text-gray-900 mr-auto'}`}>
-          <div className="flex justify-between items-center mb-1">
-            <span className="font-semibold text-xs">{msg.role === 'user' ? 'You' : '🏆 Coach'}</span>
-            <span className="text-[10px] text-gray-400">{formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}</span>
-          </div>
-          <p>{msg.content}</p>
-          {msg.error && <button className="mt-1 text-xs text-red-600 underline" onClick={() => setQuestion(messages[messages.length - 2]?.content || '')}>Retry</button>}
-        </div>
-      ))}
-      <div ref={messagesEndRef} />
-    </div>
-  );
-
   const DashboardSummary = () => {
     if (!stravaData || stravaData.length === 0) return null;
-  
+
     const weeklyVolume = [0, 0, 0, 0];
     const sportTotals: Record<Sport, number> = { Swim: 0, Bike: 0, Run: 0 };
     const uniqueDays = new Set<string>();
-  
     const today = new Date();
     const sevenDaysAgo = subDays(today, 6);
     const startOfThisWeek = startOfDay(startOfWeek(today));
-  
+
     for (const session of stravaData) {
       if (!session.start_date_local) continue;
-  
       const date = parseISO(session.start_date_local);
-      const sessionWeekStart = startOfDay(startOfWeek(date));
-      const hours = session.moving_time / 3600;
-  
-      // Weekly bar logic: W1 = 3 weeks ago, W4 = this week
-      const weekDiff = Math.floor((startOfThisWeek.getTime() - sessionWeekStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
-      if (weekDiff >= 0 && weekDiff < 4) {
-        weeklyVolume[3 - weekDiff] += hours;
-      }
-  
-      // Total time this week (only include current week)
-      if (weekDiff === 0) {
-        const rawType = (session.sport_type ?? '').trim().toLowerCase();
-const typeMap: Record<string, Sport | null> = {
-  swim: 'Swim',
-  ride: 'Bike',
-  virtualride: 'Bike',
-  run: 'Run',
-};
+      const weekStart = startOfDay(startOfWeek(date));
+      const weekDiff = Math.floor((startOfThisWeek.getTime() - weekStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
+      const rawType = (session.sport_type ?? '').trim().toLowerCase();
 
-const mapped = typeMap[rawType];
-if (mapped) {
-  sportTotals[mapped] += session.moving_time / 3600;
-}
-  
-      // Consistency: last 7 days only
+      const typeMap: Record<string, Sport | null> = {
+        swim: 'Swim',
+        ride: 'Bike',
+        virtualride: 'Bike',
+        run: 'Run',
+      };
+      const mapped = typeMap[rawType];
+
+      if (weekDiff >= 0 && weekDiff < 4) {
+        weeklyVolume[3 - weekDiff] += session.moving_time / 3600;
+      }
+
+      if (weekDiff === 0 && mapped) {
+        sportTotals[mapped] += session.moving_time / 3600;
+      }
+
       if (date >= startOfDay(sevenDaysAgo) && date <= today) {
         uniqueDays.add(format(date, 'yyyy-MM-dd'));
       }
     }
-  
+
     const totalTime = Object.values(sportTotals).reduce((a, b) => a + b, 0).toFixed(1);
     const chartData = Object.entries(sportTotals).map(([k, v]) => ({ name: k, value: v }));
-  
+
     return (
       <section className="mt-10 mb-4">
         <h2 className="text-lg font-semibold mb-2">Training Summary</h2>
-  
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="border rounded-xl p-4 bg-white shadow-sm">
             <p className="text-sm text-gray-500 mb-1">Total Time This Week</p>
             <p className="text-xl font-bold text-gray-800">{totalTime}h</p>
           </div>
-  
           <div className="border rounded-xl p-4 bg-white shadow-sm">
             <p className="text-sm text-gray-500 mb-1">Training Consistency</p>
             <p className="text-xl font-bold text-gray-800">{uniqueDays.size} of last 7 days</p>
           </div>
-  
           <div className="border rounded-xl p-4 bg-white shadow-sm col-span-1 sm:col-span-2">
             <p className="text-sm text-gray-500 mb-2">Weekly Volume (hrs)</p>
             <div className="flex items-end gap-2 h-20">
@@ -233,7 +217,6 @@ if (mapped) {
               ))}
             </div>
           </div>
-  
           <div className="border rounded-xl p-4 bg-white shadow-sm col-span-1 sm:col-span-2">
             <p className="text-sm text-gray-500 mb-2">Sport Breakdown</p>
             <ResponsiveContainer width="100%" height={250}>
@@ -268,7 +251,35 @@ if (mapped) {
       </section>
     );
   };
-  
+
+  const ChatBox = () => (
+    <div className="border border-gray-200 rounded-xl p-4 shadow bg-white max-h-[60vh] overflow-y-auto mb-4">
+      {messages.map((msg, i) => (
+        <div
+          key={i}
+          className={`max-w-[85%] mb-2 p-3 rounded-xl text-sm ${
+            msg.role === 'user' ? 'bg-blue-100 text-blue-900 ml-auto' : 'bg-gray-100 text-gray-900 mr-auto'
+          }`}
+        >
+          <div className="flex justify-between items-center mb-1">
+            <span className="font-semibold text-xs">{msg.role === 'user' ? 'You' : '🏆 Coach'}</span>
+            <span className="text-[10px] text-gray-400">{formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}</span>
+          </div>
+          <p>{msg.content}</p>
+          {msg.error && (
+            <button
+              className="mt-1 text-xs text-red-600 underline"
+              onClick={() => setQuestion(messages[messages.length - 2]?.content || '')}
+            >
+              Retry
+            </button>
+          )}
+        </div>
+      ))}
+      <div ref={messagesEndRef} />
+    </div>
+  );
+
   return (
     <>
       <Head>
@@ -299,7 +310,6 @@ if (mapped) {
             Send
           </button>
         </div>
-
         <section className="mb-10 mt-10">
           <h2 className="text-lg font-semibold mb-2">Upcoming Sessions</h2>
           {upcomingSessions.length > 0 ? (
@@ -308,7 +318,9 @@ if (mapped) {
                 <div key={i} className="border border-gray-200 rounded-xl p-4 shadow-sm bg-white">
                   <p className="text-sm font-medium text-gray-700 mb-2">{format(parseISO(date), 'EEEE, MMM d')}</p>
                   <ul className="text-sm text-gray-700 space-y-1">
-                    {sessions.map((s, j) => <li key={j}>• {s}</li>)}
+                    {sessions.map((s, j) => (
+                      <li key={j}>• {s}</li>
+                    ))}
                   </ul>
                 </div>
               ))}
@@ -317,7 +329,6 @@ if (mapped) {
             <p className="text-sm text-gray-500 italic">No upcoming training sessions found.</p>
           )}
         </section>
-
         <div className="text-center mb-8">
           {stravaConnected ? (
             <div className="inline-flex items-center gap-2 px-5 py-3 border border-green-500 text-green-600 bg-green-50 rounded-xl">
@@ -334,14 +345,11 @@ if (mapped) {
             </Link>
           )}
         </div>
-
         <div className="text-center text-sm text-gray-500 mt-auto">
           {raceType} | {experienceLevel} | {raceDate && `Race in ${formatDistanceToNow(new Date(raceDate), { addSuffix: true })}`}
         </div>
-
         <DashboardSummary />
       </main>
     </>
   );
-}
 }
