@@ -54,10 +54,11 @@ export default function DashboardSummary() {
         const activeDays = new Set<string>();
         const weekBuckets: Record<string, number> = {};
         const today = new Date();
+        const currentWeekStart = startOfWeek(today);
+        const weekEnd = endOfDay(today);
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(today.getDate() - 6);
 
-        const currentWeekKey = format(startOfWeek(today), 'yyyy-MM-dd');
         let thisWeekTotal = 0;
 
         data.forEach((a: any) => {
@@ -66,29 +67,26 @@ export default function DashboardSummary() {
           if (!mapped) return;
 
           const activityDate = new Date(a.start_date_local || a.start_date);
-          const utcDate = new Date(activityDate.getUTCFullYear(), activityDate.getUTCMonth(), activityDate.getUTCDate());
+          const utcDate = new Date(
+            activityDate.getUTCFullYear(),
+            activityDate.getUTCMonth(),
+            activityDate.getUTCDate()
+          );
           const dateKey = format(utcDate, 'yyyy-MM-dd');
-          const weekKey = format(startOfWeek(utcDate), 'yyyy-MM-dd');          
+          const weekKey = format(startOfWeek(utcDate), 'yyyy-MM-dd');
           const hours = a.moving_time / 3600;
 
-          // Count toward this week's totals
-          if (weekKey === currentWeekKey) {
+          // This week totals
+          if (utcDate >= startOfDay(currentWeekStart) && utcDate <= weekEnd) {
             totals[mapped] += hours;
             thisWeekTotal += hours;
           }
 
-          // Weekly volume graph
+          // Weekly volume chart
           weekBuckets[weekKey] = (weekBuckets[weekKey] || 0) + hours;
 
-          // Last 7 days activity for consistency
-
-          const weekStart = startOfWeek(new Date());
-          const weekEnd = endOfDay(today);
-
-          if (
-            activityDate >= startOfDay(sevenDaysAgo) &&
-            activityDate <= endOfDay(today)
-          ) {
+          // 7-day training consistency
+          if (utcDate >= startOfDay(sevenDaysAgo) && utcDate <= weekEnd) {
             activeDays.add(dateKey);
           }
         });
