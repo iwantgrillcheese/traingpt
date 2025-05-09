@@ -84,7 +84,7 @@ export async function GET(req: Request) {
   const upserts = activities.map((a) => ({
     user_id: user.id,
     name: a.name,
-    sport_type: a.sport_type,
+    sport_type: (a.sport_type ?? '').toLowerCase(),
     start_date: a.start_date,
     start_date_local: a.start_date_local,
     moving_time: a.moving_time,
