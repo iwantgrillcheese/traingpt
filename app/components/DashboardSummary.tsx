@@ -29,40 +29,49 @@ export default function DashboardSummary() {
 
   useEffect(() => {
     const fetchData = async () => {
+      console.log('[DashboardSummary] Fetch starting...');
+
       try {
         const res = await fetch('/api/strava_sync');
-        const json = await res.json();
-        console.log('[Strava Dashboard Raw Data]', json);
-  
-        if (!Array.isArray(json.data)) {
-          console.error('[Invalid data format]', json);
+        console.log('[DashboardSummary] Response status:', res.status);
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          console.error('[DashboardSummary] Fetch failed:', errorText);
           return;
         }
-  
+
+        const json = await res.json();
+        console.log('[Strava Dashboard Raw Data]', json);
+
         const { data } = json;
-  
+        if (!Array.isArray(data)) {
+          console.warn('[DashboardSummary] No data array found.');
+          return;
+        }
+
         const totals: Record<SportCategory, number> = {
           Swim: 0,
           Ride: 0,
           Run: 0,
         };
-  
+
         const activeDays = new Set<string>();
         const weeks: Record<string, number> = {};
         const today = new Date();
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(today.getDate() - 6);
-  
+
         data.forEach((a: any) => {
           const rawType = (a.sport_type ?? '').trim().toLowerCase();
           const mapped = categoryMap[rawType] ?? null;
           if (!mapped) return;
-  
+
           const activityDate = new Date(a.start_date_local);
           const dateKey = format(activityDate, 'yyyy-MM-dd');
           const weekKey = format(startOfWeek(activityDate), 'yyyy-MM-dd');
           const hours = a.moving_time / 3600;
-  
+
           if (
             activityDate >= startOfDay(sevenDaysAgo) &&
             activityDate <= endOfDay(today)
@@ -70,12 +79,16 @@ export default function DashboardSummary() {
             totals[mapped] += hours;
             activeDays.add(dateKey);
           }
-  
+
           weeks[weekKey] = (weeks[weekKey] || 0) + hours;
         });
-  
+
         const weeklyVolume = Object.values(weeks).slice(-4);
-  
+
+        console.log('[DashboardSummary] Totals:', totals);
+        console.log('[DashboardSummary] Active Days:', Array.from(activeDays));
+        console.log('[DashboardSummary] Weekly Volume:', weeklyVolume);
+
         setSummary({
           totalTime: parseFloat(
             Object.values(totals).reduce((a, b) => a + b, 0).toFixed(1)
@@ -88,12 +101,12 @@ export default function DashboardSummary() {
           consistency: `${activeDays.size} of last 7 days`,
         });
       } catch (err) {
-        console.error('[DASH FETCH ERROR]', err);
+        console.error('[DashboardSummary] Unexpected error:', err);
       }
     };
-  
+
     fetchData();
-  }, []);  
+  }, []);
 
   return (
     <section className="mt-10 mb-4">
@@ -150,7 +163,10 @@ export default function DashboardSummary() {
             <ul className="text-sm text-gray-700 mt-2 sm:mt-0">
               {summary.sportBreakdown.map((s, i) => (
                 <li key={i} className="flex items-center gap-2 mb-1">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                  <div
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: COLORS[i % COLORS.length] }}
+                  />
                   <span>{s.name}</span>
                   <span className="text-gray-500 ml-2">{s.value.toFixed(1)}h</span>
                 </li>
