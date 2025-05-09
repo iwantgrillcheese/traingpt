@@ -59,5 +59,5 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Failed to store activities' }, { status: 500 });
   }
 
-  return NextResponse.json({ message: 'Synced successfully', count: upserts.length });
+  return NextResponse.json({ message: 'Synced successfully', count: upserts.length, data: upserts });
 }
