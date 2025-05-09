@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { format, startOfWeek, startOfDay, endOfDay } from 'date-fns';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { format, startOfWeek, startOfDay, endOfDay, isWithinInterval, parseISO } from 'date-fns';
 
 const COLORS = ['#60A5FA', '#34D399', '#FBBF24']; // Swim, Ride, Run
 
@@ -17,7 +16,6 @@ const categoryMap: Record<string, SportCategory | null> = {
 };
 
 export default function DashboardSummary() {
-  const supabase = createClientComponentClient();
   const [summary, setSummary] = useState<{
     totalTime: number;
     weeklyVolume: number[];
@@ -32,17 +30,9 @@ export default function DashboardSummary() {
 
   useEffect(() => {
     const fetchData = async () => {
-      await fetch('/api/strava_sync'); // triggers sync + token refresh
-
-      const { data, error } = await supabase
-        .from('strava_activities')
-        .select('*')
-        .order('start_date_local', { ascending: true });
-
-      if (!data || error) {
-        console.error('Failed to fetch strava_activities', error);
-        return;
-      }
+      const res = await fetch('/api/strava_sync');
+      const json = await res.json();
+      const { data } = json;
 
       const totals: Record<SportCategory, number> = {
         Swim: 0,
@@ -62,28 +52,30 @@ export default function DashboardSummary() {
         const mapped = categoryMap[rawType];
         if (!mapped) return;
 
-        const activityDate = new Date(a.start_date_local);
-        const dateKey = format(activityDate, 'yyyy-MM-dd');
-        const weekKey = format(startOfWeek(activityDate), 'yyyy-MM-dd');
+        const activityDate = parseISO(a.start_date_local);
         const hours = a.moving_time / 3600;
 
-        if (
-          activityDate >= startOfDay(sevenDaysAgo) &&
-          activityDate <= endOfDay(today)
-        ) {
-          totals[mapped] += hours;
-          activeDays.add(dateKey);
-        }
-
+        // Weekly buckets
+        const weekKey = format(startOfWeek(activityDate), 'yyyy-MM-dd');
         weeks[weekKey] = (weeks[weekKey] || 0) + hours;
+
+        // Consistency (only last 7 days)
+        if (
+          isWithinInterval(activityDate, {
+            start: startOfDay(sevenDaysAgo),
+            end: endOfDay(today),
+          })
+        ) {
+          const dateKey = format(activityDate, 'yyyy-MM-dd');
+          activeDays.add(dateKey);
+          totals[mapped] += hours;
+        }
       });
 
       const weeklyVolume = Object.values(weeks).slice(-4);
 
       setSummary({
-        totalTime: parseFloat(
-          Object.values(totals).reduce((a, b) => a + b, 0).toFixed(1)
-        ),
+        totalTime: parseFloat(Object.values(totals).reduce((a, b) => a + b, 0).toFixed(1)),
         weeklyVolume,
         sportBreakdown: (['Swim', 'Ride', 'Run'] as SportCategory[]).map((sport) => ({
           name: sport,
@@ -101,7 +93,6 @@ export default function DashboardSummary() {
       <h2 className="text-lg font-semibold mb-2">Training Summary</h2>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Time and Consistency */}
         <div className="border rounded-xl p-4 bg-white shadow-sm">
           <p className="text-sm text-gray-500 mb-1">Total Time This Week</p>
           <p className="text-xl font-bold text-gray-800">{summary.totalTime.toFixed(1)}h</p>
@@ -112,7 +103,6 @@ export default function DashboardSummary() {
           <p className="text-xl font-bold text-gray-800">{summary.consistency}</p>
         </div>
 
-        {/* Weekly Volume */}
         <div className="border rounded-xl p-4 bg-white shadow-sm col-span-1 sm:col-span-2">
           <p className="text-sm text-gray-500 mb-2">Weekly Volume (hrs)</p>
           <div className="flex items-end gap-2 h-20">
@@ -129,7 +119,6 @@ export default function DashboardSummary() {
           </div>
         </div>
 
-        {/* Sport Breakdown */}
         <div className="border rounded-xl p-4 bg-white shadow-sm col-span-1 sm:col-span-2">
           <p className="text-sm text-gray-500 mb-2">Sport Breakdown</p>
           <div className="flex items-center justify-between gap-4 flex-col sm:flex-row">
