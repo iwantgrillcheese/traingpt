@@ -189,6 +189,14 @@ export default function CoachingDashboard() {
 
     const totalTime = Object.values(sportTotals).reduce((a, b) => a + b, 0).toFixed(1);
     const chartData = Object.entries(sportTotals).map(([k, v]) => ({ name: k, value: v }));
+    const formatDuration = (hours: number): string => {
+      const wholeHours = Math.floor(hours);
+      const minutes = Math.round((hours - wholeHours) * 60);
+    
+      if (wholeHours === 0 && minutes > 0) return `${minutes} mins`;
+      if (wholeHours > 0 && minutes > 0) return `${wholeHours}h ${minutes}m`;
+      return `${wholeHours}h`;
+    };    
 
     return (
       <section className="mt-10 mb-4">
@@ -242,7 +250,8 @@ export default function CoachingDashboard() {
                     className="inline-block w-3 h-3 rounded-full"
                     style={{ backgroundColor: COLORS[i % COLORS.length] }}
                   />
-                  {entry.name}: {entry.value.toFixed(1)}h
+                  {entry.name}: {formatDuration(entry.value)}
+
                 </li>
               ))}
             </ul>
