@@ -149,37 +149,42 @@ export default function CoachingDashboard() {
     }
   };
 
+  const formatDuration = (hours: number): string => {
+    const wholeHours = Math.floor(hours);
+    const minutes = Math.round((hours - wholeHours) * 60);
+    if (wholeHours === 0 && minutes > 0) return `${minutes} mins`;
+    if (wholeHours > 0 && minutes > 0) return `${wholeHours}h ${minutes}m`;
+    return `${wholeHours}h`;
+  };
+
   const DashboardSummary = () => {
     if (!stravaData || stravaData.length === 0) return null;
-
     const weeklyVolume = [0, 0, 0, 0];
     const sportTotals: Record<Sport, number> = { Swim: 0, Bike: 0, Run: 0 };
     const uniqueDays = new Set<string>();
-    const today = new Date();
     const sevenDaysAgo = subDays(today, 6);
     const startOfThisWeek = startOfDay(startOfWeek(today));
 
     for (const session of stravaData) {
-      if (!session.start_date_local) continue;
       const date = parseISO(session.start_date_local);
       const weekStart = startOfDay(startOfWeek(date));
       const weekDiff = Math.floor((startOfThisWeek.getTime() - weekStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
-      const rawType = (session.sport_type ?? '').trim().toLowerCase();
-
-      const typeMap: Record<string, Sport | null> = {
-        swim: 'Swim',
-        ride: 'Bike',
-        virtualride: 'Bike',
-        run: 'Run',
-      };
-      const mapped = typeMap[rawType];
+      const hours = session.moving_time / 3600;
 
       if (weekDiff >= 0 && weekDiff < 4) {
-        weeklyVolume[3 - weekDiff] += session.moving_time / 3600;
+        weeklyVolume[3 - weekDiff] += hours;
       }
 
-      if (weekDiff === 0 && mapped) {
-        sportTotals[mapped] += session.moving_time / 3600;
+      if (weekDiff === 0) {
+        const rawType = session.sport_type?.toLowerCase();
+        const typeMap: Record<string, Sport | null> = {
+          swim: 'Swim',
+          ride: 'Bike',
+          virtualride: 'Bike',
+          run: 'Run',
+        };
+        const mapped = typeMap[rawType];
+        if (mapped) sportTotals[mapped] += hours;
       }
 
       if (date >= startOfDay(sevenDaysAgo) && date <= today) {
@@ -187,16 +192,8 @@ export default function CoachingDashboard() {
       }
     }
 
-    const totalTime = Object.values(sportTotals).reduce((a, b) => a + b, 0).toFixed(1);
+    const totalTime = Object.values(sportTotals).reduce((a, b) => a + b, 0);
     const chartData = Object.entries(sportTotals).map(([k, v]) => ({ name: k, value: v }));
-    const formatDuration = (hours: number): string => {
-      const wholeHours = Math.floor(hours);
-      const minutes = Math.round((hours - wholeHours) * 60);
-    
-      if (wholeHours === 0 && minutes > 0) return `${minutes} mins`;
-      if (wholeHours > 0 && minutes > 0) return `${wholeHours}h ${minutes}m`;
-      return `${wholeHours}h`;
-    };    
 
     return (
       <section className="mt-10 mb-4">
@@ -204,7 +201,7 @@ export default function CoachingDashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="border rounded-xl p-4 bg-white shadow-sm">
             <p className="text-sm text-gray-500 mb-1">Total Time This Week</p>
-            <p className="text-xl font-bold text-gray-800">{totalTime}h</p>
+            <p className="text-xl font-bold text-gray-800">{formatDuration(totalTime)}</p>
           </div>
           <div className="border rounded-xl p-4 bg-white shadow-sm">
             <p className="text-sm text-gray-500 mb-1">Training Consistency</p>
@@ -235,7 +232,7 @@ export default function CoachingDashboard() {
                   nameKey="name"
                   outerRadius={80}
                   fill="#8884d8"
-                  label
+                  label={({ name, value }) => `${name}: ${formatDuration(value as number)}`}
                 >
                   {chartData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -243,18 +240,6 @@ export default function CoachingDashboard() {
                 </Pie>
               </PieChart>
             </ResponsiveContainer>
-            <ul className="flex gap-4 justify-center mt-4 text-sm">
-              {chartData.map((entry, i) => (
-                <li key={i} className="flex items-center gap-2">
-                  <span
-                    className="inline-block w-3 h-3 rounded-full"
-                    style={{ backgroundColor: COLORS[i % COLORS.length] }}
-                  />
-                  {entry.name}: {formatDuration(entry.value)}
-
-                </li>
-              ))}
-            </ul>
           </div>
         </div>
       </section>
