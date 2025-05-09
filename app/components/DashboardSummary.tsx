@@ -66,8 +66,9 @@ export default function DashboardSummary() {
           if (!mapped) return;
 
           const activityDate = new Date(a.start_date_local || a.start_date);
-          const dateKey = format(activityDate, 'yyyy-MM-dd');
-          const weekKey = format(startOfWeek(activityDate), 'yyyy-MM-dd');
+          const utcDate = new Date(activityDate.getUTCFullYear(), activityDate.getUTCMonth(), activityDate.getUTCDate());
+          const dateKey = format(utcDate, 'yyyy-MM-dd');
+          const weekKey = format(startOfWeek(utcDate), 'yyyy-MM-dd');          
           const hours = a.moving_time / 3600;
 
           // Count toward this week's totals
@@ -80,6 +81,10 @@ export default function DashboardSummary() {
           weekBuckets[weekKey] = (weekBuckets[weekKey] || 0) + hours;
 
           // Last 7 days activity for consistency
+
+          const weekStart = startOfWeek(new Date());
+          const weekEnd = endOfDay(today);
+
           if (
             activityDate >= startOfDay(sevenDaysAgo) &&
             activityDate <= endOfDay(today)
