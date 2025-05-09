@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { format, formatDistanceToNow, parseISO, isAfter, subDays, startOfDay } from 'date-fns';
+import { format, formatDistanceToNow, parseISO, isAfter, subDays, startOfDay, startOfWeek } from 'date-fns';
 import Link from 'next/link';
 import Head from 'next/head';
 import { useMediaQuery } from 'react-responsive';
@@ -166,17 +166,23 @@ const DashboardSummary = () => {
 
   for (const session of stravaData) {
     const date = parseISO(session.start_date_local);
-    const weekIndex = Math.floor((Date.now() - date.getTime()) / (7 * 24 * 60 * 60 * 1000));
-    if (weekIndex >= 0 && weekIndex < 4) {
-      weeklyVolume[3 - weekIndex] += session.moving_time / 3600;
+    const startOfThisWeek = startOfDay(startOfWeek(new Date()));
+    const weekDiff = Math.floor(
+      (startOfThisWeek.getTime() - startOfDay(startOfWeek(date)).getTime()) /
+      (7 * 24 * 60 * 60 * 1000)
+    );
+  
+    if (weekDiff >= 0 && weekDiff < 4) {
+      weeklyVolume[3 - weekDiff] += session.moving_time / 3600;
     }
+  
     uniqueDays.add(format(date, 'yyyy-MM-dd'));
-
-    const type = session.sport_type as ValidSport;
-    if (validTypes.includes(type)) {
+  
+    const type = session.sport_type as Sport;
+    if (validSports.includes(type)) {
       sportTotals[type] += session.moving_time / 3600;
     }
-  }
+  }  
 
   const totalTime = Object.values(sportTotals).reduce((a, b) => a + b, 0).toFixed(1);
   const chartData = Object.entries(sportTotals).map(([k, v]) => ({ name: k, value: v }));
