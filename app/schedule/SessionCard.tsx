@@ -1,19 +1,20 @@
 'use client';
+
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isBefore, startOfDay } from 'date-fns';
 
 interface SessionCardProps {
   title: string;
   duration?: string;
   details?: string[];
   date?: string;
-  initialStatus?: 'done' | 'skipped';
-  onStatusChange?: (status: 'done' | 'skipped') => void;
+  initialStatus?: 'done' | 'skipped' | 'missed';
+  onStatusChange?: (status: 'done' | 'skipped' | 'missed') => void;
 }
 
-type SessionStatus = 'not_started' | 'done' | 'skipped';
+type SessionStatus = 'not_started' | 'done' | 'skipped' | 'missed';
 
 export function SessionCard({
   title,
@@ -23,15 +24,34 @@ export function SessionCard({
   initialStatus,
   onStatusChange,
 }: SessionCardProps) {
+  const today = startOfDay(new Date());
+  const dateObj = date ? parseISO(date) : null;
+  const isPast = dateObj ? isBefore(dateObj, today) : false;
+  const derivedStatus: SessionStatus =
+    initialStatus ?? (isPast ? 'missed' : 'not_started');
+
   const [expanded, setExpanded] = useState(false);
   const [note, setNote] = useState('');
-  const [status, setStatus] = useState<SessionStatus>(initialStatus || 'not_started');
+  const [status, setStatus] = useState<SessionStatus>(derivedStatus);
 
   const dayFormatted = date ? format(parseISO(date), 'EEEE, MMMM d') : '';
 
+  const getBorderColor = () => {
+    switch (status) {
+      case 'done':
+        return 'border-green-500';
+      case 'skipped':
+        return 'border-gray-400';
+      case 'missed':
+        return 'border-red-500';
+      default:
+        return 'border-gray-200';
+    }
+  };
+
   return (
     <div
-      className="rounded-2xl border shadow-sm bg-white cursor-pointer overflow-hidden transition-all"
+      className={`rounded-2xl border shadow-sm bg-white cursor-pointer overflow-hidden transition-all ${getBorderColor()}`}
       onClick={(e) => {
         if ((e.target as HTMLElement).tagName !== 'TEXTAREA') {
           setExpanded(!expanded);
