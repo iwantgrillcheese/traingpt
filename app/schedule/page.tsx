@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { format, parseISO, isSameDay } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { SessionCard } from './SessionCard';
 
 const supabase = createClientComponentClient();
@@ -88,24 +88,6 @@ export default function SchedulePage() {
   const today = new Date();
   const raceCountdown = raceDate ? Math.max(0, Math.floor((parseISO(raceDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))) : null;
 
-  const flattenPlannedSessions = new Set(
-    plan.flatMap((week) =>
-      Object.entries(week.days).flatMap(([date, sessions]: any) =>
-        (sessions as string[]).map((title) => `${date}-${title}`)
-      )
-    )
-  );
-
-  const stravaOnlySessions = stravaActivities.filter((activity) => {
-    const date = activity.start_date_local?.split('T')[0];
-    const sportType = activity.sport_type?.toLowerCase();
-    const mapped = sportType === 'ride' || sportType === 'virtualride' ? 'bike' : sportType;
-    const durationMin = Math.round(activity.moving_time / 60);
-    const label = `${mapped.charAt(0).toUpperCase() + mapped.slice(1)}: ${durationMin}min ${activity.name?.toLowerCase().includes('hill') ? 'hilly' : ''}`.trim();
-
-    return !flattenPlannedSessions.has(`${date}-${label}`);
-  });
-
   if (loading) {
     return <div className="py-32 text-center text-gray-400">Loading your schedule...</div>;
   }
@@ -116,6 +98,7 @@ export default function SchedulePage() {
 
   return (
     <main className="max-w-[1440px] mx-auto px-4 sm:px-8 py-10 sm:py-16">
+      {/* Top Header */}
       <div className="text-center mb-10">
         <h1 className="text-3xl font-bold mb-2">Your Training Plan</h1>
         {raceCountdown !== null && (
@@ -128,48 +111,33 @@ export default function SchedulePage() {
         )}
       </div>
 
+      {/* Plan Sessions */}
       <div className="flex flex-col gap-10">
         {plan.map((week, weekIdx) => (
           <div key={weekIdx} className="flex flex-col gap-6">
+            {/* Week Header */}
             <div className="text-xl font-semibold text-gray-800">{week.label}</div>
 
+            {/* Days */}
             {Object.entries(week.days).map(([date, sessionsRaw], dayIdx) => {
               const sessions = sessionsRaw as string[];
               const dateObj = parseISO(date);
 
               return (
                 <div key={`${weekIdx}-${dayIdx}`} className="flex flex-col gap-4">
+                  {/* Day Header */}
                   <div className="text-md font-bold text-gray-600">{format(dateObj, 'EEEE, MMM d')}</div>
 
+                  {/* Session Cards */}
                   {sessions.map((sessionTitle, sessionIdx) => (
                     <SessionCard
-                      key={`planned-${sessionIdx}`}
+                      key={sessionIdx}
                       title={sessionTitle}
                       date={date}
                       initialStatus={completed[`${date}-${sessionTitle}`] as 'done' | 'skipped' | undefined}
                       onStatusChange={(newStatus) => saveSessionStatus({ date, sport: sessionTitle, status: newStatus })}
-                      isStravaOnly={false}
                     />
                   ))}
-
-                  {stravaOnlySessions
-                    .filter((activity) => isSameDay(parseISO(activity.start_date_local), dateObj))
-                    .map((activity, idx) => {
-                      const sportType = activity.sport_type?.toLowerCase();
-                      const mapped = sportType === 'ride' || sportType === 'virtualride' ? 'bike' : sportType;
-                      const durationMin = Math.round(activity.moving_time / 60);
-                      const label = `${mapped.charAt(0).toUpperCase() + mapped.slice(1)}: ${durationMin}min ${activity.name?.toLowerCase().includes('hill') ? 'hilly' : ''}`.trim();
-
-                      return (
-                        <SessionCard
-                          key={`strava-${idx}`}
-                          title={label}
-                          date={activity.start_date_local.split('T')[0]}
-                          isStravaOnly={true}
-                          initialStatus={undefined}
-                        />
-                      );
-                    })}
                 </div>
               );
             })}
