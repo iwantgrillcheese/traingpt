@@ -101,8 +101,6 @@ export default function SchedulePage() {
     const sportType = activity.sport_type?.toLowerCase();
     const mapped = sportType === 'ride' || sportType === 'virtualride' ? 'bike' : sportType;
     const durationMin = Math.round(activity.moving_time / 60);
-
-    // Very basic pattern to create pseudo-title for uniqueness
     const label = `${mapped.charAt(0).toUpperCase() + mapped.slice(1)}: ${durationMin}min ${activity.name?.toLowerCase().includes('hill') ? 'hilly' : ''}`.trim();
 
     return !flattenPlannedSessions.has(`${date}-${label}`);
@@ -145,7 +143,7 @@ export default function SchedulePage() {
 
                   {sessions.map((sessionTitle, sessionIdx) => (
                     <SessionCard
-                      key={sessionIdx}
+                      key={`planned-${sessionIdx}`}
                       title={sessionTitle}
                       date={date}
                       initialStatus={completed[`${date}-${sessionTitle}`] as 'done' | 'skipped' | undefined}
