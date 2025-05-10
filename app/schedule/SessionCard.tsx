@@ -10,6 +10,7 @@ interface SessionCardProps {
   duration?: string;
   details?: string[];
   date?: string;
+  isStravaOnly?: boolean;
   initialStatus?: 'done' | 'skipped' | 'missed';
   onStatusChange?: (status: 'done' | 'skipped' | 'missed') => void;
 }
@@ -23,6 +24,7 @@ export function SessionCard({
   date,
   initialStatus,
   onStatusChange,
+  isStravaOnly = false
 }: SessionCardProps) {
   const today = startOfDay(new Date());
   const dateObj = date ? parseISO(date) : null;
@@ -51,16 +53,25 @@ export function SessionCard({
 
   return (
     <div
-      className={`rounded-2xl border shadow-sm bg-white cursor-pointer overflow-hidden transition-all ${getBorderColor()}`}
-      onClick={(e) => {
-        if ((e.target as HTMLElement).tagName !== 'TEXTAREA') {
-          setExpanded(!expanded);
-        }
-      }}
-    >
+  className={`rounded-2xl border shadow-sm bg-white cursor-pointer overflow-hidden transition-all
+    ${getBorderColor()}
+    ${isStravaOnly ? 'border-l-4 border-orange-400' : ''}
+  `}
+  onClick={(e) => {
+    if ((e.target as HTMLElement).tagName !== 'TEXTAREA') {
+      setExpanded(!expanded);
+    }
+  }}
+>
       {/* Collapsed View */}
       <div className="p-4 flex flex-col">
-        <div className="text-md font-semibold text-gray-800">{title}</div>
+      <div className="text-md font-semibold text-gray-800 flex items-center gap-2">
+      {isStravaOnly && (
+  <span className="text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full mt-1 w-max">
+    From Strava
+  </span>
+)}
+</div>
         {duration && <div className="text-sm text-gray-500 mt-1">{duration}</div>}
         <div className="text-xs text-gray-400 mt-2">{expanded ? 'Tap to collapse' : 'Tap to expand'}</div>
       </div>
