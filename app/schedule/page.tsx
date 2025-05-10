@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { format, parseISO, isAfter, isBefore, isToday } from 'date-fns';
+import { format, parseISO, isBefore } from 'date-fns';
 import { SessionCard } from './SessionCard';
 
 const supabase = createClientComponentClient();
@@ -16,7 +16,7 @@ export default function SchedulePage() {
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [planId, setPlanId] = useState<string | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [collapsedDays, setCollapsedDays] = useState<{ [key: string]: boolean }>({});
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -55,7 +55,6 @@ export default function SchedulePage() {
           setCoachNote(plans.coach_note || null);
           setPlanId(plans.id || null);
         }
-
         setCompleted(checks);
         setStravaActivities(activities || []);
       } catch (e) {
@@ -74,7 +73,13 @@ export default function SchedulePage() {
     await supabase
       .from('completed_sessions')
       .upsert(
-        [{ user_id: userId, plan_id: planId, date, sport, status }],
+        [{
+          user_id: userId,
+          plan_id: planId,
+          date,
+          sport,
+          status,
+        }],
         { onConflict: 'user_id,date,sport' }
       );
 
@@ -83,8 +88,6 @@ export default function SchedulePage() {
 
   const today = new Date();
   const raceCountdown = raceDate ? Math.max(0, Math.floor((parseISO(raceDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))) : null;
-
-  const isPast = (date: Date) => isBefore(date, today) && !isToday(date);
 
   if (loading) {
     return <div className="py-32 text-center text-gray-400">Loading your schedule...</div>;
@@ -95,7 +98,7 @@ export default function SchedulePage() {
   }
 
   return (
-    <main className="max-w-[1440px] mx-auto px-4 sm:px-8 py-10 sm:py-16" ref={containerRef}>
+    <main className="max-w-[1440px] mx-auto px-4 sm:px-8 py-10 sm:py-16">
       <div className="text-center mb-10">
         <h1 className="text-3xl font-bold mb-2">Your Training Plan</h1>
         {raceCountdown !== null && (
@@ -116,28 +119,26 @@ export default function SchedulePage() {
             {Object.entries(week.days).map(([date, sessionsRaw], dayIdx) => {
               const sessions = sessionsRaw as string[];
               const dateObj = parseISO(date);
-              const collapsed = isPast(dateObj);
+              const isPast = isBefore(dateObj, today);
+              const isCollapsed = isPast && collapsedDays[date];
 
               return (
-                <details key={`${weekIdx}-${dayIdx}`} open={!collapsed} className="group border rounded-xl">
-                  <summary className="text-md font-bold text-gray-600 px-4 py-3 cursor-pointer">
+                <div key={`${weekIdx}-${dayIdx}`} className="flex flex-col gap-4">
+                  <div className="text-md font-bold text-gray-600 cursor-pointer" onClick={() => setCollapsedDays((prev) => ({ ...prev, [date]: !prev[date] }))}>
                     {format(dateObj, 'EEEE, MMM d')}
-                  </summary>
-
-                  <div className="flex flex-col gap-4 px-4 pb-4">
-                    {sessions.map((sessionTitle, sessionIdx) => (
-                      <SessionCard
-                        key={sessionIdx}
-                        title={sessionTitle}
-                        date={date}
-                        initialStatus={completed[`${date}-${sessionTitle}`] as 'done' | 'skipped' | 'missed' | undefined}
-                        onStatusChange={(newStatus) =>
-                          saveSessionStatus({ date, sport: sessionTitle, status: newStatus })
-                        }
-                      />
-                    ))}
+                    {isPast && <span className="ml-2 text-xs text-blue-500">(Tap to {isCollapsed ? 'show' : 'hide'})</span>}
                   </div>
-                </details>
+
+                  {!isCollapsed && sessions.map((sessionTitle, sessionIdx) => (
+                    <SessionCard
+                      key={sessionIdx}
+                      title={sessionTitle}
+                      date={date}
+                      initialStatus={completed[`${date}-${sessionTitle}`] as 'done' | 'skipped' | 'missed' | undefined}
+                      onStatusChange={(newStatus) => saveSessionStatus({ date, sport: sessionTitle, status: newStatus })}
+                    />
+                  ))}
+                </div>
               );
             })}
           </div>
