@@ -50,12 +50,10 @@ export default function SessionCard({
     }
   };
 
-  const handleChange = (newStatus: SessionStatus) => {
-    setStatus(newStatus);
-if (status === 'done' || status === 'skipped' || status === 'missed') {
-  onStatusChange?.(status);
-}
-  };
+  const handleChange = (newStatus: 'done' | 'skipped') => {
+  setStatus(newStatus);
+  onStatusChange?.(newStatus);
+};
 
   return (
     <div
