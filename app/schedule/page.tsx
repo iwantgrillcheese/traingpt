@@ -76,36 +76,49 @@ export default function SchedulePage() {
 
   const saveSessionStatus = async ({
     date,
-    sport,
+    sportTitle,
     status,
   }: {
     date: string;
-    sport: string;
-    status: string;
+    sportTitle: string;
+    status: 'done' | 'skipped' | 'missed';
   }) => {
-    if (!userId || !planId) return;
+    if (!userId) return;
 
-    const normalizedSport = getNormalizedSport(sport);
+    const normalizedSport = getNormalizedSport(sportTitle);
+    const key = `${date}-${normalizedSport}`;
 
-    await supabase
+    console.log('[🔁 saveSessionStatus]', {
+      userId,
+      planId,
+      date,
+      sport: normalizedSport,
+      status,
+      key,
+    });
+
+    const { error } = await supabase
       .from('completed_sessions')
       .upsert(
         [
           {
             user_id: userId,
-            plan_id: planId,
+            plan_id: planId ?? null,
             date,
             sport: normalizedSport,
             status,
-            title: sport,
           },
         ],
         { onConflict: 'user_id,date,sport' }
       );
 
+    if (error) {
+      console.error('[❌ Supabase save error]', error);
+    }
+
     setCompleted((prev) => ({
       ...prev,
-      [`${date}-${normalizedSport}`]: status,
+      [key]: status,
     }));
   };
 
@@ -115,8 +128,7 @@ export default function SchedulePage() {
       ? Math.max(
           0,
           Math.floor(
-            (parseISO(raceDate).getTime() - today.getTime()) /
-              (1000 * 60 * 60 * 24)
+            (parseISO(raceDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
           )
         )
       : null;
@@ -132,8 +144,7 @@ export default function SchedulePage() {
   const stravaOnlySessions = stravaActivities.filter((activity) => {
     const date = activity.start_date_local?.split('T')[0];
     const sportType = activity.sport_type?.toLowerCase();
-    const mapped =
-      sportType === 'ride' || sportType === 'virtualride' ? 'bike' : sportType;
+    const mapped = sportType === 'ride' || sportType === 'virtualride' ? 'bike' : sportType;
     const durationMin = Math.round(activity.moving_time / 60);
     const label = `${mapped.charAt(0).toUpperCase() + mapped.slice(1)}: ${durationMin}min ${
       activity.name?.toLowerCase().includes('hill') ? 'hilly' : ''
@@ -142,19 +153,11 @@ export default function SchedulePage() {
   });
 
   if (loading) {
-    return (
-      <div className="py-32 text-center text-gray-400">
-        Loading your schedule...
-      </div>
-    );
+    return <div className="py-32 text-center text-gray-400">Loading your schedule...</div>;
   }
 
   if (!plan.length) {
-    return (
-      <div className="py-32 text-center text-gray-400">
-        No plan found. Generate one to get started.
-      </div>
-    );
+    return <div className="py-32 text-center text-gray-400">No plan found. Generate one to get started.</div>;
   }
 
   return (
@@ -162,9 +165,7 @@ export default function SchedulePage() {
       <div className="text-center mb-10">
         <h1 className="text-3xl font-bold mb-2">Your Training Plan</h1>
         {raceCountdown !== null && (
-          <p className="text-gray-600 text-lg">
-            {raceCountdown} days until race day
-          </p>
+          <p className="text-gray-600 text-lg">{raceCountdown} days until race day</p>
         )}
         {coachNote && (
           <div className="mt-4 inline-block bg-blue-50 border border-blue-200 text-blue-700 rounded-xl px-5 py-3 text-sm shadow-sm">
@@ -176,9 +177,7 @@ export default function SchedulePage() {
       <div className="flex flex-col gap-10">
         {plan.map((week, weekIdx) => (
           <div key={weekIdx} className="flex flex-col gap-6">
-            <div className="text-xl font-semibold text-gray-800">
-              {week.label}
-            </div>
+            <div className="text-xl font-semibold text-gray-800">{week.label}</div>
 
             {Object.entries(week.days).map(([date, sessionsRaw], dayIdx) => {
               const sessions = sessionsRaw as string[];
@@ -196,14 +195,15 @@ export default function SchedulePage() {
                       title={sessionTitle}
                       date={date}
                       initialStatus={
-                        completed[
-                          `${date}-${getNormalizedSport(sessionTitle)}`
-                        ] as 'done' | 'skipped' | undefined
+                        completed[`${date}-${getNormalizedSport(sessionTitle)}`] as
+                          | 'done'
+                          | 'skipped'
+                          | 'missed'
                       }
                       onStatusChange={(newStatus) =>
                         saveSessionStatus({
                           date,
-                          sport: sessionTitle,
+                          sportTitle: sessionTitle,
                           status: newStatus,
                         })
                       }
@@ -211,28 +211,14 @@ export default function SchedulePage() {
                   ))}
 
                   {stravaOnlySessions
-                    .filter((activity) =>
-                      isSameDay(
-                        parseISO(activity.start_date_local),
-                        dateObj
-                      )
-                    )
+                    .filter((activity) => isSameDay(parseISO(activity.start_date_local), dateObj))
                     .map((activity, idx) => {
                       const sportType = activity.sport_type?.toLowerCase();
                       const mapped =
-                        sportType === 'ride' ||
-                        sportType === 'virtualride'
-                          ? 'bike'
-                          : sportType;
-                      const durationMin = Math.round(
-                        activity.moving_time / 60
-                      );
+                        sportType === 'ride' || sportType === 'virtualride' ? 'bike' : sportType;
+                      const durationMin = Math.round(activity.moving_time / 60);
                       const label = `${mapped.charAt(0).toUpperCase() + mapped.slice(1)}: ${durationMin}min ${
-                        activity.name
-                          ?.toLowerCase()
-                          .includes('hill')
-                          ? 'hilly'
-                          : ''
+                        activity.name?.toLowerCase().includes('hill') ? 'hilly' : ''
                       }`.trim();
 
                       return (
