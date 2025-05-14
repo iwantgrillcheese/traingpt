@@ -17,7 +17,7 @@ interface SessionCardProps {
 
 type SessionStatus = 'not_started' | 'done' | 'skipped' | 'missed';
 
-export function SessionCard({
+export default function SessionCard({
   title,
   duration = '',
   details = [],
@@ -50,11 +50,18 @@ export function SessionCard({
     }
   };
 
+  const handleChange = (newStatus: SessionStatus) => {
+    setStatus(newStatus);
+if (status === 'done' || status === 'skipped' || status === 'missed') {
+  onStatusChange?.(status);
+}
+  };
+
   return (
     <div
       className={`rounded-2xl border shadow-sm bg-white cursor-pointer overflow-hidden transition-all ${getBorderColor()} ${isStravaOnly ? 'border-l-4' : ''}`}
       onClick={(e) => {
-        if ((e.target as HTMLElement).tagName !== 'TEXTAREA') {
+        if ((e.target as HTMLElement).tagName !== 'TEXTAREA' && (e.target as HTMLElement).tagName !== 'A') {
           setExpanded(!expanded);
         }
       }}
@@ -95,58 +102,64 @@ export function SessionCard({
               <div className="text-gray-500 text-center mb-4">No full workout loaded yet.</div>
             )}
 
-            <div className="flex gap-2 mb-4">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setStatus('done');
-                  onStatusChange?.('done');
-                }}
-                className={`text-sm px-3 py-1 rounded-full border transition ${
-                  status === 'done' ? 'bg-green-100 border-green-600 text-green-800' : 'border-gray-300 text-gray-600'
-                }`}
-              >
-                ✓ Completed
-              </button>
+            {!isStravaOnly && (
+              <>
+                <div className="flex gap-2 mb-4">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleChange('done');
+                    }}
+                    className={`text-sm px-3 py-1 rounded-full border transition ${
+                      status === 'done'
+                        ? 'bg-green-100 border-green-600 text-green-800'
+                        : 'border-gray-300 text-gray-600'
+                    }`}
+                  >
+                    ✓ Completed
+                  </button>
 
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setStatus('skipped');
-                  onStatusChange?.('skipped');
-                }}
-                className={`text-sm px-3 py-1 rounded-full border transition ${
-                  status === 'skipped' ? 'bg-gray-100 border-gray-500 text-gray-700' : 'border-gray-300 text-gray-600'
-                }`}
-              >
-                ⏭️ Skipped
-              </button>
-            </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleChange('skipped');
+                    }}
+                    className={`text-sm px-3 py-1 rounded-full border transition ${
+                      status === 'skipped'
+                        ? 'bg-gray-100 border-gray-500 text-gray-700'
+                        : 'border-gray-300 text-gray-600'
+                    }`}
+                  >
+                    ⏭️ Skipped
+                  </button>
+                </div>
 
-            <div className="mb-4">
-              <textarea
-                className="w-full border border-gray-300 rounded-md p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition"
-                placeholder="Write your notes..."
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                onBlur={() => {
-                  console.log('Auto-saving note:', note); // 🔥 hook to backend later
-                }}
-              />
-            </div>
+                <div className="mb-4">
+                  <textarea
+                    className="w-full border border-gray-300 rounded-md p-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition"
+                    placeholder="Write your notes..."
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    onBlur={() => {
+                      console.log('Auto-saving note:', note); // 🔥 hook to Supabase later
+                    }}
+                  />
+                </div>
 
-            {date && (
-              <div className="flex justify-center">
-                <Link
-                  href={`/coaching?prefill=${encodeURIComponent(
-                    `Hey coach, can you give me a detailed workout for my "${title}" session on ${dayFormatted}?`
-                  )}`}
-                  className="inline-flex items-center gap-2 px-4 py-2 border border-blue-600 text-blue-600 rounded-full text-sm hover:bg-blue-50 transition"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  💬 Ask your coach for a detailed workout
-                </Link>
-              </div>
+                {date && (
+                  <div className="flex justify-center">
+                    <Link
+                      href={`/coaching?prefill=${encodeURIComponent(
+                        `Hey coach, can you give me a detailed workout for my "${title}" session on ${dayFormatted}?`
+                      )}`}
+                      className="inline-flex items-center gap-2 px-4 py-2 border border-blue-600 text-blue-600 rounded-full text-sm hover:bg-blue-50 transition"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      💬 Ask your coach for a detailed workout
+                    </Link>
+                  </div>
+                )}
+              </>
             )}
           </motion.div>
         )}
