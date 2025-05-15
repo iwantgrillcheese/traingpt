@@ -7,5 +7,10 @@ type Props = {
 };
 
 export const generateWelcomeEmail = async ({ name, plan }: Props): Promise<string> => {
-  return render(<WelcomeEmail name={name} plan={plan} />);
+  return render(
+    <WelcomeEmail
+      name={name ?? 'Athlete'}
+      plan={plan ?? 'your custom training plan'}
+    />
+  );
 };
