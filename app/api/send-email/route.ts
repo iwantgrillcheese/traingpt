@@ -14,7 +14,7 @@ export async function POST(req: Request) {
 
   try {
     const result = await resend.emails.send({
-      from: 'TrainGPT <onboarding@resend.dev>', // update to your verified sender if needed
+      from: 'TrainGPT <hello@traingpt.co>', // update to your verified sender if needed
       to,
       subject,
       html,
