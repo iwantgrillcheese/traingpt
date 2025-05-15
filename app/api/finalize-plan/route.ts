@@ -84,7 +84,7 @@ export async function POST(req: Request) {
   const maxHours = body.maxHours || latestPlan?.max_hours || 8;
   const restDay = body.restDay || latestPlan?.rest_day || 'Monday';
 
-  let totalWeeks = differenceInCalendarWeeks(raceDate, startDate);
+let totalWeeks = Math.ceil((raceDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
   const minWeeks = MIN_WEEKS[raceType] || 6;
   const maxWeeks = MAX_WEEKS[raceType] || 20;
   let adjusted = false;
