@@ -6,6 +6,7 @@ import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { COACH_SYSTEM_PROMPT } from '@/lib/coachPrompt';
 import { buildCoachPrompt } from '@/utils/buildCoachPrompt';
+import { sendWelcomeEmail } from '@/lib/emails/send-welcome-email';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -58,6 +59,9 @@ export async function POST(req: Request) {
   }
 
   const user_id = user.id;
+  const user_email = user.email;
+  const user_name = user.user_metadata?.name || 'Athlete';
+
   const today = new Date();
   const startDate = getNextMonday(today);
 
@@ -157,6 +161,16 @@ export async function POST(req: Request) {
     if (error) {
       console.error('❌ Supabase Insert Error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // 📨 Attempt to send welcome email — non-blocking
+    try {
+      const planSummary = `${raceType} — ${format(raceDate, 'MMMM d')}`;
+      const to = user.email ?? '';
+const name = user.user_metadata?.name ?? 'Athlete';
+await sendWelcomeEmail({ to, name, plan: planSummary });
+    } catch (err) {
+      console.error('📪 Failed to send welcome email (non-blocking)', err);
     }
 
     return NextResponse.json({ success: true, plan, coachNote, adjusted });

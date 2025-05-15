@@ -19,61 +19,25 @@ export default function WelcomeEmail({ name, plan }: Props) {
   return (
     <Html>
       <Head />
-      <Preview>Welcome to TrainGPT — your AI coach is ready to go</Preview>
+      <Preview>Welcome to TrainGPT — your training starts now</Preview>
       <Body style={main}>
         <Container style={container}>
+          {/* Header */}
           <Section style={header}>
-            <Text style={logo}>TrainGPT</Text>
-            <Text style={tagline}>Smarter triathlon training starts now.</Text>
+            <Text style={heading}>Welcome to TrainGPT 🎉</Text>
+            <Text style={subheading}>Your AI coach is ready to train.</Text>
           </Section>
 
-          <Section style={hero}>
-            <Text style={headline}>👋 Welcome, {name}!</Text>
-            <Text style={paragraph}>
-              You just took the first step toward your strongest season yet.
-            </Text>
-            <Text style={paragraph}>
-              TrainGPT creates fully personalized triathlon plans — built by AI, grounded in coaching science, and tailored to your goals.
-            </Text>
-            <Link href="https://www.traingpt.co/schedule" style={cta}>
-              📆 View Your Training Plan
-            </Link>
-            <Text style={subtext}>Your custom plan is ready to go.</Text>
-          </Section>
-
-          <Hr style={divider} />
-
-          <Section>
-            <Text style={subheading}>What’s Next?</Text>
-            <ul style={list}>
-              <li>
-                <strong>📅 Check Your Schedule</strong> — Your week-by-week plan is live and tailored to your goals.
-              </li>
-              <li>
-                <strong>🔁 Sync with Strava</strong> — Automatically track your workouts and stay consistent.
-              </li>
-              <li>
-                <strong>💬 Talk to Your Coach</strong> — Ask your AI coach for advice, tweaks, or motivation anytime.
-              </li>
-            </ul>
-          </Section>
-
-          <Section>
+          <Section style={content}>
             <Text style={paragraph}>
               Whether you're chasing a PR or just showing up stronger each week — your coach is with you, every step of the way.
             </Text>
             <Text style={paragraph}>
               Have questions? Just reply to this email — we’re here to help.
             </Text>
-          </Section>
-
-          <Hr style={divider} />
-
-          <Section style={footer}>
-            <Text style={footerText}>
-              You’re receiving this email because you signed up for TrainGPT.<br />
-              © 2025 TrainGPT. All rights reserved. <br />
-              <Link href="https://www.traingpt.co/privacy">Privacy Policy</Link> • <Link href="#">Unsubscribe</Link>
+            <Hr style={divider} />
+            <Text style={footer}>
+              Welcome to smarter training. Let's get to work.
             </Text>
           </Section>
         </Container>
@@ -81,6 +45,8 @@ export default function WelcomeEmail({ name, plan }: Props) {
     </Html>
   );
 }
+
+// === Styles ===
 
 const main = {
   backgroundColor: '#f4f4f4',
@@ -101,61 +67,24 @@ const header = {
   marginBottom: '24px',
 };
 
-const logo = {
-  fontSize: '20px',
+const heading = {
+  fontSize: '24px',
   fontWeight: 'bold' as const,
-};
-
-const tagline = {
-  fontSize: '14px',
-  color: '#555',
-};
-
-const hero = {
-  marginBottom: '32px',
-};
-
-const headline = {
-  fontSize: '22px',
-  fontWeight: 'bold' as const,
-  marginBottom: '8px',
-};
-
-const paragraph = {
-  fontSize: '15px',
-  lineHeight: '1.6',
-  marginBottom: '20px',
+  marginBottom: '4px',
 };
 
 const subheading = {
   fontSize: '16px',
-  fontWeight: 'bold' as const,
-  marginBottom: '12px',
+  color: '#666',
 };
 
-const list = {
-  paddingLeft: '20px',
+const content = {
   fontSize: '15px',
   lineHeight: '1.6',
-  marginBottom: '24px',
 };
 
-const cta = {
-  display: 'inline-block',
-  backgroundColor: '#111827',
-  color: '#ffffff',
-  textDecoration: 'none',
-  padding: '12px 20px',
-  borderRadius: '6px',
-  fontWeight: 'bold' as const,
-  fontSize: '14px',
-  marginTop: '12px',
-};
-
-const subtext = {
-  fontSize: '13px',
-  color: '#777',
-  marginTop: '8px',
+const paragraph = {
+  marginBottom: '20px',
 };
 
 const divider = {
@@ -165,11 +94,12 @@ const divider = {
 };
 
 const footer = {
-  textAlign: 'center' as const,
-  fontSize: '12px',
-  color: '#999',
+  fontWeight: 'bold' as const,
+  fontSize: '15px',
+  marginBottom: '12px',
 };
 
-const footerText = {
-  lineHeight: '1.6',
+const signature = {
+  fontSize: '14px',
+  color: '#777',
 };
