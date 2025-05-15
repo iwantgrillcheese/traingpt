@@ -1,6 +1,6 @@
 {
   "name": "TrainGPT Dev",
-  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "image": "mcr.microsoft.com/devcontainers/node:20",
   "forwardPorts": [3000],
   "secrets": {
     "RESEND_API_KEY": "RESEND_API_KEY"
