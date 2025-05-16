@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Footer from '../components/footer';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
@@ -13,6 +13,15 @@ const quotes = [
   "Train hard, race easy.",
   "Little by little, a little becomes a lot.",
   "The only bad workout is the one you didn’t do."
+];
+
+const steps = [
+  'Authenticating with Supabase...',
+  'Checking for existing plan...',
+  'Building the perfect training prompt...',
+  'Generating your plan with GPT...',
+  'Saving plan to your dashboard...',
+  'Almost done...'
 ];
 
 type FieldConfig = {
@@ -38,6 +47,8 @@ export default function PlanPage() {
   const [userNote, setUserNote] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [stepText, setStepText] = useState('');
   const [error, setError] = useState('');
   const [quote, setQuote] = useState('');
   const [sessionChecked, setSessionChecked] = useState(false);
@@ -54,11 +65,17 @@ export default function PlanPage() {
     setError('');
     setQuote(quotes[Math.floor(Math.random() * quotes.length)]);
 
-    try {
-      let access_token: string | null = null;
+    const interval = setInterval(() => {
+      setProgress(prev => {
+        const next = Math.min(prev + 1, 100);
+        setStepText(steps[Math.floor((next / 100) * steps.length)] || steps[0]);
+        return next;
+      });
+    }, 500);
 
+    try {
       const { data: { session } } = await supabase.auth.getSession();
-      access_token = session?.access_token || null;
+      const access_token = session?.access_token;
       if (!access_token) throw new Error('No Supabase access token found');
 
       const res = await fetch('/api/finalize-plan', {
@@ -73,8 +90,10 @@ export default function PlanPage() {
       if (!res.ok) throw new Error('Failed to finalize plan');
       await res.json();
 
+      clearInterval(interval);
       router.push('/schedule');
     } catch (err: any) {
+      clearInterval(interval);
       console.error('❌ Finalize plan error:', err);
       setError(err.message || 'Something went wrong');
     } finally {
@@ -98,10 +117,7 @@ export default function PlanPage() {
         .limit(1)
         .single();
 
-      if (planData) {
-        setHasPlan(true);
-      }
-
+      if (planData) setHasPlan(true);
       setSessionChecked(true);
     };
 
@@ -123,25 +139,22 @@ export default function PlanPage() {
   ];
 
   if (!sessionChecked) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-gray-600">
-        Checking your session...
-      </div>
-    );
+    return <div className="min-h-screen flex items-center justify-center text-gray-600">Checking your session...</div>;
   }
 
   return (
     <div className="min-h-screen bg-white text-gray-900 relative">
       {loading && (
         <div className="fixed inset-0 z-50 bg-white bg-opacity-90 flex flex-col items-center justify-center text-center px-6">
-          <div className="w-12 h-12 mb-4 relative">
-            <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
-            <div className="absolute inset-0 rounded-full border-4 border-t-black border-b-transparent animate-spin"></div>
+          <div className="w-full max-w-md">
+            <div className="w-full bg-gray-200 rounded-full h-4 mb-2">
+              <div className="bg-black h-4 rounded-full transition-all" style={{ width: `${progress}%` }} />
+            </div>
+            <p className="text-sm text-gray-500 mb-1">{stepText}</p>
+            <p className="text-base text-gray-700 font-medium italic">{quote}</p>
           </div>
-          <p className="text-lg text-gray-700 font-medium italic">{quote}</p>
         </div>
       )}
-
       <Suspense fallback={<div className="py-32 text-center text-gray-400">Loading...</div>}>
         <main className="max-w-4xl mx-auto px-6 py-16">
           <div className="text-center mb-12">
