@@ -16,12 +16,12 @@ const quotes = [
 ];
 
 const steps = [
-  'Authenticating with Supabase...',
-  'Checking for existing plan...',
-  'Building the perfect training prompt...',
-  'Generating your plan with GPT...',
-  'Saving plan to your dashboard...',
-  'Almost done...'
+  "Locking in your race goals and timeline...",
+  "Scanning your notes like a seasoned coach...",
+  "Cooking up a solid base phase...",
+  "Dialing in the build block to get you race ready...",
+  "Balancing rest days, bricks, and long sessions...",
+  "Polishing the plan for game day..."
 ];
 
 type FieldConfig = {
