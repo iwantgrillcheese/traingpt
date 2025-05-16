@@ -5,25 +5,6 @@ import { useRouter } from 'next/navigation';
 import Footer from '../components/footer';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
-const supabase = createClientComponentClient();
-
-const quotes = [
-  "Don't count the days, make the days count.",
-  "Discipline is doing it when you don’t feel like it.",
-  "Train hard, race easy.",
-  "Little by little, a little becomes a lot.",
-  "The only bad workout is the one you didn’t do."
-];
-
-const steps = [
-  "Locking in your race goals and timeline...",
-  "Scanning your notes like a seasoned coach...",
-  "Cooking up a solid base phase...",
-  "Dialing in the build block to get you race ready...",
-  "Balancing rest days, bricks, and long sessions...",
-  "Polishing the plan for game day..."
-];
-
 type FieldConfig = {
   id: string;
   label: string;
@@ -31,6 +12,35 @@ type FieldConfig = {
   options?: string[];
   placeholder?: string;
 };
+
+const supabase = createClientComponentClient();
+
+const quotes = [
+  "Success comes from knowing you did your best to become the best you’re capable of becoming. — John Wooden",
+  "You do not rise to the level of your goals. You fall to the level of your systems. — James Clear",
+  "The body builds strength through stress, then rest. So does the mind.",
+  "No man is free who is not master of himself. — Epictetus",
+  "Discipline is choosing what you want most over what you want now.",
+  "Don’t wish it were easier. Train to be better.",
+  "Every session compounds. Show up.",
+  "How you do anything is how you do everything.",
+  "We suffer more in imagination than in reality. — Seneca",
+  "Motivation gets you started. Consistency keeps you going.",
+  "Effort counts twice. — Angela Duckworth",
+  "If it matters, make time. If not, be honest about that too.",
+  "The race is won in training. The finish line just proves it.",
+  "Small improvements, repeated daily, lead to exceptional results.",
+  "What stands in the way becomes the way. — Marcus Aurelius"
+];
+
+const steps = [
+  'Locking in your race goals and timeline...',
+  'Scanning your notes like a seasoned coach...',
+  'Cooking up a solid base phase...',
+  'Dialing in the build block to get you race ready...',
+  'Balancing rest days, bricks, and long sessions...',
+  'Polishing the plan for game day...'
+];
 
 export default function PlanPage() {
   const router = useRouter();
@@ -47,12 +57,26 @@ export default function PlanPage() {
   const [userNote, setUserNote] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [stepText, setStepText] = useState('');
   const [error, setError] = useState('');
   const [quote, setQuote] = useState('');
   const [sessionChecked, setSessionChecked] = useState(false);
   const [hasPlan, setHasPlan] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [stepIndex, setStepIndex] = useState(0);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (loading) {
+      interval = setInterval(() => {
+        setStepIndex(prev => (prev + 1) % steps.length);
+        setProgress(prev => (prev < 100 ? prev + 100 / steps.length : 100));
+      }, 6000);
+    } else {
+      setProgress(0);
+      setStepIndex(0);
+    }
+    return () => clearInterval(interval);
+  }, [loading]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -65,17 +89,11 @@ export default function PlanPage() {
     setError('');
     setQuote(quotes[Math.floor(Math.random() * quotes.length)]);
 
-    const interval = setInterval(() => {
-      setProgress(prev => {
-        const next = Math.min(prev + 1, 100);
-        setStepText(steps[Math.floor((next / 100) * steps.length)] || steps[0]);
-        return next;
-      });
-    }, 500);
-
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const access_token = session?.access_token;
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const access_token = session?.access_token || null;
       if (!access_token) throw new Error('No Supabase access token found');
 
       const res = await fetch('/api/finalize-plan', {
@@ -90,10 +108,8 @@ export default function PlanPage() {
       if (!res.ok) throw new Error('Failed to finalize plan');
       await res.json();
 
-      clearInterval(interval);
       router.push('/schedule');
     } catch (err: any) {
-      clearInterval(interval);
       console.error('❌ Finalize plan error:', err);
       setError(err.message || 'Something went wrong');
     } finally {
@@ -103,12 +119,13 @@ export default function PlanPage() {
 
   useEffect(() => {
     const checkSessionAndPlan = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (!session?.user) {
         setSessionChecked(true);
         return;
       }
-
       const { data: planData } = await supabase
         .from('plans')
         .select('id')
@@ -116,27 +133,25 @@ export default function PlanPage() {
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
-
       if (planData) setHasPlan(true);
       setSessionChecked(true);
     };
-
     checkSessionAndPlan();
   }, []);
 
   const beginnerFields: FieldConfig[] = [
-    { id: 'raceType', label: 'Race Type', type: 'select', options: ['Half Ironman (70.3)', 'Ironman (140.6)', 'Olympic', 'Sprint'] },
-    { id: 'raceDate', label: 'Race Date', type: 'date' },
-    { id: 'maxHours', label: 'Max Weekly Training Hours', type: 'number' },
-    { id: 'experience', label: 'Experience Level', type: 'select', options: ['Beginner', 'Intermediate', 'Advanced'] }
-  ];
+  { id: 'raceType', label: 'Race Type', type: 'select', options: ['Half Ironman (70.3)', 'Ironman (140.6)', 'Olympic', 'Sprint'] },
+  { id: 'raceDate', label: 'Race Date', type: 'date' },
+  { id: 'maxHours', label: 'Max Weekly Training Hours', type: 'number' },
+  { id: 'experience', label: 'Experience Level', type: 'select', options: ['Beginner', 'Intermediate', 'Advanced'] },
+];
 
-  const advancedFields: FieldConfig[] = [
-    { id: 'bikeFTP', label: 'Bike FTP (watts)', type: 'number' },
-    { id: 'runPace', label: 'Run Threshold Pace (min/mi)', type: 'text', placeholder: 'e.g. 7:30' },
-    { id: 'swimPace', label: 'Swim Threshold Pace (per 100m)', type: 'text', placeholder: 'e.g. 1:38' },
-    { id: 'restDay', label: 'Preferred Rest Day', type: 'select', options: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] },
-  ];
+const advancedFields: FieldConfig[] = [
+  { id: 'bikeFTP', label: 'Bike FTP (watts)', type: 'number' },
+  { id: 'runPace', label: 'Run Threshold Pace (min/mi)', type: 'text', placeholder: 'e.g. 7:30' },
+  { id: 'swimPace', label: 'Swim Threshold Pace (per 100m)', type: 'text', placeholder: 'e.g. 1:38' },
+  { id: 'restDay', label: 'Preferred Rest Day', type: 'select', options: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] },
+];
 
   if (!sessionChecked) {
     return <div className="min-h-screen flex items-center justify-center text-gray-600">Checking your session...</div>;
@@ -147,11 +162,11 @@ export default function PlanPage() {
       {loading && (
         <div className="fixed inset-0 z-50 bg-white bg-opacity-90 flex flex-col items-center justify-center text-center px-6">
           <div className="w-full max-w-md">
-            <div className="w-full bg-gray-200 rounded-full h-4 mb-2">
-              <div className="bg-black h-4 rounded-full transition-all" style={{ width: `${progress}%` }} />
+            <div className="w-full bg-gray-200 rounded-full h-4 mb-3">
+              <div className="bg-black h-4 rounded-full transition-all duration-700" style={{ width: `${progress}%` }} />
             </div>
-            <p className="text-sm text-gray-500 mb-1">{stepText}</p>
-            <p className="text-base text-gray-700 font-medium italic">{quote}</p>
+            <p className="text-gray-600 text-sm mb-2">{steps[stepIndex]}</p>
+            <p className="text-gray-800 italic text-base font-medium">{quote}</p>
           </div>
         </div>
       )}
@@ -178,7 +193,7 @@ export default function PlanPage() {
                     required={!['bikeFTP', 'runPace', 'swimPace', 'restDay'].includes(id)}
                   >
                     <option value="">Select...</option>
-                    {options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    {options?.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
                 ) : (
                   <input
