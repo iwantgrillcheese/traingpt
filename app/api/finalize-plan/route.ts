@@ -46,13 +46,16 @@ function getDeload(index: number): boolean {
 }
 
 export async function POST(req: Request) {
+  console.time('[⏱️ TOTAL]');
   const body = await req.json();
   const userNote = body.userNote || '';
 
   const supabase = createServerComponentClient({ cookies });
+  console.time('[⏱️ Supabase Auth]');
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  console.timeEnd('[⏱️ Supabase Auth]');
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -65,6 +68,7 @@ export async function POST(req: Request) {
   const today = new Date();
   const startDate = getNextMonday(today);
 
+  console.time('[⏱️ Fetch Existing Plan]');
   const { data: latestPlan, error: fetchError } = await supabase
     .from('plans')
     .select('*')
@@ -72,6 +76,7 @@ export async function POST(req: Request) {
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
+  console.timeEnd('[⏱️ Fetch Existing Plan]');
 
   if (fetchError && fetchError.code !== 'PGRST116') {
     console.error('❌ Failed to fetch existing plan metadata:', fetchError);
@@ -84,7 +89,7 @@ export async function POST(req: Request) {
   const maxHours = body.maxHours || latestPlan?.max_hours || 8;
   const restDay = body.restDay || latestPlan?.rest_day || 'Monday';
 
-let totalWeeks = Math.ceil((raceDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
+  let totalWeeks = Math.ceil((raceDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
   const minWeeks = MIN_WEEKS[raceType] || 6;
   const maxWeeks = MAX_WEEKS[raceType] || 20;
   let adjusted = false;
@@ -108,6 +113,7 @@ let totalWeeks = Math.ceil((raceDate.getTime() - startDate.getTime()) / (7 * 24 
     };
   });
 
+  console.time('[⏱️ Build Prompt]');
   const prompt = buildCoachPrompt({
     raceType,
     raceDate,
@@ -122,7 +128,9 @@ let totalWeeks = Math.ceil((raceDate.getTime() - startDate.getTime()) / (7 * 24 
     userNote,
     weekMeta,
   });
+  console.timeEnd('[⏱️ Build Prompt]');
 
+  console.time('[⏱️ GPT Call]');
   const response = await openai.chat.completions.create({
     model: 'gpt-4-turbo',
     messages: [
@@ -131,6 +139,7 @@ let totalWeeks = Math.ceil((raceDate.getTime() - startDate.getTime()) / (7 * 24 
     ],
     temperature: 0.7,
   });
+  console.timeEnd('[⏱️ GPT Call]');
 
   const content = response.choices[0]?.message?.content || '{}';
 
@@ -143,6 +152,7 @@ let totalWeeks = Math.ceil((raceDate.getTime() - startDate.getTime()) / (7 * 24 
       'yyyy-MM-dd'
     )}. ${adjusted ? 'We adjusted the duration for optimal training.' : ''} Each week balances aerobic work, race specificity, and recovery. Stay consistent and trust the process.`;
 
+    console.time('[⏱️ Supabase Save]');
     const { data, error } = await supabase.from('plans').upsert(
       {
         user_id,
@@ -157,22 +167,23 @@ let totalWeeks = Math.ceil((raceDate.getTime() - startDate.getTime()) / (7 * 24 
       },
       { onConflict: 'user_id' }
     );
+    console.timeEnd('[⏱️ Supabase Save]');
 
     if (error) {
       console.error('❌ Supabase Insert Error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // 📨 Attempt to send welcome email — non-blocking
     try {
       const planSummary = `${raceType} — ${format(raceDate, 'MMMM d')}`;
       const to = user.email ?? '';
-const name = user.user_metadata?.name ?? 'Athlete';
-await sendWelcomeEmail({ to, name, plan: planSummary });
+      const name = user.user_metadata?.name ?? 'Athlete';
+      await sendWelcomeEmail({ to, name, plan: planSummary });
     } catch (err) {
       console.error('📪 Failed to send welcome email (non-blocking)', err);
     }
 
+    console.timeEnd('[⏱️ TOTAL]');
     return NextResponse.json({ success: true, plan, coachNote, adjusted });
   } catch (err) {
     console.error('❌ Failed to parse GPT content', content);
