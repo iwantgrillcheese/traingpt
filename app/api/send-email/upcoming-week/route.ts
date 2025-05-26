@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import { startOfWeek, addDays, format } from 'date-fns';
 import { sendUpcomingWeekEmail } from '@/lib/emails/send-upcoming-week-email';
 
+export const runtime = 'nodejs';
+
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -31,33 +33,51 @@ export async function GET(req: NextRequest) {
   for (const user of filteredProfiles || []) {
     if (!user.email) continue;
 
-    // 1. Find the latest plan for this user
-const { data: plans } = await supabase
-  .from('plans')
-  .select('id')
-  .eq('user_id', user.id)
-  .order('created_at', { ascending: false })
-  .limit(1);
+    console.log(`▶️ Checking user: ${user.email}`);
 
-const planId = plans?.[0]?.id;
-if (!planId) continue;
+    const { data: plans, error: planError } = await supabase
+      .from('plans')
+      .select('id')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1);
 
-// 2. Find sessions tied to that plan
-const { data: sessions } = await supabase
-  .from('sessions')
-  .select('date, sport, title, duration_minutes')
-  .eq('plan_id', planId)
-  .gte('date', start.toISOString())
-  .lte('date', end.toISOString());
+    if (planError) {
+      console.error(`❌ Error fetching plans for ${user.email}:`, planError);
+      continue;
+    }
 
-    if (!sessions?.length) continue;
+    const planId = plans?.[0]?.id;
+    if (!planId) {
+      console.log(`⛔ No plan found for user ${user.email}`);
+      continue;
+    }
 
-    const coachNote = `You're entering a key training week. Keep showing up — consistency wins.`;
+    console.log(`✅ Found plan: ${planId}`);
+
+    const { data: sessions, error: sessionError } = await supabase
+      .from('sessions')
+      .select('date, sport, title, duration_minutes')
+      .eq('plan_id', planId)
+      .gte('date', start.toISOString())
+      .lte('date', end.toISOString());
+
+    if (sessionError) {
+      console.error(`❌ Error fetching sessions for ${user.email}:`, sessionError);
+      continue;
+    }
+
+    if (!sessions?.length) {
+      console.log(`⛔ No sessions found for user ${user.email}`);
+      continue;
+    }
+
+    console.log(`✅ Sending email to ${user.email} with ${sessions.length} sessions`);
 
     await sendUpcomingWeekEmail({
       email: user.email,
       sessions,
-      coachNote,
+      coachNote: `You're entering a key training week. Keep showing up — consistency wins.`,
       weekRange,
     });
   }
