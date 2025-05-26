@@ -18,7 +18,7 @@ export async function sendUpcomingWeekEmail({
 const html = await generateUpcomingWeekEmail({ sessions, coachNote, weekRange });
 
   await resend.emails.send({
-    from: 'TrainGPT <no-reply@traingpt.ai>',
+    from: 'TrainGPT <hello@traingpt.co>',
     to: email,
     subject: `Your Upcoming Week — ${weekRange}`,
     html,
