@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { startOfWeek, addDays, format } from 'date-fns';
+import { startOfWeek, addDays, format, isWithinInterval, parseISO } from 'date-fns';
 import { sendUpcomingWeekEmail } from '@/lib/emails/send-upcoming-week-email';
 
 export const runtime = 'nodejs';
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
 
     const { data: plans, error: planError } = await supabase
       .from('plans')
-      .select('id')
+      .select('id, plan')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(1);
@@ -47,36 +47,48 @@ export async function GET(req: NextRequest) {
       continue;
     }
 
-    const planId = plans?.[0]?.id;
-    if (!planId) {
-      console.log(`⛔ No plan found for user ${user.email}`);
+    const plan = plans?.[0]?.plan;
+    if (!plan || !Array.isArray(plan)) {
+      console.log(`⛔ No structured plan found for user ${user.email}`);
       continue;
     }
 
-    console.log(`✅ Found plan: ${planId}`);
+    // Flatten sessions from this week's date range
+    const sessionsThisWeek: {
+      date: string;
+      sport: string;
+      title: string;
+      duration_minutes?: number;
+    }[] = [];
 
-    const { data: sessions, error: sessionError } = await supabase
-      .from('sessions')
-      .select('date, sport, title, duration_minutes')
-      .eq('plan_id', planId)
-      .gte('date', start.toISOString())
-      .lte('date', end.toISOString());
+    for (const week of plan) {
+      if (!week.days) continue;
+      for (const dateStr of Object.keys(week.days)) {
+        const date = parseISO(dateStr);
+        if (!isWithinInterval(date, { start, end })) continue;
 
-    if (sessionError) {
-      console.error(`❌ Error fetching sessions for ${user.email}:`, sessionError);
+        for (const session of week.days[dateStr]) {
+          sessionsThisWeek.push({
+            date: dateStr,
+            sport: session.includes('🏊') ? 'Swim' :
+                   session.includes('🚴') ? 'Bike' :
+                   session.includes('🏃') ? 'Run' : 'Other',
+            title: session,
+          });
+        }
+      }
+    }
+
+    if (!sessionsThisWeek.length) {
+      console.log(`⛔ No sessions this week for user ${user.email}`);
       continue;
     }
 
-    if (!sessions?.length) {
-      console.log(`⛔ No sessions found for user ${user.email}`);
-      continue;
-    }
-
-    console.log(`✅ Sending email to ${user.email} with ${sessions.length} sessions`);
+    console.log(`✅ Sending email to ${user.email} with ${sessionsThisWeek.length} sessions`);
 
     await sendUpcomingWeekEmail({
       email: user.email,
-      sessions,
+      sessions: sessionsThisWeek,
       coachNote: `You're entering a key training week. Keep showing up — consistency wins.`,
       weekRange,
     });
