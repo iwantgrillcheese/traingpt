@@ -11,9 +11,9 @@ export default function AuthCallback() {
 
   useEffect(() => {
     const handleAuth = async () => {
-      const { data, error } = await supabase.auth.getSession();
+      const { data: { user }, error } = await supabase.auth.getUser();
 
-      console.log('OAuth callback session:', data);
+      console.log('OAuth callback user:', user);
       console.log('OAuth callback error:', error);
 
       if (error) {
@@ -21,8 +21,22 @@ export default function AuthCallback() {
         return;
       }
 
-      if (!data.session) {
-        setStatus('No session returned. Please try signing in again.');
+      if (!user) {
+        setStatus('No user returned. Please try signing in again.');
+        return;
+      }
+
+      // ✅ Upsert into profiles table
+      const { error: upsertError } = await supabase.from('profiles').upsert({
+        id: user.id,
+        email: user.email,
+        full_name: user.user_metadata.full_name,
+        avatar_url: user.user_metadata.avatar_url,
+      });
+
+      if (upsertError) {
+        console.error('Failed to upsert profile:', upsertError);
+        setStatus('Login succeeded, but we couldn’t set up your profile.');
         return;
       }
 
