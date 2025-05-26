@@ -31,12 +31,24 @@ export async function GET(req: NextRequest) {
   for (const user of filteredProfiles || []) {
     if (!user.email) continue;
 
-    const { data: sessions } = await supabase
-      .from('sessions')
-      .select('date, sport, title, duration_minutes')
-      .eq('user_id', user.id)
-      .gte('date', start.toISOString())
-      .lte('date', end.toISOString());
+    // 1. Find the latest plan for this user
+const { data: plans } = await supabase
+  .from('plans')
+  .select('id')
+  .eq('user_id', user.id)
+  .order('created_at', { ascending: false })
+  .limit(1);
+
+const planId = plans?.[0]?.id;
+if (!planId) continue;
+
+// 2. Find sessions tied to that plan
+const { data: sessions } = await supabase
+  .from('sessions')
+  .select('date, sport, title, duration_minutes')
+  .eq('plan_id', planId)
+  .gte('date', start.toISOString())
+  .lte('date', end.toISOString());
 
     if (!sessions?.length) continue;
 
