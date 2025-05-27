@@ -12,30 +12,35 @@ export function generateUpcomingWeekEmail({
     date: string;
     sport: string;
     title: string;
-    duration_minutes: number;
   }[];
   coachNote: string;
   weekRange: string;
 }) {
-  const getEmoji = (sport: string) => {
-    if (sport === 'Swim') return '🏊';
-    if (sport.includes('Ride')) return '🚴';
-    if (sport === 'Run') return '🏃';
+  // Simple emoji based on keyword in title
+  const getEmoji = (title: string) => {
+    if (title.includes('🏊') || title.toLowerCase().includes('swim')) return '🏊';
+    if (title.includes('🚴') || title.toLowerCase().includes('bike')) return '🚴';
+    if (title.includes('🏃') || title.toLowerCase().includes('run')) return '🏃';
     return '🏋️';
   };
 
-  const formattedSessions = sessions.map(s => ({
-    day: format(parseISO(s.date), 'EEE'),
-    emoji: getEmoji(s.sport),
-    title: s.title,
-    duration: Math.round(s.duration_minutes),
-  }));
+  // Group sessions by day
+  const groupedByDay: Record<string, string[]> = {};
+
+  for (const s of sessions) {
+    const day = format(parseISO(s.date), 'EEE'); // e.g. 'Mon'
+    const emoji = getEmoji(s.title);
+    const line = `${emoji} ${s.title}`;
+
+    if (!groupedByDay[day]) groupedByDay[day] = [];
+    groupedByDay[day].push(line);
+  }
 
   return render(
     UpcomingWeekEmail({
       coachNote,
       weekRange,
-      sessions: formattedSessions,
+      groupedSessions: groupedByDay,
     })
   );
 }
