@@ -14,11 +14,9 @@ import type { CSSProperties } from 'react';
 
 export function UpcomingWeekEmail({
   weekRange,
-  coachNote,
   groupedSessions,
 }: {
   weekRange: string;
-  coachNote: string;
   groupedSessions: Record<string, string[]>;
 }) {
   return (
@@ -30,10 +28,6 @@ export function UpcomingWeekEmail({
           <Heading style={styles.heading}>
             Your Week of Training: {weekRange}
           </Heading>
-
-          <Text style={styles.coachNote}>
-            <strong>Coach’s Note:</strong> {coachNote}
-          </Text>
 
           <Section style={styles.table}>
             {Object.entries(groupedSessions).map(([day, sessions]) => (

@@ -5,7 +5,6 @@ import { format, parseISO } from 'date-fns';
 
 export function generateUpcomingWeekEmail({
   sessions,
-  coachNote,
   weekRange,
 }: {
   sessions: {
@@ -13,9 +12,9 @@ export function generateUpcomingWeekEmail({
     sport: string;
     title: string;
   }[];
-  coachNote: string;
   weekRange: string;
 }) {
+
   // Simple emoji based on keyword in title
   const getEmoji = (title: string) => {
     if (title.includes('🏊') || title.toLowerCase().includes('swim')) return '🏊';
@@ -45,7 +44,6 @@ const line = `${emoji} ${stripEmoji(s.title)}`;
 
   return render(
     UpcomingWeekEmail({
-      coachNote,
       weekRange,
       groupedSessions: groupedByDay,
     })
