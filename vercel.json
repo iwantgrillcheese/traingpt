@@ -2,8 +2,7 @@
   "crons": [
     {
       "path": "/api/send-email/upcoming-week",
-      "schedule": "0 0 * * 1",
-      "timezone": "America/Los_Angeles"
+      "schedule": "0 21 * * 0"
     }
   ]
 }
