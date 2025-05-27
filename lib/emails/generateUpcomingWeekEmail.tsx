@@ -37,7 +37,7 @@ export function generateUpcomingWeekEmail({
   for (const s of sessions) {
     const day = format(parseISO(s.date), 'EEE'); // e.g. 'Mon'
     const emoji = getEmoji(s.title);
-    const line = `${emoji} ${s.title}`;
+const line = `${emoji} ${stripEmoji(s.title)}`;
 
     if (!groupedByDay[day]) groupedByDay[day] = [];
     groupedByDay[day].push(line);
