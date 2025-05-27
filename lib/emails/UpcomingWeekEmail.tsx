@@ -10,6 +10,7 @@ import {
   Heading,
   Button,
 } from '@react-email/components';
+import type { CSSProperties } from 'react';
 
 export function UpcomingWeekEmail({
   weekRange,
@@ -39,29 +40,33 @@ export function UpcomingWeekEmail({
               <div key={day} style={styles.row}>
                 <div style={styles.day}>{day}</div>
                 <div style={styles.sessions}>
-                  {sessions.map((session, i) => (
-                    <div key={i}>{session}</div>
-                  ))}
+                  {Array.from(new Set(sessions)).map((session, i) => (
+  <div key={i}>{session}</div>
+))}
                 </div>
               </div>
             ))}
           </Section>
 
-          <div style={{ textAlign: 'center', marginTop: '32px' }}>
-            <Button
-              href="https://traingpt.co/schedule"
-              style={styles.button}
-            >
+          <div style={{ textAlign: 'center' as const, marginTop: '32px' }}>
+            <Button href="https://traingpt.co/schedule" style={styles.button}>
               View Your Plan
             </Button>
           </div>
+
+          <Text style={styles.footerNote}>
+            🧠 Want more detail on your swim or run this week? Ask your AI coach in your dashboard for a detailed workout.
+          </Text>
+          <Text style={styles.footerNote}>
+            ❌ Not training anymore? <a href="https://traingpt.co/unsubscribe">Unsubscribe here</a>.
+          </Text>
         </Container>
       </Body>
     </Html>
   );
 }
 
-const styles = {
+const styles: Record<string, CSSProperties> = {
   body: {
     backgroundColor: '#f6f9fc',
     fontFamily: 'Helvetica, Arial, sans-serif',
@@ -85,7 +90,7 @@ const styles = {
   coachNote: {
     fontSize: '15px',
     marginBottom: '24px',
-    lineHeight: 1.6,
+    lineHeight: '1.6',
   },
   table: {
     fontSize: '14px',
@@ -115,5 +120,12 @@ const styles = {
     padding: '12px 20px',
     borderRadius: '6px',
     textDecoration: 'none',
+  },
+  footerNote: {
+    fontSize: '12px',
+    color: '#6b7280',
+    textAlign: 'center' as const,
+    marginTop: '24px',
+    lineHeight: '1.6',
   },
 };
