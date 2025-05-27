@@ -105,8 +105,44 @@ export default function PlanPage() {
         body: JSON.stringify({ ...formData, userNote }),
       });
 
-      if (!res.ok) throw new Error('Failed to finalize plan');
-      await res.json();
+const json = await res.json();
+
+if (!res.ok) {
+  if (json.code === 'TOO_MANY_WEEKS') {
+    setError(`Your race is a bit far out. We currently support up to ${json.maxWeeks} weeks of training.`);
+
+    const maxWeeks = json.maxWeeks;
+    const basePlanStart = new Date();
+    const basePlanEnd = new Date();
+    basePlanEnd.setDate(basePlanStart.getDate() + maxWeeks * 7);
+
+    const confirmBase = confirm(`Would you like to build a ${maxWeeks}-week base phase plan starting now?`);
+    if (confirmBase) {
+      setFormData(prev => ({
+        ...prev,
+        raceDate: basePlanEnd.toISOString().split('T')[0],
+      }));
+      setUserNote('Build a strong base phase until my actual race-specific training starts.');
+      document.querySelector('form')?.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    }
+
+    return;
+  }
+
+  if (json.code === 'TOO_FEW_WEEKS') {
+    setError(`That race is a bit too soon. We recommend at least ${json.minWeeks} weeks to prepare properly.`);
+
+    const confirmTaper = confirm(`Want a short taper and race-week strategy instead?`);
+    if (confirmTaper) {
+      setUserNote('Build a taper-focused plan for my upcoming race.');
+      document.querySelector('form')?.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    }
+
+    return;
+  }
+
+  throw new Error(json.error || 'Failed to finalize plan');
+}
 
       router.push('/schedule');
     } catch (err: any) {
