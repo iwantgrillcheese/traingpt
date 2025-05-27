@@ -46,6 +46,12 @@ export function UpcomingWeekEmail({
                 </div>
               </div>
             ))}
+
+
+          <Text style={styles.footerNote}>
+            🧠 Want more detail on your swim or run this week? Ask your AI coach in your dashboard for a detailed workout.
+          </Text>
+
           </Section>
 
           <div style={{ textAlign: 'center' as const, marginTop: '32px' }}>
@@ -54,9 +60,6 @@ export function UpcomingWeekEmail({
             </Button>
           </div>
 
-          <Text style={styles.footerNote}>
-            🧠 Want more detail on your swim or run this week? Ask your AI coach in your dashboard for a detailed workout.
-          </Text>
           <Text style={styles.footerNote}>
             ❌ Not training anymore? <a href="https://traingpt.co/unsubscribe">Unsubscribe here</a>.
           </Text>
