@@ -226,4 +226,628 @@ Stop guessing. Start progressing.
 
 [Try TrainGPT](/plan) and get a personalized triathlon plan in under a minute.`,
   },
+
+
+  {
+    slug: 'how-to-train-for-olympic-triathlon',
+    title: 'How to Train for an Olympic Triathlon',
+    description: 'How to Train for an Olympic Triathlon — practical advice for triathletes who want smarter, more effective training.',
+    tag: 'Training Tip',
+    date: 'May 27, 2025',
+    image: '/tiles/podium-shot.jpg',
+    content: `## How to Train for an Olympic Triathlon
+
+Triathlon success isn’t just about working harder — it’s about training smarter. In this post, we’ll break down how to approach how to train for an olympic triathlon, avoid common mistakes, and optimize for real-world results.
+
+---
+
+## Key Tips
+
+- Structure your training around your real-life schedule and race demands  
+- Focus on building aerobic endurance, not just hammering intervals  
+- Don’t skip rest days — recovery drives adaptation
+
+---
+
+## Coach’s Take
+
+At TrainGPT, we see athletes burn out by following generic advice that doesn’t match their goals or fitness. That’s why every plan we create is personalized. Whether you’re training for your first race or chasing a PR, your strategy should be tailored — not templated.
+
+---
+
+## Ready to Train Smarter?
+
+[Build your personalized plan now](/plan) — and crush your next race.`,
+  },
+  {
+    slug: 'beginner-triathlon-guide',
+    title: 'Beginner’s Guide to Your First Triathlon',
+    description: 'Beginner’s Guide to Your First Triathlon — practical advice for triathletes who want smarter, more effective training.',
+    tag: 'Training Tip',
+    date: 'May 27, 2025',
+    image: '/tiles/blurred-bike-race.jpg',
+    content: `## Beginner’s Guide to Your First Triathlon
+
+Triathlon success isn’t just about working harder — it’s about training smarter. In this post, we’ll break down how to approach beginner’s guide to your first triathlon, avoid common mistakes, and optimize for real-world results.
+
+---
+
+## Key Tips
+
+- Structure your training around your real-life schedule and race demands  
+- Focus on building aerobic endurance, not just hammering intervals  
+- Don’t skip rest days — recovery drives adaptation
+
+---
+
+## Coach’s Take
+
+At TrainGPT, we see athletes burn out by following generic advice that doesn’t match their goals or fitness. That’s why every plan we create is personalized. Whether you’re training for your first race or chasing a PR, your strategy should be tailored — not templated.
+
+---
+
+## Ready to Train Smarter?
+
+[Build your personalized plan now](/plan) — and crush your next race.`,
+  },
+  {
+    slug: 'triathlon-race-day-checklist',
+    title: 'The Ultimate Triathlon Race Day Checklist',
+    description: 'The Ultimate Triathlon Race Day Checklist — practical advice for triathletes who want smarter, more effective training.',
+    tag: 'Mindset',
+    date: 'May 27, 2025',
+    image: '/tiles/swim-pack-blackwhite.jpg',
+    content: `## The Ultimate Triathlon Race Day Checklist
+
+Triathlon success isn’t just about working harder — it’s about training smarter. In this post, we’ll break down how to approach the ultimate triathlon race day checklist, avoid common mistakes, and optimize for real-world results.
+
+---
+
+## Key Tips
+
+- Structure your training around your real-life schedule and race demands  
+- Focus on building aerobic endurance, not just hammering intervals  
+- Don’t skip rest days — recovery drives adaptation
+
+---
+
+## Coach’s Take
+
+At TrainGPT, we see athletes burn out by following generic advice that doesn’t match their goals or fitness. That’s why every plan we create is personalized. Whether you’re training for your first race or chasing a PR, your strategy should be tailored — not templated.
+
+---
+
+## Ready to Train Smarter?
+
+[Build your personalized plan now](/plan) — and crush your next race.`,
+  },
+  {
+    slug: 'strava-triathlon-training',
+    title: 'How to Use Strava to Improve Your Triathlon Training',
+    description: 'How to Use Strava to Improve Your Triathlon Training — practical advice for triathletes who want smarter, more effective training.',
+    tag: 'Product',
+    date: 'May 27, 2025',
+    image: '/tiles/aerial-swim-line.jpg',
+    content: `## How to Use Strava to Improve Your Triathlon Training
+
+Triathlon success isn’t just about working harder — it’s about training smarter. In this post, we’ll break down how to approach how to use strava to improve your triathlon training, avoid common mistakes, and optimize for real-world results.
+
+---
+
+## Key Tips
+
+- Structure your training around your real-life schedule and race demands  
+- Focus on building aerobic endurance, not just hammering intervals  
+- Don’t skip rest days — recovery drives adaptation
+
+---
+
+## Coach’s Take
+
+At TrainGPT, we see athletes burn out by following generic advice that doesn’t match their goals or fitness. That’s why every plan we create is personalized. Whether you’re training for your first race or chasing a PR, your strategy should be tailored — not templated.
+
+---
+
+## Ready to Train Smarter?
+
+[Build your personalized plan now](/plan) — and crush your next race.`,
+  },
+  {
+    slug: 'build-your-own-triathlon-plan',
+    title: 'Why DIY Triathlon Plans Usually Fail',
+    description: 'Why DIY Triathlon Plans Usually Fail — practical advice for triathletes who want smarter, more effective training.',
+    tag: 'Training Tip',
+    date: 'May 27, 2025',
+    image: '/tiles/canyon-blue-bike.jpg',
+    content: `## Why DIY Triathlon Plans Usually Fail
+
+Triathlon success isn’t just about working harder — it’s about training smarter. In this post, we’ll break down how to approach why diy triathlon plans usually fail, avoid common mistakes, and optimize for real-world results.
+
+---
+
+## Key Tips
+
+- Structure your training around your real-life schedule and race demands  
+- Focus on building aerobic endurance, not just hammering intervals  
+- Don’t skip rest days — recovery drives adaptation
+
+---
+
+## Coach’s Take
+
+At TrainGPT, we see athletes burn out by following generic advice that doesn’t match their goals or fitness. That’s why every plan we create is personalized. Whether you’re training for your first race or chasing a PR, your strategy should be tailored — not templated.
+
+---
+
+## Ready to Train Smarter?
+
+[Build your personalized plan now](/plan) — and crush your next race.`,
+  },
+  {
+    slug: 'ai-triathlon-plans-vs-pdf',
+    title: 'AI Plans vs Free PDFs: What’s the Real Difference?',
+    description: 'AI Plans vs Free PDFs: What’s the Real Difference? — practical advice for triathletes who want smarter, more effective training.',
+    tag: 'Product',
+    date: 'May 27, 2025',
+    image: '/tiles/tt-bike-field.jpg',
+    content: `## AI Plans vs Free PDFs: What’s the Real Difference?
+
+Triathlon success isn’t just about working harder — it’s about training smarter. In this post, we’ll break down how to approach ai plans vs free pdfs: what’s the real difference?, avoid common mistakes, and optimize for real-world results.
+
+---
+
+## Key Tips
+
+- Structure your training around your real-life schedule and race demands  
+- Focus on building aerobic endurance, not just hammering intervals  
+- Don’t skip rest days — recovery drives adaptation
+
+---
+
+## Coach’s Take
+
+At TrainGPT, we see athletes burn out by following generic advice that doesn’t match their goals or fitness. That’s why every plan we create is personalized. Whether you’re training for your first race or chasing a PR, your strategy should be tailored — not templated.
+
+---
+
+## Ready to Train Smarter?
+
+[Build your personalized plan now](/plan) — and crush your next race.`,
+  },
+  {
+    slug: 'triathlon-taper-week-guide',
+    title: 'How to Nail Your Taper Week Before Race Day',
+    description: 'How to Nail Your Taper Week Before Race Day — practical advice for triathletes who want smarter, more effective training.',
+    tag: 'Taper',
+    date: 'May 27, 2025',
+    image: '/tiles/swimmer-breathing.jpg',
+    content: `## How to Nail Your Taper Week Before Race Day
+
+Triathlon success isn’t just about working harder — it’s about training smarter. In this post, we’ll break down how to approach how to nail your taper week before race day, avoid common mistakes, and optimize for real-world results.
+
+---
+
+## Key Tips
+
+- Structure your training around your real-life schedule and race demands  
+- Focus on building aerobic endurance, not just hammering intervals  
+- Don’t skip rest days — recovery drives adaptation
+
+---
+
+## Coach’s Take
+
+At TrainGPT, we see athletes burn out by following generic advice that doesn’t match their goals or fitness. That’s why every plan we create is personalized. Whether you’re training for your first race or chasing a PR, your strategy should be tailored — not templated.
+
+---
+
+## Ready to Train Smarter?
+
+[Build your personalized plan now](/plan) — and crush your next race.`,
+  },
+  {
+    slug: 'race-morning-routine',
+    title: 'Your Race Morning Routine: What to Do (and Avoid)',
+    description: 'Your Race Morning Routine: What to Do (and Avoid) — practical advice for triathletes who want smarter, more effective training.',
+    tag: 'Mindset',
+    date: 'May 27, 2025',
+    image: '/tiles/triathlete-run-closeup.jpg',
+    content: `## Your Race Morning Routine: What to Do (and Avoid)
+
+Triathlon success isn’t just about working harder — it’s about training smarter. In this post, we’ll break down how to approach your race morning routine: what to do (and avoid), avoid common mistakes, and optimize for real-world results.
+
+---
+
+## Key Tips
+
+- Structure your training around your real-life schedule and race demands  
+- Focus on building aerobic endurance, not just hammering intervals  
+- Don’t skip rest days — recovery drives adaptation
+
+---
+
+## Coach’s Take
+
+At TrainGPT, we see athletes burn out by following generic advice that doesn’t match their goals or fitness. That’s why every plan we create is personalized. Whether you’re training for your first race or chasing a PR, your strategy should be tailored — not templated.
+
+---
+
+## Ready to Train Smarter?
+
+[Build your personalized plan now](/plan) — and crush your next race.`,
+  },
+  {
+    slug: 'heart-rate-zones-triathlon',
+    title: 'Understanding Heart Rate Zones in Triathlon Training',
+    description: 'Understanding Heart Rate Zones in Triathlon Training — practical advice for triathletes who want smarter, more effective training.',
+    tag: 'Training Tip',
+    date: 'May 27, 2025',
+    image: '/tiles/running-pack.jpg',
+    content: `## Understanding Heart Rate Zones in Triathlon Training
+
+Triathlon success isn’t just about working harder — it’s about training smarter. In this post, we’ll break down how to approach understanding heart rate zones in triathlon training, avoid common mistakes, and optimize for real-world results.
+
+---
+
+## Key Tips
+
+- Structure your training around your real-life schedule and race demands  
+- Focus on building aerobic endurance, not just hammering intervals  
+- Don’t skip rest days — recovery drives adaptation
+
+---
+
+## Coach’s Take
+
+At TrainGPT, we see athletes burn out by following generic advice that doesn’t match their goals or fitness. That’s why every plan we create is personalized. Whether you’re training for your first race or chasing a PR, your strategy should be tailored — not templated.
+
+---
+
+## Ready to Train Smarter?
+
+[Build your personalized plan now](/plan) — and crush your next race.`,
+  },
+  {
+    slug: 'bike-fit-performance',
+    title: 'Why Your Bike Fit Matters More Than Your FTP',
+    description: 'Why Your Bike Fit Matters More Than Your FTP — practical advice for triathletes who want smarter, more effective training.',
+    tag: 'Bike',
+    date: 'May 27, 2025',
+    image: '/tiles/back-of-swimmer.jpg',
+    content: `## Why Your Bike Fit Matters More Than Your FTP
+
+Triathlon success isn’t just about working harder — it’s about training smarter. In this post, we’ll break down how to approach why your bike fit matters more than your ftp, avoid common mistakes, and optimize for real-world results.
+
+---
+
+## Key Tips
+
+- Structure your training around your real-life schedule and race demands  
+- Focus on building aerobic endurance, not just hammering intervals  
+- Don’t skip rest days — recovery drives adaptation
+
+---
+
+## Coach’s Take
+
+At TrainGPT, we see athletes burn out by following generic advice that doesn’t match their goals or fitness. That’s why every plan we create is personalized. Whether you’re training for your first race or chasing a PR, your strategy should be tailored — not templated.
+
+---
+
+## Ready to Train Smarter?
+
+[Build your personalized plan now](/plan) — and crush your next race.`,
+  },
+  {
+    slug: 'triathlon-hydration-strategy',
+    title: 'How to Nail Your Hydration Strategy for Triathlon',
+    description: 'How to Nail Your Hydration Strategy for Triathlon — practical advice for triathletes who want smarter, more effective training.',
+    tag: 'Nutrition',
+    date: 'May 27, 2025',
+    image: '/tiles/markus-spiske.jpg',
+    content: `## How to Nail Your Hydration Strategy for Triathlon
+
+Triathlon success isn’t just about working harder — it’s about training smarter. In this post, we’ll break down how to approach how to nail your hydration strategy for triathlon, avoid common mistakes, and optimize for real-world results.
+
+---
+
+## Key Tips
+
+- Structure your training around your real-life schedule and race demands  
+- Focus on building aerobic endurance, not just hammering intervals  
+- Don’t skip rest days — recovery drives adaptation
+
+---
+
+## Coach’s Take
+
+At TrainGPT, we see athletes burn out by following generic advice that doesn’t match their goals or fitness. That’s why every plan we create is personalized. Whether you’re training for your first race or chasing a PR, your strategy should be tailored — not templated.
+
+---
+
+## Ready to Train Smarter?
+
+[Build your personalized plan now](/plan) — and crush your next race.`,
+  },
+  {
+    slug: 'swim-drills-triathlon',
+    title: 'The Best Swim Drills for Triathletes',
+    description: 'The Best Swim Drills for Triathletes — practical advice for triathletes who want smarter, more effective training.',
+    tag: 'Swim',
+    date: 'May 27, 2025',
+    image: '/tiles/swim-pack-blackwhite.jpg',
+    content: `## The Best Swim Drills for Triathletes
+
+Triathlon success isn’t just about working harder — it’s about training smarter. In this post, we’ll break down how to approach the best swim drills for triathletes, avoid common mistakes, and optimize for real-world results.
+
+---
+
+## Key Tips
+
+- Structure your training around your real-life schedule and race demands  
+- Focus on building aerobic endurance, not just hammering intervals  
+- Don’t skip rest days — recovery drives adaptation
+
+---
+
+## Coach’s Take
+
+At TrainGPT, we see athletes burn out by following generic advice that doesn’t match their goals or fitness. That’s why every plan we create is personalized. Whether you’re training for your first race or chasing a PR, your strategy should be tailored — not templated.
+
+---
+
+## Ready to Train Smarter?
+
+[Build your personalized plan now](/plan) — and crush your next race.`,
+  },
+  {
+    slug: 'triathlon-transition-tips',
+    title: 'Triathlon Transition Tips to Save Serious Time',
+    description: 'Triathlon Transition Tips to Save Serious Time — practical advice for triathletes who want smarter, more effective training.',
+    tag: 'Training Tip',
+    date: 'May 27, 2025',
+    image: '/tiles/podium-shot.jpg',
+    content: `## Triathlon Transition Tips to Save Serious Time
+
+Triathlon success isn’t just about working harder — it’s about training smarter. In this post, we’ll break down how to approach triathlon transition tips to save serious time, avoid common mistakes, and optimize for real-world results.
+
+---
+
+## Key Tips
+
+- Structure your training around your real-life schedule and race demands  
+- Focus on building aerobic endurance, not just hammering intervals  
+- Don’t skip rest days — recovery drives adaptation
+
+---
+
+## Coach’s Take
+
+At TrainGPT, we see athletes burn out by following generic advice that doesn’t match their goals or fitness. That’s why every plan we create is personalized. Whether you’re training for your first race or chasing a PR, your strategy should be tailored — not templated.
+
+---
+
+## Ready to Train Smarter?
+
+[Build your personalized plan now](/plan) — and crush your next race.`,
+  },
+  {
+    slug: 'training-plan-mistakes',
+    title: '7 Training Plan Mistakes Triathletes Make (And How to Fix Them)',
+    description: '7 Training Plan Mistakes Triathletes Make (And How to Fix Them) — practical advice for triathletes who want smarter, more effective training.',
+    tag: 'Training Tip',
+    date: 'May 27, 2025',
+    image: '/tiles/canyon-blue-bike.jpg',
+    content: `## 7 Training Plan Mistakes Triathletes Make (And How to Fix Them)
+
+Triathlon success isn’t just about working harder — it’s about training smarter. In this post, we’ll break down how to approach 7 training plan mistakes triathletes make (and how to fix them), avoid common mistakes, and optimize for real-world results.
+
+---
+
+## Key Tips
+
+- Structure your training around your real-life schedule and race demands  
+- Focus on building aerobic endurance, not just hammering intervals  
+- Don’t skip rest days — recovery drives adaptation
+
+---
+
+## Coach’s Take
+
+At TrainGPT, we see athletes burn out by following generic advice that doesn’t match their goals or fitness. That’s why every plan we create is personalized. Whether you’re training for your first race or chasing a PR, your strategy should be tailored — not templated.
+
+---
+
+## Ready to Train Smarter?
+
+[Build your personalized plan now](/plan) — and crush your next race.`,
+  },
+  {
+    slug: 'train-on-vacation',
+    title: 'How to Stick to Your Triathlon Plan While Traveling',
+    description: 'How to Stick to Your Triathlon Plan While Traveling — practical advice for triathletes who want smarter, more effective training.',
+    tag: 'Mindset',
+    date: 'May 27, 2025',
+    image: '/tiles/tt-bike-field.jpg',
+    content: `## How to Stick to Your Triathlon Plan While Traveling
+
+Triathlon success isn’t just about working harder — it’s about training smarter. In this post, we’ll break down how to approach how to stick to your triathlon plan while traveling, avoid common mistakes, and optimize for real-world results.
+
+---
+
+## Key Tips
+
+- Structure your training around your real-life schedule and race demands  
+- Focus on building aerobic endurance, not just hammering intervals  
+- Don’t skip rest days — recovery drives adaptation
+
+---
+
+## Coach’s Take
+
+At TrainGPT, we see athletes burn out by following generic advice that doesn’t match their goals or fitness. That’s why every plan we create is personalized. Whether you’re training for your first race or chasing a PR, your strategy should be tailored — not templated.
+
+---
+
+## Ready to Train Smarter?
+
+[Build your personalized plan now](/plan) — and crush your next race.`,
+  },
+  {
+    slug: 'triathlon-offseason-guide',
+    title: 'How to Use the Offseason to Get Stronger',
+    description: 'How to Use the Offseason to Get Stronger — practical advice for triathletes who want smarter, more effective training.',
+    tag: 'Recovery',
+    date: 'May 27, 2025',
+    image: '/tiles/aerial-swim-line.jpg',
+    content: `## How to Use the Offseason to Get Stronger
+
+Triathlon success isn’t just about working harder — it’s about training smarter. In this post, we’ll break down how to approach how to use the offseason to get stronger, avoid common mistakes, and optimize for real-world results.
+
+---
+
+## Key Tips
+
+- Structure your training around your real-life schedule and race demands  
+- Focus on building aerobic endurance, not just hammering intervals  
+- Don’t skip rest days — recovery drives adaptation
+
+---
+
+## Coach’s Take
+
+At TrainGPT, we see athletes burn out by following generic advice that doesn’t match their goals or fitness. That’s why every plan we create is personalized. Whether you’re training for your first race or chasing a PR, your strategy should be tailored — not templated.
+
+---
+
+## Ready to Train Smarter?
+
+[Build your personalized plan now](/plan) — and crush your next race.`,
+  },
+  {
+    slug: 'race-pace-strategies',
+    title: 'How to Pace Your Next Triathlon Like a Pro',
+    description: 'How to Pace Your Next Triathlon Like a Pro — practical advice for triathletes who want smarter, more effective training.',
+    tag: 'Mindset',
+    date: 'May 27, 2025',
+    image: '/tiles/podium-shot.jpg',
+    content: `## How to Pace Your Next Triathlon Like a Pro
+
+Triathlon success isn’t just about working harder — it’s about training smarter. In this post, we’ll break down how to approach how to pace your next triathlon like a pro, avoid common mistakes, and optimize for real-world results.
+
+---
+
+## Key Tips
+
+- Structure your training around your real-life schedule and race demands  
+- Focus on building aerobic endurance, not just hammering intervals  
+- Don’t skip rest days — recovery drives adaptation
+
+---
+
+## Coach’s Take
+
+At TrainGPT, we see athletes burn out by following generic advice that doesn’t match their goals or fitness. That’s why every plan we create is personalized. Whether you’re training for your first race or chasing a PR, your strategy should be tailored — not templated.
+
+---
+
+## Ready to Train Smarter?
+
+[Build your personalized plan now](/plan) — and crush your next race.`,
+  },
+  {
+    slug: 'recovery-day-mistakes',
+    title: 'What Most Athletes Get Wrong About Recovery Days',
+    description: 'What Most Athletes Get Wrong About Recovery Days — practical advice for triathletes who want smarter, more effective training.',
+    tag: 'Recovery',
+    date: 'May 27, 2025',
+    image: '/tiles/running-pack.jpg',
+    content: `## What Most Athletes Get Wrong About Recovery Days
+
+Triathlon success isn’t just about working harder — it’s about training smarter. In this post, we’ll break down how to approach what most athletes get wrong about recovery days, avoid common mistakes, and optimize for real-world results.
+
+---
+
+## Key Tips
+
+- Structure your training around your real-life schedule and race demands  
+- Focus on building aerobic endurance, not just hammering intervals  
+- Don’t skip rest days — recovery drives adaptation
+
+---
+
+## Coach’s Take
+
+At TrainGPT, we see athletes burn out by following generic advice that doesn’t match their goals or fitness. That’s why every plan we create is personalized. Whether you’re training for your first race or chasing a PR, your strategy should be tailored — not templated.
+
+---
+
+## Ready to Train Smarter?
+
+[Build your personalized plan now](/plan) — and crush your next race.`,
+  },
+  {
+    slug: 'build-triathlon-consistency',
+    title: 'How to Build Consistency (Not Just Motivation)',
+    description: 'How to Build Consistency (Not Just Motivation) — practical advice for triathletes who want smarter, more effective training.',
+    tag: 'Mindset',
+    date: 'May 27, 2025',
+    image: '/tiles/tt-bike-field.jpg',
+    content: `## How to Build Consistency (Not Just Motivation)
+
+Triathlon success isn’t just about working harder — it’s about training smarter. In this post, we’ll break down how to approach how to build consistency (not just motivation), avoid common mistakes, and optimize for real-world results.
+
+---
+
+## Key Tips
+
+- Structure your training around your real-life schedule and race demands  
+- Focus on building aerobic endurance, not just hammering intervals  
+- Don’t skip rest days — recovery drives adaptation
+
+---
+
+## Coach’s Take
+
+At TrainGPT, we see athletes burn out by following generic advice that doesn’t match their goals or fitness. That’s why every plan we create is personalized. Whether you’re training for your first race or chasing a PR, your strategy should be tailored — not templated.
+
+---
+
+## Ready to Train Smarter?
+
+[Build your personalized plan now](/plan) — and crush your next race.`,
+  },
+  {
+    slug: 'triathlon-plan-adjustments',
+    title: 'When (and How) to Adjust Your Triathlon Plan',
+    description: 'When (and How) to Adjust Your Triathlon Plan — practical advice for triathletes who want smarter, more effective training.',
+    tag: 'Training Tip',
+    date: 'May 27, 2025',
+    image: '/tiles/swimmer-breathing.jpg',
+    content: `## When (and How) to Adjust Your Triathlon Plan
+
+Triathlon success isn’t just about working harder — it’s about training smarter. In this post, we’ll break down how to approach when (and how) to adjust your triathlon plan, avoid common mistakes, and optimize for real-world results.
+
+---
+
+## Key Tips
+
+- Structure your training around your real-life schedule and race demands  
+- Focus on building aerobic endurance, not just hammering intervals  
+- Don’t skip rest days — recovery drives adaptation
+
+---
+
+## Coach’s Take
+
+At TrainGPT, we see athletes burn out by following generic advice that doesn’t match their goals or fitness. That’s why every plan we create is personalized. Whether you’re training for your first race or chasing a PR, your strategy should be tailored — not templated.
+
+---
+
+## Ready to Train Smarter?
+
+[Build your personalized plan now](/plan) — and crush your next race.`,
+  },
+
+
 ];
