@@ -12,6 +12,7 @@ const supabase = createClient(
 
 export async function GET(req: NextRequest) {
   const testEmail = req.nextUrl.searchParams.get('test');
+  const manual = req.nextUrl.searchParams.get('manual');
 
   const start = startOfWeek(new Date(), { weekStartsOn: 1 });
   const end = addDays(start, 6);
