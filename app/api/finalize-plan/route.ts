@@ -94,14 +94,24 @@ export async function POST(req: Request) {
   const maxWeeks = MAX_WEEKS[raceType] || 20;
   let adjusted = false;
 
-  if (totalWeeks < minWeeks) {
-    totalWeeks = minWeeks;
-    adjusted = true;
-  }
-  if (totalWeeks > maxWeeks) {
-    totalWeeks = maxWeeks;
-    adjusted = true;
-  }
+if (totalWeeks < minWeeks) {
+  return NextResponse.json(
+    {
+      error: `Your race is too soon to safely train for a ${raceType}. We need at least ${minWeeks} weeks to build a smart plan.`,
+    },
+    { status: 400 }
+  );
+}
+ if (totalWeeks > maxWeeks) {
+  return NextResponse.json(
+    {
+      error: `Your race is too far away to generate a ${raceType} plan. We currently support up to ${maxWeeks} weeks of training.`,
+      code: 'TOO_MANY_WEEKS',
+      maxWeeks,
+    },
+    { status: 400 }
+  );
+}
 
   const weekMeta = Array.from({ length: totalWeeks }, (_, i) => {
     const start = addWeeks(startDate, i);
