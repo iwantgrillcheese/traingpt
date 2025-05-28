@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { format, parseISO, isSameDay, isSameMonth, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
+import { format, parseISO, isSameDay, isSameMonth, startOfMonth, endOfMonth, addMonths, subMonths, addDays } from 'date-fns';
+
 
 export default function MobileCalendarView({ plan, completed, stravaActivities }: any) {
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -33,16 +34,13 @@ export default function MobileCalendarView({ plan, completed, stravaActivities }
   const end = endOfMonth(currentMonth);
 
   const calendarDays = useMemo(() => {
-    const days = [];
-    const date = new Date(start);
-    date.setDate(date.getDate() - date.getDay());
+  const start = startOfMonth(currentMonth);
+  const startDayOffset = (start.getDay()); // 0 = Sunday
+  const calendarStart = new Date(start);
+  calendarStart.setDate(start.getDate() - startDayOffset);
 
-    while (date <= end || days.length < 42) {
-      days.push(new Date(date));
-      date.setDate(date.getDate() + 1);
-    }
-    return days;
-  }, [currentMonth]);
+  return Array.from({ length: 35 }, (_, i) => addDays(calendarStart, i));
+}, [currentMonth]);
 
   const getSessionStatus = (date: string, label: string) => {
     const key = `${date}-${label.toLowerCase().includes('swim') ? 'swim' : label.toLowerCase().includes('bike') ? 'bike' : 'run'}`;
