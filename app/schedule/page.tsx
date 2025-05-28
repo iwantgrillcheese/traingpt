@@ -16,6 +16,9 @@ export default function SchedulePage() {
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [planId, setPlanId] = useState<string | null>(null);
+  const [collapsedWeeks, setCollapsedWeeks] = useState<Record<number, boolean>>({});
+
+  const today = new Date();
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -66,6 +69,18 @@ export default function SchedulePage() {
     fetchAll();
   }, []);
 
+  // Collapse past weeks by default
+  useEffect(() => {
+    if (!plan.length) return;
+
+    const collapsed: Record<number, boolean> = {};
+    plan.forEach((week, idx) => {
+      const allDaysPast = Object.keys(week.days).every(date => new Date(date) < today);
+      if (allDaysPast) collapsed[idx] = true;
+    });
+    setCollapsedWeeks(collapsed);
+  }, [plan]);
+
   const getNormalizedSport = (title: string): string => {
     const lowered = title.toLowerCase();
     if (lowered.includes('swim')) return 'swim';
@@ -87,15 +102,6 @@ export default function SchedulePage() {
 
     const normalizedSport = getNormalizedSport(sportTitle);
     const key = `${date}-${normalizedSport}`;
-
-    console.log('[🔁 saveSessionStatus]', {
-      userId,
-      planId,
-      date,
-      sport: normalizedSport,
-      status,
-      key,
-    });
 
     const { error } = await supabase
       .from('completed_sessions')
@@ -122,15 +128,9 @@ export default function SchedulePage() {
     }));
   };
 
-  const today = new Date();
   const raceCountdown =
     raceDate !== null
-      ? Math.max(
-          0,
-          Math.floor(
-            (parseISO(raceDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-          )
-        )
+      ? Math.max(0, Math.floor((parseISO(raceDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24)))
       : null;
 
   const flattenPlannedSessions = new Set(
@@ -175,66 +175,81 @@ export default function SchedulePage() {
       </div>
 
       <div className="flex flex-col gap-10">
-        {plan.map((week, weekIdx) => (
-          <div key={weekIdx} className="flex flex-col gap-6">
-            <div className="text-xl font-semibold text-gray-800">{week.label}</div>
+        {plan.map((week, weekIdx) => {
+          const isCollapsed = collapsedWeeks[weekIdx];
 
-            {Object.entries(week.days).map(([date, sessionsRaw], dayIdx) => {
-              const sessions = sessionsRaw as string[];
-              const dateObj = parseISO(date);
+          return (
+            <div key={weekIdx} className="flex flex-col gap-6">
+              <div
+                className="text-xl font-semibold text-gray-800 cursor-pointer hover:underline"
+                onClick={() =>
+                  setCollapsedWeeks((prev) => ({
+                    ...prev,
+                    [weekIdx]: !prev[weekIdx],
+                  }))
+                }
+              >
+                {week.label} {isCollapsed ? '(Show)' : '(Hide)'}
+              </div>
 
-              return (
-                <div key={`${weekIdx}-${dayIdx}`} className="flex flex-col gap-4">
-                  <div className="text-md font-bold text-gray-600">
-                    {format(dateObj, 'EEEE, MMM d')}
-                  </div>
+              {!isCollapsed &&
+                Object.entries(week.days).map(([date, sessionsRaw], dayIdx) => {
+                  const sessions = sessionsRaw as string[];
+                  const dateObj = parseISO(date);
 
-                  {sessions.map((sessionTitle, sessionIdx) => (
-                    <SessionCard
-                      key={sessionIdx}
-                      title={sessionTitle}
-                      date={date}
-                      initialStatus={
-                        completed[`${date}-${getNormalizedSport(sessionTitle)}`] as
-                          | 'done'
-                          | 'skipped'
-                          | 'missed'
-                      }
-                      onStatusChange={(newStatus) =>
-                        saveSessionStatus({
-                          date,
-                          sportTitle: sessionTitle,
-                          status: newStatus,
-                        })
-                      }
-                    />
-                  ))}
+                  return (
+                    <div key={`${weekIdx}-${dayIdx}`} className="flex flex-col gap-4">
+                      <div className="text-md font-bold text-gray-600">
+                        {format(dateObj, 'EEEE, MMM d')}
+                      </div>
 
-                  {stravaOnlySessions
-                    .filter((activity) => isSameDay(parseISO(activity.start_date_local), dateObj))
-                    .map((activity, idx) => {
-                      const sportType = activity.sport_type?.toLowerCase();
-                      const mapped =
-                        sportType === 'ride' || sportType === 'virtualride' ? 'bike' : sportType;
-                      const durationMin = Math.round(activity.moving_time / 60);
-                      const label = `${mapped.charAt(0).toUpperCase() + mapped.slice(1)}: ${durationMin}min ${
-                        activity.name?.toLowerCase().includes('hill') ? 'hilly' : ''
-                      }`.trim();
-
-                      return (
+                      {sessions.map((sessionTitle, sessionIdx) => (
                         <SessionCard
-                          key={`strava-${idx}`}
-                          title={label}
-                          date={activity.start_date_local.split('T')[0]}
-                          isStravaOnly={true}
+                          key={sessionIdx}
+                          title={sessionTitle}
+                          date={date}
+                          initialStatus={
+                            completed[`${date}-${getNormalizedSport(sessionTitle)}`] as
+                              | 'done'
+                              | 'skipped'
+                              | 'missed'
+                          }
+                          onStatusChange={(newStatus) =>
+                            saveSessionStatus({
+                              date,
+                              sportTitle: sessionTitle,
+                              status: newStatus,
+                            })
+                          }
                         />
-                      );
-                    })}
-                </div>
-              );
-            })}
-          </div>
-        ))}
+                      ))}
+
+                      {stravaOnlySessions
+                        .filter((activity) => isSameDay(parseISO(activity.start_date_local), dateObj))
+                        .map((activity, idx) => {
+                          const sportType = activity.sport_type?.toLowerCase();
+                          const mapped =
+                            sportType === 'ride' || sportType === 'virtualride' ? 'bike' : sportType;
+                          const durationMin = Math.round(activity.moving_time / 60);
+                          const label = `${mapped.charAt(0).toUpperCase() + mapped.slice(1)}: ${durationMin}min ${
+                            activity.name?.toLowerCase().includes('hill') ? 'hilly' : ''
+                          }`.trim();
+
+                          return (
+                            <SessionCard
+                              key={`strava-${idx}`}
+                              title={label}
+                              date={activity.start_date_local.split('T')[0]}
+                              isStravaOnly={true}
+                            />
+                          );
+                        })}
+                    </div>
+                  );
+                })}
+            </div>
+          );
+        })}
       </div>
     </main>
   );
