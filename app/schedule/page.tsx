@@ -181,16 +181,17 @@ export default function SchedulePage() {
           return (
             <div key={weekIdx} className="flex flex-col gap-6">
               <div
-                className="text-xl font-semibold text-gray-800 cursor-pointer hover:underline"
-                onClick={() =>
-                  setCollapsedWeeks((prev) => ({
-                    ...prev,
-                    [weekIdx]: !prev[weekIdx],
-                  }))
-                }
-              >
-                {week.label} {isCollapsed ? '(Show)' : '(Hide)'}
-              </div>
+  className="flex items-center justify-between text-xl font-semibold text-gray-800 cursor-pointer hover:underline"
+  onClick={() =>
+    setCollapsedWeeks((prev) => ({
+      ...prev,
+      [weekIdx]: !prev[weekIdx],
+    }))
+  }
+>
+  <span>{week.label}</span>
+  <span className="text-lg">{isCollapsed ? '+' : '−'}</span>
+</div>
 
               {!isCollapsed &&
                 Object.entries(week.days).map(([date, sessionsRaw], dayIdx) => {
