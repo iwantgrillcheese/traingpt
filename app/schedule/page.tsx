@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { format, parseISO, isSameDay } from 'date-fns';
 import SessionCard from './SessionCard';
+import Calendar from 'react-calendar';
+import 'react-calendar/dist/Calendar.css';
 
 const supabase = createClientComponentClient();
 
@@ -69,7 +71,6 @@ export default function SchedulePage() {
     fetchAll();
   }, []);
 
-  // Collapse past weeks by default
   useEffect(() => {
     if (!plan.length) return;
 
@@ -105,33 +106,26 @@ export default function SchedulePage() {
 
     const { error } = await supabase
       .from('completed_sessions')
-      .upsert(
-        [
-          {
-            user_id: userId,
-            plan_id: planId ?? null,
-            date,
-            sport: normalizedSport,
-            status,
-          },
-        ],
-        { onConflict: 'user_id,date,sport' }
-      );
+      .upsert([
+        {
+          user_id: userId,
+          plan_id: planId ?? null,
+          date,
+          sport: normalizedSport,
+          status,
+        },
+      ], { onConflict: 'user_id,date,sport' });
 
     if (error) {
       console.error('[❌ Supabase save error]', error);
     }
 
-    setCompleted((prev) => ({
-      ...prev,
-      [key]: status,
-    }));
+    setCompleted((prev) => ({ ...prev, [key]: status }));
   };
 
-  const raceCountdown =
-    raceDate !== null
-      ? Math.max(0, Math.floor((parseISO(raceDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24)))
-      : null;
+  const raceCountdown = raceDate !== null
+    ? Math.max(0, Math.floor((parseISO(raceDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24)))
+    : null;
 
   const flattenPlannedSessions = new Set(
     plan.flatMap((week) =>
@@ -152,25 +146,52 @@ export default function SchedulePage() {
     return !flattenPlannedSessions.has(`${date}-${label}`);
   });
 
-  if (loading) {
-    return <div className="py-32 text-center text-gray-400">Loading your schedule...</div>;
-  }
+  const sessionsByDate: Record<string, 'done' | 'skipped' | 'planned'> = {};
+  plan.forEach((week) => {
+    Object.entries(week.days).forEach(([date, sessions]) => {
+      if (!sessions || Object.keys(sessions).length === 0) return;
+      const key = date;
+      if (Object.values(completed).some((val) => val === 'done' && key.includes(date))) {
+        sessionsByDate[key] = 'done';
+      } else if (Object.values(completed).some((val) => val === 'skipped' && key.includes(date))) {
+        sessionsByDate[key] = 'skipped';
+      } else {
+        sessionsByDate[key] = 'planned';
+      }
+    });
+  });
 
-  if (!plan.length) {
-    return <div className="py-32 text-center text-gray-400">No plan found. Generate one to get started.</div>;
-  }
+  if (loading) return <div className="py-32 text-center text-gray-400">Loading your schedule...</div>;
+  if (!plan.length) return <div className="py-32 text-center text-gray-400">No plan found. Generate one to get started.</div>;
 
   return (
     <main className="max-w-[1440px] mx-auto px-4 sm:px-8 py-10 sm:py-16">
+      <div className="max-w-md mx-auto mb-8">
+        <Calendar
+          tileContent={({ date, view }) => {
+            if (view !== 'month') return null;
+            const key = format(date, 'yyyy-MM-dd');
+            const status = sessionsByDate[key];
+            if (!status) return null;
+
+            const color =
+              status === 'done' ? 'bg-green-500' :
+              status === 'skipped' ? 'bg-gray-400' :
+              'bg-blue-500';
+
+            return <div className={`w-2 h-2 mt-1 rounded-full mx-auto ${color}`} />;
+          }}
+          onClickDay={(value) => {
+            const el = document.querySelector(`[data-date="${format(value, 'yyyy-MM-dd')}"]`);
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }}
+        />
+      </div>
+
       <div className="text-center mb-10">
         <h1 className="text-3xl font-bold mb-2">Your Training Plan</h1>
         {raceCountdown !== null && (
           <p className="text-gray-600 text-lg">{raceCountdown} days until race day</p>
-        )}
-        {coachNote && (
-          <div className="mt-4 inline-block bg-blue-50 border border-blue-200 text-blue-700 rounded-xl px-5 py-3 text-sm shadow-sm">
-            {coachNote}
-          </div>
         )}
       </div>
 
@@ -181,17 +202,14 @@ export default function SchedulePage() {
           return (
             <div key={weekIdx} className="flex flex-col gap-6">
               <div
-  className="flex items-center justify-between text-xl font-semibold text-gray-800 cursor-pointer hover:underline"
-  onClick={() =>
-    setCollapsedWeeks((prev) => ({
-      ...prev,
-      [weekIdx]: !prev[weekIdx],
-    }))
-  }
->
-  <span>{week.label}</span>
-  <span className="text-lg">{isCollapsed ? '+' : '−'}</span>
-</div>
+                className="flex items-center justify-between text-xl font-semibold text-gray-800 cursor-pointer hover:underline"
+                onClick={() =>
+                  setCollapsedWeeks((prev) => ({ ...prev, [weekIdx]: !prev[weekIdx] }))
+                }
+              >
+                <span>{week.label}</span>
+                <span className="text-lg">{isCollapsed ? '+' : '−'}</span>
+              </div>
 
               {!isCollapsed &&
                 Object.entries(week.days).map(([date, sessionsRaw], dayIdx) => {
@@ -199,7 +217,7 @@ export default function SchedulePage() {
                   const dateObj = parseISO(date);
 
                   return (
-                    <div key={`${weekIdx}-${dayIdx}`} className="flex flex-col gap-4">
+                    <div key={`${weekIdx}-${dayIdx}`} className="flex flex-col gap-4" data-date={date}>
                       <div className="text-md font-bold text-gray-600">
                         {format(dateObj, 'EEEE, MMM d')}
                       </div>
