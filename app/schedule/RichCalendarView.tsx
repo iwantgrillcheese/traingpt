@@ -1,19 +1,16 @@
-'use client';
+import { useMemo, useEffect, useRef } from 'react';
+import { format, parseISO, isSameDay, startOfWeek, addDays, isBefore } from 'date-fns';
 
-import { useEffect, useMemo, useRef } from 'react';
-import { format, parseISO, isSameDay, isBefore, startOfWeek, addDays } from 'date-fns';
-
-type Props = {
+interface RichCalendarViewProps {
   plan: any[];
   completed: { [key: string]: string };
   stravaActivities: any[];
-};
+}
 
-export default function RichCalendarView({ plan, completed, stravaActivities }: Props) {
+export default function RichCalendarView({ plan, completed, stravaActivities }: RichCalendarViewProps) {
   const today = new Date();
-  const todayRef = useRef<HTMLDivElement | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Map sessions + Strava workouts by date
   const sessionsByDate = useMemo(() => {
     const sessions: Record<string, string[]> = {};
 
@@ -38,20 +35,16 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
     return sessions;
   }, [plan, stravaActivities]);
 
-  // Build calendar range
   const calendarRange = useMemo(() => {
     const allDates = Object.keys(sessionsByDate).sort();
     if (!allDates.length) return [];
-
     const start = startOfWeek(parseISO(allDates[0]), { weekStartsOn: 1 });
     const end = parseISO(allDates[allDates.length - 1]);
     const weeks = [];
     let curr = start;
 
     while (curr <= end) {
-      const week = Array.from({ length: 7 }).map((_, i) =>
-        format(addDays(curr, i), 'yyyy-MM-dd')
-      );
+      const week = Array.from({ length: 7 }).map((_, i) => format(addDays(curr, i), 'yyyy-MM-dd'));
       weeks.push(week);
       curr = addDays(curr, 7);
     }
@@ -59,71 +52,78 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
     return weeks;
   }, [sessionsByDate]);
 
-  // Scroll to current week
   useEffect(() => {
-    if (todayRef.current) {
-      todayRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!containerRef.current) return;
+
+    const currentWeekIndex = calendarRange.findIndex((week) =>
+      week.some((date) => format(today, 'yyyy-MM-dd') === date)
+    );
+
+    if (currentWeekIndex !== -1) {
+      const target = containerRef.current.querySelector(`#week-${currentWeekIndex}`);
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     }
-  }, []);
+  }, [calendarRange]);
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-2 sm:px-4">
+    <div className="w-full max-w-7xl mx-auto overflow-x-auto" ref={containerRef}>
+      <div className="text-center mb-6">
+        <h1 className="text-3xl font-bold">Your Training Plan</h1>
+      </div>
+
       <div className="grid grid-cols-7 text-center font-medium text-sm text-gray-600 mb-2">
         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
           <div key={d}>{d}</div>
         ))}
       </div>
 
-      {calendarRange.map((week, idx) => {
-        const isCurrentWeek = week.some((date) => isSameDay(parseISO(date), today));
-        const isPastWeek = week.every((date) => isBefore(parseISO(date), today));
+      {calendarRange.map((week, weekIdx) => (
+        <div
+          key={weekIdx}
+          id={`week-${weekIdx}`}
+          className="grid grid-cols-7 gap-2 mb-4"
+        >
+          {week.map((date) => {
+            const dateObj = parseISO(date);
+            const isToday = isSameDay(dateObj, today);
+            const inPast = isBefore(dateObj, today);
+            const fadeClass = '';
 
-        return (
-          <div
-            key={idx}
-            ref={isCurrentWeek ? todayRef : null}
-            className={`grid grid-cols-7 gap-2 mb-4 transition-opacity ${
-              isPastWeek ? 'opacity-30' : 'opacity-100'
-            }`}
-          >
-            {week.map((date) => (
+            return (
               <div
                 key={date}
-                className={`min-h-[110px] border rounded-lg p-2 text-left text-xs bg-white shadow-sm flex flex-col gap-1 ${
-                  isSameDay(parseISO(date), today) ? 'border-black' : 'border-gray-200'
-                }`}
+                className={`min-h-[100px] border rounded-lg p-2 text-left text-xs bg-white shadow-sm flex flex-col gap-1 ${
+                  isToday ? 'border-black' : 'border-gray-200'
+                } ${fadeClass}`}
               >
                 <div className="text-[10px] text-gray-400 font-semibold mb-1">
-                  {format(parseISO(date), 'MMM d')}
+                  {format(dateObj, 'MMM d')}
                 </div>
-
                 {(sessionsByDate[date] || []).map((s, i) => {
-                  const sport =
-                    s.toLowerCase().includes('swim')
+                  const status = completed[
+                    `${date}-${s.toLowerCase().includes('swim')
                       ? 'swim'
                       : s.toLowerCase().includes('bike')
                       ? 'bike'
-                      : 'run';
-
-                  const status = completed[`${date}-${sport}`];
+                      : 'run'}`
+                  ];
                   const color =
                     status === 'done'
                       ? 'text-green-700'
                       : status === 'skipped'
                       ? 'text-gray-400 line-through'
                       : 'text-blue-700';
-
                   return (
-                    <div key={i} className={`${color} truncate`} title={s}>
-                      {s}
-                    </div>
+                    <div key={i} className={`${color}`}>{s}</div>
                   );
                 })}
               </div>
-            ))}
-          </div>
-        );
-      })}
+            );
+          })}
+        </div>
+      ))}
     </div>
   );
 }
