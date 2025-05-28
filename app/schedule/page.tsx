@@ -3,9 +3,8 @@
 import { useState, useEffect } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { format, parseISO, isSameDay } from 'date-fns';
-import Calendar from 'react-calendar';
-import 'react-calendar/dist/Calendar.css';
 import SessionCard from './SessionCard';
+import RichCalendarView from './RichCalendarView';
 
 const supabase = createClientComponentClient();
 
@@ -20,6 +19,7 @@ export default function SchedulePage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [planId, setPlanId] = useState<string | null>(null);
   const [collapsedWeeks, setCollapsedWeeks] = useState<Record<number, boolean>>({});
+
   const today = new Date();
 
   useEffect(() => {
@@ -161,87 +161,75 @@ export default function SchedulePage() {
       </div>
 
       {view === 'calendar' && (
-        <div className="w-full mb-10">
-          <div className="rounded-xl border border-gray-200 shadow-sm p-4 bg-white max-w-4xl mx-auto">
-            <Calendar
-              tileContent={({ date }) => {
-                const key = format(date, 'yyyy-MM-dd');
-                const status = sessionsByDate[key];
-                const color = status === 'done' ? 'bg-green-500' : status === 'skipped' ? 'bg-red-400' : 'bg-blue-500';
-                return status ? (
-                  <div className="mt-1 flex justify-center">
-                    <span className={`inline-block w-2 h-2 rounded-full ${color}`} />
-                  </div>
-                ) : null;
-              }}
-              onClickDay={scrollToDate}
-            />
-          </div>
-        </div>
+        <RichCalendarView
+          plan={plan}
+          completed={completed}
+          stravaActivities={stravaActivities}
+        />
       )}
 
       {view === 'schedule' && (
-        <div className="text-center mb-10">
-          <h1 className="text-3xl font-bold mb-2">Your Training Plan</h1>
-          {raceCountdown !== null && (
-            <p className="text-gray-600 text-lg">{raceCountdown} days until race day</p>
-          )}
-          {coachNote && (
-            <div className="mt-4 inline-block bg-blue-50 border border-blue-200 text-blue-700 rounded-xl px-5 py-3 text-sm shadow-sm">
-              {coachNote}
-            </div>
-          )}
-        </div>
-      )}
-
-      {view === 'schedule' && (
-        <div className="flex flex-col gap-10">
-          {plan.map((week, weekIdx) => {
-            const isCollapsed = collapsedWeeks[weekIdx];
-            return (
-              <div key={weekIdx} className="flex flex-col gap-6">
-                <div className="flex items-center justify-between text-xl font-semibold text-gray-800 cursor-pointer hover:underline" onClick={() => setCollapsedWeeks(prev => ({ ...prev, [weekIdx]: !prev[weekIdx] }))}>
-                  <span>{week.label}</span>
-                  <span className="text-lg">{isCollapsed ? '+' : '−'}</span>
-                </div>
-                {!isCollapsed && Object.entries(week.days).map(([date, sessionsRaw], dayIdx) => {
-                  const sessions = sessionsRaw as string[];
-                  const dateObj = parseISO(date);
-                  return (
-                    <div key={`${weekIdx}-${dayIdx}`} className="flex flex-col gap-4" data-date={date}>
-                      <div className="text-md font-bold text-gray-600">{format(dateObj, 'EEEE, MMM d')}</div>
-                      {sessions.map((sessionTitle, sessionIdx) => (
-                        <SessionCard
-                          key={sessionIdx}
-                          title={sessionTitle}
-                          date={date}
-                          initialStatus={completed[`${date}-${getNormalizedSport(sessionTitle)}`] as 'done' | 'skipped' | 'missed'}
-                          onStatusChange={(newStatus) => saveSessionStatus({ date, sportTitle: sessionTitle, status: newStatus })}
-                        />
-                      ))}
-                      {stravaOnlySessions
-                        .filter((activity) => isSameDay(parseISO(activity.start_date_local), dateObj))
-                        .map((activity, idx) => {
-                          const sportType = activity.sport_type?.toLowerCase();
-                          const mapped = sportType === 'ride' || sportType === 'virtualride' ? 'bike' : sportType;
-                          const durationMin = Math.round(activity.moving_time / 60);
-                          const label = `${mapped.charAt(0).toUpperCase() + mapped.slice(1)}: ${durationMin}min ${activity.name?.toLowerCase().includes('hill') ? 'hilly' : ''}`.trim();
-                          return (
-                            <SessionCard
-                              key={`strava-${idx}`}
-                              title={label}
-                              date={activity.start_date_local.split('T')[0]}
-                              isStravaOnly={true}
-                            />
-                          );
-                        })}
-                    </div>
-                  );
-                })}
+        <>
+          <div className="text-center mb-10">
+            <h1 className="text-3xl font-bold mb-2">Your Training Plan</h1>
+            {raceCountdown !== null && (
+              <p className="text-gray-600 text-lg">{raceCountdown} days until race day</p>
+            )}
+            {coachNote && (
+              <div className="mt-4 inline-block bg-blue-50 border border-blue-200 text-blue-700 rounded-xl px-5 py-3 text-sm shadow-sm">
+                {coachNote}
               </div>
-            );
-          })}
-        </div>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-10">
+            {plan.map((week, weekIdx) => {
+              const isCollapsed = collapsedWeeks[weekIdx];
+              return (
+                <div key={weekIdx} className="flex flex-col gap-6">
+                  <div className="flex items-center justify-between text-xl font-semibold text-gray-800 cursor-pointer hover:underline" onClick={() => setCollapsedWeeks(prev => ({ ...prev, [weekIdx]: !prev[weekIdx] }))}>
+                    <span>{week.label}</span>
+                    <span className="text-lg">{isCollapsed ? '+' : '−'}</span>
+                  </div>
+                  {!isCollapsed && Object.entries(week.days).map(([date, sessionsRaw], dayIdx) => {
+                    const sessions = sessionsRaw as string[];
+                    const dateObj = parseISO(date);
+                    return (
+                      <div key={`${weekIdx}-${dayIdx}`} className="flex flex-col gap-4" data-date={date}>
+                        <div className="text-md font-bold text-gray-600">{format(dateObj, 'EEEE, MMM d')}</div>
+                        {sessions.map((sessionTitle, sessionIdx) => (
+                          <SessionCard
+                            key={sessionIdx}
+                            title={sessionTitle}
+                            date={date}
+                            initialStatus={completed[`${date}-${getNormalizedSport(sessionTitle)}`] as 'done' | 'skipped' | 'missed'}
+                            onStatusChange={(newStatus) => saveSessionStatus({ date, sportTitle: sessionTitle, status: newStatus })}
+                          />
+                        ))}
+                        {stravaOnlySessions
+                          .filter((activity) => isSameDay(parseISO(activity.start_date_local), dateObj))
+                          .map((activity, idx) => {
+                            const sportType = activity.sport_type?.toLowerCase();
+                            const mapped = sportType === 'ride' || sportType === 'virtualride' ? 'bike' : sportType;
+                            const durationMin = Math.round(activity.moving_time / 60);
+                            const label = `${mapped.charAt(0).toUpperCase() + mapped.slice(1)}: ${durationMin}min ${activity.name?.toLowerCase().includes('hill') ? 'hilly' : ''}`.trim();
+                            return (
+                              <SessionCard
+                                key={`strava-${idx}`}
+                                title={label}
+                                date={activity.start_date_local.split('T')[0]}
+                                isStravaOnly={true}
+                              />
+                            );
+                          })}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
     </main>
   );
