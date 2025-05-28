@@ -1,10 +1,23 @@
-import { useMemo, useState } from 'react';
-import { format, parseISO, isSameDay, isSameMonth, startOfMonth, endOfMonth, addMonths, subMonths, addDays } from 'date-fns';
+'use client';
 
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  format,
+  parseISO,
+  isSameDay,
+  isSameMonth,
+  startOfMonth,
+  endOfMonth,
+  addMonths,
+  subMonths,
+  addDays,
+} from 'date-fns';
 
 export default function MobileCalendarView({ plan, completed, stravaActivities }: any) {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const router = useRouter();
 
   const sessionsByDate = useMemo(() => {
     const sessions: Record<string, string[]> = {};
@@ -34,23 +47,28 @@ export default function MobileCalendarView({ plan, completed, stravaActivities }
   const end = endOfMonth(currentMonth);
 
   const calendarDays = useMemo(() => {
-  const start = startOfMonth(currentMonth);
-  const startDayOffset = (start.getDay()); // 0 = Sunday
-  const calendarStart = new Date(start);
-  calendarStart.setDate(start.getDate() - startDayOffset);
-
-  return Array.from({ length: 35 }, (_, i) => addDays(calendarStart, i));
-}, [currentMonth]);
+    const start = startOfMonth(currentMonth);
+    const startDayOffset = start.getDay();
+    const calendarStart = new Date(start);
+    calendarStart.setDate(start.getDate() - startDayOffset);
+    return Array.from({ length: 35 }, (_, i) => addDays(calendarStart, i));
+  }, [currentMonth]);
 
   const getSessionStatus = (date: string, label: string) => {
-    const key = `${date}-${label.toLowerCase().includes('swim') ? 'swim' : label.toLowerCase().includes('bike') ? 'bike' : 'run'}`;
+    const key = `${date}-${
+      label.toLowerCase().includes('swim')
+        ? 'swim'
+        : label.toLowerCase().includes('bike')
+        ? 'bike'
+        : 'run'
+    }`;
     return completed[key];
   };
 
   const getDotColor = (date: string) => {
     const sessions = sessionsByDate[date] || [];
-    if (sessions.some(s => getSessionStatus(date, s) === 'done')) return 'bg-green-500';
-    if (sessions.some(s => getSessionStatus(date, s) === 'skipped')) return 'bg-gray-400';
+    if (sessions.some((s) => getSessionStatus(date, s) === 'done')) return 'bg-green-500';
+    if (sessions.some((s) => getSessionStatus(date, s) === 'skipped')) return 'bg-gray-400';
     if (sessions.length > 0) return 'bg-blue-500';
     return '';
   };
@@ -77,7 +95,9 @@ export default function MobileCalendarView({ plan, completed, stravaActivities }
             <div
               key={idx}
               onClick={() => setSelectedDate(day)}
-              className={`flex flex-col items-center py-1 rounded-full cursor-pointer ${isSelected ? 'bg-black text-white' : 'text-gray-800'}`}
+              className={`flex flex-col items-center py-1 rounded-full cursor-pointer ${
+                isSelected ? 'bg-black text-white' : 'text-gray-800'
+              }`}
             >
               <div>{format(day, 'd')}</div>
               <div className={`w-1.5 h-1.5 rounded-full mt-1 ${dotColor}`}></div>
@@ -93,8 +113,28 @@ export default function MobileCalendarView({ plan, completed, stravaActivities }
         <div className="flex flex-col gap-2">
           {(sessionsByDate[format(selectedDate, 'yyyy-MM-dd')] || []).map((s: string, i: number) => {
             const status = getSessionStatus(format(selectedDate, 'yyyy-MM-dd'), s);
-            const color = status === 'done' ? 'text-green-700' : status === 'skipped' ? 'text-gray-400 line-through' : 'text-blue-700';
-            return <div key={i} className={`${color}`}>{s}</div>;
+            const color =
+              status === 'done'
+                ? 'text-green-700'
+                : status === 'skipped'
+                ? 'text-gray-400 line-through'
+                : 'text-blue-700';
+            return (
+              <div
+                key={i}
+                onClick={() =>
+                  router.push(
+                    `/coaching?prefill=Can you explain the workout: '${s}' on ${format(
+                      selectedDate,
+                      'MMMM d'
+                    )}?`
+                  )
+                }
+                className={`${color} cursor-pointer hover:underline`}
+              >
+                {s}
+              </div>
+            );
           })}
         </div>
       </div>

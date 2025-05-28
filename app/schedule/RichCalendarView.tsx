@@ -1,7 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { format, parseISO, isSameDay, startOfWeek, addDays, isAfter } from 'date-fns';
+import { format, parseISO, isSameDay, startOfWeek, addDays } from 'date-fns';
+import { useRouter } from 'next/navigation';
 
 export default function RichCalendarView({ plan, completed, stravaActivities }: {
   plan: any[];
@@ -9,11 +10,11 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
   stravaActivities: any[];
 }) {
   const today = new Date();
+  const router = useRouter();
   const [monthIndex, setMonthIndex] = useState(0);
 
   const sessionsByDate = useMemo(() => {
     const sessions: Record<string, string[]> = {};
-
     plan.forEach((week) => {
       Object.entries(week.days).forEach(([date, raw]) => {
         const items = raw as string[];
@@ -70,6 +71,12 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
     return '📋';
   };
 
+  const handleClick = (date: string, session: string) => {
+    const readableDate = format(parseISO(date), 'EEEE');
+    const query = `Can you explain ${readableDate}'s workout: "${session}"?`;
+    router.push(`/coaching?prefill=${encodeURIComponent(query)}`);
+  };
+
   return (
     <div className="w-full overflow-x-auto">
       <div className="flex justify-between items-center mb-4 px-1">
@@ -121,7 +128,13 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
                 const status = completed[`${date}-${sportKey}`];
                 const color = getColorClass(s, status);
                 return (
-                  <div key={i} className={`${color}`}>• {getEmoji(s)} {s}</div>
+                  <button
+                    key={i}
+                    onClick={() => handleClick(date, s)}
+                    className={`${color} text-left hover:underline`}
+                  >
+                    • {getEmoji(s)} {s}
+                  </button>
                 );
               })}
             </div>
