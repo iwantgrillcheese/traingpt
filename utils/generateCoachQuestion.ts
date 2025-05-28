@@ -1,39 +1,19 @@
 // app/schedule/utils/generateCoachQuestion.ts
 
-export function generateCoachQuestion(date: string, label: string): string {
-  const session = label.toLowerCase();
+export function generateCoachQuestion(dateLabel: string, session: string): string {
+  const lower = session.toLowerCase();
 
-  if (session.includes('swim') && session.includes('drills')) {
-    return `Can you give me drill suggestions for my swim on ${date}?`;
+  if (lower.includes('swim')) {
+    return `Hey, can you give me a structured swim workout for my session on ${dateLabel}? It's listed as "${session}".`;
   }
 
-  if (session.includes('swim')) {
-    return `Can you give me specific swim sets to follow for my ${label}?`;
+  if (lower.includes('bike')) {
+    return `For my bike session on ${dateLabel} ("${session}"), what power or intensity should I aim for?`;
   }
 
-  if (session.includes('bike') && session.includes('ftp')) {
-    return `What power zones should I hold during my ${label}?`;
+  if (lower.includes('run')) {
+    return `Can you help me pace my run on ${dateLabel}? The plan says "${session}". Just want to make sure I'm doing it right.`;
   }
 
-  if (session.includes('bike') && session.includes('interval')) {
-    return `What interval structure do you recommend for my ${label}?`;
-  }
-
-  if (session.includes('bike') && session.includes('z2')) {
-    return `What wattage range should I target during my Zone 2 ride on ${date}?`;
-  }
-
-  if (session.includes('run') && session.includes('threshold')) {
-    return `What pace should I aim for during my threshold run on ${date}?`;
-  }
-
-  if (session.includes('run') && session.includes('brick')) {
-    return `How should I pace and transition for my brick workout on ${date}?`;
-  }
-
-  if (session.includes('run') && session.includes('easy')) {
-    return `Can you confirm what heart rate or pace I should target for my easy run on ${date}?`;
-  }
-
-  return `Can you give me more detail on my ${label} scheduled for ${date}?`;
+  return `Can you explain the workout on ${dateLabel}? It says "${session}" and I’d like a bit more detail.`;
 }
