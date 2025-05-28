@@ -3,6 +3,8 @@
 import { useMemo, useState } from 'react';
 import { format, parseISO, isSameDay, startOfWeek, addDays } from 'date-fns';
 import { useRouter } from 'next/navigation';
+import { generateCoachQuestion } from './utils/generateCoachQuestion';
+
 
 export default function RichCalendarView({ plan, completed, stravaActivities }: {
   plan: any[];
@@ -120,23 +122,25 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
                 {format(parseISO(date), 'MMM d')}
               </div>
               {(sessionsByDate[date] || []).map((s, i) => {
-                const sportKey = s.toLowerCase().includes('swim')
-                  ? 'swim'
-                  : s.toLowerCase().includes('bike')
-                  ? 'bike'
-                  : 'run';
-                const status = completed[`${date}-${sportKey}`];
-                const color = getColorClass(s, status);
-                return (
-                  <button
-                    key={i}
-                    onClick={() => handleClick(date, s)}
-                    className={`${color} text-left hover:underline`}
-                  >
-                    • {getEmoji(s)} {s}
-                  </button>
-                );
-              })}
+  const sportKey = s.toLowerCase().includes('swim')
+    ? 'swim'
+    : s.toLowerCase().includes('bike')
+    ? 'bike'
+    : 'run';
+  const status = completed[`${date}-${sportKey}`];
+  const color = getColorClass(s, status);
+  const question = generateCoachQuestion(format(parseISO(date), 'MMMM d'), s);
+
+  return (
+    <div
+      key={i}
+      onClick={() => router.push(`/coaching?q=${encodeURIComponent(question)}`)}
+      className={`${color} cursor-pointer hover:underline`}
+    >
+      • {getEmoji(s)} {s}
+    </div>
+  );
+})}
             </div>
           ))}
         </div>

@@ -15,6 +15,8 @@ import Link from 'next/link';
 import Head from 'next/head';
 import { useMediaQuery } from 'react-responsive';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { useSearchParams } from 'next/navigation';
+
 
 const supabase = createClientComponentClient();
 const COLORS = ['#60A5FA', '#34D399', '#FBBF24'];
@@ -30,6 +32,11 @@ type ChatMessage = {
 
 export default function CoachingDashboard() {
   const [question, setQuestion] = useState('');
+  const searchParams = useSearchParams();
+useEffect(() => {
+  const q = searchParams.get('q');
+  if (q) setQuestion(q);
+}, []);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: 'assistant',
