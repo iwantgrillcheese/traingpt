@@ -1,19 +1,14 @@
-import { useState, useMemo } from 'react';
-import { format, parseISO, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth } from 'date-fns';
+import { useMemo, useState } from 'react';
+import { format, parseISO, isSameDay, isSameMonth, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
 
-interface MobileCalendarViewProps {
-  plan: any[];
-  completed: { [key: string]: string };
-  stravaActivities: any[];
-}
-
-export default function MobileCalendarView({ plan, completed, stravaActivities }: MobileCalendarViewProps) {
+export default function MobileCalendarView({ plan, completed, stravaActivities }: any) {
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const today = new Date();
+  const [currentMonth, setCurrentMonth] = useState(new Date());
 
   const sessionsByDate = useMemo(() => {
     const sessions: Record<string, string[]> = {};
-    plan.forEach((week) => {
+
+    plan.forEach((week: any) => {
       Object.entries(week.days).forEach(([date, raw]) => {
         const items = raw as string[];
         if (!sessions[date]) sessions[date] = [];
@@ -21,7 +16,7 @@ export default function MobileCalendarView({ plan, completed, stravaActivities }
       });
     });
 
-    stravaActivities.forEach((activity) => {
+    stravaActivities.forEach((activity: any) => {
       const date = activity.start_date_local.split('T')[0];
       const sport = activity.sport_type.toLowerCase();
       const mapped = sport === 'ride' || sport === 'virtualride' ? 'bike' : sport;
@@ -34,67 +29,76 @@ export default function MobileCalendarView({ plan, completed, stravaActivities }
     return sessions;
   }, [plan, stravaActivities]);
 
+  const start = startOfMonth(currentMonth);
+  const end = endOfMonth(currentMonth);
+
   const calendarDays = useMemo(() => {
-    const start = startOfMonth(selectedDate);
-    const end = endOfMonth(selectedDate);
-    return eachDayOfInterval({ start, end });
-  }, [selectedDate]);
+    const days = [];
+    const date = new Date(start);
+    date.setDate(date.getDate() - date.getDay());
 
-  const displayDate = (date: Date) => format(date, 'yyyy-MM-dd');
-  const isToday = (date: Date) => isSameDay(date, today);
+    while (date <= end || days.length < 42) {
+      days.push(new Date(date));
+      date.setDate(date.getDate() + 1);
+    }
+    return days;
+  }, [currentMonth]);
 
-  const handleDateClick = (date: Date) => {
-    setSelectedDate(date);
+  const getSessionStatus = (date: string, label: string) => {
+    const key = `${date}-${label.toLowerCase().includes('swim') ? 'swim' : label.toLowerCase().includes('bike') ? 'bike' : 'run'}`;
+    return completed[key];
   };
 
-  const sessionsForSelected = sessionsByDate[displayDate(selectedDate)] || [];
+  const getDotColor = (date: string) => {
+    const sessions = sessionsByDate[date] || [];
+    if (sessions.some(s => getSessionStatus(date, s) === 'done')) return 'bg-green-500';
+    if (sessions.some(s => getSessionStatus(date, s) === 'skipped')) return 'bg-gray-400';
+    if (sessions.length > 0) return 'bg-blue-500';
+    return '';
+  };
 
   return (
-    <div className="w-full max-w-md mx-auto">
-      <div className="grid grid-cols-7 gap-1 text-center text-xs text-gray-600 mb-2">
-        {["S", "M", "T", "W", "T", "F", "S"].map((d) => <div key={d}>{d}</div>)}
+    <div className="w-full max-w-xl mx-auto px-4">
+      <div className="flex justify-between items-center mb-4">
+        <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>&larr;</button>
+        <h2 className="font-semibold text-lg">{format(currentMonth, 'MMMM yyyy')}</h2>
+        <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>&rarr;</button>
       </div>
-      <div className="grid grid-cols-7 gap-1 mb-6">
-        {calendarDays.map((date) => {
-          const dateStr = displayDate(date);
-          const hasSession = sessionsByDate[dateStr]?.length > 0;
+      <div className="grid grid-cols-7 text-center font-medium text-sm text-gray-600 mb-2">
+        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d) => (
+          <div key={d}>{d}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-2 text-xs">
+        {calendarDays.map((day, idx) => {
+          const dateStr = format(day, 'yyyy-MM-dd');
+          const isSelected = isSameDay(day, selectedDate);
+          const dotColor = getDotColor(dateStr);
+
           return (
-            <button
-              key={dateStr}
-              onClick={() => handleDateClick(date)}
-              className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-medium ${
-                isSameDay(date, selectedDate)
-                  ? 'bg-black text-white'
-                  : isToday(date)
-                  ? 'border border-black text-black'
-                  : 'text-gray-700'
-              }`}
+            <div
+              key={idx}
+              onClick={() => setSelectedDate(day)}
+              className={`flex flex-col items-center py-1 rounded-full cursor-pointer ${isSelected ? 'bg-black text-white' : 'text-gray-800'}`}
             >
-              {format(date, 'd')}
-              {hasSession && <div className="absolute w-1 h-1 bg-blue-500 rounded-full mt-6" />}
-            </button>
+              <div>{format(day, 'd')}</div>
+              <div className={`w-1.5 h-1.5 rounded-full mt-1 ${dotColor}`}></div>
+            </div>
           );
         })}
       </div>
 
-      <div className="mb-4 px-4">
-        <h3 className="text-sm font-semibold text-gray-700 mb-2">
-          {format(selectedDate, 'EEEE, MMM d')}
-        </h3>
-        <ul className="space-y-2">
-          {sessionsForSelected.length === 0 && (
-            <li className="text-gray-400 italic">No sessions</li>
-          )}
-          {sessionsForSelected.map((s, i) => {
-            const key = `${displayDate(selectedDate)}-${s.toLowerCase().includes('swim') ? 'swim' : s.toLowerCase().includes('bike') ? 'bike' : 'run'}`;
-            const status = completed[key];
-            const color =
-              status === 'done' ? 'text-green-700' :
-              status === 'skipped' ? 'text-gray-400 line-through' :
-              'text-blue-700';
-            return <li key={i} className={`${color} text-sm`}>{s}</li>;
+      <div className="mt-6">
+        <div className="text-sm font-semibold text-gray-600 mb-1">
+          {format(selectedDate, 'EEEE, MMMM d')}
+        </div>
+        <div className="flex flex-col gap-2">
+          {(sessionsByDate[format(selectedDate, 'yyyy-MM-dd')] || []).map((s: string, i: number) => {
+            const status = getSessionStatus(format(selectedDate, 'yyyy-MM-dd'), s);
+            const color = status === 'done' ? 'text-green-700' : status === 'skipped' ? 'text-gray-400 line-through' : 'text-blue-700';
+            return <div key={i} className={`${color}`}>{s}</div>;
           })}
-        </ul>
+        </div>
       </div>
     </div>
   );
