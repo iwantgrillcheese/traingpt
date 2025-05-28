@@ -58,13 +58,14 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
   const visibleWeeks = calendarRange.slice(monthIndex * 4, monthIndex * 4 + 4);
 
   const getColorClass = (title: string, status: string | undefined) => {
-    if (status === 'done') return 'text-green-700';
-    if (status === 'skipped') return 'text-gray-400 line-through';
-    if (title.toLowerCase().includes('swim')) return 'text-blue-600';
-    if (title.toLowerCase().includes('bike')) return 'text-purple-600';
-    if (title.toLowerCase().includes('run')) return 'text-emerald-600';
-    return 'text-blue-700';
-  };
+  if (status === 'done') return 'text-green-600';
+  if (status === 'skipped') return 'text-gray-400 line-through';
+  if (title.toLowerCase().includes('swim')) return 'text-sky-600';
+  if (title.toLowerCase().includes('bike')) return 'text-yellow-600';
+  if (title.toLowerCase().includes('run')) return 'text-rose-600';
+  if (title.toLowerCase().includes('strava')) return 'text-gray-500 italic';
+  return 'text-neutral-700';
+};
 
   const getEmoji = (title: string) => {
     if (title.toLowerCase().includes('swim')) return '🏊';
