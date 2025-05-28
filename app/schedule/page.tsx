@@ -5,6 +5,7 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { format, parseISO, isSameDay } from 'date-fns';
 import SessionCard from './SessionCard';
 import RichCalendarView from './RichCalendarView';
+import MobileCalendarView from './MobileCalendarView';
 
 const supabase = createClientComponentClient();
 
@@ -19,6 +20,15 @@ export default function SchedulePage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [planId, setPlanId] = useState<string | null>(null);
   const [collapsedWeeks, setCollapsedWeeks] = useState<Record<number, boolean>>({});
+  const [isMobile, setIsMobile] = useState(false);
+
+useEffect(() => {
+  if (typeof window !== 'undefined') {
+    setIsMobile(window.innerWidth < 768);
+  }
+}, []);
+
+
 
   const today = new Date();
 
@@ -161,12 +171,20 @@ export default function SchedulePage() {
       </div>
 
       {view === 'calendar' && (
-        <RichCalendarView
-          plan={plan}
-          completed={completed}
-          stravaActivities={stravaActivities}
-        />
-      )}
+  isMobile ? (
+    <MobileCalendarView
+      plan={plan}
+      completed={completed}
+      stravaActivities={stravaActivities}
+    />
+  ) : (
+    <RichCalendarView
+      plan={plan}
+      completed={completed}
+      stravaActivities={stravaActivities}
+    />
+  )
+)}
 
       {view === 'schedule' && (
         <>
