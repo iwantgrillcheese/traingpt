@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { format, parseISO, isSameDay, startOfWeek, addDays } from 'date-fns';
 import { useRouter } from 'next/navigation';
-import { generateCoachQuestion } from './utils/generateCoachQuestion';
+import { generateCoachQuestion } from '@/utils/generateCoachQuestion';
 
 
 export default function RichCalendarView({ plan, completed, stravaActivities }: {
