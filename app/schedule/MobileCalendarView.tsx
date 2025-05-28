@@ -6,13 +6,13 @@ import {
   format,
   parseISO,
   isSameDay,
-  isSameMonth,
   startOfMonth,
   endOfMonth,
   addMonths,
   subMonths,
   addDays,
 } from 'date-fns';
+import { generateCoachQuestion } from '@/utils/generateCoachQuestion';
 
 export default function MobileCalendarView({ plan, completed, stravaActivities }: any) {
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -43,9 +43,6 @@ export default function MobileCalendarView({ plan, completed, stravaActivities }
     return sessions;
   }, [plan, stravaActivities]);
 
-  const start = startOfMonth(currentMonth);
-  const end = endOfMonth(currentMonth);
-
   const calendarDays = useMemo(() => {
     const start = startOfMonth(currentMonth);
     const startDayOffset = start.getDay();
@@ -71,6 +68,11 @@ export default function MobileCalendarView({ plan, completed, stravaActivities }
     if (sessions.some((s) => getSessionStatus(date, s) === 'skipped')) return 'bg-gray-400';
     if (sessions.length > 0) return 'bg-blue-500';
     return '';
+  };
+
+  const handleSessionClick = (dateStr: string, session: string) => {
+    const question = generateCoachQuestion(format(parseISO(dateStr), 'MMMM d'), session);
+    router.push(`/coaching?q=${encodeURIComponent(question)}`);
   };
 
   return (
@@ -123,12 +125,7 @@ export default function MobileCalendarView({ plan, completed, stravaActivities }
               <div
                 key={i}
                 onClick={() =>
-                  router.push(
-                    `/coaching?prefill=Can you explain the workout: '${s}' on ${format(
-                      selectedDate,
-                      'MMMM d'
-                    )}?`
-                  )
+                  handleSessionClick(format(selectedDate, 'yyyy-MM-dd'), s)
                 }
                 className={`${color} cursor-pointer hover:underline`}
               >
