@@ -54,6 +54,22 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
 
   const visibleWeeks = calendarRange.slice(monthIndex * 4, monthIndex * 4 + 4);
 
+  const getColorClass = (title: string, status: string | undefined) => {
+    if (status === 'done') return 'text-green-700';
+    if (status === 'skipped') return 'text-gray-400 line-through';
+    if (title.toLowerCase().includes('swim')) return 'text-blue-600';
+    if (title.toLowerCase().includes('bike')) return 'text-purple-600';
+    if (title.toLowerCase().includes('run')) return 'text-emerald-600';
+    return 'text-blue-700';
+  };
+
+  const getEmoji = (title: string) => {
+    if (title.toLowerCase().includes('swim')) return '🏊';
+    if (title.toLowerCase().includes('bike')) return '🚴';
+    if (title.toLowerCase().includes('run')) return '🏃';
+    return '📋';
+  };
+
   return (
     <div className="w-full overflow-x-auto">
       <div className="flex justify-between items-center mb-4 px-1">
@@ -89,31 +105,23 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
           {week.map((date) => (
             <div
               key={date}
-              className={`min-h-[100px] border rounded-xl px-2 py-2 text-left text-[10px] sm:text-xs bg-white shadow-sm flex flex-col gap-1 whitespace-pre-wrap ${
-                isSameDay(parseISO(date), today) ? 'border-black' : 'border-gray-200'
+              className={`min-h-[100px] rounded-xl px-2 py-2 text-left text-[10px] sm:text-xs bg-white shadow-sm flex flex-col gap-1 whitespace-pre-wrap transition hover:bg-gray-50 ${
+                isSameDay(parseISO(date), today) ? 'border border-black' : 'border border-gray-100'
               }`}
             >
               <div className="text-gray-400 font-semibold">
                 {format(parseISO(date), 'MMM d')}
               </div>
               {(sessionsByDate[date] || []).map((s, i) => {
-                const status = completed[
-                  `${date}-${
-                    s.toLowerCase().includes('swim')
-                      ? 'swim'
-                      : s.toLowerCase().includes('bike')
-                      ? 'bike'
-                      : 'run'
-                  }`
-                ];
-                const color =
-                  status === 'done'
-                    ? 'text-green-700'
-                    : status === 'skipped'
-                    ? 'text-gray-400 line-through'
-                    : 'text-blue-700';
+                const sportKey = s.toLowerCase().includes('swim')
+                  ? 'swim'
+                  : s.toLowerCase().includes('bike')
+                  ? 'bike'
+                  : 'run';
+                const status = completed[`${date}-${sportKey}`];
+                const color = getColorClass(s, status);
                 return (
-                  <div key={i} className={`${color}`}>• {s}</div>
+                  <div key={i} className={`${color}`}>• {getEmoji(s)} {s}</div>
                 );
               })}
             </div>
