@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import OpenAI from 'openai';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { parseISO, format } from 'date-fns';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -12,16 +13,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing session title or date.' }, { status: 400 });
     }
 
-    // Auth + Supabase profile lookup
     const supabase = createServerComponentClient({ cookies });
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+    // Get performance metrics
     const { data: profile } = await supabase
       .from('profiles')
       .select('swim_pace, bike_ftp, run_pace')
@@ -32,11 +31,20 @@ export async function POST(req: Request) {
     const bikeFTP = profile?.bike_ftp || 'Not provided';
     const runPace = profile?.run_pace || 'Not provided';
 
+    // Determine sport
+    const lowerTitle = title.toLowerCase();
+    const sport =
+      lowerTitle.includes('swim') ? 'swim' :
+      lowerTitle.includes('bike') ? 'bike' :
+      lowerTitle.includes('run') ? 'run' :
+      'general';
+
+    // Build prompt
     const prompt = `
 You are a world-class triathlon coach.
 
 Write a detailed, structured workout for the following session:
-"${title}" on ${date}
+"${title}" on ${format(parseISO(date), 'EEEE, MMMM do')}.
 
 Use the following athlete metrics if relevant:
 - Swim threshold pace: ${swimPace}
@@ -59,7 +67,42 @@ Use clear formatting — short paragraphs or bullet points. Avoid fluff or vague
       temperature: 0.7,
     });
 
-    const content = gptResponse.choices[0].message?.content;
+    const content = gptResponse.choices[0]?.message?.content?.trim();
+    if (!content) {
+      return NextResponse.json({ error: 'No content generated.' }, { status: 500 });
+    }
+
+    // Load latest plan
+    const { data: planData, error: fetchErr } = await supabase
+      .from('plans')
+      .select('id, detailed_sessions')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (fetchErr || !planData) {
+      console.error('❌ Error fetching plan:', fetchErr);
+      return NextResponse.json({ error: 'Could not fetch user plan' }, { status: 500 });
+    }
+
+    const updated = {
+      ...(planData.detailed_sessions || {}),
+      [date]: {
+        ...(planData.detailed_sessions?.[date] || {}),
+        [sport]: content,
+      },
+    };
+
+    const { error: updateErr } = await supabase
+      .from('plans')
+      .update({ detailed_sessions: updated })
+      .eq('id', planData.id);
+
+    if (updateErr) {
+      console.error('❌ Error saving detailed session:', updateErr);
+      return NextResponse.json({ error: 'Failed to save workout' }, { status: 500 });
+    }
 
     return NextResponse.json({ response: content });
   } catch (error) {
