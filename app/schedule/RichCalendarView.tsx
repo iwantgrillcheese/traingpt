@@ -6,11 +6,7 @@ import { useRouter } from 'next/navigation';
 import { generateCoachQuestion } from '@/utils/generateCoachQuestion';
 import { SessionModal } from './SessionModal';
 
-export default function RichCalendarView({
-  plan,
-  completed,
-  stravaActivities,
-}: {
+export default function RichCalendarView({ plan, completed, stravaActivities }: {
   plan: any[];
   completed: Record<string, string>;
   stravaActivities: any[];
@@ -18,7 +14,7 @@ export default function RichCalendarView({
   const today = new Date();
   const router = useRouter();
   const [monthIndex, setMonthIndex] = useState(0);
-  const [activeSession, setActiveSession] = useState<any | null>(null); // Improve type later
+  const [activeSession, setActiveSession] = useState<any | null>(null);
 
   const sessionsByDate = useMemo(() => {
     const sessions: Record<string, string[]> = {};
@@ -52,9 +48,7 @@ export default function RichCalendarView({
     let curr = start;
 
     while (curr <= end) {
-      const week = Array.from({ length: 7 }).map((_, i) =>
-        format(addDays(curr, i), 'yyyy-MM-dd')
-      );
+      const week = Array.from({ length: 7 }).map((_, i) => format(addDays(curr, i), 'yyyy-MM-dd'));
       weeks.push(week);
       curr = addDays(curr, 7);
     }
@@ -82,47 +76,52 @@ export default function RichCalendarView({
   };
 
   return (
-    <div className="w-full overflow-x-auto">
-      <div className="flex justify-between items-center mb-4 px-1">
-        <h2 className="text-xl font-bold sm:text-2xl">Your Training Plan</h2>
-        <div className="flex gap-2">
+    <div className="w-full max-w-7xl mx-auto px-4 bg-neutral-50 min-h-screen py-8">
+      <div className="flex justify-between items-center mb-8">
+        <h2 className="text-3xl font-semibold tracking-tight text-neutral-800">Your Training Plan</h2>
+        <div className="flex gap-4 text-sm">
           {monthIndex > 0 && (
-            <button
-              className="text-sm text-gray-600 hover:text-black"
-              onClick={() => setMonthIndex((prev) => Math.max(prev - 1, 0))}
-            >
+            <button className="text-gray-500 hover:text-black" onClick={() => setMonthIndex((prev) => Math.max(prev - 1, 0))}>
               ← Prev
             </button>
           )}
           {calendarRange.length > (monthIndex + 1) * 4 && (
-            <button
-              className="text-sm text-gray-600 hover:text-black"
-              onClick={() => setMonthIndex((prev) => prev + 1)}
-            >
+            <button className="text-gray-500 hover:text-black" onClick={() => setMonthIndex((prev) => prev + 1)}>
               Next →
             </button>
           )}
         </div>
       </div>
 
-      <div className="grid grid-cols-7 text-center font-medium text-xs sm:text-sm text-gray-500 mb-2 min-w-[700px]">
+      <div className="grid grid-cols-7 text-center font-medium text-[13px] text-gray-500 mb-4">
         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
           <div key={d}>{d}</div>
         ))}
       </div>
 
       {visibleWeeks.map((week, idx) => (
-        <div key={idx} className="grid grid-cols-7 gap-2 mb-4 min-w-[700px]">
+        <div key={idx} className="grid grid-cols-7 gap-3 mb-5">
           {week.map((date) => (
             <div
               key={date}
-              className={`min-h-[100px] rounded-xl px-2 py-2 text-left text-[10px] sm:text-xs bg-white shadow-sm flex flex-col gap-1 whitespace-pre-wrap transition hover:bg-gray-50 ${
+              onClick={() => {
+                const first = sessionsByDate[date]?.[0];
+                if (!first) return;
+                setActiveSession({
+                  date,
+                  title: first,
+                  status: completed[`${date}-${first.toLowerCase().includes('swim') ? 'swim' : first.toLowerCase().includes('bike') ? 'bike' : 'run'}`],
+                  aiWorkout: null,
+                  userNote: '',
+                });
+              }}
+              className={`bg-white rounded-2xl p-3 text-[13px] leading-tight border ${
                 isSameDay(parseISO(date), today)
-                  ? 'border border-black'
-                  : 'border border-gray-100'
-              }`}
+                  ? 'border-black'
+                  : 'border-neutral-200'
+              } shadow-sm hover:shadow-md hover:ring-1 hover:ring-neutral-200/60 transition-all cursor-pointer flex flex-col gap-1`}
             >
-              <div className="text-gray-400 font-semibold">
+              <div className="text-[11px] font-medium text-neutral-400 tracking-wide">
                 {format(parseISO(date), 'MMM d')}
               </div>
               {(sessionsByDate[date] || []).map((s, i) => {
@@ -133,22 +132,10 @@ export default function RichCalendarView({
                   : 'run';
                 const status = completed[`${date}-${sportKey}`];
                 const color = getColorClass(s, status);
-
                 return (
-                  <div
-                    key={i}
-                    onClick={() =>
-                      setActiveSession({
-                        date,
-                        title: s,
-                        status,
-                        aiWorkout: null,
-                        userNote: '',
-                      })
-                    }
-                    className={`${color} cursor-pointer hover:underline`}
-                  >
-                    • {getEmoji(s)} {s}
+                  <div key={i} className={`${color} flex items-start gap-1`}>
+                    <span>{getEmoji(s)}</span>
+                    <span>{s.replace(/^\w+: /, '')}</span>
                   </div>
                 );
               })}
