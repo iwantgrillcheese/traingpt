@@ -76,58 +76,76 @@ export default function MobileCalendarView({ plan, completed, stravaActivities }
   };
 
   return (
-    <div className="w-full max-w-xl mx-auto px-4">
+    <div className="w-full max-w-md mx-auto px-4 pb-8">
       <div className="flex justify-between items-center mb-4">
-        <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>&larr;</button>
-        <h2 className="font-semibold text-lg">{format(currentMonth, 'MMMM yyyy')}</h2>
-        <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>&rarr;</button>
+        <button
+          onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
+          className="text-sm text-gray-500 hover:text-black"
+        >
+          ←
+        </button>
+        <h2 className="font-semibold text-base tracking-tight">
+          {format(currentMonth, 'MMMM yyyy')}
+        </h2>
+        <button
+          onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+          className="text-sm text-gray-500 hover:text-black"
+        >
+          →
+        </button>
       </div>
-      <div className="grid grid-cols-7 text-center font-medium text-sm text-gray-600 mb-2">
+
+      <div className="grid grid-cols-7 text-center font-medium text-xs text-gray-400 mb-1">
         {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d) => (
           <div key={d}>{d}</div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-2 text-xs">
+
+      <div className="grid grid-cols-7 gap-1 text-sm">
         {calendarDays.map((day, idx) => {
           const dateStr = format(day, 'yyyy-MM-dd');
           const isSelected = isSameDay(day, selectedDate);
           const dotColor = getDotColor(dateStr);
 
           return (
-            <div
+            <button
               key={idx}
               onClick={() => setSelectedDate(day)}
-              className={`flex flex-col items-center py-1 rounded-full cursor-pointer ${
-                isSelected ? 'bg-black text-white' : 'text-gray-800'
+              className={`flex flex-col items-center justify-center rounded-lg py-2 transition-all ${
+                isSelected
+                  ? 'bg-black text-white font-medium shadow'
+                  : 'text-gray-700 hover:bg-neutral-100'
               }`}
             >
               <div>{format(day, 'd')}</div>
               <div className={`w-1.5 h-1.5 rounded-full mt-1 ${dotColor}`}></div>
-            </div>
+            </button>
           );
         })}
       </div>
 
       <div className="mt-6">
-        <div className="text-sm font-semibold text-gray-600 mb-1">
+        <div className="text-sm font-semibold text-gray-600 mb-2">
           {format(selectedDate, 'EEEE, MMMM d')}
         </div>
+
         <div className="flex flex-col gap-2">
           {(sessionsByDate[format(selectedDate, 'yyyy-MM-dd')] || []).map((s: string, i: number) => {
             const status = getSessionStatus(format(selectedDate, 'yyyy-MM-dd'), s);
             const color =
               status === 'done'
-                ? 'text-green-700'
+                ? 'text-green-600'
                 : status === 'skipped'
                 ? 'text-gray-400 line-through'
-                : 'text-blue-700';
+                : 'text-blue-600';
+
             return (
               <div
                 key={i}
                 onClick={() =>
                   handleSessionClick(format(selectedDate, 'yyyy-MM-dd'), s)
                 }
-                className={`${color} cursor-pointer hover:underline`}
+                className={`${color} cursor-pointer hover:underline transition`}
               >
                 {s}
               </div>
