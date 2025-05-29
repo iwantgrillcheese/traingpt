@@ -13,7 +13,30 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
 }) {
   const today = new Date();
   const router = useRouter();
-  const [monthIndex, setMonthIndex] = useState(0);
+const [monthIndex, setMonthIndex] = useState(() => {
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+
+  const allDates = Object.keys(plan?.[0]?.days || {}).sort(); // You could also use sessionsByDate keys here
+  if (!allDates.length) return 0;
+
+  const start = startOfWeek(parseISO(allDates[0]), { weekStartsOn: 1 });
+
+  let curr = start;
+  let index = 0;
+
+  while (curr <= new Date()) {
+    const weekStart = addDays(curr, 0);
+    const weekEnd = addDays(curr, 6);
+    const inWeek = new Date() >= weekStart && new Date() <= weekEnd;
+
+    if (inWeek) break;
+
+    curr = addDays(curr, 7);
+    index++;
+  }
+
+  return Math.floor(index / 4);
+});
   const [activeSession, setActiveSession] = useState<any | null>(null);
   const [detailedWorkoutMap, setDetailedWorkoutMap] = useState<Record<string, string>>({});
 
@@ -142,11 +165,16 @@ const handleGenerateDetailedWorkout = async (session: any) => {
 
       {activeSession && (
         <SessionModal
-          session={activeSession}
-          onClose={() => setActiveSession(null)}
-          onGenerateWorkout={() => handleGenerateDetailedWorkout(activeSession)}
-        />
-      )}
-    </div>
+  session={activeSession}
+  onClose={() => {
+    const key = `${activeSession.date}-${cleanLabel(activeSession.title)}`;
+    if (activeSession.workout) {
+      setDetailedWorkoutMap(prev => ({ ...prev, [key]: activeSession.workout }));
+    }
+    setActiveSession(null);
+  }}
+  onGenerateWorkout={() => handleGenerateDetailedWorkout(activeSession)}
+/>
+      )}</div>
   );
 }

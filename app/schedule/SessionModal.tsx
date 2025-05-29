@@ -65,18 +65,42 @@ export function SessionModal({ session, onClose, onGenerateWorkout }: SessionMod
         )}
 
         {workout && (
-  <div className="text-sm text-neutral-800 mb-4 space-y-3">
-    {workout.split('\n').map((line, i) => {
-      if (line.startsWith('-')) {
-        return <li key={i} className="ml-5 list-disc">{line.replace('- ', '')}</li>;
-      } else if (line.startsWith('**')) {
-        return <div key={i} className="font-semibold">{line.replace(/\*\*/g, '')}</div>;
-      } else if (line.trim() === '') {
-        return <br key={i} />;
-      }
-      return <p key={i}>{line}</p>;
-    })}
-  </div>
+  <>
+    <div className="text-sm text-neutral-800 whitespace-pre-wrap mb-4 space-y-3">
+      {workout.split('\n').map((line, i) => {
+        const trimmed = line.trim();
+
+        // Bullet points
+        if (trimmed.startsWith('- ')) {
+          return (
+            <li key={i} className="ml-6 list-disc">
+              {trimmed.replace('- ', '')}
+            </li>
+          );
+        }
+
+        // Custom section headers (e.g. **Warm-up:**)
+        if (/^\*\*(.+)\*\*$/.test(trimmed)) {
+          const section = trimmed.replace(/\*\*/g, '');
+          return (
+            <div key={i} className="text-[13px] font-semibold text-gray-800 mt-4 mb-1">
+              {section}
+            </div>
+          );
+        }
+
+        // Spacer lines
+        if (trimmed === '') return <br key={i} />;
+
+        // Plain text fallback
+       return (
+  <p key={i} className="text-sm text-gray-700">
+    {trimmed}
+  </p>
+);
+      })}
+    </div>
+  </>
 )}
 
 
