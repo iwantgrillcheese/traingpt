@@ -62,11 +62,15 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
     if (title.toLowerCase().includes('swim')) return '🏊';
     if (title.toLowerCase().includes('bike')) return '🚴';
     if (title.toLowerCase().includes('run')) return '🏃';
-    return '📋';
+    return '';
+  };
+
+  const cleanLabel = (title: string) => {
+    return title.replace(/^\w+(:)?\s?/, '').trim();
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 py-8 bg-neutral-50 min-h-screen rounded-3xl shadow-sm">
+    <div className="w-full max-w-[1400px] mx-auto px-6 py-10 bg-neutral-50 rounded-3xl shadow-sm">
       <div className="flex justify-between items-center mb-8">
         <h2 className="text-3xl font-semibold tracking-tight text-neutral-800">Your Training Plan</h2>
         <div className="flex gap-4 text-sm">
@@ -90,7 +94,7 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
       </div>
 
       {visibleWeeks.map((week, idx) => (
-        <div key={idx} className="grid grid-cols-7 gap-3 mb-5">
+        <div key={idx} className="grid grid-cols-7 gap-4 mb-6">
           {week.map((date) => (
             <div
               key={date}
@@ -105,7 +109,7 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
                   userNote: '',
                 });
               }}
-              className={`bg-white rounded-2xl p-3 text-[13px] leading-tight border ${
+              className={`min-h-[110px] bg-white rounded-2xl p-3 text-[13px] leading-tight border ${
                 isSameDay(parseISO(date), today)
                   ? 'border-black'
                   : 'border-neutral-200'
@@ -114,12 +118,16 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
               <div className="text-[11px] font-medium text-neutral-400 tracking-wide">
                 {format(parseISO(date), 'MMM d')}
               </div>
-              {(sessionsByDate[date] || []).map((s, i) => (
-                <div key={i} className="text-neutral-800 flex items-start gap-1">
-                  <span>{getEmoji(s)}</span>
-                  <span>{s.replace(/^\w+: /, '')}</span>
-                </div>
-              ))}
+              {(sessionsByDate[date] || []).map((s, i) => {
+                const emoji = getEmoji(s);
+                const label = cleanLabel(s);
+                return (
+                  <div key={i} className="text-neutral-800 flex items-start gap-1">
+                    <span>{emoji}</span>
+                    <span>{label}</span>
+                  </div>
+                );
+              })}
             </div>
           ))}
         </div>
