@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 interface SessionModalProps {
@@ -12,9 +12,13 @@ interface SessionModalProps {
     userNote?: string;
   };
   onClose: () => void;
-  onGenerateWorkout: () => Promise<void>; // <-- Add this line
+  onGenerateWorkout: () => Promise<void>;
 }
-export function SessionModal({ session, onClose }: SessionModalProps) {
+
+export function SessionModal({ session, onClose, onGenerateWorkout }: SessionModalProps) {
+  const [loading, setLoading] = useState(false);
+  const [workout, setWorkout] = useState(session.aiWorkout || '');
+
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -23,7 +27,13 @@ export function SessionModal({ session, onClose }: SessionModalProps) {
     return () => window.removeEventListener('keydown', handleEscape);
   }, [onClose]);
 
-  const { date, title, aiWorkout, userNote, status } = session;
+  const { date, title, userNote, status } = session;
+
+  const handleGenerate = async () => {
+    setLoading(true);
+    await onGenerateWorkout(); // should update outer state, which gets passed back in
+    setLoading(false);
+  };
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black bg-opacity-50 p-4">
@@ -33,11 +43,23 @@ export function SessionModal({ session, onClose }: SessionModalProps) {
           <button onClick={onClose} className="text-gray-400 hover:text-black">×</button>
         </div>
 
-        <p className="text-sm text-neutral-500 mb-2">{new Date(date).toDateString()}</p>
+        <p className="text-sm text-neutral-500 mb-3">{new Date(date).toDateString()}</p>
 
-        {aiWorkout && (
-          <div className="text-sm text-neutral-800 whitespace-pre-wrap mb-4">
-            {aiWorkout}
+        {!workout && (
+          <button
+            onClick={handleGenerate}
+            disabled={loading}
+            className={`text-sm font-medium mb-4 border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-50 ${
+              loading ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+          >
+            {loading ? 'Generating...' : 'Generate Detailed Workout'}
+          </button>
+        )}
+
+        {workout && (
+          <div className="text-sm text-neutral-800 whitespace-pre-wrap mb-4 border border-gray-200 p-3 rounded-md bg-gray-50">
+            {workout}
           </div>
         )}
 
