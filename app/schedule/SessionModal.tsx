@@ -46,22 +46,21 @@ export function SessionModal({ session, onClose, onGenerateWorkout }: SessionMod
         <p className="text-sm text-neutral-500 mb-3">{new Date(date).toDateString()}</p>
 
         {!workout && (
-          <button
-            onClick={handleGenerate}
-            disabled={loading}
-            className={`text-sm font-medium mb-4 border border-gray-300 px-4 py-2 rounded-md hover:bg-gray-50 ${
-              loading ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
-          >
-            {loading ? 'Generating...' : 'Generate Detailed Workout'}
-          </button>
-        )}
+  <button
+    onClick={onGenerateWorkout}
+    disabled={loading}
+    className="mb-4 px-4 py-2 text-sm rounded-full border border-neutral-300 hover:bg-neutral-100 transition flex items-center gap-2"
+  >
+    🪄 {loading ? 'Generating...' : 'Generate Detailed Workout'}
+  </button>
+)}
 
-        {workout && (
-          <div className="text-sm text-neutral-800 whitespace-pre-wrap mb-4 border border-gray-200 p-3 rounded-md bg-gray-50">
-            {workout}
-          </div>
-        )}
+{/* Detailed Workout Output */}
+{workout && (
+  <div className="mb-4 px-4 py-3 border border-neutral-200 rounded-lg bg-neutral-50 whitespace-pre-wrap text-sm text-gray-800">
+    {workout}
+  </div>
+)}
 
         <textarea
           className="w-full border border-neutral-300 rounded-md p-2 text-sm mb-4"
