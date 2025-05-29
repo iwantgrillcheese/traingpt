@@ -12,8 +12,8 @@ interface SessionModalProps {
     userNote?: string;
   };
   onClose: () => void;
+  onGenerateWorkout: () => Promise<void>; // <-- Add this line
 }
-
 export function SessionModal({ session, onClose }: SessionModalProps) {
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {

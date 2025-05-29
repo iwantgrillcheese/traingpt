@@ -16,6 +16,7 @@ import { generateCoachQuestion } from '@/utils/generateCoachQuestion';
 export default function MobileCalendarView({ plan, completed, stravaActivities }: any) {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [detailedWorkouts, setDetailedWorkouts] = useState<Record<string, string>>({});
   const router = useRouter();
 
   const sessionsByDate = useMemo(() => {
@@ -50,8 +51,9 @@ export default function MobileCalendarView({ plan, completed, stravaActivities }
   }, [currentMonth]);
 
   const getSessionStatus = (date: string, label: string) => {
-    const key = `${date}-$
-      {label.toLowerCase().includes('swim') ? 'swim' : label.toLowerCase().includes('bike') ? 'bike' : 'run'}`;
+    const key = `${date}-${
+      label.toLowerCase().includes('swim') ? 'swim' : label.toLowerCase().includes('bike') ? 'bike' : 'run'
+    }`;
     return completed[key];
   };
 
@@ -60,6 +62,17 @@ export default function MobileCalendarView({ plan, completed, stravaActivities }
     if (title.toLowerCase().includes('bike')) return '🚴';
     if (title.toLowerCase().includes('run')) return '🏃';
     return '📋';
+  };
+
+  const handleGenerateWorkout = async (title: string, date: string) => {
+    const res = await fetch('/api/generate-detailed-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, date }),
+    });
+    const { workout } = await res.json();
+    const key = `${date}-${title}`;
+    setDetailedWorkouts(prev => ({ ...prev, [key]: workout }));
   };
 
   const handleSessionClick = (dateStr: string, session: string) => {
@@ -131,18 +144,35 @@ export default function MobileCalendarView({ plan, completed, stravaActivities }
             {format(selectedDate, 'EEEE, MMMM d')}
           </div>
 
-          <div className="flex flex-col gap-2 text-sm">
-            {selectedSessions.map((s: string, i: number) => (
-              <div key={i} className="flex items-start gap-2">
-                <span>{getEmoji(s)}</span>
-                <span
-                  onClick={() => handleSessionClick(selectedDateStr, s)}
-                  className="text-blue-600 underline cursor-pointer"
-                >
-                  {s.replace(/^\w+: /, '')}
-                </span>
-              </div>
-            ))}
+          <div className="flex flex-col gap-4 text-sm">
+            {selectedSessions.map((s: string, i: number) => {
+              const key = `${selectedDateStr}-${s}`;
+              return (
+                <div key={i} className="flex flex-col gap-2">
+                  <div className="flex items-start gap-2">
+                    <span>{getEmoji(s)}</span>
+                    <span
+                      onClick={() => handleSessionClick(selectedDateStr, s)}
+                      className="text-blue-600 underline cursor-pointer"
+                    >
+                      {s.replace(/^\w+: /, '')}
+                    </span>
+                  </div>
+                  {detailedWorkouts[key] ? (
+                    <div className="bg-neutral-50 border border-neutral-200 rounded-md p-2 text-[13px] whitespace-pre-wrap">
+                      {detailedWorkouts[key]}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleGenerateWorkout(s, selectedDateStr)}
+                      className="self-start text-xs text-blue-600 underline"
+                    >
+                      Generate detailed workout
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           <textarea

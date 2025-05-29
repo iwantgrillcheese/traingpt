@@ -15,6 +15,7 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
   const router = useRouter();
   const [monthIndex, setMonthIndex] = useState(0);
   const [activeSession, setActiveSession] = useState<any | null>(null);
+  const [detailedWorkoutMap, setDetailedWorkoutMap] = useState<Record<string, string>>({});
 
   const sessionsByDate = useMemo(() => {
     const sessions: Record<string, string[]> = {};
@@ -58,9 +59,19 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
 
   const visibleWeeks = calendarRange.slice(monthIndex * 4, monthIndex * 4 + 4);
 
-
   const cleanLabel = (title: string) => {
     return title.replace(/^\w+(:)?\s?/, '').trim();
+  };
+
+  const handleGenerateDetailedWorkout = async (session: any) => {
+    const key = `${session.date}-${cleanLabel(session.title)}`;
+    const res = await fetch('/api/generate-detailed-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: session.title, date: session.date })
+    });
+    const { workout } = await res.json();
+    setDetailedWorkoutMap(prev => ({ ...prev, [key]: workout }));
   };
 
   return (
@@ -99,7 +110,7 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
                   date,
                   title: first,
                   status: completed[`${date}-${first.toLowerCase().includes('swim') ? 'swim' : first.toLowerCase().includes('bike') ? 'bike' : 'run'}`],
-                  aiWorkout: null,
+                  aiWorkout: detailedWorkoutMap[`${date}-${cleanLabel(first)}`] || null,
                   userNote: '',
                 });
               }}
@@ -129,6 +140,7 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
         <SessionModal
           session={activeSession}
           onClose={() => setActiveSession(null)}
+          onGenerateWorkout={() => handleGenerateDetailedWorkout(activeSession)}
         />
       )}
     </div>

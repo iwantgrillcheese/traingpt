@@ -1,3 +1,5 @@
+// Updated ProfilePage with editable training metrics
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -15,10 +17,7 @@ export default function ProfilePage() {
         error,
       } = await supabase.auth.getSession();
 
-      if (error || !session?.user) {
-        console.error('Error fetching session:', error);
-        return;
-      }
+      if (error || !session?.user) return;
 
       const { user_metadata, email } = session.user;
       const baseProfile = {
@@ -37,7 +36,7 @@ export default function ProfilePage() {
 
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('strava_access_token')
+        .select('*')
         .eq('id', session.user.id)
         .single();
 
@@ -56,6 +55,16 @@ export default function ProfilePage() {
     const newOpt = !optIn;
     setOptIn(newOpt);
     await supabase.from('users').update({ marketing_opt_in: newOpt }).eq('id', session.user.id);
+  };
+
+  const handleProfileUpdate = async (field: string, value: any) => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session?.user) return;
+
+    setProfile((prev: any) => ({ ...prev, [field]: value }));
+    await supabase.from('profiles').update({ [field]: value }).eq('id', session.user.id);
   };
 
   const handleDisconnectStrava = async () => {
@@ -87,15 +96,34 @@ export default function ProfilePage() {
 
       <div className="space-y-8">
         <section className="bg-white border rounded-xl p-6 shadow-sm">
-          <h2 className="text-lg font-medium mb-4">Personal Info</h2>
-          <div className="space-y-4">
+          <h2 className="text-lg font-medium mb-4">Training Zones</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm text-gray-500 mb-1">Name</label>
-              <input value={profile.name} disabled className="w-full border rounded px-3 py-2 bg-gray-100 text-gray-600" />
+              <label className="block text-sm text-gray-500 mb-1">Swim Threshold (sec / 100m)</label>
+              <input
+                type="number"
+                value={profile.swim_threshold_per_100m || ''}
+                onChange={(e) => handleProfileUpdate('swim_threshold_per_100m', parseInt(e.target.value))}
+                className="w-full border rounded px-3 py-2"
+              />
             </div>
             <div>
-              <label className="block text-sm text-gray-500 mb-1">Email</label>
-              <input value={profile.email} disabled className="w-full border rounded px-3 py-2 bg-gray-100 text-gray-600" />
+              <label className="block text-sm text-gray-500 mb-1">Bike FTP (watts)</label>
+              <input
+                type="number"
+                value={profile.bike_ftp || ''}
+                onChange={(e) => handleProfileUpdate('bike_ftp', parseInt(e.target.value))}
+                className="w-full border rounded px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-500 mb-1">Run Threshold (sec / mile)</label>
+              <input
+                type="number"
+                value={profile.run_threshold_per_mile || ''}
+                onChange={(e) => handleProfileUpdate('run_threshold_per_mile', parseInt(e.target.value))}
+                className="w-full border rounded px-3 py-2"
+              />
             </div>
           </div>
         </section>
@@ -118,10 +146,7 @@ export default function ProfilePage() {
               </p>
             </div>
             {profile?.strava_access_token ? (
-              <button
-                onClick={handleDisconnectStrava}
-                className="text-red-500 text-sm underline"
-              >
+              <button onClick={handleDisconnectStrava} className="text-red-500 text-sm underline">
                 Disconnect
               </button>
             ) : (
@@ -137,8 +162,13 @@ export default function ProfilePage() {
 
         <section className="bg-red-50 border border-red-200 rounded-xl p-6 shadow-sm">
           <h2 className="text-lg font-medium text-red-700 mb-4">Danger Zone</h2>
-          <p className="text-sm text-red-600 mb-4">Deleting your account will erase all your plans, history, and preferences. This action cannot be undone.</p>
-          <button onClick={handleDeleteAccount} className="px-5 py-2 text-sm rounded-full bg-red-600 text-white hover:bg-red-700 transition">
+          <p className="text-sm text-red-600 mb-4">
+            Deleting your account will erase all your plans, history, and preferences. This action cannot be undone.
+          </p>
+          <button
+            onClick={handleDeleteAccount}
+            className="px-5 py-2 text-sm rounded-full bg-red-600 text-white hover:bg-red-700 transition"
+          >
             Delete My Account
           </button>
         </section>
