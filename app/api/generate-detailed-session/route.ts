@@ -1,30 +1,56 @@
-// File: /app/api/generate-detailed-session/route.ts
-
 import { NextResponse } from 'next/server';
-import { openai } from '@/lib/openai';
+import { cookies } from 'next/headers';
+import OpenAI from 'openai';
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(req: Request) {
   try {
     const { title, date } = await req.json();
-
     if (!title || !date) {
       return NextResponse.json({ error: 'Missing session title or date.' }, { status: 400 });
     }
 
+    // Auth + Supabase profile lookup
+    const supabase = createServerComponentClient({ cookies });
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('swim_pace, bike_ftp, run_pace')
+      .eq('id', user.id)
+      .single();
+
+    const swimPace = profile?.swim_pace || 'Not provided';
+    const bikeFTP = profile?.bike_ftp || 'Not provided';
+    const runPace = profile?.run_pace || 'Not provided';
+
     const prompt = `
 You are a world-class triathlon coach.
+
 Write a detailed, structured workout for the following session:
+"${title}" on ${date}
 
-"${title}" on ${date}.
+Use the following athlete metrics if relevant:
+- Swim threshold pace: ${swimPace}
+- Bike FTP: ${bikeFTP}
+- Run threshold pace: ${runPace}
 
-Include:
+The session should include:
 - Warmup
 - Main set(s)
 - Cooldown
-- Specific distances, paces, or zones
-- Technique or form notes (if relevant)
+- Specific distances, intensities (pace/power/Z2–Z4), or drills
+- Technique/form guidance if appropriate
 
-The output should be clear, concise, and formatted with bullet points or short sections. No extra fluff.
+Use clear formatting — short paragraphs or bullet points. Avoid fluff or vague instructions. Make it feel like something a top-tier coach would write.
     `;
 
     const gptResponse = await openai.chat.completions.create({
