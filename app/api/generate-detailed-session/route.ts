@@ -43,23 +43,29 @@ export async function POST(req: Request) {
     const prompt = `
 You are a world-class triathlon coach.
 
-Write a detailed, structured workout for the following session:
-"${title}" on ${format(parseISO(date), 'EEEE, MMMM do')}.
+Write a short, structured workout for this session:
+"${title}" on ${format(parseISO(date), 'EEEE, MMMM do')}
 
-Use the following athlete metrics if relevant:
+Athlete performance metrics (if relevant):
 - Swim threshold pace: ${swimPace}
 - Bike FTP: ${bikeFTP}
 - Run threshold pace: ${runPace}
 
-The session should include:
-- Warmup
-- Main set(s)
+The workout should include:
+- Warm-up
+- Main Set(s)
 - Cooldown
-- Specific distances, intensities (pace/power/Z2–Z4), or drills
-- Technique/form guidance if appropriate
 
-Use clear formatting — short paragraphs or bullet points. Avoid fluff or vague instructions. Make it feel like something a top-tier coach would write.
-    `;
+Format the response like this:
+
+**[Workout Name]**
+- Warm-up: ...
+- Main Set: ...
+- Cooldown: ...
+
+Use bullet points or short lines. No fluff. No motivational text. Keep it practical and realistic for a triathlete following the title's intent. Only include distances, durations, intensities (pace/power/RPE), or drills that align with the session type.
+`;
+
 
     const gptResponse = await openai.chat.completions.create({
       model: 'gpt-4-turbo',
@@ -104,7 +110,7 @@ Use clear formatting — short paragraphs or bullet points. Avoid fluff or vague
       return NextResponse.json({ error: 'Failed to save workout' }, { status: 500 });
     }
 
-    return NextResponse.json({ response: content });
+    return NextResponse.json({ workout: content });
   } catch (error) {
     console.error('Detailed session error:', error);
     return NextResponse.json({ error: 'Failed to generate workout.' }, { status: 500 });
