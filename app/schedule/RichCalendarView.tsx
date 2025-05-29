@@ -58,12 +58,6 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
 
   const visibleWeeks = calendarRange.slice(monthIndex * 4, monthIndex * 4 + 4);
 
-  const getEmoji = (title: string) => {
-    if (title.toLowerCase().includes('swim')) return '🏊';
-    if (title.toLowerCase().includes('bike')) return '🚴';
-    if (title.toLowerCase().includes('run')) return '🏃';
-    return '';
-  };
 
   const cleanLabel = (title: string) => {
     return title.replace(/^\w+(:)?\s?/, '').trim();
@@ -119,11 +113,9 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
                 {format(parseISO(date), 'MMM d')}
               </div>
               {(sessionsByDate[date] || []).map((s, i) => {
-                const emoji = getEmoji(s);
                 const label = cleanLabel(s);
                 return (
                   <div key={i} className="text-neutral-800 flex items-start gap-1">
-                    <span>{emoji}</span>
                     <span>{label}</span>
                   </div>
                 );
