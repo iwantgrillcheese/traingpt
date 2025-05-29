@@ -58,16 +58,6 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
 
   const visibleWeeks = calendarRange.slice(monthIndex * 4, monthIndex * 4 + 4);
 
-  const getColorClass = (title: string, status: string | undefined) => {
-    if (status === 'done') return 'text-green-600';
-    if (status === 'skipped') return 'text-gray-400 line-through';
-    if (title.toLowerCase().includes('swim')) return 'text-sky-600';
-    if (title.toLowerCase().includes('bike')) return 'text-yellow-600';
-    if (title.toLowerCase().includes('run')) return 'text-rose-600';
-    if (title.toLowerCase().includes('strava')) return 'text-gray-500 italic';
-    return 'text-neutral-700';
-  };
-
   const getEmoji = (title: string) => {
     if (title.toLowerCase().includes('swim')) return '🏊';
     if (title.toLowerCase().includes('bike')) return '🚴';
@@ -76,7 +66,7 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 bg-neutral-50 min-h-screen py-8">
+    <div className="w-full max-w-7xl mx-auto px-4 py-8 bg-neutral-50 min-h-screen rounded-3xl shadow-sm">
       <div className="flex justify-between items-center mb-8">
         <h2 className="text-3xl font-semibold tracking-tight text-neutral-800">Your Training Plan</h2>
         <div className="flex gap-4 text-sm">
@@ -124,21 +114,12 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
               <div className="text-[11px] font-medium text-neutral-400 tracking-wide">
                 {format(parseISO(date), 'MMM d')}
               </div>
-              {(sessionsByDate[date] || []).map((s, i) => {
-                const sportKey = s.toLowerCase().includes('swim')
-                  ? 'swim'
-                  : s.toLowerCase().includes('bike')
-                  ? 'bike'
-                  : 'run';
-                const status = completed[`${date}-${sportKey}`];
-                const color = getColorClass(s, status);
-                return (
-                  <div key={i} className={`${color} flex items-start gap-1`}>
-                    <span>{getEmoji(s)}</span>
-                    <span>{s.replace(/^\w+: /, '')}</span>
-                  </div>
-                );
-              })}
+              {(sessionsByDate[date] || []).map((s, i) => (
+                <div key={i} className="text-neutral-800 flex items-start gap-1">
+                  <span>{getEmoji(s)}</span>
+                  <span>{s.replace(/^\w+: /, '')}</span>
+                </div>
+              ))}
             </div>
           ))}
         </div>
