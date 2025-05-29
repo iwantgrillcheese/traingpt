@@ -7,7 +7,6 @@ import {
   parseISO,
   isSameDay,
   startOfMonth,
-  endOfMonth,
   addMonths,
   subMonths,
   addDays,
@@ -21,7 +20,6 @@ export default function MobileCalendarView({ plan, completed, stravaActivities }
 
   const sessionsByDate = useMemo(() => {
     const sessions: Record<string, string[]> = {};
-
     plan.forEach((week: any) => {
       Object.entries(week.days).forEach(([date, raw]) => {
         const items = raw as string[];
@@ -52,22 +50,16 @@ export default function MobileCalendarView({ plan, completed, stravaActivities }
   }, [currentMonth]);
 
   const getSessionStatus = (date: string, label: string) => {
-    const key = `${date}-${
-      label.toLowerCase().includes('swim')
-        ? 'swim'
-        : label.toLowerCase().includes('bike')
-        ? 'bike'
-        : 'run'
-    }`;
+    const key = `${date}-$
+      {label.toLowerCase().includes('swim') ? 'swim' : label.toLowerCase().includes('bike') ? 'bike' : 'run'}`;
     return completed[key];
   };
 
-  const getDotColor = (date: string) => {
-    const sessions = sessionsByDate[date] || [];
-    if (sessions.some((s) => getSessionStatus(date, s) === 'done')) return 'bg-green-500';
-    if (sessions.some((s) => getSessionStatus(date, s) === 'skipped')) return 'bg-gray-400';
-    if (sessions.length > 0) return 'bg-blue-500';
-    return '';
+  const getEmoji = (title: string) => {
+    if (title.toLowerCase().includes('swim')) return '🏊';
+    if (title.toLowerCase().includes('bike')) return '🚴';
+    if (title.toLowerCase().includes('run')) return '🏃';
+    return '📋';
   };
 
   const handleSessionClick = (dateStr: string, session: string) => {
@@ -75,8 +67,11 @@ export default function MobileCalendarView({ plan, completed, stravaActivities }
     router.push(`/coaching?q=${encodeURIComponent(question)}`);
   };
 
+  const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+  const selectedSessions = sessionsByDate[selectedDateStr] || [];
+
   return (
-    <div className="w-full max-w-md mx-auto px-4 pb-8">
+    <div className="w-full max-w-md mx-auto px-4 pb-10">
       <div className="flex justify-between items-center mb-4">
         <button
           onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
@@ -105,7 +100,13 @@ export default function MobileCalendarView({ plan, completed, stravaActivities }
         {calendarDays.map((day, idx) => {
           const dateStr = format(day, 'yyyy-MM-dd');
           const isSelected = isSameDay(day, selectedDate);
-          const dotColor = getDotColor(dateStr);
+          const dotColor = (() => {
+            const sessions = sessionsByDate[dateStr] || [];
+            if (sessions.some((s) => getSessionStatus(dateStr, s) === 'done')) return 'bg-green-500';
+            if (sessions.some((s) => getSessionStatus(dateStr, s) === 'skipped')) return 'bg-gray-400';
+            if (sessions.length > 0) return 'bg-blue-500';
+            return '';
+          })();
 
           return (
             <button
@@ -124,35 +125,38 @@ export default function MobileCalendarView({ plan, completed, stravaActivities }
         })}
       </div>
 
-      <div className="mt-6">
-        <div className="text-sm font-semibold text-gray-600 mb-2">
-          {format(selectedDate, 'EEEE, MMMM d')}
-        </div>
+      {selectedSessions.length > 0 && (
+        <div className="mt-8 bg-white border border-neutral-200 rounded-xl shadow-sm p-4">
+          <div className="text-sm font-semibold text-gray-600 mb-3">
+            {format(selectedDate, 'EEEE, MMMM d')}
+          </div>
 
-        <div className="flex flex-col gap-2">
-          {(sessionsByDate[format(selectedDate, 'yyyy-MM-dd')] || []).map((s: string, i: number) => {
-            const status = getSessionStatus(format(selectedDate, 'yyyy-MM-dd'), s);
-            const color =
-              status === 'done'
-                ? 'text-green-600'
-                : status === 'skipped'
-                ? 'text-gray-400 line-through'
-                : 'text-blue-600';
-
-            return (
-              <div
-                key={i}
-                onClick={() =>
-                  handleSessionClick(format(selectedDate, 'yyyy-MM-dd'), s)
-                }
-                className={`${color} cursor-pointer hover:underline transition`}
-              >
-                {s}
+          <div className="flex flex-col gap-2 text-sm">
+            {selectedSessions.map((s: string, i: number) => (
+              <div key={i} className="flex items-start gap-2">
+                <span>{getEmoji(s)}</span>
+                <span
+                  onClick={() => handleSessionClick(selectedDateStr, s)}
+                  className="text-blue-600 underline cursor-pointer"
+                >
+                  {s.replace(/^\w+: /, '')}
+                </span>
               </div>
-            );
-          })}
+            ))}
+          </div>
+
+          <textarea
+            placeholder="Leave a note..."
+            className="mt-4 w-full border border-neutral-300 rounded-md p-2 text-sm"
+            rows={3}
+          />
+
+          <div className="flex justify-end gap-3 mt-4">
+            <button className="text-sm text-gray-500">Skip</button>
+            <button className="bg-black text-white text-sm px-4 py-2 rounded-md">Mark Done</button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
