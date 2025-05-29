@@ -1,9 +1,9 @@
+// PATCHED: RichCalendarView.tsx
 'use client';
 
 import { useMemo, useState } from 'react';
 import { format, parseISO, isSameDay, startOfWeek, addDays } from 'date-fns';
 import { useRouter } from 'next/navigation';
-import { generateCoachQuestion } from '@/utils/generateCoachQuestion';
 import { SessionModal } from './SessionModal';
 
 export default function RichCalendarView({ plan, completed, stravaActivities }: {
@@ -72,6 +72,7 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
     });
     const { workout } = await res.json();
     setDetailedWorkoutMap(prev => ({ ...prev, [key]: workout }));
+    setActiveSession((prev: any) => prev ? { ...prev, aiWorkout: workout } : null);
   };
 
   return (
@@ -106,11 +107,12 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
               onClick={() => {
                 const first = sessionsByDate[date]?.[0];
                 if (!first) return;
+                const key = `${date}-${cleanLabel(first)}`;
                 setActiveSession({
                   date,
                   title: first,
                   status: completed[`${date}-${first.toLowerCase().includes('swim') ? 'swim' : first.toLowerCase().includes('bike') ? 'bike' : 'run'}`],
-                  aiWorkout: detailedWorkoutMap[`${date}-${cleanLabel(first)}`] || null,
+                  aiWorkout: detailedWorkoutMap[key] || null,
                   userNote: '',
                 });
               }}
