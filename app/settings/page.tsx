@@ -9,6 +9,17 @@ export default function ProfilePage() {
   const supabase = createClientComponentClient();
   const [profile, setProfile] = useState<any>(null);
   const [optIn, setOptIn] = useState<boolean>(true);
+const secondsToTimeString = (seconds: number) => {
+  const min = Math.floor(seconds / 60);
+  const sec = seconds % 60;
+  return `${min}:${sec.toString().padStart(2, '0')}`;
+};
+
+const timeStringToSeconds = (input: string) => {
+  const [min, sec] = input.split(':').map(Number);
+  return min * 60 + (sec || 0);
+};
+
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -96,37 +107,58 @@ export default function ProfilePage() {
 
       <div className="space-y-8">
         <section className="bg-white border rounded-xl p-6 shadow-sm">
-          <h2 className="text-lg font-medium mb-4">Training Zones</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm text-gray-500 mb-1">Swim Threshold (sec / 100m)</label>
-              <input
-                type="number"
-                value={profile.swim_threshold_per_100m || ''}
-                onChange={(e) => handleProfileUpdate('swim_threshold_per_100m', parseInt(e.target.value))}
-                className="w-full border rounded px-3 py-2"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-500 mb-1">Bike FTP (watts)</label>
-              <input
-                type="number"
-                value={profile.bike_ftp || ''}
-                onChange={(e) => handleProfileUpdate('bike_ftp', parseInt(e.target.value))}
-                className="w-full border rounded px-3 py-2"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-500 mb-1">Run Threshold (sec / mile)</label>
-              <input
-                type="number"
-                value={profile.run_threshold_per_mile || ''}
-                onChange={(e) => handleProfileUpdate('run_threshold_per_mile', parseInt(e.target.value))}
-                className="w-full border rounded px-3 py-2"
-              />
-            </div>
-          </div>
-        </section>
+  <h2 className="text-lg font-medium mb-4">Training Zones</h2>
+  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <div>
+      <label className="block text-sm text-gray-500 mb-1">Swim Threshold (mm:ss / 100m)</label>
+      <input
+        type="text"
+        value={secondsToTimeString(profile.swim_threshold_per_100m || 0)}
+        onChange={(e) =>
+          handleProfileUpdate('swim_threshold_per_100m', timeStringToSeconds(e.target.value))
+        }
+        className="w-full border rounded px-3 py-2"
+        placeholder="e.g. 1:45"
+      />
+    </div>
+
+    <div>
+      <label className="block text-sm text-gray-500 mb-1">Bike FTP (watts)</label>
+      <input
+        type="number"
+        value={profile.bike_ftp || ''}
+        onChange={(e) => handleProfileUpdate('bike_ftp', parseInt(e.target.value))}
+        className="w-full border rounded px-3 py-2"
+      />
+    </div>
+
+    <div>
+      <label className="block text-sm text-gray-500 mb-1">
+        Run Threshold (mm:ss / {profile.run_pace_unit === 'km' ? 'km' : 'mile'})
+      </label>
+      <input
+        type="text"
+        value={secondsToTimeString(profile.run_threshold_per_mile || 0)}
+        onChange={(e) =>
+          handleProfileUpdate('run_threshold_per_mile', timeStringToSeconds(e.target.value))
+        }
+        className="w-full border rounded px-3 py-2"
+        placeholder="e.g. 7:30"
+      />
+      <div className="mt-2">
+        <label className="text-xs text-gray-500 mr-2">Units:</label>
+        <select
+          value={profile.run_pace_unit || 'mile'}
+          onChange={(e) => handleProfileUpdate('run_pace_unit', e.target.value)}
+          className="text-sm border rounded px-2 py-1"
+        >
+          <option value="mile">mile</option>
+          <option value="km">km</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</section>
 
         <section className="bg-white border rounded-xl p-6 shadow-sm">
           <h2 className="text-lg font-medium mb-4">Email Preferences</h2>
