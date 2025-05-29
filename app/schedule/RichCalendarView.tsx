@@ -4,9 +4,13 @@ import { useMemo, useState } from 'react';
 import { format, parseISO, isSameDay, startOfWeek, addDays } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { generateCoachQuestion } from '@/utils/generateCoachQuestion';
+import { SessionModal } from './SessionModal';
 
-
-export default function RichCalendarView({ plan, completed, stravaActivities }: {
+export default function RichCalendarView({
+  plan,
+  completed,
+  stravaActivities,
+}: {
   plan: any[];
   completed: Record<string, string>;
   stravaActivities: any[];
@@ -14,6 +18,7 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
   const today = new Date();
   const router = useRouter();
   const [monthIndex, setMonthIndex] = useState(0);
+  const [activeSession, setActiveSession] = useState<any | null>(null); // Improve type later
 
   const sessionsByDate = useMemo(() => {
     const sessions: Record<string, string[]> = {};
@@ -47,7 +52,9 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
     let curr = start;
 
     while (curr <= end) {
-      const week = Array.from({ length: 7 }).map((_, i) => format(addDays(curr, i), 'yyyy-MM-dd'));
+      const week = Array.from({ length: 7 }).map((_, i) =>
+        format(addDays(curr, i), 'yyyy-MM-dd')
+      );
       weeks.push(week);
       curr = addDays(curr, 7);
     }
@@ -58,26 +65,20 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
   const visibleWeeks = calendarRange.slice(monthIndex * 4, monthIndex * 4 + 4);
 
   const getColorClass = (title: string, status: string | undefined) => {
-  if (status === 'done') return 'text-green-600';
-  if (status === 'skipped') return 'text-gray-400 line-through';
-  if (title.toLowerCase().includes('swim')) return 'text-sky-600';
-  if (title.toLowerCase().includes('bike')) return 'text-yellow-600';
-  if (title.toLowerCase().includes('run')) return 'text-rose-600';
-  if (title.toLowerCase().includes('strava')) return 'text-gray-500 italic';
-  return 'text-neutral-700';
-};
+    if (status === 'done') return 'text-green-600';
+    if (status === 'skipped') return 'text-gray-400 line-through';
+    if (title.toLowerCase().includes('swim')) return 'text-sky-600';
+    if (title.toLowerCase().includes('bike')) return 'text-yellow-600';
+    if (title.toLowerCase().includes('run')) return 'text-rose-600';
+    if (title.toLowerCase().includes('strava')) return 'text-gray-500 italic';
+    return 'text-neutral-700';
+  };
 
   const getEmoji = (title: string) => {
     if (title.toLowerCase().includes('swim')) return '🏊';
     if (title.toLowerCase().includes('bike')) return '🚴';
     if (title.toLowerCase().includes('run')) return '🏃';
     return '📋';
-  };
-
-  const handleClick = (date: string, session: string) => {
-    const readableDate = format(parseISO(date), 'EEEE');
-    const query = `Can you explain ${readableDate}'s workout: "${session}"?`;
-    router.push(`/coaching?prefill=${encodeURIComponent(query)}`);
   };
 
   return (
@@ -116,36 +117,52 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
             <div
               key={date}
               className={`min-h-[100px] rounded-xl px-2 py-2 text-left text-[10px] sm:text-xs bg-white shadow-sm flex flex-col gap-1 whitespace-pre-wrap transition hover:bg-gray-50 ${
-                isSameDay(parseISO(date), today) ? 'border border-black' : 'border border-gray-100'
+                isSameDay(parseISO(date), today)
+                  ? 'border border-black'
+                  : 'border border-gray-100'
               }`}
             >
               <div className="text-gray-400 font-semibold">
                 {format(parseISO(date), 'MMM d')}
               </div>
               {(sessionsByDate[date] || []).map((s, i) => {
-  const sportKey = s.toLowerCase().includes('swim')
-    ? 'swim'
-    : s.toLowerCase().includes('bike')
-    ? 'bike'
-    : 'run';
-  const status = completed[`${date}-${sportKey}`];
-  const color = getColorClass(s, status);
-  const question = generateCoachQuestion(format(parseISO(date), 'MMMM d'), s);
+                const sportKey = s.toLowerCase().includes('swim')
+                  ? 'swim'
+                  : s.toLowerCase().includes('bike')
+                  ? 'bike'
+                  : 'run';
+                const status = completed[`${date}-${sportKey}`];
+                const color = getColorClass(s, status);
 
-  return (
-    <div
-      key={i}
-      onClick={() => router.push(`/coaching?q=${encodeURIComponent(question)}`)}
-      className={`${color} cursor-pointer hover:underline`}
-    >
-      • {getEmoji(s)} {s}
-    </div>
-  );
-})}
+                return (
+                  <div
+                    key={i}
+                    onClick={() =>
+                      setActiveSession({
+                        date,
+                        title: s,
+                        status,
+                        aiWorkout: null,
+                        userNote: '',
+                      })
+                    }
+                    className={`${color} cursor-pointer hover:underline`}
+                  >
+                    • {getEmoji(s)} {s}
+                  </div>
+                );
+              })}
             </div>
           ))}
         </div>
       ))}
+
+      {activeSession && (
+        <SessionModal
+          session={activeSession}
+          onClose={() => setActiveSession(null)}
+        />
+      )}
     </div>
   );
 }
