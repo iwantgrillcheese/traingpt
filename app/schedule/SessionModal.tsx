@@ -65,10 +65,20 @@ export function SessionModal({ session, onClose, onGenerateWorkout }: SessionMod
         )}
 
         {workout && (
-          <div className="whitespace-pre-wrap text-sm text-gray-800 border border-gray-200 rounded-md p-3 mb-4 bg-gray-50">
-            {workout}
-          </div>
-        )}
+  <div className="text-sm text-neutral-800 mb-4 space-y-3">
+    {workout.split('\n').map((line, i) => {
+      if (line.startsWith('-')) {
+        return <li key={i} className="ml-5 list-disc">{line.replace('- ', '')}</li>;
+      } else if (line.startsWith('**')) {
+        return <div key={i} className="font-semibold">{line.replace(/\*\*/g, '')}</div>;
+      } else if (line.trim() === '') {
+        return <br key={i} />;
+      }
+      return <p key={i}>{line}</p>;
+    })}
+  </div>
+)}
+
 
         <textarea
           className="w-full border border-neutral-300 rounded-md p-2 text-sm mb-4"

@@ -63,17 +63,19 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
     return title.replace(/^\w+(:)?\s?/, '').trim();
   };
 
-  const handleGenerateDetailedWorkout = async (session: any) => {
-    const key = `${session.date}-${cleanLabel(session.title)}`;
-    const res = await fetch('/api/generate-detailed-session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: session.title, date: session.date })
-    });
-    const { workout } = await res.json();
-    setDetailedWorkoutMap(prev => ({ ...prev, [key]: workout }));
-    setActiveSession((prev: any) => prev ? { ...prev, aiWorkout: workout } : null);
-  };
+const handleGenerateDetailedWorkout = async (session: any) => {
+  const key = `${session.date}-${cleanLabel(session.title)}`;
+  const res = await fetch('/api/generate-detailed-session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: session.title, date: session.date })
+  });
+
+  const { workout } = await res.json();
+
+  setDetailedWorkoutMap(prev => ({ ...prev, [key]: workout }));
+  setActiveSession((prev: any) => ({ ...prev, aiWorkout: workout }));
+};
 
   return (
     <div className="w-full max-w-[1400px] mx-auto px-6 py-10 bg-neutral-50 rounded-3xl shadow-sm">
