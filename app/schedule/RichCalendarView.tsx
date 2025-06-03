@@ -6,13 +6,6 @@ import { useRouter } from 'next/navigation';
 import { SessionModal } from './SessionModal';
 import { Session } from '@/types/session';
 
-type DisplaySession = Session & {
-  isStravaOnly?: boolean;
-  duration?: number;
-  userNote?: string;
-  aiWorkout?: string | null;
-};
-
 type Props = {
   sessions: Session[];
   stravaActivities: any[];
@@ -22,11 +15,11 @@ export default function RichCalendarView({ sessions, stravaActivities }: Props) 
   const today = new Date();
   const router = useRouter();
   const [monthIndex, setMonthIndex] = useState(0);
-  const [activeSession, setActiveSession] = useState<DisplaySession | null>(null);
+  const [activeSession, setActiveSession] = useState<any | null>(null);
   const [detailedWorkoutMap, setDetailedWorkoutMap] = useState<Record<string, string>>({});
 
   const sessionsByDate = useMemo(() => {
-    const map: Record<string, DisplaySession[]> = {};
+    const map: Record<string, Session[]> = {};
 
     sessions.forEach((s) => {
       if (!map[s.date]) map[s.date] = [];
@@ -40,21 +33,8 @@ export default function RichCalendarView({ sessions, stravaActivities }: Props) 
       const mins = Math.round(activity.moving_time / 60);
       const label = `${mapped.charAt(0).toUpperCase() + mapped.slice(1)}: ${mins}min (Strava)`;
 
-      const synthetic: DisplaySession = {
-        id: `strava-${activity.id}-${date}`,
-        date,
-        user_id: 'strava',
-        plan_id: 'strava',
-        sport: mapped,
-        label,
-        status: 'done',
-        structured_workout: null,
-        isStravaOnly: true,
-        duration: mins,
-      };
-
       if (!map[date]) map[date] = [];
-      map[date].push(synthetic);
+      map[date].push({ id: `strava-${activity.id}`, date, sport: mapped, label, status: 'done' } as Session);
     });
 
     return map;
@@ -71,9 +51,7 @@ export default function RichCalendarView({ sessions, stravaActivities }: Props) 
     let curr = start;
 
     while (curr <= end) {
-      const week = Array.from({ length: 7 }).map((_, i) =>
-        format(addDays(curr, i), 'yyyy-MM-dd')
-      );
+      const week = Array.from({ length: 7 }).map((_, i) => format(addDays(curr, i), 'yyyy-MM-dd'));
       weeks.push(week);
       curr = addDays(curr, 7);
     }
@@ -83,45 +61,32 @@ export default function RichCalendarView({ sessions, stravaActivities }: Props) 
 
   const visibleWeeks = calendarRange.slice(monthIndex * 4, monthIndex * 4 + 4);
 
-  const cleanLabel = (title: string) =>
-    title.replace(/^\w+(:)?\s?/, '').trim();
+  const cleanLabel = (title: string) => title.replace(/^\w+(:)?\s?/, '').trim();
 
-  const handleGenerateDetailedWorkout = async (session: DisplaySession) => {
+  const handleGenerateDetailedWorkout = async (session: Session) => {
     const key = `${session.date}-${cleanLabel(session.label)}`;
     const res = await fetch('/api/generate-detailed-session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: session.label, date: session.date }),
+      body: JSON.stringify({ title: session.label, date: session.date, sessionId: session.id }),
     });
 
     const { workout } = await res.json();
 
     setDetailedWorkoutMap((prev) => ({ ...prev, [key]: workout }));
-    setActiveSession((prev) => prev ? { ...prev, aiWorkout: workout } : null);
+    setActiveSession((prev: any) => ({ ...prev, aiWorkout: workout }));
   };
 
   return (
     <div className="w-full max-w-[1400px] mx-auto px-6 py-10 bg-neutral-50 rounded-3xl shadow-sm">
       <div className="flex justify-between items-center mb-8">
-        <h2 className="text-3xl font-semibold tracking-tight text-neutral-800">
-          Your Training Plan
-        </h2>
+        <h2 className="text-3xl font-semibold tracking-tight text-neutral-800">Your Training Plan</h2>
         <div className="flex gap-4 text-sm">
           {monthIndex > 0 && (
-            <button
-              className="text-gray-500 hover:text-black"
-              onClick={() => setMonthIndex((prev) => Math.max(prev - 1, 0))}
-            >
-              ← Prev
-            </button>
+            <button className="text-gray-500 hover:text-black" onClick={() => setMonthIndex((prev) => Math.max(prev - 1, 0))}>← Prev</button>
           )}
           {calendarRange.length > (monthIndex + 1) * 4 && (
-            <button
-              className="text-gray-500 hover:text-black"
-              onClick={() => setMonthIndex((prev) => prev + 1)}
-            >
-              Next →
-            </button>
+            <button className="text-gray-500 hover:text-black" onClick={() => setMonthIndex((prev) => prev + 1)}>Next →</button>
           )}
         </div>
       </div>
@@ -145,15 +110,16 @@ export default function RichCalendarView({ sessions, stravaActivities }: Props) 
                   if (!s) return;
                   const key = `${s.date}-${cleanLabel(s.label)}`;
                   setActiveSession({
-                    ...s,
-                    aiWorkout: detailedWorkoutMap[key] || s.structured_workout || null,
-                    userNote: '',
+                    id: s.id,
+                    title: s.label,
+                    date: s.date,
+                    status: s.status,
+                    aiWorkout: detailedWorkoutMap[key] || (s as any).structured_workout || null,
+                    userNote: (s as any).user_notes || '',
                   });
                 }}
                 className={`min-h-[110px] bg-white rounded-2xl p-3 text-[13px] leading-tight border ${
-                  isSameDay(parseISO(date), today)
-                    ? 'border-black'
-                    : 'border-neutral-200'
+                  isSameDay(parseISO(date), today) ? 'border-black' : 'border-neutral-200'
                 } shadow-sm hover:shadow-md hover:ring-1 hover:ring-neutral-200/60 transition-all cursor-pointer flex flex-col gap-1`}
               >
                 <div className="text-[11px] font-medium text-neutral-400 tracking-wide">
@@ -174,16 +140,13 @@ export default function RichCalendarView({ sessions, stravaActivities }: Props) 
         <SessionModal
           session={activeSession}
           onClose={() => {
-            const key = `${activeSession.date}-${cleanLabel(activeSession.label)}`;
-            if (activeSession.aiWorkout) {
-              setDetailedWorkoutMap((prev) => ({
-                ...prev,
-                [key]: activeSession.aiWorkout!,
-              }));
+            const key = `${activeSession.date}-${cleanLabel(activeSession.title)}`;
+            if (activeSession.workout) {
+              setDetailedWorkoutMap((prev) => ({ ...prev, [key]: activeSession.workout }));
             }
             setActiveSession(null);
           }}
-          onGenerateWorkout={() => handleGenerateDetailedWorkout(activeSession)}
+          onGenerateWorkout={(id, workout) => handleGenerateDetailedWorkout(activeSession)}
         />
       )}
     </div>
