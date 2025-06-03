@@ -1,5 +1,7 @@
 'use client';
 
+import { generateCoachQuestion } from '@/utils/generateCoachQuestion';
+import { Session } from '@/types/session';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -11,36 +13,60 @@ import {
   subMonths,
   addDays,
 } from 'date-fns';
-import { generateCoachQuestion } from '@/utils/generateCoachQuestion';
 
-export default function MobileCalendarView({ plan, completed, stravaActivities }: any) {
+// Augmented display-only type
+type DisplaySession = Session & {
+  isStravaOnly?: boolean;
+  duration?: number;
+};
+
+type Props = {
+  sessions: Session[];
+  stravaActivities: any[];
+};
+
+export default function MobileCalendarView({ sessions, stravaActivities }: Props) {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [detailedWorkouts, setDetailedWorkouts] = useState<Record<string, string>>({});
   const router = useRouter();
 
   const sessionsByDate = useMemo(() => {
-    const sessions: Record<string, string[]> = {};
-    plan.forEach((week: any) => {
-      Object.entries(week.days).forEach(([date, raw]) => {
-        const items = raw as string[];
-        if (!sessions[date]) sessions[date] = [];
-        sessions[date].push(...items);
-      });
+    const byDate: Record<string, DisplaySession[]> = {};
+
+    // Add regular sessions
+    sessions.forEach((session) => {
+      if (!byDate[session.date]) byDate[session.date] = [];
+      byDate[session.date].push(session);
     });
 
+    // Add synthetic Strava sessions
     stravaActivities.forEach((activity: any) => {
       const date = activity.start_date_local.split('T')[0];
-      const sport = activity.sport_type.toLowerCase();
+      const sport = activity.sport_type?.toLowerCase();
       const mapped = sport === 'ride' || sport === 'virtualride' ? 'bike' : sport;
       const mins = Math.round(activity.moving_time / 60);
       const label = `${mapped.charAt(0).toUpperCase() + mapped.slice(1)}: ${mins}min (Strava)`;
-      if (!sessions[date]) sessions[date] = [];
-      sessions[date].push(label);
+
+      const syntheticSession: DisplaySession = {
+        id: `strava-${activity.id || label}-${date}`,
+        user_id: 'strava',
+        plan_id: 'strava',
+        date,
+        sport: mapped,
+        label,
+        status: 'done',
+        structured_workout: null,
+        isStravaOnly: true,
+        duration: mins,
+      };
+
+      if (!byDate[date]) byDate[date] = [];
+      byDate[date].push(syntheticSession);
     });
 
-    return sessions;
-  }, [plan, stravaActivities]);
+    return byDate;
+  }, [sessions, stravaActivities]);
 
   const calendarDays = useMemo(() => {
     const start = startOfMonth(currentMonth);
@@ -50,17 +76,11 @@ export default function MobileCalendarView({ plan, completed, stravaActivities }
     return Array.from({ length: 35 }, (_, i) => addDays(calendarStart, i));
   }, [currentMonth]);
 
-  const getSessionStatus = (date: string, label: string) => {
-    const key = `${date}-${
-      label.toLowerCase().includes('swim') ? 'swim' : label.toLowerCase().includes('bike') ? 'bike' : 'run'
-    }`;
-    return completed[key];
-  };
-
   const getEmoji = (title: string) => {
-    if (title.toLowerCase().includes('swim')) return '🏊';
-    if (title.toLowerCase().includes('bike')) return '🚴';
-    if (title.toLowerCase().includes('run')) return '🏃';
+    const lower = title.toLowerCase();
+    if (lower.includes('swim')) return '🏊';
+    if (lower.includes('bike')) return '🚴';
+    if (lower.includes('run')) return '🏃';
     return '📋';
   };
 
@@ -72,11 +92,11 @@ export default function MobileCalendarView({ plan, completed, stravaActivities }
     });
     const { workout } = await res.json();
     const key = `${date}-${title}`;
-    setDetailedWorkouts(prev => ({ ...prev, [key]: workout }));
+    setDetailedWorkouts((prev) => ({ ...prev, [key]: workout }));
   };
 
-  const handleSessionClick = (dateStr: string, session: string) => {
-    const question = generateCoachQuestion(format(parseISO(dateStr), 'MMMM d'), session);
+  const handleSessionClick = (dateStr: string, label: string) => {
+    const question = generateCoachQuestion(format(parseISO(dateStr), 'MMMM d'), label);
     router.push(`/coaching?q=${encodeURIComponent(question)}`);
   };
 
@@ -113,10 +133,11 @@ export default function MobileCalendarView({ plan, completed, stravaActivities }
         {calendarDays.map((day, idx) => {
           const dateStr = format(day, 'yyyy-MM-dd');
           const isSelected = isSameDay(day, selectedDate);
+          const sessions = sessionsByDate[dateStr] || [];
+
           const dotColor = (() => {
-            const sessions = sessionsByDate[dateStr] || [];
-            if (sessions.some((s) => getSessionStatus(dateStr, s) === 'done')) return 'bg-green-500';
-            if (sessions.some((s) => getSessionStatus(dateStr, s) === 'skipped')) return 'bg-gray-400';
+            if (sessions.some((s) => s.status === 'done')) return 'bg-green-500';
+            if (sessions.some((s) => s.status === 'skipped')) return 'bg-gray-400';
             if (sessions.length > 0) return 'bg-blue-500';
             return '';
           })();
@@ -145,17 +166,17 @@ export default function MobileCalendarView({ plan, completed, stravaActivities }
           </div>
 
           <div className="flex flex-col gap-4 text-sm">
-            {selectedSessions.map((s: string, i: number) => {
-              const key = `${selectedDateStr}-${s}`;
+            {selectedSessions.map((s, i) => {
+              const key = `${s.date}-${s.label}`;
               return (
                 <div key={i} className="flex flex-col gap-2">
                   <div className="flex items-start gap-2">
-                    <span>{getEmoji(s)}</span>
+                    <span>{getEmoji(s.label)}</span>
                     <span
-                      onClick={() => handleSessionClick(selectedDateStr, s)}
+                      onClick={() => handleSessionClick(s.date, s.label)}
                       className="text-blue-600 underline cursor-pointer"
                     >
-                      {s.replace(/^\w+: /, '')}
+                      {s.label.replace(/^\w+: /, '')}
                     </span>
                   </div>
                   {detailedWorkouts[key] ? (
@@ -164,7 +185,7 @@ export default function MobileCalendarView({ plan, completed, stravaActivities }
                     </div>
                   ) : (
                     <button
-                      onClick={() => handleGenerateWorkout(s, selectedDateStr)}
+                      onClick={() => handleGenerateWorkout(s.label, s.date)}
                       className="self-start text-xs text-blue-600 underline"
                     >
                       Generate detailed workout
