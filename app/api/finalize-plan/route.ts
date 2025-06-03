@@ -4,7 +4,7 @@ import { addDays, addWeeks, differenceInCalendarWeeks, format } from 'date-fns';
 import OpenAI from 'openai';
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { COACH_SYSTEM_PROMPT } from '@/lib/coachPrompt';
+import { COACH_SYSTEM_PROMPT } from '@/lib/coachPrompt'; // ✅ this is now correct
 import { buildCoachPrompt } from '@/utils/buildCoachPrompt';
 import { sendWelcomeEmail } from '@/lib/emails/send-welcome-email';
 

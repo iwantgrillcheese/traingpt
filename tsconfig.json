@@ -19,6 +19,7 @@
     "paths": {
     "@/*": ["app/*"],
     "@/types/*": ["app/types/*"],
+    "@/lib/*" : ["lib/*"],
     "@/utils/*": ["utils/*"]
 },
     "plugins": [
