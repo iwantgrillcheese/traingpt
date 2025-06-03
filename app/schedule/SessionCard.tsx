@@ -109,18 +109,14 @@ export default function SessionCard({ session, onStatusChange }: Props) {
             transition={{ duration: 0.3 }}
             className="border-t px-4 pt-4 pb-6 text-sm text-gray-700"
           >
-            {Array.isArray(structured) && structured.length > 0 ? (
-              <div className="mb-4">
-                <div className="font-semibold mb-2">Session Details</div>
-                <ul className="list-disc list-inside space-y-1">
-                  {structured.map((step, idx) => (
-                    <li key={idx}>{step}</li>
-                  ))}
-                </ul>
-              </div>
-            ) : (
-              <div className="text-gray-500 text-center mb-4">No full workout loaded yet.</div>
-            )}
+            {structured ? (
+  <div className="mb-4 whitespace-pre-wrap text-sm text-gray-800">
+    <div className="font-semibold mb-2">Session Details</div>
+    {structured}
+  </div>
+) : (
+  <div className="text-gray-500 text-center mb-4">No full workout loaded yet.</div>
+)}
 
             {!session.isStravaOnly && (
               <>
