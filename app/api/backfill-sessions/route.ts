@@ -1,48 +1,53 @@
-// /app/api/backfill-sessions/route.ts
 import { NextResponse } from 'next/server';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
+import { v4 as uuidv4 } from 'uuid';
 
 export async function GET(req: Request) {
   const supabase = createServerComponentClient({ cookies });
-  const planId = req.url.split('planId=')[1];
 
-  if (!planId) {
-    return NextResponse.json({ error: 'Missing planId' }, { status: 400 });
-  }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  // Fetch the plan
-  const { data: planRow, error } = await supabase
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const url = new URL(req.url);
+  const planId = url.searchParams.get('planId');
+  if (!planId) return NextResponse.json({ error: 'Missing planId' }, { status: 400 });
+
+  const { data: plan, error } = await supabase
     .from('plans')
-    .select('plan, user_id')
+    .select('*')
     .eq('id', planId)
-    .single();
+    .eq('user_id', user.id)
+    .maybeSingle();
 
-  if (error || !planRow) {
-    return NextResponse.json({ error: 'Failed to fetch plan' }, { status: 500 });
+  if (error || !plan) {
+    console.error('[❌ FETCH ERROR]', error);
+    return NextResponse.json({ error: 'Failed to fetch plan' }, { status: 404 });
   }
 
-  const { plan, user_id } = planRow;
+  const sessions = plan.plan.flatMap((week: any) =>
+    week.days.map((day: any) => ({
+      id: uuidv4(),
+      user_id: user.id,
+      plan_id: plan.id,
+      date: day.date,
+      sport: day.sport,
+      label: day.title,
+      status: 'planned',
+      structured_workout: null,
+      created_at: new Date().toISOString(),
+    }))
+  );
 
-  const sessions = [];
-  for (const week of plan) {
-    for (const session of week.sessions || []) {
-      sessions.push({
-        user_id,
-        plan_id: planId,
-        title: session.title,
-        date: session.date,
-        sport: session.sport || 'unknown',
-        status: 'planned',
-      });
-    }
+  const { error: insertError } = await supabase.from('sessions').insert(sessions);
+
+  if (insertError) {
+    console.error('[❌ INSERT ERROR]', insertError);
+    return NextResponse.json({ error: 'Failed to insert sessions' }, { status: 500 });
   }
 
-  const { error: insertErr } = await supabase.from('sessions').insert(sessions);
-
-  if (insertErr) {
-    return NextResponse.json({ error: insertErr.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ success: true, inserted: sessions.length });
+  return NextResponse.json({ status: 'ok', inserted: sessions.length });
 }
