@@ -46,29 +46,29 @@ export function SessionModal({
   }, []);
 
   const handleGenerate = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/generate-detailed-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: session.label, // use label as title
-          date: session.date,
-          sessionId: session.id,
-        }),
-      });
+  setLoading(true);
+  try {
+    const res = await fetch('/api/generate-detailed-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: session.title,
+        date: session.date,
+        sessionId: session.id, // ← This was missing!
+      }),
+    });
 
-      const data = await res.json();
-      if (data?.workout) {
-        setWorkout(data.workout);
-        onGenerateWorkout?.(session.id, data.workout);
-      }
-    } catch (err) {
-      console.error('Failed to generate workout', err);
-    } finally {
-      setLoading(false);
+    const data = await res.json();
+    if (data?.workout) {
+      setWorkout(data.workout);
+      onGenerateWorkout?.(session.id, data.workout); // optional sync to parent
     }
-  };
+  } catch (err) {
+    console.error('Failed to generate workout', err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const updateStatus = async (newStatus: string) => {
     setStatus(newStatus);
