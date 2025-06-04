@@ -18,6 +18,8 @@ export default function Footer() {
             </li>
             <li><Link href="/coaching">Coaching</Link></li>
             <li><Link href="/settings">Settings</Link></li>
+            <li><Link href="/privacy">Privacy</Link></li>
+            <li><Link href="/terms">Terms</Link></li>
           </ul>
         </div>
 
