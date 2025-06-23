@@ -155,7 +155,33 @@ if (totalWeeks < minWeeks) {
 
   try {
     const cleaned = content.replace(/```json|```/g, '').trim();
-    const plan = JSON.parse(cleaned);
+
+let plan;
+try {
+  const parsed = JSON.parse(cleaned);
+
+  if (!Array.isArray(parsed)) {
+    throw new Error('GPT output is not an array');
+  }
+
+  for (const week of parsed) {
+    if (
+      typeof week.label !== 'string' ||
+      typeof week.phase !== 'string' ||
+      typeof week.startDate !== 'string' ||
+      typeof week.deload !== 'boolean' ||
+      typeof week.days !== 'object' ||
+      Array.isArray(week.days)
+    ) {
+      throw new Error('Invalid week format detected');
+    }
+  }
+
+  plan = parsed;
+} catch (parseErr) {
+  console.error('❌ Failed to validate GPT plan output:', cleaned);
+  throw parseErr;
+}
 
     const coachNote = `Here's your ${totalWeeks}-week triathlon plan leading to your race on ${format(
       raceDate,
