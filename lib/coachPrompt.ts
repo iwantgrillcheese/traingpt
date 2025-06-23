@@ -122,7 +122,11 @@ Use the athlete note to:
 
 # 📂 Output Format
 
-Return the full plan in valid raw JSON only. No markdown. No extra commentary.
+Return the full plan in valid raw JSON only. No markdown. No commentary.
+
+Each week must include exactly 7 calendar days in the \`days\` object, starting from that week's \`startDate\`.
+
+If the race date does not align with a clean 7-day week, create a final “Race Week” that may contain fewer than 7 days — but never include more than 7 days in any week object.
 
 Example:
 
