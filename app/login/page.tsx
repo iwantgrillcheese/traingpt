@@ -11,11 +11,28 @@ export default function LoginPage() {
   const router = useRouter();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data?.session) {
+    const checkAndRedirect = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
+      if (!user) return;
+
+      // Check if the user already has a plan
+      const { data: plan } = await supabase
+        .from('plans')
+        .select('id')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (plan) {
         router.push('/schedule');
+      } else {
+        router.push('/plan');
       }
-    });
+    };
+
+    checkAndRedirect();
   }, []);
 
   const signInWithGoogle = async () => {
