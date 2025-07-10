@@ -13,7 +13,7 @@ export default function LoginPage() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (data?.session) {
-        router.push('/plan');
+        router.push('/schedule');
       }
     });
   }, []);
