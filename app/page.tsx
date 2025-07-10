@@ -112,7 +112,7 @@ export default function Home() {
 
   useEffect(() => {
     if (session && hasPlan) {
-      router.replace('/coaching');
+      router.replace('/schedule');
     }
   }, [session, hasPlan, router]);
 
@@ -134,7 +134,7 @@ export default function Home() {
   }
 
   if (session && hasPlan) {
-    router.replace('/coaching');
+    router.replace('/schedule');
     return null;
   }
 
