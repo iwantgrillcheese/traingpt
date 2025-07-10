@@ -10,7 +10,7 @@ export default function AboutPage() {
     <section className="mb-12">
       <h2 className="text-xl font-semibold mb-2">Why This Exists</h2>
       <p className="text-gray-700 leading-relaxed">
-      I’m a triathlete who was training for my fourth 70.3 and trying to get a bit faster. I wasn’t ready—or training seriously enough—to justify hiring a coach, so I used ChatGPT to help build my plan. It worked reasonably well but definitely not ideal.
+      I’m a triathlete who was training for my fourth 70.3 and trying to get a bit faster. I wasn’t ready or training seriously enough to justify hiring a coach, so I used ChatGPT to help build my plan. It worked reasonably well but definitely not ideal.
       </p>
       <p className="text-gray-700 leading-relaxed mt-4">
         When I started training again for Santa Cruz 70.3, I figured I’d clean it up. That’s what this is:
@@ -25,7 +25,7 @@ export default function AboutPage() {
     <section className="mb-12">
       <h2 className="text-xl font-semibold mb-2">Who This Is For</h2>
       <p className="text-gray-700 leading-relaxed">
-        If you're training for a triathlon and don’t have a coach—or don’t want to pay for one—this might help. It definitely won’t replace a great coach, but it should be more useful than a static PDF plan. You’ll get a personalized schedule, the ability to track your sessions, and that ability to get live feedback on specific sessions. 
+        If you're training for a triathlon and don’t have a coach or don’t want to pay for one—this might help. It definitely won’t replace a great coach, but it should be more useful than a static PDF plan. You’ll get a personalized schedule, the ability to track your sessions, and that ability to get live feedback on specific sessions. 
       </p>
     </section>
   
