@@ -122,6 +122,27 @@ export default function Home() {
     );
   }
 
+  if (session === null && typeof window !== 'undefined') {
+  return (
+    <div className="min-h-screen flex flex-col justify-center items-center text-center px-6">
+      <h2 className="text-xl font-semibold mb-2">Session expired</h2>
+      <p className="text-gray-600 text-sm mb-4">
+        Looks like your session is out of sync. Please sign in again to access your training plan.
+      </p>
+      <button
+        onClick={async () => {
+          await supabase.auth.signOut();
+          router.push('/login');
+        }}
+        className="bg-black text-white px-6 py-2 rounded-full text-sm"
+      >
+        Sign in again
+      </button>
+    </div>
+  );
+}
+
+
   return (
     <div className="min-h-screen bg-white text-gray-900">
       <main className="max-w-4xl mx-auto px-6 py-16">
