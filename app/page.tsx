@@ -20,7 +20,7 @@ type FieldConfig = {
 export default function Home() {
   const router = useRouter();
   const [session, setSession] = useState<Session | null | undefined>(undefined);
-  const [hasPlan, setHasPlan] = useState<boolean | null>(null);
+  const [hasPlan, setHasPlan] = useState<boolean>(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [userNote, setUserNote] = useState('');
   const [formData, setFormData] = useState({
@@ -31,7 +31,7 @@ export default function Home() {
     bikeFTP: '',
     runPace: '',
     swimPace: '',
-    restDay: '',
+    restDay: ''
   });
 
   const beginnerFields: FieldConfig[] = [
@@ -47,6 +47,22 @@ export default function Home() {
     { id: 'swimPace', label: 'Swim Threshold Pace (per 100m)', type: 'text', placeholder: 'e.g. 1:38' },
     { id: 'restDay', label: 'Preferred Rest Day', type: 'select', options: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] },
   ];
+
+  // 🔁 Force logout if stale session
+  useEffect(() => {
+    const checkStaleSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session && typeof window !== 'undefined') {
+        const flag = localStorage.getItem('forcedLogoutComplete');
+        if (!flag) {
+          await supabase.auth.signOut();
+          localStorage.setItem('forcedLogoutComplete', 'true');
+          window.location.href = '/login';
+        }
+      }
+    };
+    checkStaleSession();
+  }, []);
 
   useEffect(() => {
     const init = async () => {
@@ -65,19 +81,15 @@ export default function Home() {
             .maybeSingle();
 
           setHasPlan(!!planData?.id);
-        } else {
-          setHasPlan(false);
         }
       } catch (err) {
-        console.error('Session init error:', err);
-        setSession(null);
-        setHasPlan(false);
+        console.error('Error initializing session:', err);
       }
     };
 
     init();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
       if (session?.user) {
         const { data: planData } = await supabase
@@ -94,9 +106,9 @@ export default function Home() {
     });
 
     return () => {
-      authListener?.subscription.unsubscribe();
+      listener?.subscription.unsubscribe();
     };
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (session && hasPlan) {
@@ -109,57 +121,30 @@ export default function Home() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // Loading spinner
   if (session === undefined) {
-  return (
-    <div className="min-h-screen flex flex-col justify-center items-center bg-white text-gray-500">
-      <div className="w-12 h-12 mb-4 relative">
-        <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
-        <div className="absolute inset-0 rounded-full border-4 border-t-black border-b-transparent animate-spin"></div>
+    return (
+      <div className="min-h-screen flex flex-col justify-center items-center bg-white text-gray-500">
+        <div className="w-12 h-12 mb-4 relative">
+          <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
+          <div className="absolute inset-0 rounded-full border-4 border-t-black border-b-transparent animate-spin"></div>
+        </div>
+        <p className="text-sm">Checking session...</p>
       </div>
-      <p className="text-sm">Checking session...</p>
-    </div>
-  );
-}
+    );
+  }
 
-if (session === null && typeof window !== 'undefined') {
-  return (
-    <div className="min-h-screen flex flex-col justify-center items-center text-center px-6">
-      <h2 className="text-xl font-semibold mb-2">Session expired</h2>
-      <p className="text-gray-600 text-sm mb-4">
-        Looks like your session is out of sync. Please sign in again to access your training plan.
-      </p>
-      <button
-        onClick={async () => {
-          await supabase.auth.signOut();
-          router.push('/login');
-        }}
-        className="bg-black text-white px-6 py-2 rounded-full text-sm"
-      >
-        Sign in again
-      </button>
-    </div>
-  );
-}
-
-if (hasPlan === null) {
-  return (
-    <div className="min-h-screen flex flex-col justify-center items-center bg-white text-gray-500">
-      <div className="w-12 h-12 mb-4 relative">
-        <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
-        <div className="absolute inset-0 rounded-full border-4 border-t-black border-b-transparent animate-spin"></div>
-      </div>
-      <p className="text-sm">Checking plan...</p>
-    </div>
-  );
-}
-
+  if (session && hasPlan) {
+    router.replace('/coaching');
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-white text-gray-900">
       <main className="max-w-4xl mx-auto px-6 py-16">
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-semibold tracking-tight">Smarter Endurance Plans. Instantly.</h1>
+          <h1 className="text-4xl font-semibold tracking-tight">
+            Smarter Endurance Plans. Instantly.
+          </h1>
           <p className="mt-3 text-gray-500 text-lg">
             Generate your personalized triathlon training plan in seconds.
           </p>
