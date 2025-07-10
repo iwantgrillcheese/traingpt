@@ -69,7 +69,6 @@ export default function Home() {
 
     init();
 
-    // Also listen to real-time auth changes
     const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
       if (session?.user) {
@@ -91,6 +90,12 @@ export default function Home() {
     };
   }, [router]);
 
+  useEffect(() => {
+    if (session && hasPlan) {
+      router.push('/coaching');
+    }
+  }, [session, hasPlan, router]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -108,121 +113,98 @@ export default function Home() {
     );
   }
 
+  if (session && hasPlan) {
+    return null; // prevent UI flicker while redirecting
+  }
+
   return (
     <div className="min-h-screen bg-white text-gray-900">
       <main className="max-w-4xl mx-auto px-6 py-16">
-        {session && hasPlan ? (
-          <>
-            <div className="text-center mb-12">
-              <h1 className="text-4xl font-semibold tracking-tight">You already have a plan!</h1>
-              <p className="mt-3 text-gray-500 text-lg">Want to view or re-roll?</p>
-            </div>
-            <div className="bg-gray-50 border border-gray-200 shadow-sm rounded-xl p-8 flex flex-col items-center text-center space-y-4">
-              <div className="flex gap-4">
-                <button
-                  className="bg-black text-white px-6 py-2 rounded-full text-sm font-medium hover:bg-gray-800"
-                  onClick={() => router.push('/plan')}
-                >
-                  Re-generate Plan
-                </button>
-                <button
-                  className="bg-gray-300 text-gray-800 px-6 py-2 rounded-full text-sm font-medium hover:bg-gray-400"
-                  onClick={() => router.push('/schedule')}
-                >
-                  View Current Plan
-                </button>
-              </div>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="text-center mb-12">
-              <h1 className="text-4xl font-semibold tracking-tight">
-                Smarter Endurance Plans. Instantly.
-              </h1>
-              <p className="mt-3 text-gray-500 text-lg">
-                Generate your personalized triathlon training plan in seconds.
-              </p>
-            </div>
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-semibold tracking-tight">
+            Smarter Endurance Plans. Instantly.
+          </h1>
+          <p className="mt-3 text-gray-500 text-lg">
+            Generate your personalized triathlon training plan in seconds.
+          </p>
+        </div>
 
-            <form className="bg-gray-50 border border-gray-200 shadow-sm rounded-xl p-8 grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              {[...beginnerFields, ...(showAdvanced ? advancedFields : [])].map(({ id, label, type, options, placeholder }) => (
-                <div key={id}>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-                  {type === 'select' ? (
-                    <select
-                      id={id}
-                      name={id}
-                      value={formData[id as keyof typeof formData]}
-                      onChange={handleChange}
-                      className="w-full bg-white border border-gray-300 rounded-md p-2 text-sm"
-                    >
-                      <option value="">Select...</option>
-                      {options?.map(opt => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type={type}
-                      id={id}
-                      name={id}
-                      placeholder={placeholder}
-                      value={formData[id as keyof typeof formData]}
-                      onChange={handleChange}
-                      className="w-full bg-white border border-gray-300 rounded-md p-2 text-sm"
-                    />
-                  )}
-                </div>
-              ))}
-
-              <div className="md:col-span-2">
-                <label htmlFor="userNote" className="block text-sm font-medium text-gray-700 mb-1">
-                  Customize your plan (optional)
-                </label>
-                <textarea
-                  id="userNote"
-                  name="userNote"
-                  rows={3}
-                  value={userNote}
-                  onChange={e => setUserNote(e.target.value)}
-                  placeholder="E.g. I’m targeting a 1:30 half marathon off the bike and need help with swim fitness..."
+        <form className="bg-gray-50 border border-gray-200 shadow-sm rounded-xl p-8 grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          {[...beginnerFields, ...(showAdvanced ? advancedFields : [])].map(({ id, label, type, options, placeholder }) => (
+            <div key={id}>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+              {type === 'select' ? (
+                <select
+                  id={id}
+                  name={id}
+                  value={formData[id as keyof typeof formData]}
+                  onChange={handleChange}
+                  className="w-full bg-white border border-gray-300 rounded-md p-2 text-sm"
+                >
+                  <option value="">Select...</option>
+                  {options?.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type={type}
+                  id={id}
+                  name={id}
+                  placeholder={placeholder}
+                  value={formData[id as keyof typeof formData]}
+                  onChange={handleChange}
                   className="w-full bg-white border border-gray-300 rounded-md p-2 text-sm"
                 />
-              </div>
+              )}
+            </div>
+          ))}
 
-              <div className="md:col-span-2 flex items-center justify-center space-x-3 mt-2">
-                <span className="text-sm text-gray-600">Advanced Options</span>
-                <button
-                  type="button"
-                  onClick={() => setShowAdvanced(!showAdvanced)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    showAdvanced ? 'bg-black' : 'bg-gray-300'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      showAdvanced ? 'translate-x-5' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
+          <div className="md:col-span-2">
+            <label htmlFor="userNote" className="block text-sm font-medium text-gray-700 mb-1">
+              Customize your plan (optional)
+            </label>
+            <textarea
+              id="userNote"
+              name="userNote"
+              rows={3}
+              value={userNote}
+              onChange={e => setUserNote(e.target.value)}
+              placeholder="E.g. I’m targeting a 1:30 half marathon off the bike and need help with swim fitness..."
+              className="w-full bg-white border border-gray-300 rounded-md p-2 text-sm"
+            />
+          </div>
 
-              <div className="md:col-span-2 text-center mt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!session) router.push('/login');
-                    else router.push('/plan');
-                  }}
-                  className="bg-black text-white px-8 py-3 rounded-full font-medium hover:bg-gray-800"
-                >
-                  {session ? 'Generate Plan' : 'Sign in to Generate Your Plan'}
-                </button>
-              </div>
-            </form>
-          </>
-        )}
+          <div className="md:col-span-2 flex items-center justify-center space-x-3 mt-2">
+            <span className="text-sm text-gray-600">Advanced Options</span>
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                showAdvanced ? 'bg-black' : 'bg-gray-300'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  showAdvanced ? 'translate-x-5' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+
+          <div className="md:col-span-2 text-center mt-4">
+            <button
+              type="button"
+              onClick={() => {
+                if (!session) router.push('/login');
+                else router.push('/plan');
+              }}
+              className="bg-black text-white px-8 py-3 rounded-full font-medium hover:bg-gray-800"
+            >
+              {session ? 'Generate Plan' : 'Sign in to Generate Your Plan'}
+            </button>
+          </div>
+        </form>
       </main>
 
       <div className="max-w-screen-xl mx-auto px-6">
