@@ -20,7 +20,7 @@ type FieldConfig = {
 export default function Home() {
   const router = useRouter();
   const [session, setSession] = useState<Session | null | undefined>(undefined);
-  const [hasPlan, setHasPlan] = useState<boolean>(false);
+  const [hasPlan, setHasPlan] = useState<boolean | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [userNote, setUserNote] = useState('');
   const [formData, setFormData] = useState({
@@ -31,7 +31,7 @@ export default function Home() {
     bikeFTP: '',
     runPace: '',
     swimPace: '',
-    restDay: ''
+    restDay: '',
   });
 
   const beginnerFields: FieldConfig[] = [
@@ -48,36 +48,36 @@ export default function Home() {
     { id: 'restDay', label: 'Preferred Rest Day', type: 'select', options: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] },
   ];
 
- useEffect(() => {
-  const init = async () => {
-    try {
-      const supabase = createClientComponentClient();
-      const result = await supabase.auth.getSession();
-      console.log('Raw getSession() result:', result);
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const result = await supabase.auth.getSession();
+        const session = result.data.session;
+        setSession(session);
 
-      const session = result.data.session;
-      setSession(session);
+        if (session?.user) {
+          const { data: planData } = await supabase
+            .from('plans')
+            .select('id')
+            .eq('user_id', session.user.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
 
-      if (session?.user) {
-        const { data: planData } = await supabase
-          .from('plans')
-          .select('id')
-          .eq('user_id', session.user.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        console.log('Fetched planData:', planData);
-        setHasPlan(!!planData?.id);
+          setHasPlan(!!planData?.id);
+        } else {
+          setHasPlan(false);
+        }
+      } catch (err) {
+        console.error('Session init error:', err);
+        setSession(null);
+        setHasPlan(false);
       }
-    } catch (err) {
-      console.error('Error initializing session:', err);
-    }
-  };
+    };
 
     init();
 
-    const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       if (session?.user) {
         const { data: planData } = await supabase
@@ -94,14 +94,13 @@ export default function Home() {
     });
 
     return () => {
-      listener?.subscription.unsubscribe();
+      authListener?.subscription.unsubscribe();
     };
-  }, [router]);
+  }, []);
 
   useEffect(() => {
     if (session && hasPlan) {
-       console.log('Redirecting to /coaching...');
-      router.push('/coaching');
+      router.replace('/coaching');
     }
   }, [session, hasPlan, router]);
 
@@ -110,7 +109,8 @@ export default function Home() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  if (session === undefined) {
+  // Loading spinner
+  if (session === undefined || hasPlan === null) {
     return (
       <div className="min-h-screen flex flex-col justify-center items-center bg-white text-gray-500">
         <div className="w-12 h-12 mb-4 relative">
@@ -122,18 +122,11 @@ export default function Home() {
     );
   }
 
-if (session && hasPlan) {
-  router.replace('/coaching');
-  return null;
-}
-
   return (
     <div className="min-h-screen bg-white text-gray-900">
       <main className="max-w-4xl mx-auto px-6 py-16">
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-semibold tracking-tight">
-            Smarter Endurance Plans. Instantly.
-          </h1>
+          <h1 className="text-4xl font-semibold tracking-tight">Smarter Endurance Plans. Instantly.</h1>
           <p className="mt-3 text-gray-500 text-lg">
             Generate your personalized triathlon training plan in seconds.
           </p>
