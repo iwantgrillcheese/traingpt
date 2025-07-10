@@ -110,19 +110,19 @@ export default function Home() {
   };
 
   // Loading spinner
-  if (session === undefined || hasPlan === null) {
-    return (
-      <div className="min-h-screen flex flex-col justify-center items-center bg-white text-gray-500">
-        <div className="w-12 h-12 mb-4 relative">
-          <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
-          <div className="absolute inset-0 rounded-full border-4 border-t-black border-b-transparent animate-spin"></div>
-        </div>
-        <p className="text-sm">Checking session...</p>
+  if (session === undefined) {
+  return (
+    <div className="min-h-screen flex flex-col justify-center items-center bg-white text-gray-500">
+      <div className="w-12 h-12 mb-4 relative">
+        <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
+        <div className="absolute inset-0 rounded-full border-4 border-t-black border-b-transparent animate-spin"></div>
       </div>
-    );
-  }
+      <p className="text-sm">Checking session...</p>
+    </div>
+  );
+}
 
-  if (session === null && typeof window !== 'undefined') {
+if (session === null && typeof window !== 'undefined') {
   return (
     <div className="min-h-screen flex flex-col justify-center items-center text-center px-6">
       <h2 className="text-xl font-semibold mb-2">Session expired</h2>
@@ -138,6 +138,18 @@ export default function Home() {
       >
         Sign in again
       </button>
+    </div>
+  );
+}
+
+if (hasPlan === null) {
+  return (
+    <div className="min-h-screen flex flex-col justify-center items-center bg-white text-gray-500">
+      <div className="w-12 h-12 mb-4 relative">
+        <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
+        <div className="absolute inset-0 rounded-full border-4 border-t-black border-b-transparent animate-spin"></div>
+      </div>
+      <p className="text-sm">Checking plan...</p>
     </div>
   );
 }
