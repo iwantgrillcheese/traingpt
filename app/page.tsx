@@ -48,11 +48,15 @@ export default function Home() {
     { id: 'restDay', label: 'Preferred Rest Day', type: 'select', options: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] },
   ];
 
-  useEffect(() => {
-    const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+ useEffect(() => {
+  const init = async () => {
+    try {
+      const supabase = createClientComponentClient();
+      const result = await supabase.auth.getSession();
+      console.log('Raw getSession() result:', result);
+
+      const session = result.data.session;
       setSession(session);
-          console.log('Fetched session:', session);
 
       if (session?.user) {
         const { data: planData } = await supabase
@@ -62,10 +66,14 @@ export default function Home() {
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
+
+        console.log('Fetched planData:', planData);
         setHasPlan(!!planData?.id);
-           console.log('Fetched planData:', planData);
       }
-    };
+    } catch (err) {
+      console.error('Error initializing session:', err);
+    }
+  };
 
     init();
 
