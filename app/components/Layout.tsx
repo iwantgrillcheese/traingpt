@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import ProfileAvatar from './profile avatar';
+import Footer from './footer';
 import type { Session } from '@supabase/auth-helpers-nextjs';
 
 const supabase = createClientComponentClient();
@@ -76,6 +77,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <main className="pt-24 px-4 max-w-7xl mx-auto transition-all duration-300">
         {children}
       </main>
+
+<Footer /> 
+
     </div>
   );
 }
