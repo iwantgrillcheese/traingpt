@@ -41,7 +41,7 @@ export default function AuthCallback() {
       }
 
       setStatus('Success! Redirecting...');
-      router.push('/plan');
+      router.push('/schedule');
     };
 
     handleAuth();
