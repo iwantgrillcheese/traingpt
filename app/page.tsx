@@ -54,6 +54,7 @@ export default function Home() {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
+          console.log('Fetched session:', session);
 
       if (session?.user) {
         const { data: planData } = await supabase
@@ -64,6 +65,7 @@ export default function Home() {
           .limit(1)
           .maybeSingle();
         setHasPlan(!!planData?.id);
+           console.log('Fetched planData:', planData);
       }
     };
 
@@ -92,6 +94,7 @@ export default function Home() {
 
   useEffect(() => {
     if (session && hasPlan) {
+       console.log('Redirecting to /coaching...');
       router.push('/coaching');
     }
   }, [session, hasPlan, router]);
@@ -113,9 +116,10 @@ export default function Home() {
     );
   }
 
-  if (session && hasPlan) {
-    return null; // prevent UI flicker while redirecting
-  }
+if (session && hasPlan) {
+  router.replace('/coaching');
+  return null;
+}
 
   return (
     <div className="min-h-screen bg-white text-gray-900">
