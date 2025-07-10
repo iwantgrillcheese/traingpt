@@ -9,12 +9,12 @@ export default function Footer() {
         <div>
           <h3 className="text-xs font-semibold text-gray-400 uppercase mb-4">TRAINGPT</h3>
           <ul className="space-y-2">
-            <li><Link href="/">Plan Generator</Link></li>
-            <li><Link href="/schedule">My Schedule</Link></li>
-            <li>
+             <li>
               <Link href="/about" className="text-sm text-gray-400 hover:text-black transition">
                 About this project
               </Link>
+            <li><Link href="/">Plan Generator</Link></li>
+            <li><Link href="/schedule">My Schedule</Link></li>
             </li>
             <li><Link href="/coaching">Coaching</Link></li>
             <li><Link href="/settings">Settings</Link></li>
