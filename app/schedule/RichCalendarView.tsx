@@ -143,7 +143,7 @@ export default function RichCalendarView({
                     userNote: '',
                   });
                 }}
-                className={`border border-neutral-200 rounded-md shadow-sm bg-white hover:bg-neutral-50 hover:ring-1 hover:ring-neutral-300 px-4 py-2 text-left min-h-[100px] relative cursor-pointer transition duration-150 ease-in-out`}
+                className={`bg-white hover:bg-neutral-50 px-3 py-2 text-left min-h-[100px] relative cursor-pointer transition duration-150 ease-in-out`}
               >
                 <div className="text-[10px] text-neutral-400 uppercase font-medium mb-1">
                   {format(parseISO(date), 'MMM d')}
@@ -152,10 +152,10 @@ export default function RichCalendarView({
                 {sessions.slice(0, 3).map((s, i) => (
                   <div
                     key={i}
-                    className="relative pl-3 text-sm text-neutral-700 mb-1 border-l-4"
+                    className="flex items-center text-xs truncate relative pl-2 border-l-4 mb-1"
                     style={{ borderColor: getTopBarColor(s).replace('bg-', '') }}
                   >
-                    {cleanLabel(s)}
+                    {s.length > 30 ? s.slice(0, 27) + '…' : s}
                   </div>
                 ))}
 
