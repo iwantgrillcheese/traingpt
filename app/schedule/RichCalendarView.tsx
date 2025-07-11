@@ -1,4 +1,3 @@
-// FINALIZED: RichCalendarView.tsx — Best-in-Class UI
 'use client';
 
 import { useMemo, useState } from 'react';
@@ -92,6 +91,22 @@ export default function RichCalendarView({
     return '';
   };
 
+  const getLabelStyle = (s: string) => {
+    const lower = s.toLowerCase();
+    if (lower.includes('swim')) return 'bg-sky-600 text-white';
+    if (lower.includes('bike')) return 'bg-orange-500 text-white';
+    if (lower.includes('run')) return 'bg-green-600 text-white';
+    return 'bg-neutral-200 text-neutral-600';
+  };
+
+  const getLabelTitle = (s: string) => {
+    const lower = s.toLowerCase();
+    if (lower.includes('swim')) return 'SWIM';
+    if (lower.includes('bike')) return 'BIKE';
+    if (lower.includes('run')) return 'RUN';
+    return 'REST DAY';
+  };
+
   return (
     <div className="w-full max-w-6xl mx-auto px-4 py-8 rounded-3xl shadow bg-white">
       <div className="flex justify-between items-end mb-6">
@@ -126,51 +141,36 @@ export default function RichCalendarView({
             const sessions = sessionsByDate[date] || [];
             const isToday = isSameDay(parseISO(date), today);
 
-            const sessionElements = sessions.slice(0, 2).map((s, i) => {
-              const clean = cleanLabel(s);
-              const emoji = s.toLowerCase().includes('swim')
-                ? '🏊'
-                : s.toLowerCase().includes('bike')
-                ? '🚴'
-                : s.toLowerCase().includes('run')
-                ? '🏃'
-                : '🧘';
-              return (
-                <div key={i} className="text-[13px] text-neutral-700 flex items-center gap-2 leading-tight">
-                  <span className="text-md">{emoji}</span>
-                  <span className="truncate font-medium text-neutral-700 max-w-[120px]">{clean}</span>
-                </div>
-              );
-            });
+            const firstSession = sessions[0];
+            const labelClass = getLabelStyle(firstSession || 'rest');
+            const labelTitle = getLabelTitle(firstSession || 'rest');
 
+            const clean = cleanLabel(firstSession || 'Rest day');
             const statusColor = getStatusColor(date, sessions);
 
             return (
               <div
                 key={date}
                 onClick={() => {
-                  const first = sessions[0];
-                  if (!first) return;
-                  const key = `${date}-${first}`;
+                  if (!firstSession) return;
+                  const key = `${date}-${firstSession}`;
                   setActiveSession({
                     date,
-                    title: first,
-                    status: completed[`${date}-${first.toLowerCase().includes('swim') ? 'swim' : first.toLowerCase().includes('bike') ? 'bike' : 'run'}`],
+                    title: firstSession,
+                    status: completed[`${date}-${firstSession.toLowerCase().includes('swim') ? 'swim' : firstSession.toLowerCase().includes('bike') ? 'bike' : 'run'}`],
                     aiWorkout: detailedWorkoutMap[key] || null,
                     userNote: '',
                   });
                 }}
                 className={`relative bg-[#F9FAFB] border border-neutral-200 rounded-2xl px-4 py-4 min-h-[115px] cursor-pointer shadow-sm transition hover:shadow-md hover:scale-[1.015] flex flex-col justify-start items-start ${isToday ? 'ring-2 ring-black/10' : ''}`}
               >
-                <div className="text-[11px] uppercase font-medium text-neutral-400 mb-1 tracking-wide">
+                <div className="text-[11px] uppercase font-medium text-neutral-400 mb-2 tracking-wide">
                   {format(parseISO(date), 'MMM d')}
                 </div>
-                {sessionElements.length ? sessionElements : (
-                  <div className="text-[13px] text-neutral-400 flex items-center gap-2">
-                    <span>🧘</span>
-                    <span>Rest day</span>
-                  </div>
-                )}
+                <div className={`text-[11px] font-semibold px-2 py-1 rounded-md mb-2 ${labelClass}`}>{labelTitle}</div>
+                <div className="text-[13px] text-neutral-700 font-medium truncate max-w-[120px]">
+                  {clean}
+                </div>
                 {statusColor && <span className={`absolute top-2 right-2 w-2.5 h-2.5 rounded-full ${statusColor}`} />}
               </div>
             );
