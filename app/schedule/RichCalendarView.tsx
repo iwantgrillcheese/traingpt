@@ -150,19 +150,19 @@ export default function RichCalendarView({
                     userNote: '',
                   });
                 }}
-                className={`relative bg-[#F9FAFB] border border-neutral-200 rounded-2xl px-4 py-4 min-h-[115px] cursor-pointer shadow-sm transition hover:shadow-md hover:scale-[1.015] flex flex-col justify-start items-start ${isToday ? 'ring-2 ring-black/10' : ''}`}
+                className={`relative bg-white border border-neutral-200 rounded-xl px-3 py-3 min-h-[115px] cursor-pointer transition hover:shadow-md flex flex-col justify-start items-start ${isToday ? 'ring-2 ring-black/10' : ''}`}
               >
-                {/* Top tag bar */}
-                <div className="absolute top-0 left-0 right-0 h-2 flex z-10 overflow-hidden rounded-t-2xl">
+                {/* Top stacked bars */}
+                <div className="absolute top-0 left-0 right-0 h-2 flex z-10 overflow-hidden rounded-t-xl">
                   {sessions.slice(0, 3).map((s, i) => (
                     <div
                       key={i}
-                      className={`${getTopBarColor(s)} h-full w-full`} // Equal width stacked bar
+                      className={`${getTopBarColor(s)} h-full w-full`}
                     />
                   ))}
                 </div>
 
-                <div className="text-[11px] uppercase font-medium text-neutral-400 mb-2 tracking-wide mt-2">
+                <div className="text-[11px] uppercase font-medium text-neutral-400 mb-2 tracking-wide mt-3">
                   {format(parseISO(date), 'MMM d')}
                 </div>
 
@@ -178,7 +178,7 @@ export default function RichCalendarView({
                       : '📋';
 
                     return (
-                      <div key={i} className="flex items-center gap-2 text-sm bg-neutral-100 px-2 py-1 rounded-xl w-fit text-neutral-700 font-medium">
+                      <div key={i} className="flex items-center gap-2 text-sm bg-neutral-100 px-2 py-1 rounded-lg w-fit text-neutral-700 font-medium">
                         <span>{emoji}</span>
                         <span className="truncate max-w-[100px]">{clean}</span>
                       </div>
@@ -188,6 +188,10 @@ export default function RichCalendarView({
                       <span>📋</span>
                       <span>Rest day</span>
                     </div>
+                  )}
+
+                  {sessions.length > 3 && (
+                    <div className="text-xs text-neutral-400 mt-1">+{sessions.length - 3} more…</div>
                   )}
                 </div>
 
