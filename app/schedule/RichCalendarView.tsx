@@ -93,30 +93,30 @@ export default function RichCalendarView({
   };
 
   return (
-    <div className="w-full max-w-5xl mx-auto px-4 py-6 bg-[#F9FAFB] rounded-3xl shadow-sm">
-      <div className="flex justify-between items-center mb-6">
+    <div className="w-full max-w-6xl mx-auto px-4 py-8 rounded-3xl shadow bg-white">
+      <div className="flex justify-between items-end mb-6">
         <div>
-          <h2 className="text-2xl font-semibold text-neutral-900">Your Training Plan</h2>
-          <p className="text-sm text-neutral-500">Click a session for AI-generated details</p>
+          <h2 className="text-3xl font-semibold text-neutral-900">Your Training Plan</h2>
+          <p className="text-sm text-neutral-500 mt-1">Click a session for AI-generated details</p>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-neutral-500">
+          <span className="text-sm text-neutral-600 font-medium">
             {format(parseISO(visibleWeeks[0][0]), 'MMMM yyyy')}
           </span>
           {monthIndex > 0 && (
-            <button onClick={() => setMonthIndex((prev) => Math.max(prev - 1, 0))} className="text-sm text-neutral-500 hover:text-neutral-800">
+            <button onClick={() => setMonthIndex((prev) => Math.max(prev - 1, 0))} className="text-sm text-neutral-400 hover:text-neutral-800">
               ← Prev
             </button>
           )}
           {calendarRange.length > (monthIndex + 1) * 4 && (
-            <button onClick={() => setMonthIndex((prev) => prev + 1)} className="text-sm text-neutral-500 hover:text-neutral-800">
+            <button onClick={() => setMonthIndex((prev) => prev + 1)} className="text-sm text-neutral-400 hover:text-neutral-800">
               Next →
             </button>
           )}
         </div>
       </div>
 
-      <div className="grid grid-cols-7 text-center text-[13px] text-neutral-500 mb-3">
+      <div className="grid grid-cols-7 text-center text-[13px] text-neutral-400 uppercase mb-2">
         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => <div key={d}>{d}</div>)}
       </div>
 
@@ -136,9 +136,9 @@ export default function RichCalendarView({
                 ? '🏃'
                 : '🧘';
               return (
-                <div key={i} className="text-[13px] text-neutral-700 flex items-center gap-1 leading-snug">
-                  <span>{emoji}</span>
-                  <span className="truncate line-clamp-2">{clean}</span>
+                <div key={i} className="text-[13px] text-neutral-700 flex items-center gap-2 leading-tight">
+                  <span className="text-md">{emoji}</span>
+                  <span className="truncate font-medium text-neutral-700 max-w-[120px]">{clean}</span>
                 </div>
               );
             });
@@ -160,21 +160,18 @@ export default function RichCalendarView({
                     userNote: '',
                   });
                 }}
-                className={`
-                  relative bg-white border border-neutral-200 rounded-xl px-4 py-3 cursor-pointer flex flex-col justify-start min-h-[120px]
-                  transition hover:shadow-md hover:scale-[1.01] ${isToday ? 'ring-2 ring-black/10' : ''}
-                `}
+                className={`relative bg-[#F9FAFB] border border-neutral-200 rounded-2xl px-4 py-4 min-h-[115px] cursor-pointer shadow-sm transition hover:shadow-md hover:scale-[1.015] flex flex-col justify-start items-start ${isToday ? 'ring-2 ring-black/10' : ''}`}
               >
-                <div className="text-[11px] font-medium text-neutral-400 mb-1 text-center uppercase tracking-wider">
+                <div className="text-[11px] uppercase font-medium text-neutral-400 mb-1 tracking-wide">
                   {format(parseISO(date), 'MMM d')}
                 </div>
                 {sessionElements.length ? sessionElements : (
-                  <div className="text-[13px] text-neutral-400 flex items-center gap-1">
+                  <div className="text-[13px] text-neutral-400 flex items-center gap-2">
                     <span>🧘</span>
                     <span>Rest day</span>
                   </div>
                 )}
-                {statusColor && <span className={`absolute top-2 right-2 w-2 h-2 rounded-full ${statusColor}`} />}
+                {statusColor && <span className={`absolute top-2 right-2 w-2.5 h-2.5 rounded-full ${statusColor}`} />}
               </div>
             );
           })}
