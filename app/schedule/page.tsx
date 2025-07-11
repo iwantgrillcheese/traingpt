@@ -6,6 +6,7 @@ import { format, parseISO, isSameDay } from 'date-fns';
 import SessionCard from './SessionCard';
 import RichCalendarView from './RichCalendarView';
 import MobileCalendarView from './MobileCalendarView';
+import SessionCardExpanded from './SessionCardExpanded';
 
 const supabase = createClientComponentClient();
 
@@ -216,7 +217,7 @@ useEffect(() => {
                       <div key={`${weekIdx}-${dayIdx}`} className="flex flex-col gap-4" data-date={date}>
                         <div className="text-md font-bold text-gray-600">{format(dateObj, 'EEEE, MMM d')}</div>
                         {sessions.map((sessionTitle, sessionIdx) => (
-                          <SessionCard
+                          <SessionCardExpanded
                             key={sessionIdx}
                             title={sessionTitle}
                             date={date}
@@ -232,12 +233,12 @@ useEffect(() => {
                             const durationMin = Math.round(activity.moving_time / 60);
                             const label = `${mapped.charAt(0).toUpperCase() + mapped.slice(1)}: ${durationMin}min ${activity.name?.toLowerCase().includes('hill') ? 'hilly' : ''}`.trim();
                             return (
-                              <SessionCard
-                                key={`strava-${idx}`}
-                                title={label}
-                                date={activity.start_date_local.split('T')[0]}
-                                isStravaOnly={true}
-                              />
+                              <SessionCardExpanded
+  key={`strava-${idx}`}
+  title={label}
+  date={activity.start_date_local.split('T')[0]}
+  isStravaOnly={true}
+/>
                             );
                           })}
                       </div>
