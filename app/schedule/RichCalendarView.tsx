@@ -92,6 +92,14 @@ export default function RichCalendarView({
     return '';
   };
 
+  const getTopBarColor = (session: string) => {
+    const s = session.toLowerCase();
+    if (s.includes('swim')) return 'bg-cyan-500';
+    if (s.includes('bike')) return 'bg-orange-400';
+    if (s.includes('run')) return 'bg-pink-500';
+    return 'bg-neutral-300';
+  };
+
   return (
     <div className="w-full max-w-6xl mx-auto px-4 py-8 rounded-3xl shadow bg-white">
       <div className="flex justify-between items-end mb-6">
@@ -125,7 +133,6 @@ export default function RichCalendarView({
           {week.map((date) => {
             const sessions = sessionsByDate[date] || [];
             const isToday = isSameDay(parseISO(date), today);
-
             const statusColor = getStatusColor(date, sessions);
 
             return (
@@ -145,7 +152,17 @@ export default function RichCalendarView({
                 }}
                 className={`relative bg-[#F9FAFB] border border-neutral-200 rounded-2xl px-4 py-4 min-h-[115px] cursor-pointer shadow-sm transition hover:shadow-md hover:scale-[1.015] flex flex-col justify-start items-start ${isToday ? 'ring-2 ring-black/10' : ''}`}
               >
-                <div className="text-[11px] uppercase font-medium text-neutral-400 mb-2 tracking-wide">
+                {/* Top tag bar */}
+                <div className="absolute top-0 left-0 right-0 h-2 flex z-10 overflow-hidden rounded-t-2xl">
+                  {sessions.slice(0, 3).map((s, i) => (
+                    <div
+                      key={i}
+                      className={`${getTopBarColor(s)} h-full w-full`} // Equal width stacked bar
+                    />
+                  ))}
+                </div>
+
+                <div className="text-[11px] uppercase font-medium text-neutral-400 mb-2 tracking-wide mt-2">
                   {format(parseISO(date), 'MMM d')}
                 </div>
 
