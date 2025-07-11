@@ -1,4 +1,4 @@
-// FINALIZED: RichCalendarView.tsx — Fantastical-Inspired Calendar UI
+// FINALIZED: RichCalendarView.tsx — Fantastical-style Flat UI Calendar
 'use client';
 
 import { useMemo, useState } from 'react';
@@ -101,35 +101,28 @@ export default function RichCalendarView({
   };
 
   return (
-    <div className="w-full max-w-6xl mx-auto px-4 py-8 rounded-3xl shadow bg-white">
-      <div className="flex justify-between items-end mb-6">
-        <div>
-          <h2 className="text-3xl font-semibold text-neutral-900">Your Training Plan</h2>
-          <p className="text-sm text-neutral-500 mt-1">Click a session for AI-generated details</p>
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-neutral-600 font-medium">
+    <div className="w-full max-w-6xl mx-auto px-6 py-10">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-semibold text-neutral-900">Your Training Plan</h2>
+        <div className="flex items-center gap-3 text-sm">
+          <span className="text-neutral-600">
             {format(parseISO(visibleWeeks[0][0]), 'MMMM yyyy')}
           </span>
           {monthIndex > 0 && (
-            <button onClick={() => setMonthIndex((prev) => Math.max(prev - 1, 0))} className="text-sm text-neutral-400 hover:text-neutral-800">
-              ← Prev
-            </button>
+            <button onClick={() => setMonthIndex((prev) => Math.max(prev - 1, 0))} className="text-neutral-500 hover:text-black">← Prev</button>
           )}
           {calendarRange.length > (monthIndex + 1) * 4 && (
-            <button onClick={() => setMonthIndex((prev) => prev + 1)} className="text-sm text-neutral-400 hover:text-neutral-800">
-              Next →
-            </button>
+            <button onClick={() => setMonthIndex((prev) => prev + 1)} className="text-neutral-500 hover:text-black">Next →</button>
           )}
         </div>
       </div>
 
-      <div className="grid grid-cols-7 text-center text-[13px] text-neutral-400 uppercase mb-2">
+      <div className="grid grid-cols-7 text-center text-xs text-neutral-400 uppercase mb-2">
         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => <div key={d}>{d}</div>)}
       </div>
 
       {visibleWeeks.map((week, idx) => (
-        <div key={idx} className="grid grid-cols-7 gap-2 mb-4">
+        <div key={idx} className="grid grid-cols-7 gap-[1px] bg-neutral-200 mb-[1px]">
           {week.map((date) => {
             const sessions = sessionsByDate[date] || [];
             const isToday = isSameDay(parseISO(date), today);
@@ -150,52 +143,31 @@ export default function RichCalendarView({
                     userNote: '',
                   });
                 }}
-                className={`relative bg-white border border-neutral-200 rounded-xl px-3 py-2 min-h-[110px] cursor-pointer transition hover:shadow-sm flex flex-col justify-start items-start overflow-hidden ${isToday ? 'ring-2 ring-black/10' : ''}`}
+                className={`bg-white hover:bg-neutral-50 px-3 py-2 text-left min-h-[100px] relative cursor-pointer transition duration-150 ease-in-out`}
               >
-                {/* Top stacked bars */}
-                <div className="absolute top-0 left-0 right-0 h-1.5 flex z-10 rounded-t-xl overflow-hidden">
-                  {sessions.slice(0, 3).map((s, i) => (
-                    <div
-                      key={i}
-                      className={`${getTopBarColor(s)} h-full flex-1`}
-                    />
-                  ))}
-                </div>
-
-                <div className="text-[11px] uppercase font-medium text-neutral-400 mb-1 tracking-wide mt-3">
+                <div className="text-[10px] text-neutral-400 uppercase font-medium mb-1">
                   {format(parseISO(date), 'MMM d')}
                 </div>
 
-                <div className="flex flex-col gap-1 w-full">
-                  {sessions.length ? sessions.slice(0, 3).map((s, i) => {
-                    const clean = cleanLabel(s);
-                    const emoji = s.toLowerCase().includes('swim')
-                      ? '🏊'
-                      : s.toLowerCase().includes('bike')
-                      ? '🚴'
-                      : s.toLowerCase().includes('run')
-                      ? '🏃'
-                      : '📋';
+                {sessions.slice(0, 3).map((s, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center text-xs truncate relative pl-2 border-l-4 mb-1"
+                    style={{ borderColor: getTopBarColor(s).replace('bg-', '') }}
+                  >
+                    {s.length > 30 ? s.slice(0, 27) + '…' : s}
+                  </div>
+                ))}
 
-                    return (
-                      <div key={i} className="flex items-center gap-2 text-sm bg-neutral-100 px-2 py-1 rounded-md text-neutral-700 font-medium max-w-full truncate">
-                        <span>{emoji}</span>
-                        <span className="truncate">{clean}</span>
-                      </div>
-                    );
-                  }) : (
-                    <div className="text-[13px] text-neutral-400 flex items-center gap-2">
-                      <span>📋</span>
-                      <span>Rest day</span>
-                    </div>
-                  )}
+                {sessions.length === 0 && (
+                  <div className="text-[11px] text-neutral-400">Rest day</div>
+                )}
 
-                  {sessions.length > 3 && (
-                    <div className="text-xs text-neutral-400 mt-1">+{sessions.length - 3} more…</div>
-                  )}
-                </div>
+                {sessions.length > 3 && (
+                  <div className="text-[10px] text-neutral-400 mt-1">+{sessions.length - 3} more</div>
+                )}
 
-                {statusColor && <span className={`absolute top-2 right-2 w-2.5 h-2.5 rounded-full ${statusColor}`} />}
+                {statusColor && <span className={`absolute top-1 right-1 w-2 h-2 rounded-full ${statusColor}`} />}
               </div>
             );
           })}
