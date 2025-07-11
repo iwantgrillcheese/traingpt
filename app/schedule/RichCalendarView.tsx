@@ -1,4 +1,4 @@
-// FINALIZED: RichCalendarView.tsx — Best-in-Class UI with Stacked Tags
+// FINALIZED: RichCalendarView.tsx — Fantastical-Inspired Calendar UI
 'use client';
 
 import { useMemo, useState } from 'react';
@@ -129,7 +129,7 @@ export default function RichCalendarView({
       </div>
 
       {visibleWeeks.map((week, idx) => (
-        <div key={idx} className="grid grid-cols-7 gap-3 mb-4">
+        <div key={idx} className="grid grid-cols-7 gap-2 mb-4">
           {week.map((date) => {
             const sessions = sessionsByDate[date] || [];
             const isToday = isSameDay(parseISO(date), today);
@@ -150,7 +150,7 @@ export default function RichCalendarView({
                     userNote: '',
                   });
                 }}
-                className={`relative bg-white border border-neutral-200 rounded-xl px-3 py-3 min-h-[130px] cursor-pointer transition hover:shadow-md flex flex-col justify-start items-start overflow-hidden ${isToday ? 'ring-2 ring-black/10' : ''}`}
+                className={`relative bg-white border border-neutral-200 rounded-xl px-3 py-2 min-h-[110px] cursor-pointer transition hover:shadow-sm flex flex-col justify-start items-start overflow-hidden ${isToday ? 'ring-2 ring-black/10' : ''}`}
               >
                 {/* Top stacked bars */}
                 <div className="absolute top-0 left-0 right-0 h-1.5 flex z-10 rounded-t-xl overflow-hidden">
@@ -162,7 +162,7 @@ export default function RichCalendarView({
                   ))}
                 </div>
 
-                <div className="text-[11px] uppercase font-medium text-neutral-400 mb-2 tracking-wide mt-3">
+                <div className="text-[11px] uppercase font-medium text-neutral-400 mb-1 tracking-wide mt-3">
                   {format(parseISO(date), 'MMM d')}
                 </div>
 
@@ -178,9 +178,9 @@ export default function RichCalendarView({
                       : '📋';
 
                     return (
-                      <div key={i} className="flex items-center gap-2 text-sm bg-neutral-100 px-2 py-1 rounded-lg w-fit text-neutral-700 font-medium">
+                      <div key={i} className="flex items-center gap-2 text-sm bg-neutral-100 px-2 py-1 rounded-md text-neutral-700 font-medium max-w-full truncate">
                         <span>{emoji}</span>
-                        <span className="truncate max-w-[100px]">{clean}</span>
+                        <span className="truncate">{clean}</span>
                       </div>
                     );
                   }) : (
