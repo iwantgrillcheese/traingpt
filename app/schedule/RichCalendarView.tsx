@@ -1,4 +1,4 @@
-// Award-worthy: RichCalendarViewV2.tsx
+// FINALIZED: RichCalendarView.tsx — Best-in-Class UI
 'use client';
 
 import { useMemo, useState } from 'react';
@@ -9,39 +9,8 @@ import {
   startOfWeek,
   addDays,
 } from 'date-fns';
-import clsx from 'clsx';
 import { useRouter } from 'next/navigation';
 import { SessionModal } from './SessionModal';
-
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-const EMOJIS: Record<string, string> = {
-  swim: '🏊',
-  bike: '🚴',
-  run: '🏃',
-  rest: '🧘',
-  strava: '📈',
-};
-
-const getEmoji = (s: string) => {
-  const lower = s.toLowerCase();
-  if (lower.includes('swim')) return EMOJIS.swim;
-  if (lower.includes('bike')) return EMOJIS.bike;
-  if (lower.includes('run')) return EMOJIS.run;
-  if (lower.includes('strava')) return EMOJIS.strava;
-  return EMOJIS.rest;
-};
-
-const getStatusColor = (date: string, sessions: string[], completed: Record<string, string>) => {
-  const statuses = sessions.map((s) => {
-    const key = `${date}-${s.toLowerCase().includes('swim') ? 'swim' : s.toLowerCase().includes('bike') ? 'bike' : 'run'}`;
-    return completed[key];
-  });
-  if (statuses.includes('done')) return 'bg-green-500';
-  if (statuses.includes('skipped')) return 'bg-yellow-400';
-  if (sessions.length) return 'bg-cyan-500';
-  return '';
-};
 
 export default function RichCalendarView({
   plan,
@@ -54,7 +23,6 @@ export default function RichCalendarView({
 }) {
   const today = new Date();
   const router = useRouter();
-  const [monthIndex, setMonthIndex] = useState(0);
   const [activeSession, setActiveSession] = useState<any | null>(null);
   const [detailedWorkoutMap, setDetailedWorkoutMap] = useState<Record<string, string>>({});
 
@@ -67,15 +35,17 @@ export default function RichCalendarView({
         sessions[date].push(...items);
       });
     });
-    stravaActivities.forEach((a) => {
-      const date = a.start_date_local.split('T')[0];
-      const sport = a.sport_type.toLowerCase();
+
+    stravaActivities.forEach((activity) => {
+      const date = activity.start_date_local.split('T')[0];
+      const sport = activity.sport_type.toLowerCase();
       const mapped = sport === 'ride' || sport === 'virtualride' ? 'bike' : sport;
-      const mins = Math.round(a.moving_time / 60);
+      const mins = Math.round(activity.moving_time / 60);
       const label = `${mapped.charAt(0).toUpperCase() + mapped.slice(1)}: ${mins}min (Strava)`;
       if (!sessions[date]) sessions[date] = [];
       sessions[date].push(label);
     });
+
     return sessions;
   }, [plan, stravaActivities]);
 
@@ -94,10 +64,13 @@ export default function RichCalendarView({
     return weeks;
   }, [sessionsByDate]);
 
+  const [monthIndex, setMonthIndex] = useState(0);
   const visibleWeeks = calendarRange.slice(monthIndex * 4, monthIndex * 4 + 4);
 
+  const cleanLabel = (title: string) => title.replace(/^(🏊|🚴|🏃|📋)?\s?\w+(:)?\s?/, '').trim();
+
   const handleGenerateDetailedWorkout = async (session: any) => {
-    const key = `${session.date}-${session.title}`;
+    const key = `${session.date}-${cleanLabel(session.title)}`;
     const res = await fetch('/api/generate-detailed-session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -108,49 +81,73 @@ export default function RichCalendarView({
     setActiveSession((prev: any) => ({ ...prev, aiWorkout: workout }));
   };
 
+  const getStatusColor = (date: string, sessions: string[]) => {
+    const statuses = sessions.map((s) => {
+      const key = `${date}-${s.toLowerCase().includes('swim') ? 'swim' : s.toLowerCase().includes('bike') ? 'bike' : 'run'}`;
+      return completed[key];
+    });
+    if (statuses.includes('done')) return 'bg-green-500';
+    if (statuses.includes('skipped')) return 'bg-yellow-400';
+    if (sessions.length) return 'bg-sky-400';
+    return '';
+  };
+
   return (
-    <div className="w-full max-w-[1600px] mx-auto px-8 py-12 bg-[#f7f8fa] rounded-3xl shadow-sm">
-      <div className="flex justify-between items-center mb-8">
+    <div className="w-full max-w-5xl mx-auto px-4 py-6 bg-[#F9FAFB] rounded-3xl shadow-sm">
+      <div className="flex justify-between items-center mb-6">
         <div>
-          <h2 className="text-3xl font-semibold text-neutral-900">Your Training Plan</h2>
-          <p className="text-sm text-neutral-600">Click a session for AI-generated details</p>
+          <h2 className="text-2xl font-semibold text-neutral-900">Your Training Plan</h2>
+          <p className="text-sm text-neutral-500">Click a session for AI-generated details</p>
         </div>
         <div className="flex items-center gap-4">
           <span className="text-sm text-neutral-500">
             {format(parseISO(visibleWeeks[0][0]), 'MMMM yyyy')}
           </span>
-          <button
-            onClick={() => setMonthIndex((prev) => Math.max(prev - 1, 0))}
-            className="text-sm text-neutral-500 hover:text-neutral-800"
-          >← Prev</button>
+          {monthIndex > 0 && (
+            <button onClick={() => setMonthIndex((prev) => Math.max(prev - 1, 0))} className="text-sm text-neutral-500 hover:text-neutral-800">
+              ← Prev
+            </button>
+          )}
           {calendarRange.length > (monthIndex + 1) * 4 && (
-            <button
-              onClick={() => setMonthIndex((prev) => prev + 1)}
-              className="text-sm text-neutral-500 hover:text-neutral-800"
-            >Next →</button>
+            <button onClick={() => setMonthIndex((prev) => prev + 1)} className="text-sm text-neutral-500 hover:text-neutral-800">
+              Next →
+            </button>
           )}
         </div>
       </div>
 
-      <div className="grid grid-cols-7 text-center text-[13px] text-neutral-500 mb-4">
-        {DAYS.map((d) => <div key={d}>{d}</div>)}
+      <div className="grid grid-cols-7 text-center text-[13px] text-neutral-500 mb-3">
+        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => <div key={d}>{d}</div>)}
       </div>
 
-      {visibleWeeks.map((week, i) => (
-        <div key={i} className="grid grid-cols-7 gap-4 mb-6">
+      {visibleWeeks.map((week, idx) => (
+        <div key={idx} className="grid grid-cols-7 gap-3 mb-4">
           {week.map((date) => {
             const sessions = sessionsByDate[date] || [];
             const isToday = isSameDay(parseISO(date), today);
-            const statusColor = getStatusColor(date, sessions, completed);
-            const displaySessions = sessions.slice(0, 3);
+
+            const sessionElements = sessions.slice(0, 2).map((s, i) => {
+              const clean = cleanLabel(s);
+              const emoji = s.toLowerCase().includes('swim')
+                ? '🏊'
+                : s.toLowerCase().includes('bike')
+                ? '🚴'
+                : s.toLowerCase().includes('run')
+                ? '🏃'
+                : '🧘';
+              return (
+                <div key={i} className="text-[13px] text-neutral-700 flex items-center gap-1 leading-snug">
+                  <span>{emoji}</span>
+                  <span className="truncate line-clamp-2">{clean}</span>
+                </div>
+              );
+            });
+
+            const statusColor = getStatusColor(date, sessions);
 
             return (
               <div
                 key={date}
-                className={clsx(
-                  'relative bg-white border border-neutral-200 rounded-xl px-4 py-4 cursor-pointer min-h-[140px] flex flex-col justify-start hover:shadow-md hover:scale-[1.01] transition-transform',
-                  isToday && 'ring-2 ring-black/10'
-                )}
                 onClick={() => {
                   const first = sessions[0];
                   if (!first) return;
@@ -163,25 +160,21 @@ export default function RichCalendarView({
                     userNote: '',
                   });
                 }}
+                className={`
+                  relative bg-white border border-neutral-200 rounded-xl px-4 py-3 cursor-pointer flex flex-col justify-start min-h-[120px]
+                  transition hover:shadow-md hover:scale-[1.01] ${isToday ? 'ring-2 ring-black/10' : ''}
+                `}
               >
-                <div className="text-[12px] font-medium text-neutral-500 mb-1 text-center">
-                  <div className="uppercase text-[11px]">{format(parseISO(date), 'MMM')}</div>
-                  <div>{format(parseISO(date), 'd')}</div>
+                <div className="text-[11px] font-medium text-neutral-400 mb-1 text-center uppercase tracking-wider">
+                  {format(parseISO(date), 'MMM d')}
                 </div>
-                <div className="flex flex-col gap-1">
-                  {displaySessions.length ? displaySessions.map((s, i) => (
-                    <div key={i} className="text-[14px] text-neutral-800 flex items-center gap-1 truncate">
-                      <span>{getEmoji(s)}</span>
-                      <span className="truncate">{s.replace(/^(🏊|🚴|🏃|📋)?\s?\w+(:)?\s?/, '').trim()}</span>
-                    </div>
-                  )) : (
-                    <div className="text-[14px] text-neutral-400 flex items-center gap-1">
-                      <span>{EMOJIS.rest}</span>
-                      <span>Rest day</span>
-                    </div>
-                  )}
-                </div>
-                {statusColor && <span className={clsx('absolute top-3 right-3 w-2 h-2 rounded-full', statusColor)} />}
+                {sessionElements.length ? sessionElements : (
+                  <div className="text-[13px] text-neutral-400 flex items-center gap-1">
+                    <span>🧘</span>
+                    <span>Rest day</span>
+                  </div>
+                )}
+                {statusColor && <span className={`absolute top-2 right-2 w-2 h-2 rounded-full ${statusColor}`} />}
               </div>
             );
           })}
@@ -191,7 +184,13 @@ export default function RichCalendarView({
       {activeSession && (
         <SessionModal
           session={activeSession}
-          onClose={() => setActiveSession(null)}
+          onClose={() => {
+            const key = `${activeSession.date}-${cleanLabel(activeSession.title)}`;
+            if (activeSession.workout) {
+              setDetailedWorkoutMap((prev) => ({ ...prev, [key]: activeSession.workout }));
+            }
+            setActiveSession(null);
+          }}
           onGenerateWorkout={() => handleGenerateDetailedWorkout(activeSession)}
         />
       )}
