@@ -81,17 +81,6 @@ export default function RichCalendarView({
     setActiveSession((prev: any) => ({ ...prev, aiWorkout: workout }));
   };
 
-  const getStatusColor = (date: string, sessions: string[]) => {
-    const statuses = sessions.map((s) => {
-      const key = `${date}-${s.toLowerCase().includes('swim') ? 'swim' : s.toLowerCase().includes('bike') ? 'bike' : 'run'}`;
-      return completed[key];
-    });
-    if (statuses.includes('done')) return 'bg-green-500';
-    if (statuses.includes('skipped')) return 'bg-yellow-400';
-    if (sessions.length) return 'bg-sky-400';
-    return '';
-  };
-
   const getTopBarColor = (session: string) => {
     const s = session.toLowerCase();
     if (s.includes('swim')) return 'bg-cyan-300';
@@ -101,7 +90,7 @@ export default function RichCalendarView({
   };
 
   return (
-    <div className="w-full max-w-6xl mx-auto px-6 py-10">
+    <div className="w-full max-w-[1400px] mx-auto px-6 py-10">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-semibold text-neutral-900">Your Training Plan</h2>
         <div className="flex items-center gap-3 text-sm">
@@ -117,7 +106,7 @@ export default function RichCalendarView({
         </div>
       </div>
 
-      <div className="grid grid-cols-7 text-center text-xs text-neutral-400 uppercase mb-2">
+      <div className="grid grid-cols-7 text-center text-sm text-neutral-500 uppercase mb-2">
         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => <div key={d}>{d}</div>)}
       </div>
 
@@ -126,7 +115,6 @@ export default function RichCalendarView({
           {week.map((date) => {
             const sessions = sessionsByDate[date] || [];
             const isToday = isSameDay(parseISO(date), today);
-            const statusColor = getStatusColor(date, sessions);
 
             return (
               <div
@@ -138,21 +126,20 @@ export default function RichCalendarView({
                   setActiveSession({
                     date,
                     title: first,
-                    status: completed[`${date}-${first.toLowerCase().includes('swim') ? 'swim' : first.toLowerCase().includes('bike') ? 'bike' : 'run'}`],
                     aiWorkout: detailedWorkoutMap[key] || null,
                     userNote: '',
                   });
                 }}
-                className={`bg-white hover:bg-neutral-50 px-3 py-2 text-left min-h-[100px] relative cursor-pointer transition duration-150 ease-in-out`}
+                className={`bg-white hover:bg-neutral-50 px-4 py-3 text-left min-h-[120px] relative cursor-pointer transition duration-150 ease-in-out`}
               >
-                <div className="text-[10px] text-neutral-400 uppercase font-medium mb-1">
+                <div className="text-[11px] text-neutral-400 uppercase font-medium mb-2">
                   {format(parseISO(date), 'MMM d')}
                 </div>
 
                 {sessions.slice(0, 3).map((s, i) => (
                   <div
                     key={i}
-                    className="flex items-center text-xs truncate relative pl-2 border-l-4 mb-1"
+                    className="flex items-center text-sm truncate relative pl-2 border-l-4 mb-1"
                     style={{ borderColor: getTopBarColor(s).replace('bg-', '') }}
                   >
                     {s.length > 30 ? s.slice(0, 27) + '…' : s}
@@ -160,14 +147,12 @@ export default function RichCalendarView({
                 ))}
 
                 {sessions.length === 0 && (
-                  <div className="text-[11px] text-neutral-400">Rest day</div>
+                  <div className="text-[12px] text-neutral-400">Rest day</div>
                 )}
 
                 {sessions.length > 3 && (
-                  <div className="text-[10px] text-neutral-400 mt-1">+{sessions.length - 3} more</div>
+                  <div className="text-[11px] text-neutral-400 mt-1">+{sessions.length - 3} more</div>
                 )}
-
-                {statusColor && <span className={`absolute top-1 right-1 w-2 h-2 rounded-full ${statusColor}`} />}
               </div>
             );
           })}
