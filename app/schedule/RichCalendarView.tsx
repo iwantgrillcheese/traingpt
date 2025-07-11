@@ -126,41 +126,67 @@ const handleGenerateDetailedWorkout = async (session: any) => {
 
       {visibleWeeks.map((week, idx) => (
         <div key={idx} className="grid grid-cols-7 gap-4 mb-6">
-          {week.map((date) => (
-            <div
-              key={date}
-              onClick={() => {
-                const first = sessionsByDate[date]?.[0];
-                if (!first) return;
-                const key = `${date}-${cleanLabel(first)}`;
-                setActiveSession({
-                  date,
-                  title: first,
-                  status: completed[`${date}-${first.toLowerCase().includes('swim') ? 'swim' : first.toLowerCase().includes('bike') ? 'bike' : 'run'}`],
-                  aiWorkout: detailedWorkoutMap[key] || null,
-                  userNote: '',
-                });
-              }}
-              className={`min-h-[110px] bg-white rounded-2xl p-3 text-[13px] leading-tight border ${
-                isSameDay(parseISO(date), today)
-                  ? 'border-black'
-                  : 'border-neutral-200'
-              } shadow-sm hover:shadow-md hover:ring-1 hover:ring-neutral-200/60 transition-all cursor-pointer flex flex-col gap-1`}
-            >
-              <div className="text-[11px] font-medium text-neutral-400 tracking-wide">
-                {format(parseISO(date), 'MMM d')}
-              </div>
-              {(sessionsByDate[date] || []).map((s, i) => {
-                const label = cleanLabel(s);
-                return (
-                  <div key={i} className="text-neutral-800 flex items-start gap-1">
-                    <span>{label}</span>
-                  </div>
-                );
-              })}
-            </div>
-          ))}
+  {week.map((date) => {
+    const sessions = sessionsByDate[date] || [];
+    const isToday = isSameDay(parseISO(date), today);
+
+    return (
+      <div
+        key={date}
+        onClick={() => {
+          const first = sessions[0];
+          if (!first) return;
+          const key = `${date}-${first}`;
+          setActiveSession({
+            date,
+            title: first,
+            status: completed[`${date}-${first.toLowerCase().includes('swim') ? 'swim' : first.toLowerCase().includes('bike') ? 'bike' : 'run'}`],
+            aiWorkout: detailedWorkoutMap[key] || null,
+            userNote: '',
+          });
+        }}
+        className={`
+          bg-white border rounded-2xl p-3 text-[13px] leading-tight cursor-pointer flex flex-col gap-1
+          transition-all shadow-sm hover:shadow-md hover:ring-1 hover:ring-neutral-300
+          ${isToday ? 'border-black ring-2 ring-black/70' : 'border-neutral-200'}
+        `}
+      >
+        <div className="text-[11px] font-medium text-neutral-400 tracking-wide">
+          {format(parseISO(date), 'MMM d')}
         </div>
+
+        {sessions.slice(0, 3).map((s, i) => {
+          const status = completed[`${date}-${s.toLowerCase().includes('swim') ? 'swim' : s.toLowerCase().includes('bike') ? 'bike' : 'run'}`];
+          const emoji = s.toLowerCase().includes('swim')
+            ? '🏊'
+            : s.toLowerCase().includes('bike')
+            ? '🚴'
+            : s.toLowerCase().includes('run')
+            ? '🏃'
+            : '📋';
+
+          const dot = status === 'done'
+            ? 'bg-green-500'
+            : status === 'skipped'
+            ? 'bg-gray-400'
+            : 'bg-blue-500';
+
+          return (
+            <div key={i} className="flex items-center gap-2 text-neutral-800">
+              <span>{emoji}</span>
+              <span className="truncate">{s.replace(/^\w+:\s/, '')}</span>
+              <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+            </div>
+          );
+        })}
+
+        {sessions.length > 3 && (
+          <div className="text-[11px] text-gray-400 mt-1">+{sessions.length - 3} more</div>
+        )}
+      </div>
+    );
+  })}
+</div>
       ))}
 
       {activeSession && (
