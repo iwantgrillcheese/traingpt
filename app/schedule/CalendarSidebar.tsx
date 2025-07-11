@@ -1,6 +1,7 @@
 'use client';
 
 import Calendar from 'react-calendar';
+import type { CalendarType } from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import { Dispatch, SetStateAction } from 'react';
 import { format, addMonths, subMonths } from 'date-fns';
@@ -52,7 +53,7 @@ export default function CalendarSidebar({
               <div className="mt-1 w-1.5 h-1.5 rounded-full mx-auto bg-blue-400" />
             ) : null;
           }}
-          calendarType="US" as any
+          calendarType={'US' as CalendarType}
           locale="en-US"
           className="!bg-white !text-black !border-none rounded-md"
           tileClassName={({ date, view }) =>
