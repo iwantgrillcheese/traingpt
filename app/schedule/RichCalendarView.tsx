@@ -83,7 +83,7 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
   const visibleWeeks = calendarRange.slice(monthIndex * 4, monthIndex * 4 + 4);
 
   const cleanLabel = (title: string) => {
-    return title.replace(/^\w+(:)?\s?/, '').trim();
+    return title.replace(/^(🏊|🚴|🏃)?\s?\w+(:)?\s?/, '').trim();
   };
 
   const handleGenerateDetailedWorkout = async (session: any) => {
@@ -101,24 +101,27 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
   };
 
   return (
-    <div className="w-full max-w-[1400px] mx-auto px-6 py-10 bg-neutral-900 rounded-3xl shadow-md">
+    <div className="w-full max-w-[1400px] mx-auto px-6 py-10 bg-[#F0F2F5] rounded-3xl shadow-md">
       <div className="flex justify-between items-center mb-8">
-        <h2 className="text-3xl font-semibold tracking-tight text-white">Your Training Plan</h2>
+        <div>
+          <h2 className="text-3xl font-semibold tracking-tight text-gray-900">Your Training Plan</h2>
+          <p className="text-sm text-gray-500">Tap a session to view or generate a detailed workout</p>
+        </div>
         <div className="flex gap-4 text-sm">
           {monthIndex > 0 && (
-            <button className="text-neutral-400 hover:text-white" onClick={() => setMonthIndex((prev) => Math.max(prev - 1, 0))}>
+            <button className="text-gray-500 hover:text-black" onClick={() => setMonthIndex((prev) => Math.max(prev - 1, 0))}>
               ← Prev
             </button>
           )}
           {calendarRange.length > (monthIndex + 1) * 4 && (
-            <button className="text-neutral-400 hover:text-white" onClick={() => setMonthIndex((prev) => prev + 1)}>
+            <button className="text-gray-500 hover:text-black" onClick={() => setMonthIndex((prev) => prev + 1)}>
               Next →
             </button>
           )}
         </div>
       </div>
 
-      <div className="grid grid-cols-7 text-center font-medium text-[13px] text-neutral-400 mb-4">
+      <div className="grid grid-cols-7 text-center font-medium text-[13px] text-gray-500 mb-4">
         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
           <div key={d}>{d}</div>
         ))}
@@ -141,7 +144,7 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
               return (
                 <div
                   key={i}
-                  className={`${isMain ? 'text-[15px] font-semibold text-white' : 'text-[13px] text-neutral-400'} flex items-center gap-1`}
+                  className={`${isMain ? 'text-[15px] font-semibold text-gray-900' : 'text-[13px] text-gray-500'} flex items-center gap-1`}
                 >
                   <span>{emoji}</span>
                   <span className="truncate">{clean}</span>
@@ -158,7 +161,7 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
             const statusColor = status === 'done'
               ? 'bg-emerald-500'
               : status === 'skipped'
-              ? 'bg-neutral-400'
+              ? 'bg-gray-400'
               : status === 'planned'
               ? 'bg-cyan-500'
               : '';
@@ -179,17 +182,17 @@ export default function RichCalendarView({ plan, completed, stravaActivities }: 
                   });
                 }}
                 className={`
-                  relative bg-neutral-800 border border-neutral-700 rounded-2xl px-4 py-3 cursor-pointer flex flex-col justify-start min-h-[140px]
-                  transition-all hover:shadow-md hover:ring-1 hover:ring-neutral-600
-                  ${isToday ? 'border-white ring-2 ring-white/70' : ''}
+                  relative bg-white border border-gray-200 rounded-xl px-4 py-4 cursor-pointer flex flex-col justify-start min-h-[140px]
+                  transition hover:shadow-md
+                  ${isToday ? 'ring-2 ring-black/10' : ''}
                 `}
               >
-                <div className="text-[12px] font-medium text-neutral-400 mb-1">{format(parseISO(date), 'MMM d')}</div>
+                <div className="text-[12px] font-medium text-gray-500 mb-1">{format(parseISO(date), 'MMM d')}</div>
 
                 {sessionElements}
 
                 {statusColor && (
-                  <span className={`absolute top-2 right-2 w-2 h-2 rounded-full ${statusColor}`} />
+                  <span className={`absolute top-3 right-3 w-2 h-2 rounded-full ${statusColor}`} />
                 )}
               </div>
             );
