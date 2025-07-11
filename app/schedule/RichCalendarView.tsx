@@ -1,19 +1,14 @@
-// FINALIZED: RichCalendarView.tsx — Fantastical-style UI with Sidebar
 'use client';
 
 import { useMemo, useState } from 'react';
 import {
   format,
-  parseISO,
-  isSameDay,
-  isToday,
-  isSameMonth,
   startOfMonth,
-  endOfMonth,
   startOfWeek,
   addDays,
   subMonths,
   addMonths,
+  isSameMonth,
 } from 'date-fns';
 import { SessionModal } from './SessionModal';
 import CalendarSidebar from './CalendarSidebar';
@@ -66,14 +61,6 @@ export default function RichCalendarView({
 
   const cleanLabel = (title: string) => title.replace(/^(🏊|🚴|🏃|📋)?\s?\w+(:)?\s?/, '').trim();
 
-  const getTopBarColor = (session: string) => {
-    const s = session.toLowerCase();
-    if (s.includes('swim')) return 'bg-cyan-300';
-    if (s.includes('bike')) return 'bg-orange-300';
-    if (s.includes('run')) return 'bg-pink-300';
-    return 'bg-neutral-300';
-  };
-
   const handleGenerateDetailedWorkout = async (session: any) => {
     const key = `${session.date}-${cleanLabel(session.title)}`;
     const res = await fetch('/api/generate-detailed-session', {
@@ -87,60 +74,64 @@ export default function RichCalendarView({
   };
 
   return (
-    <div className="flex flex-col lg:flex-row max-w-7xl mx-auto px-6 py-10 gap-8">
-      
-      <CalendarSidebar
-  month={month}
-  setMonth={setMonth}
-  sessionsByDate={sessionsByDate}
-/>
-
+    <div className="flex flex-col lg:flex-row max-w-screen-xl w-full mx-auto px-4 py-6 gap-8">
+      <CalendarSidebar month={month} setMonth={setMonth} sessionsByDate={sessionsByDate} />
 
       {/* Main Month Grid */}
       <div className="flex-1">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-semibold text-neutral-900">Your Training Plan</h2>
+          <h2 className="text-xl font-semibold text-neutral-900">Your Training Plan</h2>
           <div className="flex items-center gap-3 text-sm">
-            <button onClick={() => setMonth((m) => subMonths(m, 1))} className="text-neutral-500 hover:text-black">← Prev</button>
-            <button onClick={() => setMonth((m) => addMonths(m, 1))} className="text-neutral-500 hover:text-black">Next →</button>
+            <button
+              onClick={() => setMonth((m) => subMonths(m, 1))}
+              className="text-neutral-500 hover:text-black"
+            >
+              ← Prev
+            </button>
+            <button
+              onClick={() => setMonth((m) => addMonths(m, 1))}
+              className="text-neutral-500 hover:text-black"
+            >
+              Next →
+            </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-7 text-center text-xs text-neutral-400 uppercase mb-2">
+        <div className="grid grid-cols-7 text-center text-xs text-neutral-400 uppercase mb-1">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
             <div key={d}>{d}</div>
           ))}
         </div>
 
         <div className="grid grid-cols-7 gap-[1px] bg-neutral-200">
-{daysInView.map((date) => {
-  const key = format(date, 'yyyy-MM-dd');
-  const sessions = sessionsByDate[key] || [];
+          {daysInView.map((date) => {
+            const key = format(date, 'yyyy-MM-dd');
+            const sessions = sessionsByDate[key] || [];
 
-  return (
-    <CalendarTile
-      key={key}
-      date={date}
-      sessions={sessions}
-      isCurrentMonth={isSameMonth(date, month)}
-      onClick={(title) => {
-        const type = title.toLowerCase().includes('swim')
-          ? 'swim'
-          : title.toLowerCase().includes('bike')
-          ? 'bike'
-          : 'run';
+            return (
+              <CalendarTile
+                key={key}
+                date={date}
+                sessions={sessions}
+                isCurrentMonth={isSameMonth(date, month)}
+                onClick={(title) => {
+                  const type = title.toLowerCase().includes('swim')
+                    ? 'swim'
+                    : title.toLowerCase().includes('bike')
+                    ? 'bike'
+                    : 'run';
 
-        setActiveSession({
-          date: key,
-          title,
-          status: completed[`${key}-${type}`],
-          aiWorkout: detailedWorkoutMap[key] || null,
-          userNote: '',
-        });
-      }}
-    />
-  );
-})}
+                  setActiveSession({
+                    date: key,
+                    title,
+                    status: completed[`${key}-${type}`],
+                    aiWorkout: detailedWorkoutMap[key] || null,
+                    userNote: '',
+                  });
+                }}
+              />
+            );
+          })}
         </div>
       </div>
 

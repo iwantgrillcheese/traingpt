@@ -21,9 +21,9 @@ export default function CalendarTile({
   return (
     <div
       key={key}
-      className={`bg-white px-2 py-2 text-left min-h-[100px] relative transition-all ${
+      className={`bg-white px-1 py-1 text-left min-h-[80px] relative transition-all ${
         isCurrentMonth ? 'text-black' : 'text-neutral-300'
-      } cursor-pointer hover:bg-neutral-50 border border-neutral-200`}
+      } cursor-pointer hover:bg-neutral-50`}
       onClick={() => {
         const first = sessions[0];
         if (first) onClick(first);
@@ -35,9 +35,11 @@ export default function CalendarTile({
       </div>
 
       {/* Sessions */}
-      {sessions.slice(0, 3).map((title, i) => (
-        <SessionCard key={i} title={title} />
-      ))}
+      <div className="space-y-[2px]">
+        {sessions.slice(0, 3).map((title, i) => (
+          <SessionCard key={i} title={title} />
+        ))}
+      </div>
 
       {/* Overflow Count */}
       {sessions.length > 3 && (
