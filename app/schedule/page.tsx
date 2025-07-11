@@ -7,11 +7,8 @@ import SessionCard from './SessionCard';
 import RichCalendarView from './RichCalendarView';
 import MobileCalendarView from './MobileCalendarView';
 import SessionCardExpanded from './SessionCardExpanded';
+import { supabase } from '@/lib/supabase-browser';
 
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 type CompletedSession = {
   date: string;
