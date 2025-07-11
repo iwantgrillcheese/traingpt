@@ -92,12 +92,12 @@ export default function RichCalendarView({
     return '';
   };
 
-  const getTopBarColor = (session: string) => {
-    const s = session.toLowerCase();
-    if (s.includes('swim')) return 'bg-cyan-500';
-    if (s.includes('bike')) return 'bg-orange-400';
-    if (s.includes('run')) return 'bg-pink-500';
-    return 'bg-neutral-300';
+  const getSportData = (s: string) => {
+    const lower = s.toLowerCase();
+    if (lower.includes('swim')) return { emoji: '🏊', label: 'Swim', color: 'bg-cyan-500' };
+    if (lower.includes('bike')) return { emoji: '🚴', label: 'Bike', color: 'bg-orange-400' };
+    if (lower.includes('run')) return { emoji: '🏃', label: 'Run', color: 'bg-pink-500' };
+    return { emoji: '📋', label: 'Rest', color: 'bg-neutral-300' };
   };
 
   return (
@@ -152,35 +152,18 @@ export default function RichCalendarView({
                 }}
                 className={`relative bg-white border border-neutral-200 rounded-xl px-3 py-3 min-h-[115px] cursor-pointer transition hover:shadow-md flex flex-col justify-start items-start ${isToday ? 'ring-2 ring-black/10' : ''}`}
               >
-                {/* Top stacked bars */}
-                <div className="absolute top-0 left-0 right-0 h-2 flex z-10 overflow-hidden rounded-t-xl">
-                  {sessions.slice(0, 3).map((s, i) => (
-                    <div
-                      key={i}
-                      className={`${getTopBarColor(s)} h-full w-full`}
-                    />
-                  ))}
-                </div>
-
-                <div className="text-[11px] uppercase font-medium text-neutral-400 mb-2 tracking-wide mt-3">
+                <div className="text-[11px] uppercase font-medium text-neutral-400 mb-2 tracking-wide">
                   {format(parseISO(date), 'MMM d')}
                 </div>
 
-                <div className="flex flex-col gap-1 w-full">
+                <div className="flex flex-col gap-2 w-full">
                   {sessions.length ? sessions.slice(0, 3).map((s, i) => {
-                    const clean = cleanLabel(s);
-                    const emoji = s.toLowerCase().includes('swim')
-                      ? '🏊'
-                      : s.toLowerCase().includes('bike')
-                      ? '🚴'
-                      : s.toLowerCase().includes('run')
-                      ? '🏃'
-                      : '📋';
-
+                    const { emoji, label, color } = getSportData(s);
+                    const summary = cleanLabel(s);
                     return (
-                      <div key={i} className="flex items-center gap-2 text-sm bg-neutral-100 px-2 py-1 rounded-lg w-fit text-neutral-700 font-medium">
+                      <div key={i} className={`flex items-center gap-2 text-sm ${color} text-white px-2 py-1 rounded-full w-fit font-medium`}>
                         <span>{emoji}</span>
-                        <span className="truncate max-w-[100px]">{clean}</span>
+                        <span className="truncate max-w-[100px]">{summary}</span>
                       </div>
                     );
                   }) : (
