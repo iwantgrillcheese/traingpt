@@ -53,7 +53,7 @@ export default function CalendarSidebar({
               <div className="mt-1 w-1.5 h-1.5 rounded-full mx-auto bg-blue-400" />
             ) : null;
           }}
-          calendarType={'US' as CalendarType}
+          calendarType="gregory"
           locale="en-US"
           className="!bg-white !text-black !border-none rounded-md"
           tileClassName={({ date, view }) =>
