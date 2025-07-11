@@ -16,6 +16,8 @@ import {
   addMonths,
 } from 'date-fns';
 import { SessionModal } from './SessionModal';
+import CalendarSidebar from './CalendarSidebar';
+import CalendarTile from './CalendarTile';
 
 export default function RichCalendarView({
   plan,
@@ -86,50 +88,13 @@ export default function RichCalendarView({
 
   return (
     <div className="flex flex-col lg:flex-row max-w-7xl mx-auto px-6 py-10 gap-8">
-      {/* Sidebar */}
-      <div className="w-full lg:w-72 space-y-6">
-        <div>
-          <h2 className="text-xl font-bold text-white mb-2">{format(month, 'MMMM yyyy')}</h2>
-          <div className="grid grid-cols-7 text-xs text-neutral-300 mb-1">
-            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d) => (
-              <div key={d} className="text-center">{d}</div>
-            ))}
-          </div>
-          <div className="grid grid-cols-7 gap-1">
-            {daysInView.map((date) => {
-              const key = format(date, 'yyyy-MM-dd');
-              const hasSession = sessionsByDate[key]?.length > 0;
-              return (
-                <div
-                  key={key}
-                  className={`text-xs text-center rounded-full p-1 ${isToday(date) ? 'bg-white text-black font-semibold' : 'text-neutral-400'} ${hasSession ? 'border border-white/20' : ''}`}
-                >
-                  {format(date, 'd')}
-                </div>
-              );
-            })}
-          </div>
-        </div>
+      
+      <CalendarSidebar
+  month={month}
+  setMonth={setMonth}
+  sessionsByDate={sessionsByDate}
+/>
 
-        <div className="text-sm text-neutral-100">
-          <h3 className="font-semibold mb-2">Upcoming</h3>
-          {daysInView.map((date) => {
-            const key = format(date, 'yyyy-MM-dd');
-            const sessions = sessionsByDate[key] || [];
-            if (!sessions.length || !isSameMonth(date, month)) return null;
-            return (
-              <div key={key} className="mb-1">
-                <div className="text-xs text-neutral-400">{format(date, 'eee MMM d')}</div>
-                <ul className="list-disc ml-4">
-                  {sessions.slice(0, 2).map((s, i) => (
-                    <li key={i}>{s.length > 35 ? s.slice(0, 32) + '…' : s}</li>
-                  ))}
-                </ul>
-              </div>
-            );
-          })}
-        </div>
-      </div>
 
       {/* Main Month Grid */}
       <div className="flex-1">
@@ -148,51 +113,34 @@ export default function RichCalendarView({
         </div>
 
         <div className="grid grid-cols-7 gap-[1px] bg-neutral-200">
-          {daysInView.map((date) => {
-            const key = format(date, 'yyyy-MM-dd');
-            const sessions = sessionsByDate[key] || [];
-            return (
-              <div
-                key={key}
-                className={`bg-white px-2 py-2 text-left min-h-[100px] relative ${!isSameMonth(date, month) ? 'text-neutral-300' : 'text-black'} cursor-pointer hover:bg-neutral-50`}
-                onClick={() => {
-                  const first = sessions[0];
-                  if (!first) return;
-                  const sessionType = first.toLowerCase().includes('swim')
-                    ? 'swim'
-                    : first.toLowerCase().includes('bike')
-                    ? 'bike'
-                    : 'run';
+{daysInView.map((date) => {
+  const key = format(date, 'yyyy-MM-dd');
+  const sessions = sessionsByDate[key] || [];
 
-                  setActiveSession({
-                    date: key,
-                    title: first,
-                    status: completed[`${key}-${sessionType}`],
-                    aiWorkout: detailedWorkoutMap[key] || null,
-                    userNote: '',
-                  });
-                }}
-              >
-                <div className="text-[10px] text-neutral-400 uppercase font-medium mb-1">
-                  {format(date, 'MMM d')}
-                </div>
+  return (
+    <CalendarTile
+      key={key}
+      date={date}
+      sessions={sessions}
+      isCurrentMonth={isSameMonth(date, month)}
+      onClick={(title) => {
+        const type = title.toLowerCase().includes('swim')
+          ? 'swim'
+          : title.toLowerCase().includes('bike')
+          ? 'bike'
+          : 'run';
 
-                {sessions.slice(0, 3).map((s, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center text-xs truncate relative pl-2 border-l-4 mb-1"
-                    style={{ borderColor: getTopBarColor(s).replace('bg-', '') }}
-                  >
-                    {s.length > 30 ? s.slice(0, 27) + '…' : s}
-                  </div>
-                ))}
-
-                {sessions.length > 3 && (
-                  <div className="text-[10px] text-neutral-400 mt-1">+{sessions.length - 3} more</div>
-                )}
-              </div>
-            );
-          })}
+        setActiveSession({
+          date: key,
+          title,
+          status: completed[`${key}-${type}`],
+          aiWorkout: detailedWorkoutMap[key] || null,
+          userNote: '',
+        });
+      }}
+    />
+  );
+})}
         </div>
       </div>
 
