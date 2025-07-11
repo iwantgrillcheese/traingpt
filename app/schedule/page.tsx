@@ -10,6 +10,12 @@ import SessionCardExpanded from './SessionCardExpanded';
 
 const supabase = createClientComponentClient();
 
+type CompletedSession = {
+  date: string;
+  sport: string;
+  status: 'done' | 'skipped' | 'missed';
+};
+
 export default function SchedulePage() {
   const [plan, setPlan] = useState<any[]>([]);
   const [raceDate, setRaceDate] = useState<string | null>(null);
@@ -23,13 +29,11 @@ export default function SchedulePage() {
   const [collapsedWeeks, setCollapsedWeeks] = useState<Record<number, boolean>>({});
   const [isMobile, setIsMobile] = useState(false);
 
-useEffect(() => {
-  if (typeof window !== 'undefined') {
-    setIsMobile(window.innerWidth < 768);
-  }
-}, []);
-
-
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setIsMobile(window.innerWidth < 768);
+    }
+  }, []);
 
   const today = new Date();
 
@@ -60,7 +64,7 @@ useEffect(() => {
           .eq('user_id', session.user.id);
 
         const checks: { [key: string]: string } = {};
-        completedSessions?.forEach(({ date, sport, status }) => {
+        (completedSessions as CompletedSession[])?.forEach(({ date, sport, status }) => {
           checks[`${date}-${sport}`] = status;
         });
 
@@ -109,22 +113,22 @@ useEffect(() => {
     const normalizedSport = getNormalizedSport(sportTitle);
     const key = `${date}-${normalizedSport}`;
 
-    const { error } = await supabase.from('completed_sessions').upsert([
-      {
-        user_id: userId,
-        plan_id: planId ?? null,
-        date,
-        sport: normalizedSport,
-        status,
-      },
-    ], { onConflict: 'user_id,date,sport' });
+    const { error } = await supabase.from('completed_sessions').upsert([{
+      user_id: userId,
+      plan_id: planId ?? null,
+      date,
+      sport: normalizedSport,
+      status,
+    }], { onConflict: 'user_id,date,sport' });
 
     if (error) console.error('[❌ Supabase save error]', error);
 
     setCompleted((prev) => ({ ...prev, [key]: status }));
   };
 
-  const raceCountdown = raceDate ? Math.max(0, Math.floor((parseISO(raceDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))) : null;
+  const raceCountdown = raceDate
+    ? Math.max(0, Math.floor((parseISO(raceDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24)))
+    : null;
 
   const flattenPlannedSessions = new Set(plan.flatMap((week) =>
     Object.entries(week.days).flatMap(([date, sessions]: any) =>
@@ -172,20 +176,20 @@ useEffect(() => {
       </div>
 
       {view === 'calendar' && (
-  isMobile ? (
-    <MobileCalendarView
-      plan={plan}
-      completed={completed}
-      stravaActivities={stravaActivities}
-    />
-  ) : (
-    <RichCalendarView
-      plan={plan}
-      completed={completed}
-      stravaActivities={stravaActivities}
-    />
-  )
-)}
+        isMobile ? (
+          <MobileCalendarView
+            plan={plan}
+            completed={completed}
+            stravaActivities={stravaActivities}
+          />
+        ) : (
+          <RichCalendarView
+            plan={plan}
+            completed={completed}
+            stravaActivities={stravaActivities}
+          />
+        )
+      )}
 
       {view === 'schedule' && (
         <>
@@ -206,7 +210,10 @@ useEffect(() => {
               const isCollapsed = collapsedWeeks[weekIdx];
               return (
                 <div key={weekIdx} className="flex flex-col gap-6">
-                  <div className="flex items-center justify-between text-xl font-semibold text-gray-800 cursor-pointer hover:underline" onClick={() => setCollapsedWeeks(prev => ({ ...prev, [weekIdx]: !prev[weekIdx] }))}>
+                  <div
+                    className="flex items-center justify-between text-xl font-semibold text-gray-800 cursor-pointer hover:underline"
+                    onClick={() => setCollapsedWeeks(prev => ({ ...prev, [weekIdx]: !prev[weekIdx] }))}
+                  >
                     <span>{week.label}</span>
                     <span className="text-lg">{isCollapsed ? '+' : '−'}</span>
                   </div>
@@ -222,7 +229,9 @@ useEffect(() => {
                             title={sessionTitle}
                             date={date}
                             initialStatus={completed[`${date}-${getNormalizedSport(sessionTitle)}`] as 'done' | 'skipped' | 'missed'}
-                            onStatusChange={(newStatus) => saveSessionStatus({ date, sportTitle: sessionTitle, status: newStatus })}
+                            onStatusChange={(newStatus) =>
+                              saveSessionStatus({ date, sportTitle: sessionTitle, status: newStatus })
+                            }
                           />
                         ))}
                         {stravaOnlySessions
@@ -234,11 +243,11 @@ useEffect(() => {
                             const label = `${mapped.charAt(0).toUpperCase() + mapped.slice(1)}: ${durationMin}min ${activity.name?.toLowerCase().includes('hill') ? 'hilly' : ''}`.trim();
                             return (
                               <SessionCardExpanded
-  key={`strava-${idx}`}
-  title={label}
-  date={activity.start_date_local.split('T')[0]}
-  isStravaOnly={true}
-/>
+                                key={`strava-${idx}`}
+                                title={label}
+                                date={activity.start_date_local.split('T')[0]}
+                                isStravaOnly={true}
+                              />
                             );
                           })}
                       </div>
