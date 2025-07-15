@@ -1,4 +1,4 @@
-// /api/finalize-plan/route.ts (cleaned up and structured JSON ready)
+// /api/finalize-plan/route.ts (cleaned + fixed JSON parse)
 import { NextResponse } from 'next/server';
 import { addDays, addWeeks, format } from 'date-fns';
 import OpenAI from 'openai';
@@ -27,7 +27,6 @@ const MAX_WEEKS = {
   'Half Ironman (70.3)': 28,
   'Ironman (140.6)': 32,
 };
-
 
 function getNextMonday(date: Date) {
   const day = date.getDay();
@@ -82,8 +81,8 @@ export async function POST(req: Request) {
   const restDay = body.restDay || latestPlan?.rest_day || 'Monday';
 
   let totalWeeks = Math.ceil((raceDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
-const minWeeks = MIN_WEEKS[raceType as keyof typeof MIN_WEEKS] || 6;
-const maxWeeks = MAX_WEEKS[raceType as keyof typeof MAX_WEEKS] || 20;
+  const minWeeks = MIN_WEEKS[raceType as keyof typeof MIN_WEEKS] || 6;
+  const maxWeeks = MAX_WEEKS[raceType as keyof typeof MAX_WEEKS] || 20;
   let adjusted = false;
 
   if (totalWeeks < minWeeks) {
@@ -131,15 +130,22 @@ const maxWeeks = MAX_WEEKS[raceType as keyof typeof MAX_WEEKS] || 20;
     temperature: 0.7,
   });
 
-  const content = response.choices[0]?.message?.content;
+  const rawContent = response.choices[0]?.message?.content;
 
-  // fallback safety
-  if (!content || !Array.isArray(content)) {
-    console.error('❌ Invalid plan format:', content);
+  let parsed: any[] = [];
+  try {
+    parsed = JSON.parse(rawContent || '');
+  } catch (e) {
+    console.error('❌ Failed to parse GPT response as JSON:', rawContent);
+    return NextResponse.json({ error: 'GPT output was not valid JSON' }, { status: 500 });
+  }
+
+  if (!parsed || !Array.isArray(parsed)) {
+    console.error('❌ Invalid plan format:', parsed);
     return NextResponse.json({ error: 'Invalid plan structure from GPT' }, { status: 500 });
   }
 
-  for (const week of content) {
+  for (const week of parsed) {
     if (
       typeof week.label !== 'string' ||
       typeof week.phase !== 'string' ||
@@ -161,7 +167,7 @@ const maxWeeks = MAX_WEEKS[raceType as keyof typeof MAX_WEEKS] || 20;
   const { error: saveError } = await supabase.from('plans').upsert(
     {
       user_id,
-      plan: content,
+      plan: parsed,
       coach_note: coachNote,
       note: userNote,
       race_type: raceType,
@@ -189,5 +195,5 @@ const maxWeeks = MAX_WEEKS[raceType as keyof typeof MAX_WEEKS] || 20;
   }
 
   console.timeEnd('[⏱️ TOTAL]');
-  return NextResponse.json({ success: true, plan: content, coachNote, adjusted });
+  return NextResponse.json({ success: true, plan: parsed, coachNote, adjusted });
 }
