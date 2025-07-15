@@ -15,24 +15,6 @@ type FieldConfig = {
 
 const supabase = createClientComponentClient();
 
-const quotes = [
-  "Success comes from knowing you did your best to become the best you’re capable of becoming. — John Wooden",
-  "You do not rise to the level of your goals. You fall to the level of your systems. — James Clear",
-  "The body builds strength through stress, then rest. So does the mind.",
-  "No man is free who is not master of himself. — Epictetus",
-  "Discipline is choosing what you want most over what you want now.",
-  "Don’t wish it were easier. Train to be better.",
-  "Every session compounds. Show up.",
-  "How you do anything is how you do everything.",
-  "We suffer more in imagination than in reality. — Seneca",
-  "Motivation gets you started. Consistency keeps you going.",
-  "Effort counts twice. — Angela Duckworth",
-  "If it matters, make time. If not, be honest about that too.",
-  "The race is won in training. The finish line just proves it.",
-  "Small improvements, repeated daily, lead to exceptional results.",
-  "What stands in the way becomes the way. — Marcus Aurelius"
-];
-
 const steps = [
   'Locking in your race goals and timeline...',
   'Scanning your notes like a seasoned coach...',
@@ -58,7 +40,6 @@ export default function PlanPage() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [quote, setQuote] = useState('');
   const [sessionChecked, setSessionChecked] = useState(false);
   const [hasPlan, setHasPlan] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -87,7 +68,7 @@ export default function PlanPage() {
     e.preventDefault();
     setLoading(true);
     setError('');
-    setQuote(quotes[Math.floor(Math.random() * quotes.length)]);
+
 
     try {
       const {
@@ -96,49 +77,33 @@ export default function PlanPage() {
       const access_token = session?.access_token || null;
       if (!access_token) throw new Error('No Supabase access token found');
 
-      const res = await fetch('/api/finalize-plan', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${access_token}`,
-        },
-        body: JSON.stringify({ ...formData, userNote }),
-      });
+      const res = await fetch('/api/start-plan', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${access_token}`,
+  },
+  body: JSON.stringify({
+    ...formData,
+    userNote,
+    bikeFTP: formData.bikeFTP,
+    runPace: formData.runPace,
+    swimPace: formData.swimPace,
+  }),
+});
 
 const json = await res.json();
 
 if (!res.ok) {
-  if (json.code === 'TOO_MANY_WEEKS') {
-  const maxWeeks = json.maxWeeks;
-  const basePlanStart = new Date();
-  const basePlanEnd = new Date();
-  basePlanEnd.setDate(basePlanStart.getDate() + maxWeeks * 7);
-
-  setError(`Your race is a bit far out. We currently support up to ${maxWeeks} weeks of training.`);
-
-  setFormData(prev => ({
-    ...prev,
-    raceDate: basePlanEnd.toISOString().split('T')[0],
-  }));
-  setUserNote('Build a strong base phase until my actual race-specific training starts.');
-
-  return;
+  throw new Error(json.error || 'Something went wrong while starting the plan.');
 }
 
-  if (json.code === 'TOO_FEW_WEEKS') {
-    setError(`That race is a bit too soon. We recommend at least ${json.minWeeks} weeks to prepare properly.`);
-
-    const confirmTaper = confirm(`Want a short taper and race-week strategy instead?`);
-    if (confirmTaper) {
-      setUserNote('Build a taper-focused plan for my upcoming race.');
-      document.querySelector('form')?.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
-    }
-
-    return;
-  }
-
-  throw new Error(json.error || 'Failed to finalize plan');
+if (json.status === 'started') {
+  router.push('/schedule');
+} else {
+  throw new Error('Unexpected response from start-plan.');
 }
+
 
       router.push('/schedule');
     } catch (err: any) {
@@ -198,7 +163,6 @@ const advancedFields: FieldConfig[] = [
               <div className="bg-black h-4 rounded-full transition-all duration-700" style={{ width: `${progress}%` }} />
             </div>
             <p className="text-gray-600 text-sm mb-2">{steps[stepIndex]}</p>
-            <p className="text-gray-800 italic text-base font-medium">{quote}</p>
           </div>
         </div>
       )}
