@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { format, parseISO, isSameDay } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import FantasticalCalendar from './FantasticalCalendar';
 
 const supabase = createClientComponentClient();
@@ -23,7 +23,9 @@ export default function SchedulePage() {
     const fetchAll = async () => {
       setLoading(true);
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
         if (!session?.user) return;
         setUserId(session.user.id);
 
@@ -49,7 +51,11 @@ export default function SchedulePage() {
     fetchAll();
   }, []);
 
-  function convertPlanDaysToSessions(planDays: Record<string, string[]>) {
+  function convertPlanDaysToSessions(
+    planDays: Record<string, string[]> | null | undefined
+  ) {
+    if (!planDays) return [];
+
     const sessions: {
       id: string;
       date: string;
@@ -89,8 +95,16 @@ export default function SchedulePage() {
     return sessions;
   }
 
-  if (loading) return <div className="py-20 text-center text-gray-400">Loading your schedule...</div>;
-  if (!plan) return <div className="py-20 text-center text-gray-400">No plan found. Generate one to get started.</div>;
+  if (loading)
+    return (
+      <div className="py-20 text-center text-gray-400">Loading your schedule...</div>
+    );
+  if (!plan)
+    return (
+      <div className="py-20 text-center text-gray-400">
+        No plan found. Generate one to get started.
+      </div>
+    );
 
   const sessions = convertPlanDaysToSessions(plan.days);
 
@@ -118,24 +132,33 @@ export default function SchedulePage() {
       {view === 'calendar' && <FantasticalCalendar sessions={sessions} />}
 
       {view === 'schedule' && (
-        <div className="flex flex-col gap-6">
-          {Object.entries(plan.days).map(([date, sessionsRaw]) => {
-            const sessionsList = sessionsRaw as string[];
-            return (
-              <div key={date} className="flex flex-col gap-4" data-date={date}>
-                <div className="text-md font-bold text-gray-600">{format(parseISO(date), 'EEEE, MMM d')}</div>
-                {sessionsList.map((sessionTitle, sessionIdx) => (
-                  <div
-                    key={sessionIdx}
-                    className="p-4 border rounded-lg bg-white shadow-sm"
-                  >
-                    {sessionTitle}
+        <>
+          {plan.raceDate && (
+            <p className="text-center text-gray-600 mb-4">
+              Race Date: {format(parseISO(plan.raceDate), 'MMMM d, yyyy')}
+            </p>
+          )}
+          <div className="flex flex-col gap-6">
+            {Object.entries(plan.days).map(([date, sessionsRaw]) => {
+              const sessionsList = sessionsRaw as string[];
+              return (
+                <div key={date} className="flex flex-col gap-4" data-date={date}>
+                  <div className="text-md font-bold text-gray-600">
+                    {format(parseISO(date), 'EEEE, MMM d')}
                   </div>
-                ))}
-              </div>
-            );
-          })}
-        </div>
+                  {sessionsList.map((sessionTitle, sessionIdx) => (
+                    <div
+                      key={sessionIdx}
+                      className="p-4 border rounded-lg bg-white shadow-sm"
+                    >
+                      {sessionTitle}
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
     </main>
   );

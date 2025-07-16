@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { format, parseISO, isSameDay, startOfWeek, addDays } from 'date-fns';
 import { useRouter } from 'next/navigation';
-import { SessionModal } from './SessionModal';
+import SessionModal from './SessionModal';
 
 export default function RichCalendarView({
   plan,

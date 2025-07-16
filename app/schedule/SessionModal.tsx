@@ -1,122 +1,78 @@
-'use client';
+import React, { useState } from 'react';
 
-import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
-
-interface SessionModalProps {
+export default function SessionModal({
+  session,
+  onClose,
+  onStatusChange,
+  initialStatus,
+  onGenerateWorkout,  // <-- add this here
+}: {
   session: {
-    date: string;
     title: string;
-    status?: string;
-    aiWorkout?: string;
-    userNote?: string;
-  };
+    date: string;
+  } | null;
   onClose: () => void;
-  onGenerateWorkout: () => Promise<void>;
-}
+  onStatusChange?: (newStatus: 'done' | 'skipped' | 'missed') => void;
+  initialStatus?: 'done' | 'skipped' | 'missed' | null;
+  onGenerateWorkout?: () => void;  // <-- add type for this
+}) {
+  const [status, setStatus] = useState(initialStatus || null);
 
-export function SessionModal({ session, onClose, onGenerateWorkout }: SessionModalProps) {
-  const [loading, setLoading] = useState(false);
-  const [workout, setWorkout] = useState(session.aiWorkout || '');
+  if (!session) return null;
 
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
-  }, [onClose]);
-
-  const handleGenerate = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/generate-detailed-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: session.title, date: session.date }),
-      });
-      const data = await res.json();
-      setWorkout(data.workout); // <- Important: match API output key
-    } catch (err) {
-      console.error('Failed to generate workout', err);
-    } finally {
-      setLoading(false);
-    }
+  const handleStatusChange = (newStatus: 'done' | 'skipped' | 'missed') => {
+    setStatus(newStatus);
+    if (onStatusChange) onStatusChange(newStatus);
   };
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black bg-opacity-50 p-4">
-      <div className="bg-white w-full max-w-md sm:max-w-xl rounded-t-2xl sm:rounded-2xl shadow-xl p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold">{session.title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-black">×</button>
+  return (
+    <div
+      className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-xl p-6 max-w-md w-full shadow-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-xl font-semibold mb-4">{session.title}</h2>
+        <p className="mb-6">Date: {session.date}</p>
+
+        <div className="flex gap-4 mb-6">
+          {['done', 'skipped', 'missed'].map((s) => (
+            <button
+              key={s}
+              onClick={() => handleStatusChange(s as 'done' | 'skipped' | 'missed')}
+              className={`px-4 py-2 rounded ${
+                status === s
+                  ? s === 'done'
+                    ? 'bg-green-500 text-white'
+                    : s === 'skipped'
+                    ? 'bg-gray-500 text-white'
+                    : 'bg-red-500 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              {s.charAt(0).toUpperCase() + s.slice(1)}
+            </button>
+          ))}
         </div>
 
-        <p className="text-sm text-neutral-500 mb-3">{new Date(session.date).toDateString()}</p>
-
-        {!workout && (
+        {onGenerateWorkout && (
           <button
-            onClick={handleGenerate}
-            disabled={loading}
-            className="mb-4 px-4 py-2 text-sm rounded-full border border-neutral-300 hover:bg-neutral-100 transition flex items-center gap-2"
+            onClick={onGenerateWorkout}
+            className="mb-4 w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
           >
-            🪄 {loading ? 'Generating...' : 'Generate Detailed Workout'}
+            Generate Detailed Workout
           </button>
         )}
 
-        {workout && (
-  <>
-    <div className="text-sm text-neutral-800 whitespace-pre-wrap mb-4 space-y-3">
-      {workout.split('\n').map((line, i) => {
-        const trimmed = line.trim();
-
-        // Bullet points
-        if (trimmed.startsWith('- ')) {
-          return (
-            <li key={i} className="ml-6 list-disc">
-              {trimmed.replace('- ', '')}
-            </li>
-          );
-        }
-
-        // Custom section headers (e.g. **Warm-up:**)
-        if (/^\*\*(.+)\*\*$/.test(trimmed)) {
-          const section = trimmed.replace(/\*\*/g, '');
-          return (
-            <div key={i} className="text-[13px] font-semibold text-gray-800 mt-4 mb-1">
-              {section}
-            </div>
-          );
-        }
-
-        // Spacer lines
-        if (trimmed === '') return <br key={i} />;
-
-        // Plain text fallback
-       return (
-  <p key={i} className="text-sm text-gray-700">
-    {trimmed}
-  </p>
-);
-      })}
-    </div>
-  </>
-)}
-
-
-        <textarea
-          className="w-full border border-neutral-300 rounded-md p-2 text-sm mb-4"
-          placeholder="Leave a note..."
-          defaultValue={session.userNote}
-          rows={3}
-        />
-
-        <div className="flex justify-end gap-3">
-          <button className="text-sm text-gray-500 hover:text-black">Skip</button>
-          <button className="bg-black text-white text-sm px-4 py-2 rounded-lg">Mark Done</button>
-        </div>
+        <button
+          onClick={onClose}
+          className="px-4 py-2 bg-black text-white rounded hover:bg-gray-900 w-full"
+        >
+          Close
+        </button>
       </div>
-    </div>,
-    document.body
+    </div>
   );
 }
