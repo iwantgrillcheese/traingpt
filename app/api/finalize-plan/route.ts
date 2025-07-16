@@ -1,18 +1,17 @@
-// /api/finalize-plan/route.ts (cleaned + fixed JSON parse)
+
+// /api/finalize-plan/route.ts (with chunked GPT generation via startPlan.ts)
 import { NextResponse } from 'next/server';
 import { addDays, addWeeks, format } from 'date-fns';
-import OpenAI from 'openai';
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { COACH_SYSTEM_PROMPT } from '@/lib/coachPrompt';
-import { buildCoachPrompt } from '@/utils/buildCoachPrompt';
 import { sendWelcomeEmail } from '@/lib/emails/send-welcome-email';
+import { generateWeek } from '@/utils/generate-week';
+import { startPlan } from '@/utils/start-plan';
+
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 export const runtime = 'nodejs';
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const MIN_WEEKS = {
   Sprint: 2,
@@ -49,9 +48,8 @@ function getDeload(index: number): boolean {
 export async function POST(req: Request) {
   console.time('[⏱️ TOTAL]');
   const body = await req.json();
-  const userNote = body.userNote || '';
-
   const supabase = createServerComponentClient({ cookies });
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -80,11 +78,14 @@ export async function POST(req: Request) {
   const experience = body.experience || latestPlan?.experience || 'Intermediate';
   const maxHours = body.maxHours || latestPlan?.max_hours || 8;
   const restDay = body.restDay || latestPlan?.rest_day || 'Monday';
+  const bikeFTP = body.bikeFTP || null;
+  const runPace = body.runPace || null;
+  const swimPace = body.swimPace || null;
+  const userNote = body.userNote || '';
 
   let totalWeeks = Math.ceil((raceDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
   const minWeeks = MIN_WEEKS[raceType as keyof typeof MIN_WEEKS] || 6;
   const maxWeeks = MAX_WEEKS[raceType as keyof typeof MAX_WEEKS] || 20;
-  let adjusted = false;
 
   if (totalWeeks < minWeeks) {
     return NextResponse.json(
@@ -107,68 +108,32 @@ export async function POST(req: Request) {
     startDate: format(addWeeks(startDate, i), 'yyyy-MM-dd'),
   }));
 
-  const prompt = buildCoachPrompt({
-    raceType,
-    raceDate,
-    startDate,
-    totalWeeks,
-    experience,
-    maxHours,
-    restDay,
-    bikeFTP: 'Not provided',
-    runPace: 'Not provided',
-    swimPace: 'Not provided',
-    userNote,
-    weekMeta,
+  const plan = await startPlan({
+    planMeta: weekMeta,
+    userParams: {
+      raceType,
+      raceDate,
+      startDate,
+      totalWeeks,
+      experience,
+      maxHours,
+      restDay,
+      bikeFTP,
+      runPace,
+      swimPace,
+      userNote,
+    },
   });
-
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4-turbo',
-    messages: [
-      { role: 'system', content: COACH_SYSTEM_PROMPT },
-      { role: 'user', content: prompt },
-    ],
-    temperature: 0.7,
-  });
-
-  const rawContent = response.choices[0]?.message?.content;
-
-  let parsed: any[] = [];
-  try {
-    parsed = JSON.parse(rawContent || '');
-  } catch (e) {
-    console.error('❌ Failed to parse GPT response as JSON:', rawContent);
-    return NextResponse.json({ error: 'GPT output was not valid JSON' }, { status: 500 });
-  }
-
-  if (!parsed || !Array.isArray(parsed)) {
-    console.error('❌ Invalid plan format:', parsed);
-    return NextResponse.json({ error: 'Invalid plan structure from GPT' }, { status: 500 });
-  }
-
-  for (const week of parsed) {
-    if (
-      typeof week.label !== 'string' ||
-      typeof week.phase !== 'string' ||
-      typeof week.startDate !== 'string' ||
-      typeof week.deload !== 'boolean' ||
-      typeof week.days !== 'object' ||
-      Array.isArray(week.days)
-    ) {
-      console.error('❌ Invalid week format:', week);
-      return NextResponse.json({ error: 'Invalid week format in plan' }, { status: 500 });
-    }
-  }
 
   const coachNote = `Here's your ${totalWeeks}-week triathlon plan leading to your race on ${format(
     raceDate,
     'yyyy-MM-dd'
-  )}. ${adjusted ? 'We adjusted the duration for optimal training.' : ''} Stay consistent and trust the process.`;
+  )}. Stay consistent and trust the process.`;
 
   const { error: saveError } = await supabase.from('plans').upsert(
     {
       user_id,
-      plan: parsed,
+      plan,
       coach_note: coachNote,
       note: userNote,
       race_type: raceType,
@@ -196,5 +161,5 @@ export async function POST(req: Request) {
   }
 
   console.timeEnd('[⏱️ TOTAL]');
-  return NextResponse.json({ success: true, plan: parsed, coachNote, adjusted });
+  return NextResponse.json({ success: true, plan, coachNote });
 }
