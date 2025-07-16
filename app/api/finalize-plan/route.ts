@@ -45,6 +45,7 @@ const getDeload = (index: number): boolean => (index + 1) % 4 === 0;
 
 export async function POST(req: Request) {
   console.time('[⏱️ finalize-plan total]');
+  console.log('🧪 VERCEL STAGING DEPLOY — CHUNKED INFRA V2.1 ✅');
   console.log('🔥 /api/finalize-plan hit');
 
   const supabase = createServerComponentClient({ cookies });
