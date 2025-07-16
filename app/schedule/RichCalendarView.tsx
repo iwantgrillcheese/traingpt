@@ -25,7 +25,6 @@ export default function RichCalendarView({
   const [activeSession, setActiveSession] = useState<any | null>(null);
   const [detailedWorkoutMap, setDetailedWorkoutMap] = useState<Record<string, string>>({});
 
-  // Prepare sessionsByDate combining plan days and strava activities
   const sessionsByDate = useMemo(() => {
     const sessions: Record<string, string[]> = {};
 
@@ -47,7 +46,6 @@ export default function RichCalendarView({
     return sessions;
   }, [plan.days, stravaActivities]);
 
-  // Generate calendar weeks (array of arrays of date strings)
   const calendarRange = useMemo(() => {
     const allDates = Object.keys(sessionsByDate).sort();
     if (!allDates.length) return [];
@@ -84,7 +82,27 @@ export default function RichCalendarView({
 
   return (
     <div className="w-full max-w-[1400px] mx-auto px-6 py-10 bg-neutral-50 rounded-3xl shadow-sm">
-      {/* Header and navigation omitted for brevity */}
+      <div className="flex justify-between items-center mb-8">
+        <h2 className="text-3xl font-semibold tracking-tight text-neutral-800">Your Training Plan</h2>
+        <div className="flex gap-4 text-sm">
+          {monthIndex > 0 && (
+            <button
+              className="text-gray-500 hover:text-black"
+              onClick={() => setMonthIndex((prev) => Math.max(prev - 1, 0))}
+            >
+              ← Prev
+            </button>
+          )}
+          {calendarRange.length > (monthIndex + 1) * 4 && (
+            <button
+              className="text-gray-500 hover:text-black"
+              onClick={() => setMonthIndex((prev) => prev + 1)}
+            >
+              Next →
+            </button>
+          )}
+        </div>
+      </div>
 
       <div className="grid grid-cols-7 text-center font-medium text-[13px] text-gray-500 mb-4">
         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
@@ -92,48 +110,58 @@ export default function RichCalendarView({
         ))}
       </div>
 
-      {visibleWeeks.map((week, idx) => (
-        <div key={idx} className="grid grid-cols-7 gap-4 mb-6">
-          {week.map((date) => (
+      <div
+        className="overflow-x-auto no-scrollbar scroll-smooth snap-x snap-mandatory"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      >
+        <div className="inline-flex gap-6 px-2">
+          {visibleWeeks.map((week, idx) => (
             <div
-              key={date}
-              onClick={() => {
-                const first = sessionsByDate[date]?.[0];
-                if (!first) return;
-                const key = `${date}-${cleanLabel(first)}`;
-                setActiveSession({
-                  date,
-                  title: first,
-                  status:
-                    completed[
-                      `${date}-${
-                        first.toLowerCase().includes('swim')
-                          ? 'swim'
-                          : first.toLowerCase().includes('bike')
-                          ? 'bike'
-                          : 'run'
-                      }`
-                    ],
-                  aiWorkout: detailedWorkoutMap[key] || null,
-                  userNote: '',
-                });
-              }}
-              className={`min-h-[110px] bg-white rounded-2xl p-3 text-[13px] leading-tight border ${
-                isSameDay(parseISO(date), today) ? 'border-black' : 'border-neutral-200'
-              } shadow-sm hover:shadow-md hover:ring-1 hover:ring-neutral-200/60 transition-all cursor-pointer flex flex-col gap-1`}
+              key={idx}
+              className="grid grid-cols-7 gap-4 min-w-[600px] bg-white rounded-xl p-4 snap-start"
             >
-              <div className="text-[11px] font-medium text-neutral-400 tracking-wide">
-                {format(parseISO(date), 'MMM d')}
-              </div>
-              {(sessionsByDate[date] || []).map((s, i) => (
-                <div key={i} className="text-neutral-800 flex items-start gap-1">
-                  <span>{cleanLabel(s)}</span>
+              {week.map((date) => (
+                <div
+                  key={date}
+                  onClick={() => {
+                    const first = sessionsByDate[date]?.[0];
+                    if (!first) return;
+                    const key = `${date}-${cleanLabel(first)}`;
+                    setActiveSession({
+                      date,
+                      title: first,
+                      status:
+                        completed[
+                          `${date}-${
+                            first.toLowerCase().includes('swim')
+                              ? 'swim'
+                              : first.toLowerCase().includes('bike')
+                              ? 'bike'
+                              : 'run'
+                          }`
+                        ],
+                      aiWorkout: detailedWorkoutMap[key] || null,
+                      userNote: '',
+                    });
+                  }}
+                  className={`min-h-[110px] bg-white rounded-2xl p-3 text-[13px] leading-tight border ${
+                    isSameDay(parseISO(date), today) ? 'border-black' : 'border-neutral-200'
+                  } shadow-sm hover:shadow-md hover:ring-1 hover:ring-neutral-200/60 transition-all cursor-pointer flex flex-col gap-1`}
+                >
+                  <div className="text-[11px] font-medium text-neutral-400 tracking-wide">
+                    {format(parseISO(date), 'MMM d')}
+                  </div>
+                  {(sessionsByDate[date] || []).map((s, i) => (
+                    <div key={i} className="text-neutral-800 flex items-start gap-1">
+                      <span>{cleanLabel(s)}</span>
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>
           ))}
         </div>
-      ))}
+      </div>
 
       {activeSession && (
         <SessionModal
