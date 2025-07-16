@@ -2,7 +2,7 @@
 import OpenAI from 'openai';
 import { COACH_SYSTEM_PROMPT } from '@/lib/coachPrompt';
 import { buildCoachPrompt } from './buildCoachPrompt';
-import type { UserParams, WeekMeta } from '@/types/plan';
+import { WeekMeta, UserParams } from '@/types/plan';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -15,11 +15,8 @@ export type ParsedWeek = {
   debug?: string;
 };
 
-export async function generateWeek({
-  index,
-  meta,
-  params,
-}: {
+
+export async function generateWeek(meta: WeekMeta, userParams: UserParams) { {
   index: number;
   meta: WeekMeta;
   params: UserParams;
