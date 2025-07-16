@@ -1,22 +1,14 @@
-
-// /api/finalize-plan/route.ts (with chunked GPT generation via startPlan.ts)
+// /api/finalize-plan/route.ts (uses chunked GPT week-by-week via startPlan.ts)
 import { NextResponse } from 'next/server';
 import { addDays, addWeeks, format } from 'date-fns';
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { sendWelcomeEmail } from '@/lib/emails/send-welcome-email';
-import { generateWeek } from '@/utils/generate-week';
-import { startPlan } from '@/utils/start-plan';
-
+import { startPlan } from '@/utils/start-plan'; // ✅ this does the real chunked GPT work
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 export const runtime = 'nodejs';
-
-console.time('[⏱️ TOTAL]');
-console.log('🔥 /api/finalize-plan hit');
-
-
 
 const MIN_WEEKS = {
   Sprint: 2,
@@ -52,12 +44,15 @@ function getDeload(index: number): boolean {
 
 export async function POST(req: Request) {
   console.time('[⏱️ TOTAL]');
+  console.log('🔥 /api/finalize-plan hit');
+
   const body = await req.json();
   const supabase = createServerComponentClient({ cookies });
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const user_id = user.id;
@@ -111,13 +106,9 @@ export async function POST(req: Request) {
     phase: getPhase(i, totalWeeks),
     deload: getDeload(i),
     startDate: format(addWeeks(startDate, i), 'yyyy-MM-dd'),
-    
   }));
-  weekMeta.forEach((week, i) => {
-  console.log(`🛠️ WeekMeta[${i}]: ${JSON.stringify(week)}`);
-});
 
-
+  console.log('🧠 Starting week-by-week plan generation...');
   const plan = await startPlan({
     planMeta: weekMeta,
     userParams: {

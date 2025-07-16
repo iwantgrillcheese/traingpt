@@ -1,49 +1,28 @@
+// buildCoachPrompt.ts
 import { format } from 'date-fns';
 
-export function buildCoachPrompt({
-  raceType,
-  raceDate,
-  startDate,
-  totalWeeks,
-  experience,
-  maxHours,
-  restDay,
-  bikeFTP,
-  runPace,
-  swimPace,
-  userNote,
-}: {
-  raceType: string;
-  raceDate: Date;
-  startDate: Date;
-  totalWeeks: number;
-  experience: string;
-  maxHours: number;
-  restDay: string;
-  bikeFTP?: string;
-  runPace?: string;
-  swimPace?: string;
-  userNote?: string;
-}) {
-  const performanceDetails = [];
+export function buildCoachPrompt({ userParams, week }: { userParams: any; week: any }): string {
+  const { raceType, experience, maxHours, restDay, userNote, raceDate, bikeFTP, runPace, swimPace } = userParams;
 
-  if (bikeFTP) performanceDetails.push(`- Bike FTP: ${bikeFTP} watts`);
-  if (runPace) performanceDetails.push(`- Run Threshold Pace: ${runPace}`);
-  if (swimPace) performanceDetails.push(`- Swim Threshold Pace: ${swimPace}`);
+  const zones = [
+    bikeFTP ? `- Bike FTP: ${bikeFTP} watts` : null,
+    runPace ? `- Run Threshold Pace: ${runPace}` : null,
+    swimPace ? `- Swim Threshold Pace: ${swimPace}` : null,
+  ].filter(Boolean).join('\n');
 
-  const performanceNote = performanceDetails.length
-    ? `\nPerformance Metrics:\n${performanceDetails.join('\n')}`
-    : '';
+  const base = `
+You're generating WEEK ${week.index + 1} of a triathlon training plan.
+Race Type: ${raceType}
+Race Date: ${raceDate}
+Experience: ${experience}
+Max Weekly Hours: ${maxHours}
+Preferred Rest Day: ${restDay}
+${zones ? `\nPerformance Zones:\n${zones}` : ''}
+${userNote ? `\nAthlete Notes: ${userNote}` : ''}
 
-  return `
-Athlete Profile:
-- Race Type: ${raceType}
-- Race Date: ${format(raceDate, 'yyyy-MM-dd')}
-- Plan Start Date: ${format(startDate, 'yyyy-MM-dd')}
-- Total Weeks: ${totalWeeks}
-- Experience Level: ${experience}
-- Max Training Hours per Week: ${maxHours}
-- Preferred Rest Day: ${restDay}
-- Notes: ${userNote || 'None'}${performanceNote}
-`.trim();
+Output 5-7 sessions as a JSON array of strings, like:
+["🏊‍♂️ Swim: 2000m easy technique", "🚴‍♂️ Bike: 90min Z2", ...]
+`; 
+
+  return base.trim();
 }

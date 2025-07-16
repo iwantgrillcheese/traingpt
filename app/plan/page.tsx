@@ -77,7 +77,7 @@ export default function PlanPage() {
       const access_token = session?.access_token || null;
       if (!access_token) throw new Error('No Supabase access token found');
 
-      const res = await fetch('/api/start-plan', {
+      const res = await fetch('/api/finalize-plan', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -98,10 +98,10 @@ if (!res.ok) {
   throw new Error(json.error || 'Something went wrong while starting the plan.');
 }
 
-if (json.status === 'started') {
+if (res.ok && json.success) {
   router.push('/schedule');
 } else {
-  throw new Error('Unexpected response from start-plan.');
+  throw new Error(json.error || 'Plan generation failed.');
 }
 
 
