@@ -62,7 +62,6 @@ export async function POST(req: Request) {
   const today = new Date();
   const startDate = getNextMonday(today);
 
-  // Fetch fallback values from most recent plan if needed
   const { data: latestPlan, error: fetchError } = await supabase
     .from('plans')
     .select('*')
@@ -87,7 +86,6 @@ export async function POST(req: Request) {
   const runPace = body.runPace || null;
   const swimPace = body.swimPace || null;
 
-  // Ensure raceType is valid
   if (!(raceType in MIN_WEEKS)) {
     return NextResponse.json({ error: 'Unsupported race type.' }, { status: 400 });
   }
@@ -119,7 +117,7 @@ export async function POST(req: Request) {
   }));
 
   console.log(`🧠 Generating ${totalWeeks} weeks of training...`);
-    let plan;
+  let plan;
 
   try {
     plan = await startPlan({
@@ -146,7 +144,6 @@ export async function POST(req: Request) {
     );
   }
 
-
   const coachNote = `Here's your ${totalWeeks}-week triathlon plan leading to your race on ${format(
     raceDate,
     'yyyy-MM-dd'
@@ -155,7 +152,7 @@ export async function POST(req: Request) {
   const { error: saveError } = await supabase.from('plans').upsert(
     {
       user_id,
-      plan,
+      plan, // new flat shape
       coach_note: coachNote,
       note: userNote,
       race_type: raceType,

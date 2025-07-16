@@ -1,30 +1,31 @@
-import { WeekMeta, UserParams } from '@/types/plan';
+// /utils/start-plan.ts
 import { generateWeek } from './generate-week';
+import { WeekMeta, UserParams } from '@/types/plan';
 
-interface StartPlanArgs {
+export async function startPlan({
+  planMeta,
+  userParams,
+}: {
   planMeta: WeekMeta[];
   userParams: UserParams;
-}
+}) {
+  // Parallel generation of all weeks
+  const weeks = await Promise.all(
+    planMeta.map((meta, index) => generateWeek({ index, meta, params: userParams }))
+  );
 
-export async function startPlan({ planMeta, userParams }: StartPlanArgs) {
-  const weeks = [];
-  const BATCH_SIZE = 3;
+  // Flatten all weeks' days into a single days object
+  const days = weeks.reduce((acc, week) => {
+    Object.entries(week.days).forEach(([date, sessions]) => {
+      acc[date] = sessions;
+    });
+    return acc;
+  }, {} as Record<string, string[]>);
 
-  for (let i = 0; i < planMeta.length; i += BATCH_SIZE) {
-    const batch = planMeta.slice(i, i + BATCH_SIZE);
-
-    const results = await Promise.all(
-      batch.map((meta: WeekMeta, j: number) =>
-        generateWeek({
-          index: i + j,
-          meta,
-          params: userParams,
-        })
-      )
-    );
-
-    weeks.push(...results);
-  }
-
-  return weeks;
+  return {
+    label: `${userParams.raceType} Plan`,
+    startDate: userParams.startDate.toISOString().split('T')[0],
+    raceDate: userParams.raceDate.toISOString().split('T')[0],
+    days,
+  };
 }
