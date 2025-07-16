@@ -1,7 +1,20 @@
 import { useState, useEffect } from 'react';
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isSameDay } from 'date-fns';
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+  addDays,
+  isSameMonth,
+  isSameDay,
+} from 'date-fns';
 
-export function SidebarCalendar({ currentMonth, selectedDate, onDateSelect }: {
+export function SidebarCalendar({
+  currentMonth,
+  selectedDate,
+  onDateSelect,
+}: {
   currentMonth: Date;
   selectedDate: Date;
   onDateSelect: (date: Date) => void;
@@ -22,16 +35,23 @@ export function SidebarCalendar({ currentMonth, selectedDate, onDateSelect }: {
   }, [currentMonth]);
 
   return (
-    <div className="w-32 p-4 bg-white rounded-xl shadow-md select-none box-border">
-      <div className="text-center font-semibold mb-3 whitespace-nowrap overflow-hidden overflow-ellipsis">
+    <div className="w-28 p-4 bg-white rounded-xl shadow-md select-none flex flex-col items-center">
+      {/* Month and Year */}
+      <div className="text-center font-semibold mb-2 text-sm leading-tight whitespace-nowrap">
         {format(currentMonth, 'MMMM yyyy')}
       </div>
-      <div className="grid grid-cols-7 gap-1 text-xs font-semibold text-gray-500 tracking-widest select-none">
-        {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((d) => (
-          <div key={d} className="text-center truncate">{d}</div>
+
+      {/* Days of week header */}
+      <div className="grid grid-cols-7 gap-1 text-xs font-semibold text-gray-500 w-full text-center select-none leading-none">
+        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
+          <div key={d} className="text-center" style={{ lineHeight: 1 }}>
+            {d}
+          </div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-1 mt-1 text-center text-sm">
+
+      {/* Dates */}
+      <div className="grid grid-cols-7 gap-1 mt-1 w-full text-center text-sm select-none">
         {calendarDays.map((day) => {
           const isToday = isSameDay(day, new Date());
           const isSelected = isSameDay(day, selectedDate);
@@ -48,6 +68,7 @@ export function SidebarCalendar({ currentMonth, selectedDate, onDateSelect }: {
                 ${!inMonth ? 'text-gray-300 cursor-default' : 'cursor-pointer hover:bg-gray-100'}
               `}
               aria-label={`Select ${format(day, 'MMMM d, yyyy')}`}
+              tabIndex={inMonth ? 0 : -1}
             >
               {format(day, 'd')}
             </button>

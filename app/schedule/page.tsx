@@ -76,12 +76,12 @@ export default function SchedulePage() {
           : 'other';
 
         const colorMap = {
-  swim: 'bg-sky-400 text-white',
-  bike: 'bg-emerald-400 text-white',
-  run: 'bg-amber-400 text-white',
-  other: 'bg-gray-300 text-gray-800',
-  rest: 'bg-gray-200 text-gray-600',
-};
+          swim: 'bg-sky-400 text-white',
+          bike: 'bg-emerald-400 text-white',
+          run: 'bg-amber-400 text-white',
+          other: 'bg-gray-300 text-gray-800',
+          rest: 'bg-gray-200 text-gray-600',
+        };
 
         sessions.push({
           id: `${date}-${idx}`,

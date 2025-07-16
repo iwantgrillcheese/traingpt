@@ -1,9 +1,13 @@
 import { useState } from 'react';
 import { SidebarCalendar } from './SidebarCalendar';
 import { MonthGrid, Session } from './MonthGrid';
-import SessionModal from './SessionModal';
+import { SessionModal } from './SessionModal';
 
-export default function FantasticalCalendar({ sessions }: { sessions: Session[] }) {
+interface FantasticalCalendarProps {
+  sessions: Session[];
+}
+
+export default function FantasticalCalendar({ sessions }: FantasticalCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [modalSession, setModalSession] = useState<Session | null>(null);
@@ -14,8 +18,9 @@ export default function FantasticalCalendar({ sessions }: { sessions: Session[] 
         <SidebarCalendar
           currentMonth={currentMonth}
           selectedDate={selectedDate}
-          onDateSelect={(date) => setSelectedDate(date)}
+          onDateSelect={setSelectedDate}
         />
+
         <div className="flex-1 flex flex-col">
           <div className="flex justify-between items-center mb-4">
             <button
@@ -30,36 +35,52 @@ export default function FantasticalCalendar({ sessions }: { sessions: Session[] 
             <div className="flex gap-2">
               <button
                 onClick={() =>
-                  setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))
+                  setCurrentMonth(
+                    new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1)
+                  )
                 }
                 className="text-sm px-3 py-1 border rounded hover:bg-gray-100"
               >
-                ← Prev
+                Prev
               </button>
               <button
                 onClick={() =>
-                  setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))
+                  setCurrentMonth(
+                    new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1)
+                  )
                 }
                 className="text-sm px-3 py-1 border rounded hover:bg-gray-100"
               >
-                Next →
+                Next
               </button>
             </div>
           </div>
+
           <MonthGrid
             year={currentMonth.getFullYear()}
             month={currentMonth.getMonth()}
             sessions={sessions}
-            onDayClick={(date) => setSelectedDate(date)}
-            onSessionClick={(session) => setModalSession(session)}
+            selectedDate={selectedDate}
+            onDayClick={setSelectedDate}
+            onSessionClick={setModalSession}
           />
         </div>
       </div>
 
-      <SessionModal
-        session={modalSession ? { title: modalSession.title, date: modalSession.date } : null}
-        onClose={() => setModalSession(null)}
-      />
+      {modalSession && (
+        <SessionModal
+          session={modalSession}
+          onClose={() => setModalSession(null)}
+          onStatusChange={(status) => {
+            // Optional: handle status change
+            console.log('Session status:', status);
+          }}
+          onGenerateWorkout={async () => {
+            // Optional: trigger detailed workout generation logic
+            console.log('Generate workout for:', modalSession.title);
+          }}
+        />
+      )}
     </>
   );
 }

@@ -13,12 +13,14 @@ export function MonthGrid({
   year,
   month,
   sessions,
+  selectedDate,
   onDayClick,
   onSessionClick,
 }: {
   year: number;
   month: number; // 0-based
   sessions: Session[];
+  selectedDate: Date;
   onDayClick: (date: Date) => void;
   onSessionClick: (session: Session) => void;
 }) {
@@ -51,6 +53,7 @@ export function MonthGrid({
         const dayStr = format(day, 'yyyy-MM-dd');
         const daySessions = sessionsByDate[dayStr] || [];
         const isToday = isSameDay(day, new Date());
+        const isSelected = selectedDate && isSameDay(day, selectedDate);
         const inMonth = day.getMonth() === month;
 
         return (
@@ -60,6 +63,7 @@ export function MonthGrid({
             disabled={!inMonth}
             className={`relative flex flex-col p-2 min-h-[110px] rounded-lg border text-left
               ${isToday ? 'border-black font-semibold' : 'border-gray-200'}
+              ${isSelected ? 'bg-black text-white' : ''}
               ${!inMonth ? 'text-gray-300 cursor-default' : 'cursor-pointer hover:bg-gray-50'}
             `}
           >
