@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { COACH_SYSTEM_PROMPT } from '@/lib/coachPrompt';
-import { buildCoachPrompt } from '@/utils/buildCoachPrompt';
+import { buildCoachPrompt } from './buildCoachPrompt';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -34,8 +34,6 @@ export async function generateWeek({
   meta: WeekMeta;
   params: UserParams;
 }) {
-  console.log(`🧠 Generating Week ${index + 1} — ${meta.label}, starts ${meta.startDate}, phase: ${meta.phase}`);
-
   const coachPrompt = buildCoachPrompt({
     raceType: params.raceType,
     raceDate: params.raceDate,
@@ -73,5 +71,8 @@ Only return a single structured week. Title the week and include 6–7 well-form
     messages: [{ role: 'system', content: prompt }],
   });
 
-  return completion.choices[0].message.content ?? '';
+  const debugPrefix =
+    process.env.NODE_ENV === 'development' ? `<!-- Week ${index + 1} -->\n` : '';
+
+  return debugPrefix + (completion.choices[0].message.content ?? '');
 }
