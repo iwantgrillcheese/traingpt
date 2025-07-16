@@ -13,6 +13,11 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 export const runtime = 'nodejs';
 
+console.time('[⏱️ TOTAL]');
+console.log('🔥 /api/finalize-plan hit');
+
+
+
 const MIN_WEEKS = {
   Sprint: 2,
   Olympic: 3,
@@ -106,7 +111,12 @@ export async function POST(req: Request) {
     phase: getPhase(i, totalWeeks),
     deload: getDeload(i),
     startDate: format(addWeeks(startDate, i), 'yyyy-MM-dd'),
+    
   }));
+  weekMeta.forEach((week, i) => {
+  console.log(`🛠️ WeekMeta[${i}]: ${JSON.stringify(week)}`);
+});
+
 
   const plan = await startPlan({
     planMeta: weekMeta,

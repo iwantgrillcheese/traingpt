@@ -1,4 +1,3 @@
-// /utils/getNextMonday.ts
 import { addDays } from 'date-fns';
 
 export function getNextMonday(date: Date) {

@@ -1,25 +1,4 @@
-import { generateWeek } from '@/utils/generate-week';
-
-type WeekMeta = {
-  label: string;
-  phase: string;
-  deload: boolean;
-  startDate: string; // ISO format
-};
-
-type UserParams = {
-  raceType: string;
-  raceDate: Date;
-  startDate: Date;
-  totalWeeks: number;
-  experience: string;
-  maxHours: number;
-  restDay: string;
-  bikeFTP: string | null;
-  runPace: string | null;
-  swimPace: string | null;
-  userNote: string;
-};
+import { generateWeek, UserParams, WeekMeta } from './generate-week';
 
 export async function startPlan({
   planMeta,
@@ -28,39 +7,15 @@ export async function startPlan({
   planMeta: WeekMeta[];
   userParams: UserParams;
 }) {
-  const {
-    raceType,
-    raceDate,
-    startDate,
-    totalWeeks,
-    experience,
-    maxHours,
-    restDay,
-    bikeFTP,
-    runPace,
-    swimPace,
-    userNote,
-  } = userParams;
+  console.log(`⚡️ Starting plan generation for ${userParams.raceType}, ${planMeta.length} weeks`);
 
   const plan: string[] = [];
 
-  for (let i = 0; i < totalWeeks; i++) {
+  for (let i = 0; i < planMeta.length; i++) {
     const week = await generateWeek({
       index: i,
       meta: planMeta[i],
-      params: {
-        raceType,
-        raceDate,
-        startDate,
-        totalWeeks,
-        experience,
-        maxHours,
-        restDay,
-        bikeFTP,
-        runPace,
-        swimPace,
-        userNote,
-      },
+      params: userParams,
     });
 
     plan.push(week);

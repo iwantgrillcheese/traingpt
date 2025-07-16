@@ -4,14 +4,14 @@ import { buildCoachPrompt } from '@/utils/buildCoachPrompt';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-type WeekMeta = {
+export type WeekMeta = {
   label: string;
   phase: string;
   deload: boolean;
-  startDate: string; // ISO string
+  startDate: string;
 };
 
-type UserParams = {
+export type UserParams = {
   raceType: string;
   raceDate: Date;
   startDate: Date;
@@ -34,6 +34,8 @@ export async function generateWeek({
   meta: WeekMeta;
   params: UserParams;
 }) {
+  console.log(`🧠 Generating Week ${index + 1} — ${meta.label}, starts ${meta.startDate}, phase: ${meta.phase}`);
+
   const coachPrompt = buildCoachPrompt({
     raceType: params.raceType,
     raceDate: params.raceDate,
