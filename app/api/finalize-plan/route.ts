@@ -119,22 +119,33 @@ export async function POST(req: Request) {
   }));
 
   console.log(`🧠 Generating ${totalWeeks} weeks of training...`);
-  const plan = await startPlan({
-    planMeta,
-    userParams: {
-      raceType,
-      raceDate,
-      startDate,
-      totalWeeks,
-      experience,
-      maxHours,
-      restDay,
-      bikeFTP,
-      runPace,
-      swimPace,
-      userNote,
-    },
-  });
+    let plan;
+
+  try {
+    plan = await startPlan({
+      planMeta,
+      userParams: {
+        raceType,
+        raceDate,
+        startDate,
+        totalWeeks,
+        experience,
+        maxHours,
+        restDay,
+        bikeFTP,
+        runPace,
+        swimPace,
+        userNote,
+      },
+    });
+  } catch (err: any) {
+    console.error('❌ GPT Plan generation failed:', err);
+    return NextResponse.json(
+      { error: 'Plan generation failed', details: `${err.message || err}` },
+      { status: 500 }
+    );
+  }
+
 
   const coachNote = `Here's your ${totalWeeks}-week triathlon plan leading to your race on ${format(
     raceDate,
