@@ -1,54 +1,53 @@
-// /api/finalize-plan/route.ts (uses chunked GPT week-by-week via startPlan.ts)
+// /api/finalize-plan/route.ts
 import { NextResponse } from 'next/server';
-import { addDays, addWeeks, format } from 'date-fns';
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { format, addDays, addWeeks } from 'date-fns';
+
+import { startPlan } from '@/utils/start-plan';
 import { sendWelcomeEmail } from '@/lib/emails/send-welcome-email';
-import { startPlan } from '@/utils/start-plan'; // ✅ this does the real chunked GPT work
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 export const runtime = 'nodejs';
 
-const MIN_WEEKS = {
+type RaceType = 'Sprint' | 'Olympic' | 'Half Ironman (70.3)' | 'Ironman (140.6)';
+
+const MIN_WEEKS: Record<RaceType, number> = {
   Sprint: 2,
   Olympic: 3,
   'Half Ironman (70.3)': 4,
   'Ironman (140.6)': 6,
 };
 
-const MAX_WEEKS = {
+const MAX_WEEKS: Record<RaceType, number> = {
   Sprint: 20,
   Olympic: 24,
   'Half Ironman (70.3)': 28,
   'Ironman (140.6)': 32,
 };
 
-function getNextMonday(date: Date) {
+const getNextMonday = (date: Date): Date => {
   const day = date.getDay();
   const diff = (8 - day) % 7;
   return addDays(date, diff);
-}
+};
 
-function getPhase(index: number, totalWeeks: number): string {
-  if (index === totalWeeks - 1) return 'Race Week';
-  if (index === totalWeeks - 2) return 'Taper';
-  if (index === totalWeeks - 3) return 'Peak';
-  if (index >= Math.floor(totalWeeks * 0.5)) return 'Build';
+const getPhase = (index: number, total: number): string => {
+  if (index === total - 1) return 'Race Week';
+  if (index === total - 2) return 'Taper';
+  if (index === total - 3) return 'Peak';
+  if (index >= Math.floor(total * 0.5)) return 'Build';
   return 'Base';
-}
+};
 
-function getDeload(index: number): boolean {
-  return (index + 1) % 4 === 0;
-}
+const getDeload = (index: number): boolean => (index + 1) % 4 === 0;
 
 export async function POST(req: Request) {
-  console.time('[⏱️ TOTAL]');
+  console.time('[⏱️ finalize-plan total]');
   console.log('🔥 /api/finalize-plan hit');
 
-  const body = await req.json();
   const supabase = createServerComponentClient({ cookies });
-
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -57,9 +56,12 @@ export async function POST(req: Request) {
 
   const user_id = user.id;
   const user_email = user.email;
+
+  const body = await req.json();
   const today = new Date();
   const startDate = getNextMonday(today);
 
+  // Fetch fallback values from most recent plan if needed
   const { data: latestPlan, error: fetchError } = await supabase
     .from('plans')
     .select('*')
@@ -69,23 +71,30 @@ export async function POST(req: Request) {
     .maybeSingle();
 
   if (fetchError && fetchError.code !== 'PGRST116') {
-    console.error('❌ Fetch error:', fetchError);
-    return NextResponse.json({ error: 'Unexpected Supabase error' }, { status: 500 });
+    console.error('❌ Error fetching latest plan:', fetchError);
+    return NextResponse.json({ error: 'Failed to fetch plan.' }, { status: 500 });
   }
 
-  const raceType = body.raceType || latestPlan?.race_type;
+  const raceType = (body.raceType || latestPlan?.race_type) as RaceType;
   const raceDate = new Date(body.raceDate || latestPlan?.race_date);
   const experience = body.experience || latestPlan?.experience || 'Intermediate';
   const maxHours = body.maxHours || latestPlan?.max_hours || 8;
   const restDay = body.restDay || latestPlan?.rest_day || 'Monday';
+  const userNote = body.userNote || '';
+
   const bikeFTP = body.bikeFTP || null;
   const runPace = body.runPace || null;
   const swimPace = body.swimPace || null;
-  const userNote = body.userNote || '';
 
-  let totalWeeks = Math.ceil((raceDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
-  const minWeeks = MIN_WEEKS[raceType as keyof typeof MIN_WEEKS] || 6;
-  const maxWeeks = MAX_WEEKS[raceType as keyof typeof MAX_WEEKS] || 20;
+  // Ensure raceType is valid
+  if (!(raceType in MIN_WEEKS)) {
+    return NextResponse.json({ error: 'Unsupported race type.' }, { status: 400 });
+  }
+
+  const msPerWeek = 7 * 24 * 60 * 60 * 1000;
+  const totalWeeks = Math.ceil((raceDate.getTime() - startDate.getTime()) / msPerWeek);
+  const minWeeks = MIN_WEEKS[raceType];
+  const maxWeeks = MAX_WEEKS[raceType];
 
   if (totalWeeks < minWeeks) {
     return NextResponse.json(
@@ -101,16 +110,16 @@ export async function POST(req: Request) {
     );
   }
 
-  const weekMeta = Array.from({ length: totalWeeks }, (_, i) => ({
+  const planMeta = Array.from({ length: totalWeeks }, (_, i) => ({
     label: `Week ${i + 1}`,
     phase: getPhase(i, totalWeeks),
     deload: getDeload(i),
     startDate: format(addWeeks(startDate, i), 'yyyy-MM-dd'),
   }));
 
-  console.log('🧠 Starting week-by-week plan generation...');
+  console.log(`🧠 Generating ${totalWeeks} weeks of training...`);
   const plan = await startPlan({
-    planMeta: weekMeta,
+    planMeta,
     userParams: {
       raceType,
       raceDate,
@@ -161,6 +170,6 @@ export async function POST(req: Request) {
     console.error('📪 Welcome email failed:', err);
   }
 
-  console.timeEnd('[⏱️ TOTAL]');
+  console.timeEnd('[⏱️ finalize-plan total]');
   return NextResponse.json({ success: true, plan, coachNote });
 }

@@ -1,28 +1,18 @@
+// /utils/generate-week.ts
 import OpenAI from 'openai';
 import { COACH_SYSTEM_PROMPT } from '@/lib/coachPrompt';
 import { buildCoachPrompt } from './buildCoachPrompt';
+import type { UserParams, WeekMeta } from '@/types/plan';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-export type WeekMeta = {
+export type ParsedWeek = {
   label: string;
   phase: string;
-  deload: boolean;
   startDate: string;
-};
-
-export type UserParams = {
-  raceType: string;
-  raceDate: Date;
-  startDate: Date;
-  totalWeeks: number;
-  experience: string;
-  maxHours: number;
-  restDay: string;
-  bikeFTP: string | null;
-  runPace: string | null;
-  swimPace: string | null;
-  userNote: string;
+  deload: boolean;
+  days: Record<string, string[]>;
+  debug?: string;
 };
 
 export async function generateWeek({
@@ -33,19 +23,11 @@ export async function generateWeek({
   index: number;
   meta: WeekMeta;
   params: UserParams;
-}) {
+}): Promise<ParsedWeek> {
   const coachPrompt = buildCoachPrompt({
-    raceType: params.raceType,
-    raceDate: params.raceDate,
-    startDate: params.startDate,
-    totalWeeks: params.totalWeeks,
-    experience: params.experience,
-    maxHours: params.maxHours,
-    restDay: params.restDay,
-    bikeFTP: params.bikeFTP ?? '',
-    runPace: params.runPace ?? '',
-    swimPace: params.swimPace ?? '',
-    userNote: params.userNote ?? '',
+    userParams: params,
+    weekMeta: meta,
+    index,
   });
 
   const prompt = `
@@ -73,24 +55,24 @@ Return only a JSON object like the following (no explanation, no extra text):
   },
   "debug": "🚨 DEBUG: This is week ${index + 1} — generated via generateWeek.ts"
 }
-  `.trim();
+`.trim();
 
   const response = await openai.chat.completions.create({
     model: 'gpt-4-turbo',
     temperature: 0.7,
     messages: [
-      {
-        role: 'system',
-        content: COACH_SYSTEM_PROMPT,
-      },
-      {
-        role: 'user',
-        content: prompt,
-      },
+      { role: 'system', content: COACH_SYSTEM_PROMPT },
+      { role: 'user', content: prompt },
     ],
   });
 
   const content = response.choices[0]?.message?.content || '';
 
-  return content;
+  try {
+    const parsed = JSON.parse(content);
+    return parsed as ParsedWeek;
+  } catch (err) {
+    console.error('❌ Failed to parse GPT response for week', index + 1, content);
+    throw new Error(`Failed to parse GPT response: ${err}`);
+  }
 }

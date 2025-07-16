@@ -1,24 +1,24 @@
-// start-plan.ts
+// /utils/start-plan.ts
 import { generateWeek } from './generate-week';
+import type { WeekMeta, UserParams } from '@/types/plan';
+import type { ParsedWeek } from '@/utils/generate-week';
 
 export async function startPlan({
   planMeta,
   userParams,
 }: {
-  planMeta: any[];
-  userParams: any;
-}): Promise<any[][]> {
+  planMeta: WeekMeta[];
+  userParams: UserParams;
+}): Promise<ParsedWeek[]> {
   console.log(`⚡️ Starting plan generation: ${planMeta.length} weeks for ${userParams.raceType}`);
 
-  const plan: any[][] = [];
+  const plan: ParsedWeek[] = [];
 
   for (let i = 0; i < planMeta.length; i++) {
-    const week = planMeta[i];
-    console.log(`📅 Generating week ${i + 1} — ${week.label}`);
-
     const sessions = await generateWeek({
-      userParams,
-      week,
+      index: i,
+      meta: planMeta[i],
+      params: userParams,
     });
 
     plan.push(sessions);
