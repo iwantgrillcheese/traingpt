@@ -72,23 +72,21 @@ Return only a JSON object like the following:
   "days": {
     "YYYY-MM-DD": ["Workout 1", "Workout 2"]
   },
-  "debug": "🚨 DEBUG: This is week ${index + 1} — generated via generateWeek.ts"
+  "debug": "🔥 CHUNKED WEEK ${index + 1} GENERATED @ ${new Date().toISOString()}"
 }
 `;
 
   const completion = await openai.chat.completions.create({
     model: 'gpt-4-turbo',
     messages: [{ role: 'system', content: prompt }],
+    temperature: 0.7,
   });
 
-  const raw = completion.choices[0].message.content ?? '';
-
   try {
-    const parsed = JSON.parse(raw);
-    return parsed;
+    const json = JSON.parse(completion.choices[0].message.content || '');
+    return json;
   } catch (err) {
-    console.error(`❌ Failed to parse GPT response for Week ${index + 1}`);
-    console.error(raw);
+    console.error('❌ Failed to parse GPT response for week', index + 1, completion.choices[0]);
     throw err;
   }
 }

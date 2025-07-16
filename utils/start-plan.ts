@@ -9,7 +9,7 @@ export async function startPlan({
 }) {
   console.log(`⚡️ Starting plan generation for ${userParams.raceType}, ${planMeta.length} weeks`);
 
-  const plan: string[] = [];
+  const plan: any[] = [];
 
   for (let i = 0; i < planMeta.length; i++) {
     const week = await generateWeek({
