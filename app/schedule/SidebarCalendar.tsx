@@ -1,11 +1,7 @@
 import { useState, useEffect } from 'react';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isSameDay } from 'date-fns';
 
-export function SidebarCalendar({
-  currentMonth,
-  selectedDate,
-  onDateSelect,
-}: {
+export function SidebarCalendar({ currentMonth, selectedDate, onDateSelect }: {
   currentMonth: Date;
   selectedDate: Date;
   onDateSelect: (date: Date) => void;
@@ -26,13 +22,13 @@ export function SidebarCalendar({
   }, [currentMonth]);
 
   return (
-    <div className="w-28 p-4 bg-white rounded-xl shadow-md select-none">
-      <div className="text-center font-semibold mb-2">
+    <div className="w-32 p-4 bg-white rounded-xl shadow-md select-none box-border">
+      <div className="text-center font-semibold mb-3 whitespace-nowrap overflow-hidden overflow-ellipsis">
         {format(currentMonth, 'MMMM yyyy')}
       </div>
-      <div className="grid grid-cols-7 gap-1 text-xs font-medium text-gray-400">
+      <div className="grid grid-cols-7 gap-1 text-xs font-semibold text-gray-500 tracking-widest select-none">
         {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((d) => (
-          <div key={d} className="text-center">{d}</div>
+          <div key={d} className="text-center truncate">{d}</div>
         ))}
       </div>
       <div className="grid grid-cols-7 gap-1 mt-1 text-center text-sm">
