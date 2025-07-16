@@ -49,13 +49,7 @@ export async function generateWeek({
     weekMeta: [meta],
   });
 
- const debugMarker = `
-===============================
-🚨 DEBUG: THIS IS WEEK #${index + 1} — GENERATED CHUNK
-===============================
-`;
-
-const prompt = `
+  const prompt = `
 ${COACH_SYSTEM_PROMPT}
 
 Your job is to generate a detailed training plan for week ${index + 1}.
@@ -69,14 +63,32 @@ Your job is to generate a detailed training plan for week ${index + 1}.
 ## Athlete Info
 ${coachPrompt}
 
-Only return a single structured week. Title the week and include 6–7 well-formatted sessions.
-
-${debugMarker}
+Return only a JSON object like the following:
+{
+  "label": "${meta.label}",
+  "phase": "${meta.phase}",
+  "startDate": "${meta.startDate}",
+  "deload": ${meta.deload},
+  "days": {
+    "YYYY-MM-DD": ["Workout 1", "Workout 2"]
+  },
+  "debug": "🚨 DEBUG: This is week ${index + 1} — generated via generateWeek.ts"
+}
 `;
 
-const completion = await openai.chat.completions.create({
-  model: 'gpt-4-turbo',
-  messages: [{ role: 'system', content: prompt }],
-});
+  const completion = await openai.chat.completions.create({
+    model: 'gpt-4-turbo',
+    messages: [{ role: 'system', content: prompt }],
+  });
 
-return completion.choices[0].message.content ?? '';}
+  const raw = completion.choices[0].message.content ?? '';
+
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed;
+  } catch (err) {
+    console.error(`❌ Failed to parse GPT response for Week ${index + 1}`);
+    console.error(raw);
+    throw err;
+  }
+}
