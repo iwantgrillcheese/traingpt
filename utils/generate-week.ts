@@ -15,12 +15,16 @@ export type ParsedWeek = {
   debug?: string;
 };
 
-
-export async function generateWeek(meta: WeekMeta, userParams: UserParams) { {
+export async function generateWeek({
+  index,
+  meta,
+  params,
+}: {
   index: number;
   meta: WeekMeta;
   params: UserParams;
 }): Promise<ParsedWeek> {
+
   const coachPrompt = buildCoachPrompt({
     userParams: params,
     weekMeta: meta,
