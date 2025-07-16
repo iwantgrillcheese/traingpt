@@ -49,7 +49,13 @@ export async function generateWeek({
     weekMeta: [meta],
   });
 
-  const prompt = `
+ const debugMarker = `
+===============================
+🚨 DEBUG: THIS IS WEEK #${index + 1} — GENERATED CHUNK
+===============================
+`;
+
+const prompt = `
 ${COACH_SYSTEM_PROMPT}
 
 Your job is to generate a detailed training plan for week ${index + 1}.
@@ -64,15 +70,13 @@ Your job is to generate a detailed training plan for week ${index + 1}.
 ${coachPrompt}
 
 Only return a single structured week. Title the week and include 6–7 well-formatted sessions.
+
+${debugMarker}
 `;
 
-  const completion = await openai.chat.completions.create({
-    model: 'gpt-4-turbo',
-    messages: [{ role: 'system', content: prompt }],
-  });
+const completion = await openai.chat.completions.create({
+  model: 'gpt-4-turbo',
+  messages: [{ role: 'system', content: prompt }],
+});
 
-  const debugPrefix =
-    process.env.NODE_ENV === 'development' ? `<!-- Week ${index + 1} -->\n` : '';
-
-  return debugPrefix + (completion.choices[0].message.content ?? '');
-}
+return completion.choices[0].message.content ?? '';}
