@@ -1,17 +1,17 @@
-'use client';
-
 import React, { useState } from 'react';
 
-export interface SessionModalProps {
-  session: {
-    title: string;
-    date: string;
-    aiWorkout?: string | null;
-  } | null;
+export type Session = {
+  title: string;
+  date: string;
+  aiWorkout?: string | null;
+};
+
+export type SessionModalProps = {
+  session: Session;
   onClose: () => void;
   onStatusChange?: (newStatus: 'done' | 'skipped' | 'missed') => void;
   onGenerateWorkout?: () => Promise<void>;
-}
+};
 
 export function SessionModal({
   session,
@@ -19,11 +19,8 @@ export function SessionModal({
   onStatusChange,
   onGenerateWorkout,
 }: SessionModalProps) {
-  const [isLoading, setIsLoading] = useState(false);
-
-  if (!session) return null;
-
   const { title, date, aiWorkout } = session;
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleGenerate = async () => {
     if (!onGenerateWorkout) return;
@@ -37,39 +34,33 @@ export function SessionModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-lg shadow-lg max-w-md w-full p-6 relative"
+        className="bg-white rounded-2xl shadow-medium max-w-md w-full p-8 relative"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-xl font-semibold mb-4">{title}</h2>
-        <p className="mb-4">Date: {date}</p>
+        <h2 className="text-lg font-semibold mb-4 leading-snug text-primary">{title}</h2>
+        <p className="text-sm text-primary-light mb-6">Date: {date}</p>
 
-        {aiWorkout && (
-          <pre className="mb-4 whitespace-pre-wrap bg-gray-100 p-3 rounded text-sm">
-            {aiWorkout}
-          </pre>
-        )}
-
-        <div className="flex justify-between gap-2">
+        <div className="flex flex-wrap gap-4 justify-center mb-6">
           {onStatusChange && (
             <>
               <button
-                className="bg-green-600 text-white px-4 py-2 rounded"
+                className="bg-accent-swim hover:bg-blue-500 text-white rounded-xl px-5 py-2 shadow-subtle transition"
                 onClick={() => onStatusChange('done')}
               >
                 Done
               </button>
               <button
-                className="bg-gray-300 text-gray-700 px-4 py-2 rounded"
+                className="bg-background-rest hover:bg-gray-300 text-primary rounded-xl px-5 py-2 shadow-subtle transition"
                 onClick={() => onStatusChange('skipped')}
               >
                 Skipped
               </button>
               <button
-                className="bg-red-600 text-white px-4 py-2 rounded"
+                className="bg-red-500 hover:bg-red-600 text-white rounded-xl px-5 py-2 shadow-subtle transition"
                 onClick={() => onStatusChange('missed')}
               >
                 Missed
@@ -79,21 +70,51 @@ export function SessionModal({
 
           {onGenerateWorkout && (
             <button
-              className="bg-blue-600 text-white px-4 py-2 rounded ml-auto disabled:opacity-50"
+              className={`${
+                isLoading ? 'bg-blue-400' : 'bg-primary hover:bg-primary/90'
+              } text-white rounded-xl px-5 py-2 shadow-subtle transition flex items-center justify-center`}
               onClick={handleGenerate}
               disabled={isLoading}
             >
-              {isLoading ? 'Generating...' : 'Generate Detailed Workout'}
+              {isLoading && (
+                <svg
+                  className="animate-spin h-5 w-5 mr-2 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                  />
+                </svg>
+              )}
+              Generate Detailed Workout
             </button>
           )}
 
           <button
-            className="bg-black text-white px-4 py-2 rounded ml-auto"
+            className="bg-primary hover:bg-primary/90 text-white rounded-xl px-5 py-2 shadow-subtle transition"
             onClick={onClose}
           >
             Close
           </button>
         </div>
+
+        {aiWorkout && (
+          <pre className="bg-background-light p-4 rounded-xl text-sm whitespace-pre-wrap max-h-48 overflow-y-auto text-primary">
+            {aiWorkout}
+          </pre>
+        )}
       </div>
     </div>
   );

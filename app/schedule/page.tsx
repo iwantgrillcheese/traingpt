@@ -64,6 +64,14 @@ export default function SchedulePage() {
       color: string;
     }[] = [];
 
+    const colorMap = {
+      swim: 'bg-accent-swim text-white',
+      bike: 'bg-accent-bike text-white',
+      run: 'bg-accent-run text-white',
+      other: 'bg-background-rest text-primary',
+      rest: 'bg-background-rest text-primary',
+    };
+
     Object.entries(planDays).forEach(([date, titles]) => {
       titles.forEach((title, idx) => {
         const lower = title.toLowerCase();
@@ -74,14 +82,6 @@ export default function SchedulePage() {
           : lower.includes('run')
           ? 'run'
           : 'other';
-
-        const colorMap = {
-          swim: 'bg-sky-400 text-white',
-          bike: 'bg-emerald-400 text-white',
-          run: 'bg-amber-400 text-white',
-          other: 'bg-gray-300 text-gray-800',
-          rest: 'bg-gray-200 text-gray-600',
-        };
 
         sessions.push({
           id: `${date}-${idx}`,
@@ -98,11 +98,11 @@ export default function SchedulePage() {
 
   if (loading)
     return (
-      <div className="py-20 text-center text-gray-400">Loading your schedule...</div>
+      <div className="py-20 text-center text-primary-light">Loading your schedule...</div>
     );
   if (!plan)
     return (
-      <div className="py-20 text-center text-gray-400">
+      <div className="py-20 text-center text-primary-light">
         No plan found. Generate one to get started.
       </div>
     );
@@ -114,16 +114,20 @@ export default function SchedulePage() {
       <div className="flex justify-center gap-4 mb-8">
         <button
           onClick={() => setView('calendar')}
-          className={`px-4 py-2 rounded-full text-sm font-medium ${
-            view === 'calendar' ? 'bg-black text-white' : 'bg-gray-100 text-gray-700'
+          className={`px-4 py-2 rounded-full text-sm font-medium transition ${
+            view === 'calendar'
+              ? 'bg-primary text-white shadow-medium'
+              : 'bg-background-light text-primary hover:bg-gray-100'
           }`}
         >
           Calendar View
         </button>
         <button
           onClick={() => setView('schedule')}
-          className={`px-4 py-2 rounded-full text-sm font-medium ${
-            view === 'schedule' ? 'bg-black text-white' : 'bg-gray-100 text-gray-700'
+          className={`px-4 py-2 rounded-full text-sm font-medium transition ${
+            view === 'schedule'
+              ? 'bg-primary text-white shadow-medium'
+              : 'bg-background-light text-primary hover:bg-gray-100'
           }`}
         >
           List View
@@ -135,7 +139,7 @@ export default function SchedulePage() {
       {view === 'schedule' && (
         <>
           {plan.raceDate && (
-            <p className="text-center text-gray-600 mb-4">
+            <p className="text-center text-primary-light mb-4">
               Race Date: {format(parseISO(plan.raceDate), 'MMMM d, yyyy')}
             </p>
           )}
@@ -144,13 +148,11 @@ export default function SchedulePage() {
               const sessionsList = sessionsRaw as string[];
               return (
                 <div key={date} className="flex flex-col gap-4" data-date={date}>
-                  <div className="text-md font-bold text-gray-600">
-                    {format(parseISO(date), 'EEEE, MMM d')}
-                  </div>
+                  <div className="text-md font-bold text-primary">{format(parseISO(date), 'EEEE, MMM d')}</div>
                   {sessionsList.map((sessionTitle, sessionIdx) => (
                     <div
                       key={sessionIdx}
-                      className="p-4 border rounded-lg bg-white shadow-sm"
+                      className="p-4 border rounded-xl bg-white shadow-subtle"
                     >
                       {sessionTitle}
                     </div>

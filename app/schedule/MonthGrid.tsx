@@ -38,12 +38,12 @@ export function MonthGrid({
   }, {});
 
   return (
-    <div className="grid grid-cols-7 gap-2 select-none">
+    <div className="grid grid-cols-7 gap-3 select-none">
       {/* Weekday headers */}
       {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
         <div
           key={d}
-          className="text-center text-xs font-semibold text-gray-500 border-b pb-1"
+          className="text-center text-xs font-semibold text-primary-light border-b pb-2"
         >
           {d}
         </div>
@@ -61,17 +61,17 @@ export function MonthGrid({
             key={dayStr}
             onClick={() => onDayClick(day)}
             disabled={!inMonth}
-            className={`relative flex flex-col p-2 min-h-[110px] rounded-lg border text-left
-              ${isToday ? 'border-black font-semibold' : 'border-gray-200'}
-              ${isSelected ? 'bg-black text-white' : ''}
+            className={`relative flex flex-col p-3 min-h-[110px] rounded-xl border text-left
+              ${isToday ? 'border-primary font-semibold' : 'border-gray-200'}
+              ${isSelected ? 'bg-primary text-white' : ''}
               ${!inMonth ? 'text-gray-300 cursor-default' : 'cursor-pointer hover:bg-gray-50'}
             `}
           >
             {/* Date label */}
-            <div className="text-xs mb-1">{format(day, 'd')}</div>
+            <div className="text-xs mb-2">{format(day, 'd')}</div>
 
             {/* Sessions list */}
-            <div className="flex flex-col gap-1 overflow-hidden">
+            <div className="flex flex-col gap-2 overflow-hidden">
               {daySessions.map((session) => (
                 <button
                   key={session.id}
@@ -79,8 +79,8 @@ export function MonthGrid({
                     e.stopPropagation();
                     onSessionClick(session);
                   }}
-                  className={`truncate text-xs rounded px-2 py-0.5 cursor-pointer
-                    ${session.color} text-white shadow-sm hover:brightness-90`}
+                  className={`truncate text-xs rounded-full px-3 py-1 cursor-pointer
+                    ${session.color} text-white shadow-subtle hover:brightness-90 transition duration-150`}
                   title={session.title}
                 >
                   {session.title}

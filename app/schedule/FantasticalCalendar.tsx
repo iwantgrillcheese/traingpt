@@ -14,7 +14,7 @@ export default function FantasticalCalendar({ sessions }: FantasticalCalendarPro
 
   return (
     <>
-      <div className="flex gap-6 max-w-7xl mx-auto p-4">
+      <div className="flex max-w-7xl mx-auto p-4 gap-6">
         <SidebarCalendar
           currentMonth={currentMonth}
           selectedDate={selectedDate}
@@ -25,7 +25,7 @@ export default function FantasticalCalendar({ sessions }: FantasticalCalendarPro
           <div className="flex justify-between items-center mb-4">
             <button
               onClick={() => setCurrentMonth(new Date())}
-              className="text-sm px-3 py-1 border rounded hover:bg-gray-100"
+              className="text-sm px-3 py-1 border rounded hover:bg-gray-100 transition"
             >
               Today
             </button>
@@ -39,7 +39,7 @@ export default function FantasticalCalendar({ sessions }: FantasticalCalendarPro
                     new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1)
                   )
                 }
-                className="text-sm px-3 py-1 border rounded hover:bg-gray-100"
+                className="text-sm px-3 py-1 border rounded hover:bg-gray-100 transition"
               >
                 Prev
               </button>
@@ -49,7 +49,7 @@ export default function FantasticalCalendar({ sessions }: FantasticalCalendarPro
                     new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1)
                   )
                 }
-                className="text-sm px-3 py-1 border rounded hover:bg-gray-100"
+                className="text-sm px-3 py-1 border rounded hover:bg-gray-100 transition"
               >
                 Next
               </button>
@@ -72,12 +72,12 @@ export default function FantasticalCalendar({ sessions }: FantasticalCalendarPro
           session={modalSession}
           onClose={() => setModalSession(null)}
           onStatusChange={(status) => {
-            // Optional: handle status change
-            console.log('Session status:', status);
+            // Optional: handle session status update logic here
+            console.log('Status changed to', status);
           }}
           onGenerateWorkout={async () => {
-            // Optional: trigger detailed workout generation logic
-            console.log('Generate workout for:', modalSession.title);
+            // Optional: trigger workout generation logic here
+            console.log('Generating detailed workout for:', modalSession.title);
           }}
         />
       )}
