@@ -22,12 +22,25 @@ export function buildCoachPrompt({
   experience: string;
   maxHours: number;
   restDay: string;
-  bikeFTP: string;
-  runPace: string;
-  swimPace: string;
-  userNote: string;
-weekMeta: { label: string; phase: string; deload: boolean; startDate: string }[];
+  bikeFTP?: string;
+  runPace?: string;
+  swimPace?: string;
+  userNote?: string;
+  weekMeta: { label: string; phase: string; deload: boolean; startDate: string }[];
 }) {
+  // Dynamically inject performance metrics into userNote block if available
+  const performanceDetails = [];
+
+  if (bikeFTP) performanceDetails.push(`Bike FTP: ${bikeFTP} watts`);
+  if (runPace) performanceDetails.push(`Run Threshold Pace: ${runPace}`);
+  if (swimPace) performanceDetails.push(`Swim Threshold Pace: ${swimPace}`);
+
+  const performanceNote = performanceDetails.length
+    ? `\n\nPerformance Metrics:\n${performanceDetails.join('\n')}`
+    : '';
+
+  const finalUserNote = (userNote || 'None provided') + performanceNote;
+
   return COACH_SYSTEM_PROMPT
     .replace('[RACE_TYPE]', raceType)
     .replace('[RACE_DATE]', format(raceDate, 'yyyy-MM-dd'))
@@ -36,8 +49,5 @@ weekMeta: { label: string; phase: string; deload: boolean; startDate: string }[]
     .replace('[EXPERIENCE_LEVEL]', experience)
     .replace('[MAX_HOURS]', `${maxHours}`)
     .replace('[REST_DAY]', restDay)
-    .replace('[BIKE_FTP]', bikeFTP)
-    .replace('[RUN_PACE]', runPace)
-    .replace('[SWIM_PACE]', swimPace)
-    .replace('[USER_NOTE]', userNote || 'None provided');
+    .replace('[USER_NOTE]', finalUserNote);
 }

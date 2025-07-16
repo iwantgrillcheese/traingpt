@@ -36,8 +36,9 @@ function getNextMonday(date: Date) {
 
 function getPhase(index: number, totalWeeks: number): string {
   if (index === totalWeeks - 1) return 'Race Week';
-  if (index >= totalWeeks - 2) return 'Taper';
-  if (index >= Math.floor(totalWeeks * 0.6)) return 'Build';
+  if (index === totalWeeks - 2) return 'Taper';
+  if (index === totalWeeks - 3) return 'Peak';
+  if (index >= Math.floor(totalWeeks * 0.5)) return 'Build';
   return 'Base';
 }
 
