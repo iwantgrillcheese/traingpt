@@ -1,43 +1,86 @@
+// SidebarCalendar.tsx
 'use client';
 
-import { format, isAfter, parseISO } from 'date-fns';
+import { useMemo } from 'react';
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+  addDays,
+  isSameDay,
+  isSameMonth,
+  parseISO,
+  subMonths,
+  addMonths,
+} from 'date-fns';
 
-type Session = {
-  date: string;
-  title: string;
-  sport?: string;
+type SidebarCalendarProps = {
+  selectedDate: Date;
+  onSelectDate: (date: Date) => void;
+  allDates?: string[];
+  sessions?: { date: string; title: string; sport?: string }[];
 };
 
-export default function SidebarCalendar({ sessions }: { sessions: Session[] }) {
-  const today = new Date();
+export function SidebarCalendar({
+  selectedDate,
+  onSelectDate,
+  allDates = [],
+  sessions = [],
+}: SidebarCalendarProps) { {
+  const currentMonth = useMemo(() => startOfMonth(selectedDate), [selectedDate]);
+  const monthLabel = format(currentMonth, 'MMMM yyyy');
+  const start = startOfWeek(currentMonth, { weekStartsOn: 1 });
+  const end = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 });
 
-  const upcoming = sessions
-    .filter((s) => isAfter(parseISO(s.date), today))
-    .sort((a, b) => (a.date > b.date ? 1 : -1))
-    .slice(0, 5);
+  const dates = useMemo(() => {
+    const days = [];
+    let day = start;
+    while (day <= end) {
+      days.push(day);
+      day = addDays(day, 1);
+    }
+    return days;
+  }, [start, end]);
+
+  const dateHasSession = (date: Date) => {
+    const iso = format(date, 'yyyy-MM-dd');
+    return allDates.includes(iso);
+  };
 
   return (
-    <aside className="hidden lg:flex flex-col w-[280px] min-w-[260px] max-w-[320px] bg-white border border-gray-200 rounded-2xl shadow-sm p-6 space-y-6">
-      {/* Mini calendar placeholder */}
-      <div>
-        <h2 className="text-sm font-semibold text-gray-700 mb-2">Mini Calendar</h2>
-        <div className="text-center text-gray-400 text-sm italic">[Calendar Coming Soon]</div>
+    <div className="p-4 rounded-2xl border bg-white w-full text-[13px] shadow-sm">
+      <div className="flex items-center justify-between mb-2">
+        <strong className="text-sm text-neutral-800">Mini Calendar</strong>
+        <span className="text-xs text-neutral-400">{monthLabel}</span>
       </div>
+      <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-gray-400 mb-1">
+        {["M", "T", "W", "T", "F", "S", "S"].map((d) => (
+          <div key={d}>{d}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-1 text-center">
+        {dates.map((date, idx) => {
+          const isToday = isSameDay(date, new Date());
+          const isSelected = isSameDay(date, selectedDate);
+          const inMonth = isSameMonth(date, currentMonth);
 
-      {/* Upcoming Sessions */}
-      <div>
-        <h2 className="text-sm font-semibold text-gray-700 mb-2">Upcoming Sessions</h2>
-        <ul className="space-y-3">
-          {upcoming.map((s, idx) => (
-            <li key={idx} className="flex flex-col">
-              <span className="text-xs text-gray-400">
-                {format(parseISO(s.date), 'EEE MMM d')}
-              </span>
-              <span className="text-sm text-gray-800 truncate">{s.title}</span>
-            </li>
-          ))}
-        </ul>
+          return (
+            <button
+              key={idx}
+              onClick={() => onSelectDate(date)}
+              className={`rounded-full w-7 h-7 flex items-center justify-center text-xs transition
+                ${isToday ? 'border border-neutral-400' : ''}
+                ${isSelected ? 'bg-black text-white' : ''}
+                ${!inMonth ? 'text-gray-300' : ''}
+                ${dateHasSession(date) && !isSelected ? 'text-black font-medium' : ''}`}
+            >
+              {format(date, 'd')}
+            </button>
+          );
+        })}
       </div>
-    </aside>
+    </div>
   );
-}
+}}

@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import RichCalendarView from './RichCalendarView';
-import SidebarCalendar from './SidebarCalendar';
+import { SidebarCalendar } from './SidebarCalendar';
 import { SessionModal } from './SessionModal';
 
 export default function FantasticalCalendar({
@@ -57,7 +57,9 @@ export default function FantasticalCalendar({
 
   return (
     <div className="flex w-full max-w-screen-xl mx-auto px-6 py-10 gap-6">
-      <SidebarCalendar sessions={flatSessions} />
+      <SidebarCalendar sessions={flatSessions} selectedDate={new Date()} onSelectDate={function (date: Date): void {
+        throw new Error('Function not implemented.');
+      } } />
 
       <RichCalendarView
   plan={plan}

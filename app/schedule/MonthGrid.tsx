@@ -1,93 +1,71 @@
-import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
+// MonthGrid.tsx — Full 7x5 Calendar Grid
+'use client';
+
+import {
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+  addDays,
+  isSameDay,
+  isSameMonth,
+  format,
+} from 'date-fns';
 import React from 'react';
 
-export type Session = {
-  id: string;
-  date: string; // 'yyyy-MM-dd'
-  title: string;
-  type: 'swim' | 'bike' | 'run' | 'other';
-  color: string; // Tailwind CSS background color class e.g. 'bg-blue-500'
-};
-
-export function MonthGrid({
-  year,
-  month,
-  sessions,
-  selectedDate,
-  onDayClick,
-  onSessionClick,
+export default function MonthGrid({
+  selectedMonth,
+  sessionsByDate,
+  onClickDate,
 }: {
-  year: number;
-  month: number; // 0-based
-  sessions: Session[];
-  selectedDate: Date;
-  onDayClick: (date: Date) => void;
-  onSessionClick: (session: Session) => void;
+  selectedMonth: Date;
+  sessionsByDate: Record<string, string[]>;
+  onClickDate?: (date: string) => void;
 }) {
-  const startDate = startOfWeek(new Date(year, month, 1), { weekStartsOn: 1 });
+  const today = new Date();
+  const start = startOfWeek(startOfMonth(selectedMonth), { weekStartsOn: 1 });
+  const end = endOfWeek(endOfMonth(selectedMonth), { weekStartsOn: 1 });
 
-  const calendarDays = Array.from({ length: 42 }).map((_, i) =>
-    addDays(startDate, i)
-  );
-
-  // Group sessions by date for easy lookup
-  const sessionsByDate = sessions.reduce<Record<string, Session[]>>((acc, s) => {
-    if (!acc[s.date]) acc[s.date] = [];
-    acc[s.date].push(s);
-    return acc;
-  }, {});
+  const days = [];
+  let current = start;
+  while (current <= end) {
+    days.push(current);
+    current = addDays(current, 1);
+  }
 
   return (
-    <div className="grid grid-cols-7 gap-3 select-none">
-      {/* Weekday headers */}
-      {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
-        <div
-          key={d}
-          className="text-center text-xs font-semibold text-primary-light border-b pb-2"
-        >
-          {d}
-        </div>
-      ))}
-
-      {calendarDays.map((day) => {
-        const dayStr = format(day, 'yyyy-MM-dd');
-        const daySessions = sessionsByDate[dayStr] || [];
-        const isToday = isSameDay(day, new Date());
-        const isSelected = selectedDate && isSameDay(day, selectedDate);
-        const inMonth = day.getMonth() === month;
+    <div className="grid grid-cols-7 gap-[1px] rounded-lg overflow-hidden bg-neutral-200">
+      {days.map((date, i) => {
+        const iso = format(date, 'yyyy-MM-dd');
+        const isToday = isSameDay(date, today);
+        const isCurrentMonth = isSameMonth(date, selectedMonth);
+        const sessions = sessionsByDate[iso] || [];
 
         return (
-          <button
-            key={dayStr}
-            onClick={() => onDayClick(day)}
-            disabled={!inMonth}
-            className={`relative flex flex-col p-3 min-h-[110px] rounded-xl border text-left
-              ${isToday ? 'border-primary font-semibold' : 'border-gray-200'}
-              ${isSelected ? 'bg-primary text-white' : ''}
-              ${!inMonth ? 'text-gray-300 cursor-default' : 'cursor-pointer hover:bg-gray-50'}
-            `}
+          <div
+            key={i}
+            onClick={() => onClickDate?.(iso)}
+            className={`bg-white p-2 min-h-[80px] text-xs cursor-pointer flex flex-col rounded-sm transition-all
+              ${!isCurrentMonth ? 'text-neutral-300' : ''} 
+              ${isToday ? 'border border-black' : 'border border-transparent'}`}
           >
-            {/* Date label */}
-            <div className="text-xs mb-2">{format(day, 'd')}</div>
-
-            {/* Sessions list */}
-            <div className="flex flex-col gap-2 overflow-hidden">
-              {daySessions.map((session) => (
-                <button
-                  key={session.id}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSessionClick(session);
-                  }}
-                  className={`truncate text-xs rounded-full px-3 py-1 cursor-pointer
-                    ${session.color} text-white shadow-subtle hover:brightness-90 transition duration-150`}
-                  title={session.title}
-                >
-                  {session.title}
-                </button>
-              ))}
+            <div className="font-medium text-neutral-500 text-[11px] mb-1">
+              {format(date, 'd')}
             </div>
-          </button>
+            <div className="flex flex-col gap-[1px] overflow-hidden">
+              {sessions.slice(0, 2).map((s, i) => (
+                <div
+                  key={i}
+                  className="truncate rounded bg-neutral-100 px-1 py-[1px] text-[10px] text-neutral-800"
+                >
+                  {s.replace(/\w+:\s*/, '')}
+                </div>
+              ))}
+              {sessions.length > 2 && (
+                <div className="text-[10px] text-neutral-400">+{sessions.length - 2} more</div>
+              )}
+            </div>
+          </div>
         );
       })}
     </div>
