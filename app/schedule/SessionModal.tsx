@@ -1,31 +1,35 @@
 'use client';
 
 import { useState } from 'react';
-import { format } from 'date-fns';
 
 export default function SessionModal({
   session,
   onClose,
 }: {
-  session: any;
+  session: string;
   onClose: () => void;
 }) {
-  const [detailedWorkout, setDetailedWorkout] = useState(session?.detailed || '');
+  const [detailedWorkout, setDetailedWorkout] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const emoji = session.charAt(0);
+  const title = session.slice(2);
 
   async function handleGenerateDetail() {
     setLoading(true);
+
     const res = await fetch('/api/generate-detailed-session', {
       method: 'POST',
       body: JSON.stringify({
-        sessionId: session.id,
-        date: session.date,
-        title: session.title,
+        sessionId: null, // or replace with actual ID later
+        title,
+        emoji,
+        sessionString: session,
       }),
     });
 
     const data = await res.json();
-    setDetailedWorkout(data?.detail);
+    setDetailedWorkout(data?.detail || '');
     setLoading(false);
   }
 
@@ -40,8 +44,10 @@ export default function SessionModal({
         </button>
 
         <div className="mb-4">
-          <div className="text-xs text-gray-500">{format(new Date(session.date), 'EEEE, MMM d')}</div>
-          <h2 className="text-lg font-semibold text-gray-800">{session.title}</h2>
+          <div className="text-xs text-gray-500">Session</div>
+          <h2 className="text-lg font-semibold text-gray-800">
+            {emoji} {title}
+          </h2>
         </div>
 
         {detailedWorkout ? (

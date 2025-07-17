@@ -9,8 +9,8 @@ export default function DayCell({
 }: {
   date: Date | null;
   isCurrentMonth: boolean;
-  sessions: any[];
-  onSelectSession: (session: any) => void;
+  sessions: string[];
+  onSelectSession: (session: string) => void;
 }) {
   return (
     <div
