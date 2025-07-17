@@ -1,54 +1,63 @@
 'use client';
 
-import { Dialog } from '@headlessui/react';
+import { useState } from 'react';
+import { format } from 'date-fns';
 
-type Props = {
-  session: {
-    title: string;
-    date: string;
-    aiWorkout?: string | null;
-    status?: string;
-  };
+export default function SessionModal({
+  session,
+  onClose,
+}: {
+  session: any;
   onClose: () => void;
-  onGenerateWorkout: () => void;
-};
+}) {
+  const [detailedWorkout, setDetailedWorkout] = useState(session?.detailed || '');
+  const [loading, setLoading] = useState(false);
 
-export function SessionModal({ session, onClose, onGenerateWorkout }: Props) {
-  if (!session) return null;
+  async function handleGenerateDetail() {
+    setLoading(true);
+    const res = await fetch('/api/generate-detailed-session', {
+      method: 'POST',
+      body: JSON.stringify({
+        sessionId: session.id,
+        date: session.date,
+        title: session.title,
+      }),
+    });
+
+    const data = await res.json();
+    setDetailedWorkout(data?.detail);
+    setLoading(false);
+  }
 
   return (
-    <Dialog open={!!session} onClose={onClose} className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
-      <Dialog.Panel className="relative z-50 w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
-        <div className="mb-2 text-xs text-gray-400 uppercase tracking-wide">{session.date}</div>
-        <h2 className="text-lg font-semibold text-neutral-800 mb-2">{session.title}</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="bg-white max-w-md w-full rounded-xl p-6 shadow-xl relative">
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-4 text-gray-400 hover:text-gray-600"
+        >
+          ✕
+        </button>
 
-        {session.aiWorkout ? (
-          <pre className="whitespace-pre-wrap text-sm text-gray-700 bg-gray-50 p-3 rounded border border-gray-200 mb-4">
-            {session.aiWorkout}
+        <div className="mb-4">
+          <div className="text-xs text-gray-500">{format(new Date(session.date), 'EEEE, MMM d')}</div>
+          <h2 className="text-lg font-semibold text-gray-800">{session.title}</h2>
+        </div>
+
+        {detailedWorkout ? (
+          <pre className="bg-gray-50 rounded-md p-3 text-sm whitespace-pre-wrap text-gray-800 border">
+            {detailedWorkout}
           </pre>
         ) : (
-          <div className="text-sm text-gray-500 italic mb-4">
-            No detailed workout yet. Generate one below.
-          </div>
+          <button
+            onClick={handleGenerateDetail}
+            className="bg-black text-white text-sm px-4 py-2 rounded-md hover:bg-gray-800"
+            disabled={loading}
+          >
+            {loading ? 'Generating...' : 'Generate Detailed Workout'}
+          </button>
         )}
-
-        <div className="flex justify-between items-center mt-2">
-          <button
-            onClick={onClose}
-            className="text-sm text-gray-600 hover:text-black transition"
-          >
-            Close
-          </button>
-
-          <button
-            onClick={onGenerateWorkout}
-            className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700 transition"
-          >
-            Generate Detailed Workout
-          </button>
-        </div>
-      </Dialog.Panel>
-    </Dialog>
+      </div>
+    </div>
   );
 }
