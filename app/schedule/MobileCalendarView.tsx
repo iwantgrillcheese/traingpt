@@ -6,9 +6,6 @@ import {
   format,
   parseISO,
   isSameDay,
-  startOfMonth,
-  addMonths,
-  subMonths,
   addDays,
 } from 'date-fns';
 import { generateCoachQuestion } from '@/utils/generateCoachQuestion';
@@ -19,47 +16,23 @@ export default function MobileCalendarView({
   stravaActivities,
 }: {
   plan: {
-    label: string;
-    startDate: string;
-    raceDate: string;
-    days: Record<string, string[]>;
+    weeks: {
+      label: string;
+      phase: string;
+      startDate: string;
+      days: Record<string, string[]>;
+    }[];
   };
   completed: Record<string, string>;
   stravaActivities: any[];
 }) {
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [detailedWorkouts, setDetailedWorkouts] = useState<Record<string, string>>({});
   const router = useRouter();
 
-  const sessionsByDate = useMemo(() => {
-    const sessions: Record<string, string[]> = {};
-
-    Object.entries(plan.days).forEach(([date, items]) => {
-      if (!sessions[date]) sessions[date] = [];
-      sessions[date].push(...items);
-    });
-
-    stravaActivities.forEach((activity) => {
-      const date = activity.start_date_local.split('T')[0];
-      const sport = activity.sport_type.toLowerCase();
-      const mapped = sport === 'ride' || sport === 'virtualride' ? 'bike' : sport;
-      const mins = Math.round(activity.moving_time / 60);
-      const label = `${mapped.charAt(0).toUpperCase() + mapped.slice(1)}: ${mins}min (Strava)`;
-      if (!sessions[date]) sessions[date] = [];
-      sessions[date].push(label);
-    });
-
-    return sessions;
-  }, [plan.days, stravaActivities]);
-
-  const calendarDays = useMemo(() => {
-    const start = startOfMonth(currentMonth);
-    const startDayOffset = start.getDay();
-    const calendarStart = new Date(start);
-    calendarStart.setDate(start.getDate() - startDayOffset);
-    return Array.from({ length: 35 }, (_, i) => addDays(calendarStart, i));
-  }, [currentMonth]);
+  const toggleWeek = (startDate: string) => {
+    setCollapsed((prev) => ({ ...prev, [startDate]: !prev[startDate] }));
+  };
 
   const getSessionStatus = (date: string, label: string) => {
     const key = `${date}-${
@@ -95,97 +68,91 @@ export default function MobileCalendarView({
     router.push(`/coaching?q=${encodeURIComponent(question)}`);
   };
 
-  const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-  const selectedSessions = sessionsByDate[selectedDateStr] || [];
-
   return (
     <div className="w-full max-w-md mx-auto px-4 pb-10">
-      {/* Calendar header omitted for brevity */}
+      {plan.weeks.map((week) => {
+        const weekStart = parseISO(week.startDate);
+        const dateLabel = `Week of ${format(weekStart, 'MMM d')}`;
+        const isOpen = !collapsed[week.startDate];
 
-      <div className="grid grid-cols-7 text-center font-medium text-xs text-gray-400 mb-1">
-        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d) => (
-          <div key={d}>{d}</div>
-        ))}
-      </div>
+        const weekDates = Array.from({ length: 7 }).map((_, i) =>
+          format(addDays(weekStart, i), 'yyyy-MM-dd')
+        );
 
-      <div className="grid grid-cols-7 gap-1 text-sm">
-        {calendarDays.map((day, idx) => {
-          const dateStr = format(day, 'yyyy-MM-dd');
-          const isSelected = isSameDay(day, selectedDate);
-          const dotColor = (() => {
-            const sessions = sessionsByDate[dateStr] || [];
-            if (sessions.some((s) => getSessionStatus(dateStr, s) === 'done')) return 'bg-green-500';
-            if (sessions.some((s) => getSessionStatus(dateStr, s) === 'skipped')) return 'bg-gray-400';
-            if (sessions.length > 0) return 'bg-blue-500';
-            return '';
-          })();
-
-          return (
+        return (
+          <div key={week.startDate} className="mb-6">
             <button
-              key={idx}
-              onClick={() => setSelectedDate(day)}
-              className={`flex flex-col items-center justify-center rounded-lg py-2 transition-all ${
-                isSelected
-                  ? 'bg-black text-white font-medium shadow'
-                  : 'text-gray-700 hover:bg-neutral-100'
-              }`}
+              onClick={() => toggleWeek(week.startDate)}
+              className="w-full text-left text-[15px] font-medium text-gray-800 flex justify-between items-center py-2"
             >
-              <div>{format(day, 'd')}</div>
-              <div className={`w-1.5 h-1.5 rounded-full mt-1 ${dotColor}`}></div>
+              <span>
+                {dateLabel} — {week.phase}
+              </span>
+              <span className="text-gray-500">{isOpen ? '▾' : '▸'}</span>
             </button>
-          );
-        })}
-      </div>
 
-      {selectedSessions.length > 0 && (
-        <div className="mt-8 bg-white border border-neutral-200 rounded-xl shadow-sm p-4">
-          <div className="text-sm font-semibold text-gray-600 mb-3">
-            {format(selectedDate, 'EEEE, MMMM d')}
-          </div>
+            {isOpen && (
+              <div className="space-y-4 mt-2">
+                {weekDates.map((dateStr) => {
+                  const sessions = week.days[dateStr] || [];
+                  return (
+                    <div key={dateStr} className="bg-white border border-neutral-200 rounded-xl shadow-sm p-3">
+                      <div className="text-xs text-gray-500 font-medium mb-2">
+                        {format(parseISO(dateStr), 'EEEE, MMMM d')}
+                      </div>
 
-          <div className="flex flex-col gap-4 text-sm">
-            {selectedSessions.map((s: string, i: number) => {
-              const key = `${selectedDateStr}-${s}`;
-              return (
-                <div key={i} className="flex flex-col gap-2">
-                  <div className="flex items-start gap-2">
-                    <span>{getEmoji(s)}</span>
-                    <span
-                      onClick={() => handleSessionClick(selectedDateStr, s)}
-                      className="text-blue-600 underline cursor-pointer"
-                    >
-                      {s.replace(/^\w+: /, '')}
-                    </span>
-                  </div>
-                  {detailedWorkouts[key] ? (
-                    <div className="bg-neutral-50 border border-neutral-200 rounded-md p-2 text-[13px] whitespace-pre-wrap">
-                      {detailedWorkouts[key]}
+                      {sessions.length === 0 && (
+                        <div className="text-sm text-gray-400 italic">No session</div>
+                      )}
+
+                      {sessions.map((s, i) => {
+                        const key = `${dateStr}-${s}`;
+                        return (
+                          <div key={i} className="flex flex-col gap-2 mb-3">
+                            <div className="flex items-start gap-2">
+                              <span>{getEmoji(s)}</span>
+                              <span
+                                onClick={() => handleSessionClick(dateStr, s)}
+                                className="text-blue-600 underline cursor-pointer text-sm"
+                              >
+                                {s.replace(/^\w+: /, '')}
+                              </span>
+                            </div>
+
+                            {detailedWorkouts[key] ? (
+                              <div className="bg-neutral-50 border border-neutral-200 rounded-md p-2 text-[13px] whitespace-pre-wrap">
+                                {detailedWorkouts[key]}
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => handleGenerateWorkout(s, dateStr)}
+                                className="self-start text-xs text-blue-600 underline"
+                              >
+                                Generate detailed workout
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      <textarea
+                        placeholder="Leave a note..."
+                        className="mt-2 w-full border border-neutral-300 rounded-md p-2 text-sm"
+                        rows={2}
+                      />
+
+                      <div className="flex justify-end gap-3 mt-3">
+                        <button className="text-sm text-gray-500">Skip</button>
+                        <button className="bg-black text-white text-sm px-4 py-1.5 rounded-md">Mark Done</button>
+                      </div>
                     </div>
-                  ) : (
-                    <button
-                      onClick={() => handleGenerateWorkout(s, selectedDateStr)}
-                      className="self-start text-xs text-blue-600 underline"
-                    >
-                      Generate detailed workout
-                    </button>
-                  )}
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            )}
           </div>
-
-          <textarea
-            placeholder="Leave a note..."
-            className="mt-4 w-full border border-neutral-300 rounded-md p-2 text-sm"
-            rows={3}
-          />
-
-          <div className="flex justify-end gap-3 mt-4">
-            <button className="text-sm text-gray-500">Skip</button>
-            <button className="bg-black text-white text-sm px-4 py-2 rounded-md">Mark Done</button>
-          </div>
-        </div>
-      )}
+        );
+      })}
     </div>
   );
 }

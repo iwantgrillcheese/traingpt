@@ -1,86 +1,78 @@
-import { useState } from 'react';
-import { SidebarCalendar } from './SidebarCalendar';
-import { MonthGrid, Session } from './MonthGrid';
+'use client';
+
+import { useState, useMemo } from 'react';
+import RichCalendarView from './RichCalendarView';
+import SidebarCalendar from './SidebarCalendar';
 import { SessionModal } from './SessionModal';
 
-interface FantasticalCalendarProps {
-  sessions: Session[];
-}
+export default function FantasticalCalendar({
+  plan,
+  completed,
+  stravaActivities,
+}: {
+  plan: {
+    label: string;
+    startDate: string;
+    raceDate: string;
+    days: Record<string, string[]>;
+  };
+  completed: Record<string, string>;
+  stravaActivities: any[];
+}) {
+  const [modalSession, setModalSession] = useState<any | null>(null);
+  const [detailedWorkoutMap, setDetailedWorkoutMap] = useState<Record<string, string>>({});
 
-export default function FantasticalCalendar({ sessions }: FantasticalCalendarProps) {
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [modalSession, setModalSession] = useState<Session | null>(null);
+  // Flatten plan + strava sessions into array for SidebarCalendar
+  const flatSessions = useMemo(() => {
+    const sessions: { date: string; title: string; sport?: string }[] = [];
+
+    Object.entries(plan.days).forEach(([date, titles]) => {
+      titles.forEach((title) => sessions.push({ date, title }));
+    });
+
+    stravaActivities.forEach((activity) => {
+      const date = activity.start_date_local.split('T')[0];
+      const sport = activity.sport_type.toLowerCase();
+      const mapped = sport === 'ride' || sport === 'virtualride' ? 'bike' : sport;
+      const mins = Math.round(activity.moving_time / 60);
+      const label = `${mapped.charAt(0).toUpperCase() + mapped.slice(1)}: ${mins}min (Strava)`;
+      sessions.push({ date, title: label, sport: mapped });
+    });
+
+    return sessions;
+  }, [plan.days, stravaActivities]);
+
+  const handleGenerateWorkout = async (session: any) => {
+    const key = `${session.date}-${session.title}`;
+    const res = await fetch('/api/generate-detailed-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: session.title, date: session.date }),
+    });
+
+    const { workout } = await res.json();
+    setDetailedWorkoutMap((prev) => ({ ...prev, [key]: workout }));
+    setModalSession((prev: any) => ({ ...prev, aiWorkout: workout }));
+  };
 
   return (
-    <>
-      <div className="flex max-w-7xl mx-auto p-4 gap-6">
-        <SidebarCalendar
-          currentMonth={currentMonth}
-          selectedDate={selectedDate}
-          onDateSelect={setSelectedDate}
-        />
+    <div className="flex w-full max-w-screen-xl mx-auto px-6 py-10 gap-6">
+      <SidebarCalendar sessions={flatSessions} />
 
-        <div className="flex-1 flex flex-col">
-          <div className="flex justify-between items-center mb-4">
-            <button
-              onClick={() => setCurrentMonth(new Date())}
-              className="text-sm px-3 py-1 border rounded hover:bg-gray-100 transition"
-            >
-              Today
-            </button>
-            <div className="font-semibold text-lg">
-              {currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() =>
-                  setCurrentMonth(
-                    new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1)
-                  )
-                }
-                className="text-sm px-3 py-1 border rounded hover:bg-gray-100 transition"
-              >
-                Prev
-              </button>
-              <button
-                onClick={() =>
-                  setCurrentMonth(
-                    new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1)
-                  )
-                }
-                className="text-sm px-3 py-1 border rounded hover:bg-gray-100 transition"
-              >
-                Next
-              </button>
-            </div>
-          </div>
+      <RichCalendarView
+  plan={plan}
+  completed={completed}
+  stravaActivities={stravaActivities}
+/>
 
-          <MonthGrid
-            year={currentMonth.getFullYear()}
-            month={currentMonth.getMonth()}
-            sessions={sessions}
-            selectedDate={selectedDate}
-            onDayClick={setSelectedDate}
-            onSessionClick={setModalSession}
-          />
-        </div>
-      </div>
 
       {modalSession && (
         <SessionModal
           session={modalSession}
           onClose={() => setModalSession(null)}
-          onStatusChange={(status) => {
-            // Optional: handle session status update logic here
-            console.log('Status changed to', status);
-          }}
-          onGenerateWorkout={async () => {
-            // Optional: trigger workout generation logic here
-            console.log('Generating detailed workout for:', modalSession.title);
-          }}
+          onGenerateWorkout={() => handleGenerateWorkout(modalSession)}
         />
       )}
-    </>
+    </div>
   );
 }
