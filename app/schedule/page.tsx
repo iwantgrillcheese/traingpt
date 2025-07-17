@@ -8,16 +8,11 @@ import FantasticalCalendar from './FantasticalCalendar';
 const supabase = createClientComponentClient();
 
 export default function SchedulePage() {
-  const [plan, setPlan] = useState<{
-    label: string;
-    startDate: string;
-    raceDate: string;
-    days: Record<string, string[]>;
-  } | null>(null);
+  const [plan, setPlan] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'calendar' | 'schedule'>('calendar');
-  const [userId, setUserId] = useState<string | null>(null);
-  const [planId, setPlanId] = useState<string | null>(null);
+  const [completed, setCompleted] = useState<Record<string, string>>({});
+  const [stravaActivities, setStravaActivities] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -27,9 +22,8 @@ export default function SchedulePage() {
           data: { session },
         } = await supabase.auth.getSession();
         if (!session?.user) return;
-        setUserId(session.user.id);
 
-        const { data: plans } = await supabase
+        const { data: planRow } = await supabase
           .from('plans')
           .select('plan, race_date, coach_note, id')
           .eq('user_id', session.user.id)
@@ -37,10 +31,30 @@ export default function SchedulePage() {
           .limit(1)
           .single();
 
-        if (plans) {
-          setPlan(plans.plan || null);
-          setPlanId(plans.id || null);
+        if (planRow) {
+          setPlan(planRow.plan || null);
         }
+
+        const { data: completedRows = [] } = await supabase
+          .from('completed_sessions')
+          .select('date, sport, status');
+
+        const completedMap: Record<string, string> = {};
+        if (completedRows) {
+  completedRows.forEach(({ date, sport, status }) => {
+    const key = `${date}-${sport}`;
+    completedMap[key] = status;
+  });
+}
+        setCompleted(completedMap);
+
+        const { data: stravaData } = await supabase
+  .from('strava_activities')
+  .select('*')
+  .order('start_date_local', { ascending: false });
+
+setStravaActivities(stravaData ?? []);
+
       } catch (e) {
         console.error('[DATA_FETCH_ERROR]', e);
       } finally {
@@ -50,51 +64,6 @@ export default function SchedulePage() {
 
     fetchAll();
   }, []);
-
-  function convertPlanDaysToSessions(
-    planDays: Record<string, string[]> | null | undefined
-  ) {
-    if (!planDays) return [];
-
-    const sessions: {
-      id: string;
-      date: string;
-      title: string;
-      type: 'swim' | 'bike' | 'run' | 'other';
-      color: string;
-    }[] = [];
-
-    const colorMap = {
-      swim: 'bg-accent-swim text-white',
-      bike: 'bg-accent-bike text-white',
-      run: 'bg-accent-run text-white',
-      other: 'bg-background-rest text-primary',
-      rest: 'bg-background-rest text-primary',
-    };
-
-    Object.entries(planDays).forEach(([date, titles]) => {
-      titles.forEach((title, idx) => {
-        const lower = title.toLowerCase();
-        const type = lower.includes('swim')
-          ? 'swim'
-          : lower.includes('bike') || lower.includes('ride')
-          ? 'bike'
-          : lower.includes('run')
-          ? 'run'
-          : 'other';
-
-        sessions.push({
-          id: `${date}-${idx}`,
-          date,
-          title,
-          type,
-          color: colorMap[type],
-        });
-      });
-    });
-
-    return sessions;
-  }
 
   if (loading)
     return (
@@ -106,8 +75,6 @@ export default function SchedulePage() {
         No plan found. Generate one to get started.
       </div>
     );
-
-  const sessions = convertPlanDaysToSessions(plan.days);
 
   return (
     <main className="max-w-[1440px] mx-auto px-4 sm:px-8 py-10 sm:py-16">
@@ -134,7 +101,13 @@ export default function SchedulePage() {
         </button>
       </div>
 
-      {view === 'calendar' && <FantasticalCalendar sessions={sessions} />}
+      {view === 'calendar' && (
+        <FantasticalCalendar
+          plan={plan}
+          completed={completed}
+          stravaActivities={stravaActivities}
+        />
+      )}
 
       {view === 'schedule' && (
         <>
