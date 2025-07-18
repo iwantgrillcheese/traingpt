@@ -1,31 +1,48 @@
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+'use client';
+
+import { useEffect, useState } from 'react';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import type { Session } from '@/types/session';
 import CalendarShell from './CalendarShell';
-import { groupSessionsByDate } from '@/utils/calendar';
 
-export const dynamic = 'force-dynamic';
+export default function SchedulePage() {
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [loading, setLoading] = useState(true);
 
-export default async function SchedulePage() {
-  const supabase = createServerComponentClient({ cookies });
+  useEffect(() => {
+    const fetchSessions = async () => {
+      const supabase = createClientComponentClient();
+      const {
+        data: { session: authSession },
+        error: authError,
+      } = await supabase.auth.getSession();
 
-  const {
-    data: sessions,
-    error,
-  } = await supabase
-    .from('sessions')
-    .select('*')
-    .order('date', { ascending: true });
+      if (authError || !authSession?.user) {
+        console.error('Auth error or no user:', authError);
+        return;
+      }
 
-  if (error) {
-    console.error('Error fetching sessions:', error.message);
-    return <div className="p-6 text-red-600">Failed to load training sessions.</div>;
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('*')
+        .eq('user_id', authSession.user.id)
+        .order('date', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching sessions:', error.message);
+      } else {
+        setSessions(data as Session[]);
+      }
+
+      setLoading(false);
+    };
+
+    fetchSessions();
+  }, []);
+
+  if (loading) {
+    return <div className="p-6 text-center text-muted-foreground">Loading your training plan...</div>;
   }
 
-  const sessionsByDate = groupSessionsByDate(sessions || []);
-
-  return (
-    <main className="max-w-screen-xl mx-auto px-4 pt-8">
-      <CalendarShell sessionsByDate={sessionsByDate} />
-    </main>
-  );
+  return <CalendarShell sessions={sessions} />;
 }
