@@ -1,65 +1,39 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import {
-  startOfMonth,
-  endOfMonth,
-  startOfWeek,
-  addDays,
-  isSameMonth,
-  isSameDay,
-  format,
-  subMonths,
-  addMonths,
-  parseISO,
-} from 'date-fns';
-import DayCell from './DayCell';
+import { format, isSameDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth } from 'date-fns';
 import type { Session } from '@/types/session';
+import DayCell from './DayCell';
 
-export default function MonthGrid({ sessions }: { sessions: Session[] }) {
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+type Props = {
+  sessions: Session[];
+};
 
-  const monthStart = startOfMonth(currentMonth);
-  const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 }); // Monday
+export default function MonthGrid({ sessions }: Props) {
+  const today = new Date();
+  const start = startOfWeek(startOfMonth(today), { weekStartsOn: 1 });
+  const end = endOfWeek(endOfMonth(today), { weekStartsOn: 1 });
 
-  const days: Date[] = useMemo(() => {
-    return Array.from({ length: 35 }, (_, i) => addDays(calendarStart, i));
-  }, [calendarStart]);
+  const days = [];
+  let current = start;
 
-  const handlePrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
-  const handleNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
+  while (current <= end) {
+    days.push(current);
+    current = addDays(current, 1);
+  }
 
   return (
-    <section className="max-w-5xl mx-auto">
-      <header className="flex items-center justify-between mb-6">
-        <button onClick={handlePrevMonth} className="text-muted-foreground">&larr;</button>
-        <h2 className="text-xl font-semibold">
-          {format(currentMonth, 'MMMM yyyy')}
-        </h2>
-        <button onClick={handleNextMonth} className="text-muted-foreground">&rarr;</button>
-      </header>
-
-      <div className="grid grid-cols-7 gap-px bg-border border rounded-md overflow-hidden">
-        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
-          <div key={day} className="text-xs font-medium p-2 bg-muted text-center">
-            {day}
-          </div>
-        ))}
-        {days.map((day) => {
-          const daySessions = sessions.filter((s) =>
-            isSameDay(parseISO(s.date), day)
-          );
-
-          return (
-            <DayCell
-              key={day.toISOString()}
-              date={day}
-              sessions={daySessions}
-              isFaded={!isSameMonth(day, currentMonth)}
-            />
-          );
-        })}
-      </div>
-    </section>
+    <div className="grid grid-cols-7 border rounded-lg overflow-hidden">
+      {days.map((day) => {
+        const daySessions = sessions.filter((s) => isSameDay(new Date(s.date), day));
+        return (
+          <DayCell
+            key={day.toISOString()}
+            date={day}
+            sessions={daySessions}
+            isOutside={!isSameMonth(day, today)}
+          />
+        );
+      })}
+    </div>
   );
 }

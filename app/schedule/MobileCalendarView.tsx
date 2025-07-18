@@ -1,4 +1,3 @@
-// /app/schedule/MobileCalendarView.tsx
 'use client';
 
 import { useMemo, useState } from 'react';
@@ -40,40 +39,44 @@ export default function MobileCalendarView({ sessions }: MobileCalendarViewProps
       {weeks.map((week, idx) => {
         const label = `${format(week.start, 'MMM d')} – ${format(week.days[6], 'MMM d')}`;
         const isPast = isAfter(new Date(), addDays(week.start, 6));
+        const isExpanded = expandedWeekIndex === idx;
 
         return (
-          <div key={idx} className="border rounded-md overflow-hidden">
+          <div key={idx} className="border rounded-md overflow-hidden bg-background">
             <button
-              className="w-full text-left px-4 py-2 bg-muted font-medium"
-              onClick={() => setExpandedWeekIndex(expandedWeekIndex === idx ? null : idx)}
+              onClick={() => setExpandedWeekIndex(isExpanded ? null : idx)}
+              className="w-full text-left px-4 py-3 bg-muted hover:bg-muted/80 transition-colors font-medium text-sm"
             >
               {label}
             </button>
 
-            {expandedWeekIndex === idx && (
-              <div className="p-2 space-y-2">
+            {isExpanded && (
+              <div className="p-3 space-y-4">
                 {week.days.map((date) => {
                   const daySessions = sessions.filter((s) =>
                     isSameDay(parseISO(s.date), date)
                   );
 
                   return (
-                    <div key={date.toISOString()}>
-                      <div className="text-sm font-semibold mb-1">{format(date, 'EEEE, MMM d')}</div>
+                    <div key={date.toISOString()} className="space-y-2">
+                      <div className="text-sm font-semibold text-foreground">
+                        {format(date, 'EEEE, MMM d')}
+                      </div>
+
                       {daySessions.length > 0 ? (
-                        <div className="space-y-1">
+                        <div className="space-y-2">
                           {daySessions.map((s) => (
                             <button
                               key={s.id}
                               onClick={() => handleSessionClick(s, date)}
-                              className="w-full text-left text-sm px-3 py-2 bg-muted rounded hover:bg-accent"
+                              className="block w-full text-left text-sm px-4 py-2 rounded bg-primary/10 text-primary hover:bg-primary/20 transition"
                             >
                               {s.title}
                             </button>
                           ))}
                         </div>
                       ) : (
-                        <div className="text-muted-foreground text-sm px-3">No sessions</div>
+                        <div className="text-sm text-muted-foreground px-1">No sessions</div>
                       )}
                     </div>
                   );
