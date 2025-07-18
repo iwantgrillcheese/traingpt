@@ -45,24 +45,21 @@ const getDeload = (index: number): boolean => (index + 1) % 4 === 0;
 
 export async function POST(req: Request) {
   console.time('[⏱️ finalize-plan total]');
-  console.log('🧪 VERCEL STAGING DEPLOY — CHUNKED INFRA V2.1 ✅');
   console.log('🔥 /api/finalize-plan hit');
 
-  const supabase = createServerComponentClient({ cookies });
+  const supabase = createServerComponentClient<any>({ cookies });
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const user_id = user.id;
   const user_email = user.email;
-
   const body = await req.json();
   const today = new Date();
   const startDate = getNextMonday(today);
 
-  const { data: latestPlan, error: fetchError } = await supabase
+  const { data: latestPlan } = await supabase
     .from('plans')
     .select('*')
     .eq('user_id', user_id)
@@ -70,41 +67,32 @@ export async function POST(req: Request) {
     .limit(1)
     .maybeSingle();
 
-  if (fetchError && fetchError.code !== 'PGRST116') {
-    console.error('❌ Error fetching latest plan:', fetchError);
-    return NextResponse.json({ error: 'Failed to fetch plan.' }, { status: 500 });
-  }
-
   const raceType = (body.raceType || latestPlan?.race_type) as RaceType;
   const raceDate = new Date(body.raceDate || latestPlan?.race_date);
   const experience = body.experience || latestPlan?.experience || 'Intermediate';
   const maxHours = body.maxHours || latestPlan?.max_hours || 8;
   const restDay = body.restDay || latestPlan?.rest_day || 'Monday';
   const userNote = body.userNote || '';
-
   const bikeFTP = body.bikeFTP || null;
   const runPace = body.runPace || null;
   const swimPace = body.swimPace || null;
 
-  if (!(raceType in MIN_WEEKS)) {
-    return NextResponse.json({ error: 'Unsupported race type.' }, { status: 400 });
-  }
-
   const msPerWeek = 7 * 24 * 60 * 60 * 1000;
   const totalWeeks = Math.ceil((raceDate.getTime() - startDate.getTime()) / msPerWeek);
-  const minWeeks = MIN_WEEKS[raceType];
-  const maxWeeks = MAX_WEEKS[raceType];
 
-  if (totalWeeks < minWeeks) {
+  if (totalWeeks < MIN_WEEKS[raceType]) {
     return NextResponse.json(
-      { error: `Your race is too soon. Minimum required: ${minWeeks} weeks.` },
+      { error: `Your race is too soon. Minimum required: ${MIN_WEEKS[raceType]} weeks.` },
       { status: 400 }
     );
   }
 
-  if (totalWeeks > maxWeeks) {
+  if (totalWeeks > MAX_WEEKS[raceType]) {
     return NextResponse.json(
-      { error: `Race too far. Max supported: ${maxWeeks} weeks.`, code: 'TOO_MANY_WEEKS', maxWeeks },
+      {
+        error: `Race too far. Max supported: ${MAX_WEEKS[raceType]} weeks.`,
+        code: 'TOO_MANY_WEEKS',
+      },
       { status: 400 }
     );
   }
@@ -117,8 +105,8 @@ export async function POST(req: Request) {
   }));
 
   console.log(`🧠 Generating ${totalWeeks} weeks of training...`);
-  let plan;
 
+  let plan;
   try {
     plan = await startPlan({
       planMeta,
@@ -138,10 +126,7 @@ export async function POST(req: Request) {
     });
   } catch (err: any) {
     console.error('❌ GPT Plan generation failed:', err);
-    return NextResponse.json(
-      { error: 'Plan generation failed', details: `${err.message || err}` },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Plan generation failed' }, { status: 500 });
   }
 
   const coachNote = `Here's your ${totalWeeks}-week triathlon plan leading to your race on ${format(
@@ -149,24 +134,55 @@ export async function POST(req: Request) {
     'yyyy-MM-dd'
   )}. Stay consistent and trust the process.`;
 
-  const { error: saveError } = await supabase.from('plans').upsert(
-    {
-      user_id,
-      plan, // new flat shape
-      coach_note: coachNote,
-      note: userNote,
-      race_type: raceType,
-      race_date: raceDate,
-      experience,
-      max_hours: maxHours,
-      rest_day: restDay,
-    },
-    { onConflict: 'user_id' }
-  );
+  const {
+    data: savedPlan,
+    error: saveError,
+  }: {
+    data: any;
+    error: { message: string } | null;
+  } = await supabase
+    .from('plans')
+    .upsert(
+      {
+        user_id,
+        plan,
+        coach_note: coachNote,
+        note: userNote,
+        race_type: raceType,
+        race_date: format(raceDate, 'yyyy-MM-dd'),
+        experience,
+        max_hours: maxHours,
+        rest_day: restDay,
+      },
+      { onConflict: 'user_id' }
+    )
+    .select()
+    .maybeSingle();
 
-  if (saveError) {
+  if (saveError || !savedPlan) {
     console.error('❌ Supabase Insert Error:', saveError);
-    return NextResponse.json({ error: saveError.message }, { status: 500 });
+    return NextResponse.json({ error: saveError?.message || 'Failed to save plan' }, { status: 500 });
+  }
+
+  const plan_id = savedPlan.id;
+
+  // Explode into session rows
+  for (const week of plan) {
+    for (const [date, sessions] of Object.entries(week.days)) {
+      for (const [index, label] of sessions.entries()) {
+        const { error: insertError } = await supabase.from('sessions').insert({
+          user_id,
+          plan_id,
+          date,
+          label,
+          status: 'planned',
+        });
+
+        if (insertError) {
+          console.error(`❌ Failed inserting session: ${label}`, insertError);
+        }
+      }
+    }
   }
 
   try {

@@ -1,6 +1,6 @@
 // /utils/session-utils.ts
 import type { Session } from '@/types/session';
-import { formatISO, parseISO } from 'date-fns';
+import { formatISO } from 'date-fns';
 
 export function cn(...classes: (string | boolean | undefined | null)[]) {
   return classes.filter(Boolean).join(' ');
