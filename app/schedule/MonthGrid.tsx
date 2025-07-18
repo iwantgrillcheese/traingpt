@@ -11,6 +11,7 @@ import {
   format,
   subMonths,
   addMonths,
+  parseISO,
 } from 'date-fns';
 import DayCell from './DayCell';
 import type { Session } from '@/types/session';
@@ -19,8 +20,8 @@ export default function MonthGrid({ sessions }: { sessions: Session[] }) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   const monthStart = startOfMonth(currentMonth);
-  const monthEnd = endOfMonth(currentMonth);
   const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 }); // Monday
+
   const days: Date[] = useMemo(() => {
     return Array.from({ length: 35 }, (_, i) => addDays(calendarStart, i));
   }, [calendarStart]);
@@ -45,7 +46,10 @@ export default function MonthGrid({ sessions }: { sessions: Session[] }) {
           </div>
         ))}
         {days.map((day) => {
-          const daySessions = sessions.filter((s) => isSameDay(new Date(s.date), day));
+          const daySessions = sessions.filter((s) =>
+            isSameDay(parseISO(s.date), day)
+          );
+
           return (
             <DayCell
               key={day.toISOString()}

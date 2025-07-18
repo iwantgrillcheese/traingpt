@@ -54,7 +54,7 @@ export default function MobileCalendarView({ sessions }: MobileCalendarViewProps
               <div className="p-2 space-y-2">
                 {week.days.map((date) => {
                   const daySessions = sessions.filter((s) =>
-                    isSameDay(new Date(s.date), date)
+                    isSameDay(parseISO(s.date), date)
                   );
 
                   return (
