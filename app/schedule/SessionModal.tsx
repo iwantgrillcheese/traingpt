@@ -14,10 +14,29 @@ type SessionModalProps = {
 export default function SessionModal({ open, onClose, session }: SessionModalProps) {
   const [detailedWorkout, setDetailedWorkout] = useState<string | null>(session?.details || null);
   const [loading, setLoading] = useState(false);
+  const [stravaData, setStravaData] = useState<any>(null);
+  const supabase = createClientComponentClient();
 
   useEffect(() => {
     if (session?.details) setDetailedWorkout(session.details);
   }, [session]);
+
+  // ✅ Fetch Strava activity using `strava_id`
+  useEffect(() => {
+    const fetchStravaData = async () => {
+      if (!session?.strava_id) return;
+
+      const { data, error } = await supabase
+        .from('strava_activities')
+        .select('*')
+        .eq('id', session.strava_id)
+        .single();
+
+      if (data && !error) setStravaData(data);
+    };
+
+    fetchStravaData();
+  }, [session?.strava_id]);
 
   const handleGenerateWorkout = async () => {
     if (!session) return;
@@ -33,11 +52,9 @@ export default function SessionModal({ open, onClose, session }: SessionModalPro
     });
 
     const { output } = await res.json();
-    setDetailedWorkout(output);
-
-    const supabase = createClientComponentClient();
     await supabase.from('sessions').update({ details: output }).eq('id', session.id);
 
+    setDetailedWorkout(output);
     setLoading(false);
   };
 
@@ -54,23 +71,60 @@ export default function SessionModal({ open, onClose, session }: SessionModalPro
         </button>
 
         <div className="p-6 space-y-4">
-          <div className="text-sm text-gray-500">{format(new Date(session.date), 'EEEE, MMMM d')}</div>
-          <h2 className="text-lg font-semibold">{session.title}</h2>
+          {/* Session title and date */}
+          <div>
+            <h2 className="text-lg font-semibold">{session.title}</h2>
+            <p className="text-sm text-muted-foreground">
+              {format(new Date(session.date), 'EEEE, MMMM d')}
+            </p>
+          </div>
 
+          {/* Strava Metrics */}
+          {stravaData && (
+            <div className="text-sm bg-gray-50 border rounded p-3 space-y-1">
+              <p>
+                <strong>Distance:</strong>{' '}
+                {(stravaData.distance / 1000).toFixed(2)} km
+              </p>
+              <p>
+                <strong>Time:</strong>{' '}
+                {Math.floor(stravaData.moving_time / 60)}:
+                {String(stravaData.moving_time % 60).padStart(2, '0')} min
+              </p>
+              {stravaData.average_speed && (
+                <p>
+                  <strong>Avg Speed:</strong>{' '}
+                  {(stravaData.average_speed * 3.6).toFixed(1)} km/h
+                </p>
+              )}
+              {stravaData.average_heartrate && (
+                <p>
+                  <strong>Avg HR:</strong> {stravaData.average_heartrate} bpm
+                </p>
+              )}
+              {stravaData.average_watts && (
+                <p>
+                  <strong>Avg Power:</strong> {stravaData.average_watts} W
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* GPT Output or Button */}
           {detailedWorkout ? (
             <div className="whitespace-pre-wrap text-sm bg-gray-50 border rounded-md p-4">
               {detailedWorkout}
             </div>
           ) : (
-            <p className="text-sm text-gray-500">No detailed workout yet.</p>
+            <p className="text-sm text-muted-foreground">No detailed workout yet.</p>
           )}
 
           <button
             onClick={handleGenerateWorkout}
             disabled={loading}
-            className="w-full bg-black text-white rounded-md py-2 text-sm font-medium disabled:opacity-50"
+            className="mt-2 w-full bg-black text-white py-2 px-4 rounded text-sm font-medium disabled:opacity-50"
           >
-            {loading ? 'Generating…' : 'Generate Detailed Workout'}
+            {loading ? 'Generating...' : 'Generate Detailed Workout'}
           </button>
         </div>
       </div>

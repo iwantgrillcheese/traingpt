@@ -50,9 +50,9 @@ export default function DayCell({ date, sessions, isOutside, onSessionClick }: P
               'block text-[11px] truncate rounded px-1 py-0.5 w-full text-left',
               getSessionColor(s.sport)
             )}
-            title={s.label}
+            title={s.title}
           >
-            {s.label}
+            {s.title}
           </button>
         ))}
       </div>

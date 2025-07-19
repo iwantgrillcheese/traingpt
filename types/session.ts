@@ -4,9 +4,10 @@ export type Session = {
   id: string;
   user_id: string;
   date: string;
-  sport: Sport | string;
   title: string;
+  sport: string;
   details?: string | null;
-  created_at?: string;
-  label?: string;
+  status?: string;
+  strava_id?: string | null; // ← add this line
 };
+
