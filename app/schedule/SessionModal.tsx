@@ -1,4 +1,3 @@
-// /app/schedule/SessionModal.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -36,12 +35,8 @@ export default function SessionModal({ open, onClose, session }: SessionModalPro
     const { output } = await res.json();
     setDetailedWorkout(output);
 
-    // Save to Supabase
     const supabase = createClientComponentClient();
-    await supabase
-      .from('sessions')
-      .update({ details: output })
-      .eq('id', session.id);
+    await supabase.from('sessions').update({ details: output }).eq('id', session.id);
 
     setLoading(false);
   };
@@ -49,34 +44,35 @@ export default function SessionModal({ open, onClose, session }: SessionModalPro
   if (!open || !session) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6 relative">
+    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto relative">
         <button
           onClick={onClose}
-          className="absolute top-2 right-3 text-gray-500 hover:text-black text-xl"
+          className="absolute top-4 right-5 text-gray-400 hover:text-black text-2xl font-light"
         >
           ×
         </button>
 
-        <h2 className="text-lg font-semibold mb-2">
-          {session.title} – {format(new Date(session.date), 'EEEE, MMM d')}
-        </h2>
+        <div className="p-6 space-y-4">
+          <div className="text-sm text-gray-500">{format(new Date(session.date), 'EEEE, MMMM d')}</div>
+          <h2 className="text-lg font-semibold">{session.title}</h2>
 
-        {detailedWorkout ? (
-          <div className="whitespace-pre-wrap text-sm border rounded-md p-4 bg-gray-50">
-            {detailedWorkout}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">No detailed workout yet.</p>
-        )}
+          {detailedWorkout ? (
+            <div className="whitespace-pre-wrap text-sm bg-gray-50 border rounded-md p-4">
+              {detailedWorkout}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500">No detailed workout yet.</p>
+          )}
 
-        <button
-          onClick={handleGenerateWorkout}
-          disabled={loading}
-          className="mt-4 w-full bg-black text-white py-2 px-4 rounded disabled:opacity-50"
-        >
-          {loading ? 'Generating...' : 'Generate Detailed Workout'}
-        </button>
+          <button
+            onClick={handleGenerateWorkout}
+            disabled={loading}
+            className="w-full bg-black text-white rounded-md py-2 text-sm font-medium disabled:opacity-50"
+          >
+            {loading ? 'Generating…' : 'Generate Detailed Workout'}
+          </button>
+        </div>
       </div>
     </div>
   );

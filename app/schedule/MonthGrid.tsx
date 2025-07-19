@@ -16,12 +16,12 @@ import DayCell from './DayCell';
 type Props = {
   sessions: Session[];
   onSessionClick?: (session: Session) => void;
+  currentMonth: Date;
 };
 
-export default function MonthGrid({ sessions, onSessionClick }: Props) {
-  const today = new Date();
-  const start = startOfWeek(startOfMonth(today), { weekStartsOn: 1 });
-  const end = endOfWeek(endOfMonth(today), { weekStartsOn: 1 });
+export default function MonthGrid({ sessions, onSessionClick, currentMonth }: Props) {
+  const start = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 });
+  const end = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 });
 
   const days = [];
   let current = start;
@@ -40,7 +40,7 @@ export default function MonthGrid({ sessions, onSessionClick }: Props) {
             key={day.toISOString()}
             date={day}
             sessions={daySessions}
-            isOutside={!isSameMonth(day, today)}
+            isOutside={!isSameMonth(day, currentMonth)}
             onSessionClick={onSessionClick}
           />
         );
