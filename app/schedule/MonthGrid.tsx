@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  format,
   isSameDay,
   startOfMonth,
   endOfMonth,
@@ -32,19 +31,34 @@ export default function MonthGrid({ sessions, onSessionClick, currentMonth }: Pr
   }
 
   return (
-    <div className="grid grid-cols-7 border rounded-lg overflow-hidden">
-      {days.map((day) => {
-        const daySessions = sessions.filter((s) => isSameDay(new Date(s.date), day));
-        return (
-          <DayCell
-            key={day.toISOString()}
-            date={day}
-            sessions={daySessions}
-            isOutside={!isSameMonth(day, currentMonth)}
-            onSessionClick={onSessionClick}
-          />
-        );
-      })}
+    <div className="space-y-1">
+      {/* Optional: Drop phase label here */}
+      {/* <p className="text-sm text-muted-foreground italic text-center">Build Phase</p> */}
+
+      {/* Weekday header row */}
+      <div className="grid grid-cols-7 text-[11px] text-muted-foreground px-1">
+        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
+          <div key={day} className="text-center font-medium">
+            {day}
+          </div>
+        ))}
+      </div>
+
+      {/* Calendar cells */}
+      <div className="grid grid-cols-7 border rounded-lg overflow-hidden">
+        {days.map((day) => {
+          const daySessions = sessions.filter((s) => isSameDay(new Date(s.date), day));
+          return (
+            <DayCell
+              key={day.toISOString()}
+              date={day}
+              sessions={daySessions}
+              isOutside={!isSameMonth(day, currentMonth)}
+              onSessionClick={onSessionClick}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 }
