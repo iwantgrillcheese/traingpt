@@ -9,13 +9,14 @@ export const runtime = 'nodejs';
 export async function GET() {
   const supabase = createServerComponentClient({ cookies });
 
+  // Get all non-null plans
   const { data: plans, error } = await supabase
     .from('plans')
     .select('id, user_id, plan')
     .neq('plan', null);
 
   if (error) {
-    console.error('❌ Error fetching plans:', error);
+    console.error('❌ Error fetching plans:', error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
@@ -24,15 +25,33 @@ export async function GET() {
   for (const planRow of plans) {
     const { id: plan_id, user_id, plan } = planRow;
 
+    // Delete old sessions for this user first
+    await supabase.from('sessions').delete().eq('user_id', user_id);
+
+    // Loop over each week
     for (const week of plan) {
       for (const date in week.days) {
-        const sessions = week.days[date];
+        const sessions: string[] = week.days[date];
+
         for (const label of sessions) {
+          const sport = label.toLowerCase().includes('swim')
+            ? 'Swim'
+            : label.toLowerCase().includes('bike')
+            ? 'Bike'
+            : label.toLowerCase().includes('run')
+            ? 'Run'
+            : label.toLowerCase().includes('strength')
+            ? 'Strength'
+            : label.toLowerCase().includes('rest')
+            ? 'Rest'
+            : 'Other';
+
           const { error: insertError } = await supabase.from('sessions').insert({
             user_id,
             plan_id,
             date,
             label,
+            sport,
             status: 'planned',
           });
 
@@ -48,6 +67,6 @@ export async function GET() {
 
   return NextResponse.json({
     success: true,
-    inserted: insertedCount,
+    message: `Inserted ${insertedCount} sessions.`,
   });
 }
