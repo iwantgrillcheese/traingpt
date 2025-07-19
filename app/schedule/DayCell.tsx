@@ -11,9 +11,8 @@ type Props = {
   onSessionClick?: (session: Session) => void;
 };
 
-// Extracts short label like "🏃 Run" from session text
-const getSessionTitle = (text: string) => {
-  return text.split(':')[0]?.trim() || 'Untitled';
+const getSessionTitle = (title: string) => {
+  return title.split(':')[0]?.trim() || 'Untitled';
 };
 
 const getSessionColor = (sport: string | null | undefined) => {
@@ -55,9 +54,9 @@ export default function DayCell({ date, sessions, isOutside, onSessionClick }: P
               'block text-[11px] truncate rounded px-1 py-0.5 w-full text-left',
               getSessionColor(s.sport)
             )}
-            title={s.text}
+            title={s.title ?? 'Untitled'}
           >
-            {getSessionTitle(s.text)}
+            {getSessionTitle(s.title ?? '')}
           </button>
         ))}
       </div>

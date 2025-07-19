@@ -24,7 +24,7 @@ export default function SessionModal({ session, open, onClose }: Props) {
     const res = await fetch('/api/generate-detailed-workout', {
       method: 'POST',
       body: JSON.stringify({
-        title: session.title || session.text,
+        title: session.title,
         date: session.date,
         sport: session.sport,
       }),
@@ -43,7 +43,7 @@ export default function SessionModal({ session, open, onClose }: Props) {
       <div className="fixed inset-0 flex items-center justify-center p-4">
         <Dialog.Panel className="bg-white w-full max-w-md rounded-lg shadow-xl p-6 space-y-4">
           <Dialog.Title className="text-lg font-semibold text-gray-900">
-            {session?.title || session?.text}
+            {session?.title ?? 'Untitled Session'}
           </Dialog.Title>
 
           {output ? (
