@@ -21,7 +21,7 @@ export default function SessionModal({ session, open, onClose }: Props) {
     if (!session) return;
     setLoading(true);
 
-    const res = await fetch('/api/generate-detailed-workout', {
+    const res = await fetch('/api/generate-detailed-session', {
       method: 'POST',
       body: JSON.stringify({
         title: session.title,
