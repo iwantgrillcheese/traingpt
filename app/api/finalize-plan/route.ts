@@ -43,6 +43,16 @@ const getPhase = (index: number, total: number): string => {
 
 const getDeload = (index: number): boolean => (index + 1) % 4 === 0;
 
+function extractSport(text: string): string {
+  const lower = text.toLowerCase();
+  if (lower.includes('swim')) return 'Swim';
+  if (lower.includes('bike')) return 'Bike';
+  if (lower.includes('run')) return 'Run';
+  if (lower.includes('rest')) return 'Rest';
+  if (lower.includes('strength')) return 'Strength';
+  return 'Other';
+}
+
 export async function POST(req: Request) {
   console.time('[⏱️ finalize-plan total]');
   console.log('🔥 /api/finalize-plan hit');
@@ -166,20 +176,24 @@ export async function POST(req: Request) {
 
   const plan_id = savedPlan.id;
 
-  // Explode into session rows
+  // Explode into session rows with clean title + sport
   for (const week of plan) {
     for (const [date, sessions] of Object.entries(week.days)) {
-      for (const [index, label] of sessions.entries()) {
+      for (const [index, rawTitle] of sessions.entries()) {
+        const sport = extractSport(rawTitle);
+        const title = rawTitle;
+
         const { error: insertError } = await supabase.from('sessions').insert({
           user_id,
           plan_id,
           date,
-          label,
+          title,
+          sport,
           status: 'planned',
         });
 
         if (insertError) {
-          console.error(`❌ Failed inserting session: ${label}`, insertError);
+          console.error(`❌ Failed inserting session: ${title}`, insertError);
         }
       }
     }

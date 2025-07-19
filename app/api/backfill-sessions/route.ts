@@ -1,4 +1,3 @@
-// /app/api/backfill-sessions/route.ts
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
@@ -6,10 +5,19 @@ import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+function extractSport(text: string): string {
+  const lower = text.toLowerCase();
+  if (lower.includes('swim')) return 'Swim';
+  if (lower.includes('bike')) return 'Bike';
+  if (lower.includes('run')) return 'Run';
+  if (lower.includes('strength')) return 'Strength';
+  if (lower.includes('rest')) return 'Rest';
+  return 'Other';
+}
+
 export async function GET() {
   const supabase = createServerComponentClient({ cookies });
 
-  // Get all non-null plans
   const { data: plans, error } = await supabase
     .from('plans')
     .select('id, user_id, plan')
@@ -21,42 +29,50 @@ export async function GET() {
   }
 
   let insertedCount = 0;
+  let skippedCount = 0;
 
   for (const planRow of plans) {
     const { id: plan_id, user_id, plan } = planRow;
 
-    // Delete old sessions for this user first
-    await supabase.from('sessions').delete().eq('user_id', user_id);
-
-    // Loop over each week
     for (const week of plan) {
       for (const date in week.days) {
         const sessions: string[] = week.days[date];
 
-        for (const label of sessions) {
-          const sport = label.toLowerCase().includes('swim')
-            ? 'Swim'
-            : label.toLowerCase().includes('bike')
-            ? 'Bike'
-            : label.toLowerCase().includes('run')
-            ? 'Run'
-            : label.toLowerCase().includes('strength')
-            ? 'Strength'
-            : label.toLowerCase().includes('rest')
-            ? 'Rest'
-            : 'Other';
+        for (const title of sessions) {
+          const sport = extractSport(title);
+
+          // Check for existing duplicate
+          const { data: existing, error: checkError } = await supabase
+            .from('sessions')
+            .select('id')
+            .eq('user_id', user_id)
+            .eq('plan_id', plan_id)
+            .eq('date', date)
+            .eq('sport', sport)
+            .limit(1);
+
+          if (checkError) {
+            console.error('❌ Error checking for existing session:', checkError.message);
+            continue;
+          }
+
+          if (existing?.length > 0) {
+            skippedCount++;
+            continue;
+          }
 
           const { error: insertError } = await supabase.from('sessions').insert({
             user_id,
             plan_id,
             date,
-            label,
+            title,
             sport,
             status: 'planned',
+            created_at: new Date().toISOString(),
           });
 
           if (insertError) {
-            console.error(`❌ Insert error for ${label} on ${date}:`, insertError.message);
+            console.error(`❌ Insert error for ${title} on ${date}:`, insertError.message);
           } else {
             insertedCount++;
           }
@@ -67,6 +83,6 @@ export async function GET() {
 
   return NextResponse.json({
     success: true,
-    message: `Inserted ${insertedCount} sessions.`,
+    message: `Inserted ${insertedCount} sessions. Skipped ${skippedCount} duplicates.`,
   });
 }
