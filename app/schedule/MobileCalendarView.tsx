@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { format, isAfter, isSameDay, parseISO, startOfWeek, addDays } from 'date-fns';
+import { format, isSameDay, parseISO, startOfWeek, addDays } from 'date-fns';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import type { Session } from '@/types/session';
 
@@ -16,7 +16,6 @@ type Week = {
 
 const getSessionColor = (sport: string | null | undefined) => {
   const safe = sport?.toLowerCase?.() || '';
-
   switch (safe) {
     case 'swim':
       return 'bg-blue-100 text-blue-800';
@@ -29,7 +28,7 @@ const getSessionColor = (sport: string | null | undefined) => {
     case 'rest':
       return 'bg-gray-100 text-gray-600';
     default:
-      return 'bg-primary/10 text-primary';
+      return 'bg-muted text-muted-foreground';
   }
 };
 
@@ -65,8 +64,8 @@ export default function MobileCalendarView({ sessions }: MobileCalendarViewProps
     });
 
     const { output } = await res.json();
-
     await supabase.from('sessions').update({ details: output }).eq('id', session.id);
+
     setDetailedMap((prev) => ({ ...prev, [session.id]: output }));
     setLoadingSessionId(null);
   };
@@ -78,16 +77,16 @@ export default function MobileCalendarView({ sessions }: MobileCalendarViewProps
         const isExpanded = expandedWeekIndex === idx;
 
         return (
-          <div key={idx} className="border rounded-md overflow-hidden bg-background">
+          <div key={idx} className="border rounded-md bg-background overflow-hidden">
             <button
               onClick={() => setExpandedWeekIndex(isExpanded ? null : idx)}
-              className="w-full text-left px-4 py-3 bg-muted hover:bg-muted/80 transition-colors font-medium text-sm"
+              className="w-full px-4 py-3 bg-muted hover:bg-muted/80 transition-colors font-medium text-sm text-left"
             >
               {label}
             </button>
 
             {isExpanded && (
-              <div className="p-3 space-y-4">
+              <div className="p-3 space-y-5">
                 {week.days.map((date) => {
                   const daySessions = sessions.filter((s) =>
                     isSameDay(parseISO(s.date), date)
@@ -106,7 +105,7 @@ export default function MobileCalendarView({ sessions }: MobileCalendarViewProps
                             return (
                               <div
                                 key={s.id}
-                                className={`rounded p-2 ${getSessionColor(s.sport)} space-y-2`}
+                                className={`rounded-md p-3 ${getSessionColor(s.sport)} space-y-2`}
                               >
                                 <div className="text-sm font-medium">{s.title}</div>
 
@@ -130,7 +129,9 @@ export default function MobileCalendarView({ sessions }: MobileCalendarViewProps
                           })}
                         </div>
                       ) : (
-                        <div className="text-sm text-muted-foreground px-1">No sessions</div>
+                        <div className="text-sm text-muted-foreground px-1">
+                          No sessions
+                        </div>
                       )}
                     </div>
                   );
