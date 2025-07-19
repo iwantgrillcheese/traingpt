@@ -49,10 +49,10 @@ export default function CalendarShell({ sessions }: CalendarShellProps) {
           <MobileCalendarView sessions={sessions} />
         ) : (
           <MonthGrid
-            sessions={sessions}
-            onSessionClick={handleSessionClick}
-            currentMonth={currentMonth}
-          />
+  sessions={sessions}
+  onSessionClick={handleSessionClick} // <-- this matters
+  currentMonth={currentMonth}
+/>
         )}
       </div>
 
