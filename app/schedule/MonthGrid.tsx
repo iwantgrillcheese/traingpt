@@ -1,14 +1,24 @@
 'use client';
 
-import { format, isSameDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth } from 'date-fns';
+import {
+  format,
+  isSameDay,
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+  addDays,
+  isSameMonth,
+} from 'date-fns';
 import type { Session } from '@/types/session';
 import DayCell from './DayCell';
 
 type Props = {
   sessions: Session[];
+  onSessionClick?: (session: Session) => void;
 };
 
-export default function MonthGrid({ sessions }: Props) {
+export default function MonthGrid({ sessions, onSessionClick }: Props) {
   const today = new Date();
   const start = startOfWeek(startOfMonth(today), { weekStartsOn: 1 });
   const end = endOfWeek(endOfMonth(today), { weekStartsOn: 1 });
@@ -31,6 +41,7 @@ export default function MonthGrid({ sessions }: Props) {
             date={day}
             sessions={daySessions}
             isOutside={!isSameMonth(day, today)}
+            onSessionClick={onSessionClick}
           />
         );
       })}

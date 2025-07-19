@@ -1,18 +1,17 @@
 'use client';
 
-import type { Session } from '@/types/session';
 import { format, isToday } from 'date-fns';
 import clsx from 'clsx';
+import type { Session } from '@/types/session';
 
-export default function DayCell({
-  date,
-  sessions,
-  isOutside,
-}: {
+type Props = {
   date: Date;
   sessions: Session[];
   isOutside: boolean;
-}) {
+  onSessionClick?: (session: Session) => void;
+};
+
+export default function DayCell({ date, sessions, isOutside, onSessionClick }: Props) {
   return (
     <div
       className={clsx(
@@ -24,13 +23,14 @@ export default function DayCell({
       <div className="absolute top-2 right-2 text-[10px] font-medium">{format(date, 'd')}</div>
       <div className="mt-4 space-y-1">
         {sessions.map((s) => (
-          <div
+          <button
             key={s.id}
-            className="block text-[11px] truncate rounded bg-primary/10 text-primary px-1 py-0.5"
+            onClick={() => onSessionClick?.(s)}
+            className="block text-[11px] truncate rounded bg-primary/10 text-primary px-1 py-0.5 w-full text-left"
             title={s.label}
           >
             {s.label}
-          </div>
+          </button>
         ))}
       </div>
     </div>
