@@ -11,8 +11,10 @@ type Props = {
   onSessionClick?: (session: Session) => void;
 };
 
-const getSessionColor = (sport: string) => {
-  switch (sport.toLowerCase()) {
+const getSessionColor = (sport: string | null | undefined) => {
+  const safe = sport?.toLowerCase?.() || '';
+
+  switch (safe) {
     case 'swim':
       return 'bg-blue-100 text-blue-800';
     case 'bike':
