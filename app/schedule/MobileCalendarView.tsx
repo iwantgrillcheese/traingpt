@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { format, isSameDay, parseISO, startOfWeek, addDays } from 'date-fns';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import type { Session } from '@/types/session';
+import { getSessionColor } from '@/utils/session-utils';
 
 type MobileCalendarViewProps = {
   sessions: Session[];
@@ -12,24 +13,6 @@ type MobileCalendarViewProps = {
 type Week = {
   start: Date;
   days: Date[];
-};
-
-const getSessionColor = (sport: string | null | undefined) => {
-  const safe = sport?.toLowerCase?.() || '';
-  switch (safe) {
-    case 'swim':
-      return 'bg-blue-100 text-blue-800';
-    case 'bike':
-      return 'bg-yellow-100 text-yellow-800';
-    case 'run':
-      return 'bg-green-100 text-green-800';
-    case 'strength':
-      return 'bg-purple-100 text-purple-800';
-    case 'rest':
-      return 'bg-gray-100 text-gray-600';
-    default:
-      return 'bg-muted text-muted-foreground';
-  }
 };
 
 export default function MobileCalendarView({ sessions }: MobileCalendarViewProps) {
@@ -101,28 +84,43 @@ export default function MobileCalendarView({ sessions }: MobileCalendarViewProps
                       {daySessions.length > 0 ? (
                         <div className="space-y-3">
                           {daySessions.map((s) => {
+                            const rawTitle = s.title ?? '';
+                            const isRest = rawTitle.toLowerCase().includes('rest day');
+                            const displayTitle = isRest
+                              ? '🛌 Rest Day'
+                              : rawTitle.split(':')[0]?.trim() || 'Untitled';
+
+                            const colorClass = getSessionColor(
+                              isRest ? 'rest' : s.sport || ''
+                            );
+
                             const output = detailedMap[s.id] || s.details;
+
                             return (
                               <div
                                 key={s.id}
-                                className={`rounded-md p-3 ${getSessionColor(s.sport)} space-y-2`}
+                                className={`rounded-full px-3 py-1 text-sm font-medium truncate ${colorClass}`}
                               >
-                                <div className="text-sm font-medium">{s.title}</div>
+                                {displayTitle}
 
-                                {output ? (
-                                  <div className="text-sm whitespace-pre-wrap bg-white border rounded p-2">
-                                    {output}
+                                {!isRest && (
+                                  <div className="mt-2">
+                                    {output ? (
+                                      <div className="text-sm whitespace-pre-wrap bg-white border rounded p-2 mt-1">
+                                        {output}
+                                      </div>
+                                    ) : (
+                                      <button
+                                        onClick={() => handleGenerateWorkout(s)}
+                                        disabled={loadingSessionId === s.id}
+                                        className="text-sm bg-black text-white rounded px-3 py-1 mt-1 disabled:opacity-50"
+                                      >
+                                        {loadingSessionId === s.id
+                                          ? 'Generating...'
+                                          : 'Generate Detailed Workout'}
+                                      </button>
+                                    )}
                                   </div>
-                                ) : (
-                                  <button
-                                    onClick={() => handleGenerateWorkout(s)}
-                                    disabled={loadingSessionId === s.id}
-                                    className="text-sm bg-black text-white rounded px-3 py-1 disabled:opacity-50"
-                                  >
-                                    {loadingSessionId === s.id
-                                      ? 'Generating...'
-                                      : 'Generate Detailed Workout'}
-                                  </button>
                                 )}
                               </div>
                             );
