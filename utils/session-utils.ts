@@ -18,14 +18,15 @@ export function groupSessionsByDate(sessions: Session[]) {
 export function getSessionColor(sport: string): string {
   switch (sport.toLowerCase()) {
     case 'swim':
-      return 'bg-blue-100 text-blue-700';
+      return 'bg-[#e0f2ff] text-[#0369a1]'; // light aqua, deep blue
     case 'bike':
-      return 'bg-yellow-100 text-yellow-700';
+      return 'bg-[#fffacc] text-[#854d0e]'; // butter yellow, brown
     case 'run':
-      return 'bg-green-100 text-green-700';
+      return 'bg-[#dcfce7] text-[#15803d]'; // mint green, forest
     case 'rest':
-      return 'bg-zinc-100 text-zinc-400 italic';
+      return 'bg-[#f4f4f5] text-[#71717a] italic'; // soft gray
     default:
-      return 'bg-zinc-200 text-zinc-700';
+      return 'bg-zinc-200 text-zinc-700'; // fallback
   }
 }
+
