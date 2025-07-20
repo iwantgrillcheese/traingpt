@@ -66,7 +66,6 @@ Format the response like this:
 Use bullet points or short lines. No fluff. No motivational text. Keep it practical and realistic for a triathlete following the title's intent. Only include distances, durations, intensities (pace/power/RPE), or drills that align with the session type.
 `;
 
-
     const gptResponse = await openai.chat.completions.create({
       model: 'gpt-4-turbo',
       messages: [{ role: 'user', content: prompt }],
@@ -110,7 +109,7 @@ Use bullet points or short lines. No fluff. No motivational text. Keep it practi
       return NextResponse.json({ error: 'Failed to save workout' }, { status: 500 });
     }
 
-    return NextResponse.json({ workout: content });
+    return NextResponse.json({ details: content });
   } catch (error) {
     console.error('Detailed session error:', error);
     return NextResponse.json({ error: 'Failed to generate workout.' }, { status: 500 });
