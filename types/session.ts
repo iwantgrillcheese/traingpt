@@ -5,6 +5,7 @@ export type Session = {
   date: string;
   text: string; // this is the workout description
   sport?: string;
+  structured_workout?: string;
   title?: string; // optional — some legacy plans might have this
   details?: string | null;
   status?: string;
