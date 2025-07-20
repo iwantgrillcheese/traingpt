@@ -31,11 +31,7 @@ export default function MonthGrid({ sessions, onSessionClick, currentMonth }: Pr
   }
 
   return (
-    <div className="space-y-1">
-      {/* Optional: Drop phase label here */}
-      {/* <p className="text-sm text-muted-foreground italic text-center">Build Phase</p> */}
-
-      {/* Weekday header row */}
+    <div className="space-y-2">
       <div className="grid grid-cols-7 text-[11px] text-muted-foreground px-1">
         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
           <div key={day} className="text-center font-medium">
@@ -44,8 +40,7 @@ export default function MonthGrid({ sessions, onSessionClick, currentMonth }: Pr
         ))}
       </div>
 
-      {/* Calendar cells */}
-      <div className="grid grid-cols-7 border rounded-lg overflow-hidden">
+      <div className="grid grid-cols-7 border rounded-lg overflow-hidden gap-y-1">
         {days.map((day) => {
           const daySessions = sessions.filter((s) => isSameDay(new Date(s.date), day));
           return (

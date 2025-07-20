@@ -1,4 +1,4 @@
-// /utils/session-utils.ts
+// utils/session-utils.ts
 import type { Session } from '@/types/session';
 import { formatISO } from 'date-fns';
 
@@ -18,14 +18,14 @@ export function groupSessionsByDate(sessions: Session[]) {
 export function getSessionColor(sport: string): string {
   switch (sport.toLowerCase()) {
     case 'swim':
-      return 'bg-blue-200 text-blue-800';
+      return 'bg-blue-50 text-blue-600';
     case 'bike':
-      return 'bg-yellow-200 text-yellow-800';
+      return 'bg-yellow-50 text-yellow-600';
     case 'run':
-      return 'bg-green-200 text-green-800';
-    case 'strength':
-      return 'bg-red-200 text-red-800';
+      return 'bg-green-50 text-green-600';
+    case 'rest':
+      return 'bg-zinc-100 text-zinc-400 italic';
     default:
-      return 'bg-gray-200 text-gray-700';
+      return 'bg-zinc-200 text-zinc-700';
   }
 }
