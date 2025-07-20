@@ -8,6 +8,7 @@ import {
   endOfWeek,
   addDays,
   isSameMonth,
+  parseISO, // ✅ ADD THIS
 } from 'date-fns';
 import type { Session } from '@/types/session';
 import DayCell from './DayCell';
@@ -42,7 +43,10 @@ export default function MonthGrid({ sessions, onSessionClick, currentMonth }: Pr
 
       <div className="grid grid-cols-7 border rounded-lg overflow-hidden gap-y-1">
         {days.map((day) => {
-          const daySessions = sessions.filter((s) => isSameDay(new Date(s.date), day));
+          const daySessions = sessions.filter((s) =>
+            isSameDay(parseISO(s.date), day) // ✅ FIXED HERE
+          );
+
           return (
             <DayCell
               key={day.toISOString()}
