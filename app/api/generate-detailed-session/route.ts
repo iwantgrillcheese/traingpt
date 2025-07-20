@@ -8,7 +8,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(req: Request) {
   try {
-    const { title, date } = await req.json();
+    const { title, date, session_id } = await req.json();
     if (!title || !date) {
       return NextResponse.json({ error: 'Missing session title or date.' }, { status: 400 });
     }
@@ -107,6 +107,16 @@ Use bullet points or short lines. No fluff. No motivational text. Keep it practi
     if (updateErr) {
       console.error('❌ Error saving detailed session:', updateErr);
       return NextResponse.json({ error: 'Failed to save workout' }, { status: 500 });
+    }
+
+    // Also save to sessions table
+    const { error: sessionUpdateErr } = await supabase
+      .from('sessions')
+      .update({ structured_workout: content })
+      .eq('id', session_id);
+
+    if (sessionUpdateErr) {
+      console.error('❌ Error updating sessions table:', sessionUpdateErr);
     }
 
     return NextResponse.json({ details: content });
