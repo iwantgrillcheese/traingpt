@@ -28,16 +28,16 @@ export default function CalendarShell({ sessions }: CalendarShellProps) {
   const goToNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
 
   return (
-    <main className="min-h-screen bg-background px-6 py-8 md:px-16 md:py-12">
+    <main className="min-h-screen bg-background px-6 py-8 sm:px-10 lg:px-16 xl:px-24 2xl:px-32">
       {!isMobile && (
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-6 max-w-[1800px] mx-auto">
           <button onClick={goToPrevMonth} className="text-sm text-gray-500 hover:text-black">←</button>
           <h2 className="text-2xl font-semibold text-center">{format(currentMonth, 'MMMM yyyy')}</h2>
           <button onClick={goToNextMonth} className="text-sm text-gray-500 hover:text-black">→</button>
         </div>
       )}
 
-      <div className="flex-1 max-w-[1600px] mx-auto">
+      <div className="w-full max-w-[1800px] mx-auto">
         {isMobile ? (
           <MobileCalendarView sessions={sessions} />
         ) : (

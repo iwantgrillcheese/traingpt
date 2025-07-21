@@ -7,7 +7,6 @@ import {
   startOfWeek,
   endOfWeek,
   addDays,
-  isSameMonth,
   parseISO,
 } from 'date-fns';
 import type { Session } from '@/types/session';
