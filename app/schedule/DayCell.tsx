@@ -26,7 +26,7 @@ export default function DayCell({ date, sessions, isOutside, onSessionClick }: P
   return (
     <div
       className={clsx(
-        'min-h-[200px] p-6 border rounded-xl flex flex-col gap-2 transition-all duration-150 w-full',
+        'min-h-[200px] p-10 border rounded-xl flex flex-col gap-2 transition-all duration-150 w-full',
         isOutside ? 'bg-zinc-100 text-zinc-400' : 'bg-white text-black',
         isToday(date) && 'ring-2 ring-blue-400'
       )}
