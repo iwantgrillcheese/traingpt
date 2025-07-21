@@ -26,16 +26,14 @@ export default function DayCell({ date, sessions, isOutside, onSessionClick }: P
   return (
     <div
       className={clsx(
-        'h-28 p-2 border text-xs relative transition-all duration-150 overflow-hidden group',
-        isOutside ? 'bg-zinc-100 text-zinc-400' : 'bg-white',
-        isToday(date) && 'ring-2 ring-zinc-300 bg-zinc-50'
+        'min-h-[200px] p-4 border rounded-lg flex flex-col gap-2 transition-all duration-150',
+        isOutside ? 'bg-zinc-100 text-zinc-400' : 'bg-white text-black',
+        isToday(date) && 'ring-2 ring-blue-400'
       )}
     >
-      <div className="absolute top-2 right-2 text-[10px] font-medium">
-        {format(date, 'd')}
-      </div>
+      <div className="text-sm font-semibold text-right">{format(date, 'd')}</div>
 
-      <div className="mt-5 flex flex-col gap-1 max-h-[70px] overflow-y-auto pr-1 scrollbar-hide">
+      <div className="flex flex-col gap-1">
         {sessions.map((s) => {
           const rawTitle = s.title ?? '';
           const isRest = rawTitle.toLowerCase().includes('rest day');
@@ -53,14 +51,14 @@ export default function DayCell({ date, sessions, isOutside, onSessionClick }: P
               key={s.id}
               onClick={() => !isRest && onSessionClick?.(s)}
               className={clsx(
-                'block w-full text-left rounded-md px-2 py-1 leading-tight shadow-sm hover:brightness-95 transition-all duration-100',
+                'w-full text-left rounded-md px-2 py-1 text-sm leading-tight shadow-sm hover:brightness-95',
                 colorClass
               )}
               title={rawTitle}
             >
-              <div className="font-medium text-[11px] truncate">{titleLine}</div>
+              <div className="font-medium truncate">{titleLine}</div>
               {detailLine && (
-                <div className="text-[10px] text-opacity-80 truncate">
+                <div className="text-xs opacity-80 truncate">
                   {detailLine}
                 </div>
               )}

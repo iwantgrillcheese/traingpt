@@ -23,36 +23,29 @@ export default function CalendarShell({ sessions }: CalendarShellProps) {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const handleSessionClick = (session: Session) => {
-    setSelectedSession(session);
-  };
-
+  const handleSessionClick = (session: Session) => setSelectedSession(session);
   const goToPrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
   const goToNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
 
   return (
-    <main className="min-h-screen bg-background flex flex-col gap-4 p-4 md:p-8">
+    <main className="min-h-screen bg-background px-6 py-8 md:px-16 md:py-12">
       {!isMobile && (
-        <div className="flex items-center justify-between mb-2">
-          <button onClick={goToPrevMonth} className="text-sm text-gray-600 hover:text-black">
-            ←
-          </button>
-          <h2 className="text-lg font-semibold">{format(currentMonth, 'MMMM yyyy')}</h2>
-          <button onClick={goToNextMonth} className="text-sm text-gray-600 hover:text-black">
-            →
-          </button>
+        <div className="flex items-center justify-between mb-6">
+          <button onClick={goToPrevMonth} className="text-sm text-gray-500 hover:text-black">←</button>
+          <h2 className="text-2xl font-semibold text-center">{format(currentMonth, 'MMMM yyyy')}</h2>
+          <button onClick={goToNextMonth} className="text-sm text-gray-500 hover:text-black">→</button>
         </div>
       )}
 
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 max-w-[1600px] mx-auto">
         {isMobile ? (
           <MobileCalendarView sessions={sessions} />
         ) : (
           <MonthGrid
-  sessions={sessions}
-  onSessionClick={handleSessionClick} // <-- this matters
-  currentMonth={currentMonth}
-/>
+            sessions={sessions}
+            onSessionClick={handleSessionClick}
+            currentMonth={currentMonth}
+          />
         )}
       </div>
 

@@ -25,23 +25,20 @@ export default function MonthGrid({ sessions, onSessionClick, currentMonth }: Pr
 
   const days = [];
   let current = start;
-
   while (current <= end) {
     days.push(current);
     current = addDays(current, 1);
   }
 
   return (
-    <div className="space-y-2">
-      <div className="grid grid-cols-7 text-[11px] text-muted-foreground px-1">
+    <div className="space-y-4">
+      <div className="grid grid-cols-7 text-sm text-muted-foreground font-medium">
         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
-          <div key={day} className="text-center font-medium">
-            {day}
-          </div>
+          <div key={day} className="text-center">{day}</div>
         ))}
       </div>
 
-      <div className="grid grid-cols-7 border rounded-lg overflow-hidden gap-y-1">
+      <div className="grid grid-cols-7 gap-4 w-full">
         {days.map((day) => {
           const daySessions = sessions.filter((s) =>
             isSameDay(parseISO(s.date), day)
