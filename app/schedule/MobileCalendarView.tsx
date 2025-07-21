@@ -5,6 +5,7 @@ import { format, isSameDay, parseISO, startOfWeek, addDays } from 'date-fns';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import type { Session } from '@/types/session';
 import { getSessionColor } from '@/utils/session-utils';
+import SessionModal from './SessionModal';
 
 type MobileCalendarViewProps = {
   sessions: Session[];
@@ -17,10 +18,8 @@ type Week = {
 
 export default function MobileCalendarView({ sessions }: MobileCalendarViewProps) {
   const [expandedWeekIndex, setExpandedWeekIndex] = useState<number | null>(0);
-  const [loadingSessionId, setLoadingSessionId] = useState<string | null>(null);
-  const [detailedMap, setDetailedMap] = useState<Record<string, string>>({});
-
-  const supabase = createClientComponentClient();
+  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
   const weeks: Week[] = useMemo(() => {
     const start = startOfWeek(new Date(), { weekStartsOn: 1 });
@@ -33,24 +32,9 @@ export default function MobileCalendarView({ sessions }: MobileCalendarViewProps
     });
   }, []);
 
-  const handleGenerateWorkout = async (session: Session) => {
-    if (!session) return;
-    setLoadingSessionId(session.id);
-
-    const res = await fetch('/api/generate-detailed-workout', {
-      method: 'POST',
-      body: JSON.stringify({
-        title: session.title,
-        date: session.date,
-        sport: session.sport,
-      }),
-    });
-
-    const { output } = await res.json();
-    await supabase.from('sessions').update({ details: output }).eq('id', session.id);
-
-    setDetailedMap((prev) => ({ ...prev, [session.id]: output }));
-    setLoadingSessionId(null);
+  const handleSessionClick = (session: Session) => {
+    setSelectedSession(session);
+    setModalOpen(true);
   };
 
   return (
@@ -94,42 +78,19 @@ export default function MobileCalendarView({ sessions }: MobileCalendarViewProps
                               isRest ? 'rest' : s.sport || ''
                             );
 
-                            const output = detailedMap[s.id] || s.details;
-
                             return (
-                              <div
+                              <button
                                 key={s.id}
-                                className={`rounded-full px-3 py-1 text-sm font-medium truncate ${colorClass}`}
+                                className={`w-full text-left rounded-full px-3 py-1 text-sm font-medium truncate ${colorClass}`}
+                                onClick={() => handleSessionClick(s)}
                               >
                                 {displayTitle}
-
-                                {!isRest && (
-                                  <div className="mt-2">
-                                    {output ? (
-                                      <div className="text-sm whitespace-pre-wrap bg-white border rounded p-2 mt-1">
-                                        {output}
-                                      </div>
-                                    ) : (
-                                      <button
-                                        onClick={() => handleGenerateWorkout(s)}
-                                        disabled={loadingSessionId === s.id}
-                                        className="text-sm bg-black text-white rounded px-3 py-1 mt-1 disabled:opacity-50"
-                                      >
-                                        {loadingSessionId === s.id
-                                          ? 'Generating...'
-                                          : 'Generate Detailed Workout'}
-                                      </button>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
+                              </button>
                             );
                           })}
                         </div>
                       ) : (
-                        <div className="text-sm text-muted-foreground px-1">
-                          No sessions
-                        </div>
+                        <div className="text-sm text-muted-foreground px-1">No sessions</div>
                       )}
                     </div>
                   );
@@ -139,6 +100,13 @@ export default function MobileCalendarView({ sessions }: MobileCalendarViewProps
           </div>
         );
       })}
+
+      {/* Modal for Detailed Workout */}
+      <SessionModal
+        open={modalOpen}
+        session={selectedSession}
+        onClose={() => setModalOpen(false)}
+      />
     </div>
   );
 }

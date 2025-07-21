@@ -1,8 +1,8 @@
 // tailwind.config.js
 module.exports = {
   content: [
-    './app/**/*.{js,ts,jsx,tsx}',       
-    './pages/**/*.{js,ts,jsx,tsx}',     
+    './app/**/*.{js,ts,jsx,tsx}',
+    './pages/**/*.{js,ts,jsx,tsx}',
     './components/**/*.{js,ts,jsx,tsx}',
   ],
   theme: {
@@ -12,24 +12,27 @@ module.exports = {
       },
       colors: {
         primary: {
-          DEFAULT: '#111827',    // text-gray-900
-          light: '#6B7280',      // text-gray-500
-          muted: '#9CA3AF',      // text-gray-400
+          DEFAULT: '#111827',
+          light: '#6B7280',
+          muted: '#9CA3AF',
         },
         background: {
-          light: '#F9FAFB',      // gray-50
-          lighter: '#FCFCFD',    // lighter off-white
+          light: '#F9FAFB',
+          lighter: '#FCFCFD',
         },
         accent: {
-          swim: '#60A5FA',       // sky-400
-          bike: '#34D399',       // emerald-400
-          run: '#FBBF24',        // amber-400
-          rest: '#D1D5DB',       // gray-300
+          swim: '#60A5FA',
+          swimBg: '#E0F2FE',   // pastel
+          bike: '#34D399',
+          bikeBg: '#D1FAE5',
+          run: '#FBBF24',
+          runBg: '#FEF9C3',
+          rest: '#D1D5DB',
         },
       },
       boxShadow: {
-        subtle: '0 1px 3px rgba(0,0,0,0.06)',    // subtle shadows for cards
-        medium: '0 4px 8px rgba(0,0,0,0.1)',     // modals, buttons
+        subtle: '0 1px 3px rgba(0,0,0,0.06)',
+        medium: '0 4px 8px rgba(0,0,0,0.1)',
       },
       borderRadius: {
         xl: '12px',
