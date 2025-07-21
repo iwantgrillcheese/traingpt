@@ -30,8 +30,8 @@ export default function MonthGrid({ sessions, onSessionClick, currentMonth }: Pr
   }
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-7 text-sm text-muted-foreground font-medium">
+    <div className="w-full space-y-4">
+      <div className="grid grid-cols-7 text-sm text-muted-foreground font-medium w-full">
         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
           <div key={day} className="text-center">{day}</div>
         ))}

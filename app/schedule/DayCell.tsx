@@ -33,39 +33,43 @@ export default function DayCell({ date, sessions, isOutside, onSessionClick }: P
     >
       <div className="text-sm font-semibold text-right">{format(date, 'd')}</div>
 
-      <div className="flex flex-col gap-1">
-        {sessions.map((s) => {
-          const rawTitle = s.title ?? '';
-          const isRest = rawTitle.toLowerCase().includes('rest day');
-          const sport = s.sport || normalizeSport(rawTitle);
-          const colorClass = getSessionColor(isRest ? 'rest' : sport);
+      {sessions.length > 0 ? (
+        <div className="flex flex-col gap-1">
+          {sessions.map((s) => {
+            const rawTitle = s.title ?? '';
+            const isRest = rawTitle.toLowerCase().includes('rest day');
+            const sport = s.sport || normalizeSport(rawTitle);
+            const colorClass = getSessionColor(isRest ? 'rest' : sport);
 
-          const [labelLine, ...rest] = rawTitle.split(':');
-          const titleLine = isRest
-            ? '🛌 Rest Day'
-            : labelLine?.trim() || 'Untitled';
-          const detailLine = rest.join(':').trim();
+            const [labelLine, ...rest] = rawTitle.split(':');
+            const titleLine = isRest
+              ? '🛌 Rest Day'
+              : labelLine?.trim() || 'Untitled';
+            const detailLine = rest.join(':').trim();
 
-          return (
-            <button
-              key={s.id}
-              onClick={() => !isRest && onSessionClick?.(s)}
-              className={clsx(
-                'w-full text-left rounded-md px-2 py-1 text-sm leading-tight shadow-sm hover:brightness-95',
-                colorClass
-              )}
-              title={rawTitle}
-            >
-              <div className="font-medium truncate">{titleLine}</div>
-              {detailLine && (
-                <div className="text-xs opacity-80 truncate">
-                  {detailLine}
-                </div>
-              )}
-            </button>
-          );
-        })}
-      </div>
+            return (
+              <button
+                key={s.id}
+                onClick={() => !isRest && onSessionClick?.(s)}
+                className={clsx(
+                  'w-full text-left rounded-md px-2 py-1 text-sm leading-tight shadow-sm hover:brightness-95',
+                  colorClass
+                )}
+                title={rawTitle}
+              >
+                <div className="font-medium truncate">{titleLine}</div>
+                {detailLine && (
+                  <div className="text-xs opacity-80 truncate">
+                    {detailLine}
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="flex-1" />
+      )}
     </div>
   );
 }
