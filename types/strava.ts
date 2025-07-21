@@ -3,6 +3,7 @@ export type StravaActivity = {
   user_id: string;
   session_id?: string;
   date: string;
+  name: string;
   sport: 'Swim' | 'Bike' | 'Run' | 'Other';
   distance_km?: number;      // e.g. 42.2
   avg_pace?: string;         // e.g. "5:15 / km"

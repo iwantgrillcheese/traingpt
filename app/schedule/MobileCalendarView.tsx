@@ -10,13 +10,16 @@ import {
   startOfWeek,
   addDays,
 } from 'date-fns';
-import type { Session } from '@/types/session';
 import { useRouter } from 'next/navigation';
 import { ChevronRightIcon } from '@heroicons/react/20/solid';
 import SessionModal from './SessionModal';
+import type { Session } from '@/types/session';
+import type { StravaActivity } from '@/types/strava';
+
+export type EnrichedSession = Session & { stravaActivity?: StravaActivity };
 
 export type MobileCalendarViewProps = {
-  sessions: Session[];
+  sessions: EnrichedSession[];
 };
 
 type Week = {
@@ -26,8 +29,8 @@ type Week = {
 
 export default function MobileCalendarView({ sessions }: MobileCalendarViewProps) {
   const [expandedWeekIndex, setExpandedWeekIndex] = useState<number | null>(0);
-  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
-  const [sessionsState, setSessionsState] = useState<Session[]>(sessions); // local state for updates
+  const [selectedSession, setSelectedSession] = useState<EnrichedSession | null>(null);
+  const [sessionsState, setSessionsState] = useState<EnrichedSession[]>(sessions);
   const router = useRouter();
 
   const weeks: Week[] = useMemo(() => {
@@ -44,7 +47,7 @@ export default function MobileCalendarView({ sessions }: MobileCalendarViewProps
   }, []);
 
   const grouped = useMemo(() => {
-    const map: Record<string, Session[]> = {};
+    const map: Record<string, EnrichedSession[]> = {};
     sessionsState.forEach((s) => {
       const key = s.date;
       if (!map[key]) map[key] = [];
@@ -53,7 +56,7 @@ export default function MobileCalendarView({ sessions }: MobileCalendarViewProps
     return map;
   }, [sessionsState]);
 
-  const handleUpdateSession = (updated: Session) => {
+  const handleUpdateSession = (updated: EnrichedSession) => {
     setSessionsState((prev) =>
       prev.map((s) => (s.id === updated.id ? updated : s))
     );
@@ -89,19 +92,22 @@ export default function MobileCalendarView({ sessions }: MobileCalendarViewProps
                         {format(day, 'EEEE, MMM d')}
                       </div>
                       <div className="space-y-2">
-                        {items.map((session) => (
-                          <div
-                            key={session.id}
-                            onClick={() => setSelectedSession(session)}
-                            className="rounded-xl p-3 bg-white shadow border cursor-pointer flex items-center justify-between"
-                          >
-                            <div>
-                              <div className="text-sm font-medium">{session.title}</div>
-                              <div className="text-xs text-muted">{format(parseISO(session.date), 'MMM d')}</div>
+                        {items.map((session) => {
+                          const title = session.title || session.stravaActivity?.name || 'Strava Activity';
+                          return (
+                            <div
+                              key={session.id}
+                              onClick={() => setSelectedSession(session)}
+                              className="rounded-xl p-3 bg-white shadow border cursor-pointer flex items-center justify-between"
+                            >
+                              <div>
+                                <div className="text-sm font-medium">{title}</div>
+                                <div className="text-xs text-muted">{format(parseISO(session.date), 'MMM d')}</div>
+                              </div>
+                              <ChevronRightIcon className="w-4 h-4 text-gray-400" />
                             </div>
-                            <ChevronRightIcon className="w-4 h-4 text-gray-400" />
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   );
@@ -114,6 +120,7 @@ export default function MobileCalendarView({ sessions }: MobileCalendarViewProps
 
       <SessionModal
         session={selectedSession}
+        stravaActivity={selectedSession?.stravaActivity}
         open={!!selectedSession}
         onClose={() => setSelectedSession(null)}
         onUpdate={handleUpdateSession}
