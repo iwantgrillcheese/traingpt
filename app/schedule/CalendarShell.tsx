@@ -41,15 +41,18 @@ export default function CalendarShell({ sessions }: CalendarShellProps) {
       )}
 
       <div className="w-full">
-        {isMobile ? (
-          <MobileCalendarView sessions={sessions} />
-        ) : (
-          <MonthGrid
-            sessions={sessions}
-            onSessionClick={handleSessionClick}
-            currentMonth={currentMonth}
-          />
-        )}
+        <div className="block md:hidden">
+  <MobileCalendarView sessions={sessions} />
+</div>
+
+<div className="hidden md:block">
+  <MonthGrid
+    sessions={sessions}
+    onSessionClick={handleSessionClick}
+    currentMonth={currentMonth}
+  />
+</div>
+
       </div>
 
       <SessionModal

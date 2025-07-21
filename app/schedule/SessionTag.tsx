@@ -11,7 +11,7 @@ export default function SessionTag({ session }: { session: string }) {
   const label = session.slice(2).trim(); // remove emoji + space
 
   return (
-    <div className="flex items-center gap-1 text-xs bg-gray-100 text-gray-800 rounded-md px-3 py-[6px] w-full max-w-full">
+    <div className="flex items-center gap-2 text-sm ... px-4 py-2 rounded-md">
   <span className="text-sm">{icon}</span>
   <span className="truncate">{label}</span>
 </div>

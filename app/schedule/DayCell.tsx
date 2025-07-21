@@ -26,7 +26,7 @@ export default function DayCell({ date, sessions, isOutside, onSessionClick }: P
   return (
     <div
       className={clsx(
-        'min-h-[200px] p-10 border rounded-xl flex flex-col gap-2 transition-all duration-150 w-full',
+        'min-h-[220px] p-10 border rounded-xl flex flex-col gap-2 transition-all duration-150 w-full',
         isOutside ? 'bg-zinc-100 text-zinc-400' : 'bg-white text-black',
         isToday(date) && 'ring-2 ring-blue-400'
       )}
@@ -52,14 +52,15 @@ export default function DayCell({ date, sessions, isOutside, onSessionClick }: P
                 key={s.id}
                 onClick={() => !isRest && onSessionClick?.(s)}
                 className={clsx(
-                  'w-full text-left rounded-md px-2 py-1 text-sm leading-tight shadow-sm hover:brightness-95',
-                  colorClass
-                )}
+  'w-full text-left rounded-lg px-3 py-2 text-base leading-snug shadow-sm hover:brightness-95',
+  colorClass
+)}
+
                 title={rawTitle}
               >
-                <div className="font-medium truncate">{titleLine}</div>
+                <div className="font-semibold text-sm truncate">{titleLine}</div>
                 {detailLine && (
-                  <div className="text-xs opacity-80 truncate">
+                  <div className="text-sm text-muted truncate">
                     {detailLine}
                   </div>
                 )}
