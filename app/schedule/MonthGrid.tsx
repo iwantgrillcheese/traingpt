@@ -37,7 +37,7 @@ export default function MonthGrid({ sessions, onSessionClick, currentMonth }: Pr
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-4 w-full">
+      <div className="grid grid-cols-7 gap-6 w-full">
         {days.map((day) => {
           const daySessions = sessions.filter((s) =>
             isSameDay(parseISO(s.date), day)

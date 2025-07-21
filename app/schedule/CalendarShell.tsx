@@ -6,14 +6,17 @@ import MonthGrid from './MonthGrid';
 import MobileCalendarView from './MobileCalendarView';
 import SessionModal from './SessionModal';
 import type { Session } from '@/types/session';
+import type { StravaActivity } from '@/types/strava';
+
+type EnrichedSession = Session & { stravaActivity?: StravaActivity };
 
 type CalendarShellProps = {
-  sessions: Session[];
+  sessions: EnrichedSession[];
 };
 
 export default function CalendarShell({ sessions }: CalendarShellProps) {
   const [isMobile, setIsMobile] = useState(false);
-  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+  const [selectedSession, setSelectedSession] = useState<EnrichedSession | null>(null);
   const [currentMonth, setCurrentMonth] = useState<Date>(startOfMonth(new Date()));
 
   useEffect(() => {
@@ -23,21 +26,21 @@ export default function CalendarShell({ sessions }: CalendarShellProps) {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const handleSessionClick = (session: Session) => setSelectedSession(session);
+  const handleSessionClick = (session: EnrichedSession) => setSelectedSession(session);
   const goToPrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
   const goToNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
 
   return (
-    <main className="min-h-screen bg-background px-4 sm:px-6 md:px-12 lg:px-20 xl:px-32 2xl:px-48">
+    <main className="min-h-screen bg-background px-6 sm:px-10 md:px-16 lg:px-24 xl:px-36 2xl:px-48 3xl:px-64">
       {!isMobile && (
-        <div className="flex items-center justify-between mb-6 w-full">
+        <div className="flex items-center justify-between mb-6 w-full max-w-screen-2xl mx-auto">
           <button onClick={goToPrevMonth} className="text-sm text-gray-500 hover:text-black">←</button>
           <h2 className="text-2xl font-semibold text-center">{format(currentMonth, 'MMMM yyyy')}</h2>
           <button onClick={goToNextMonth} className="text-sm text-gray-500 hover:text-black">→</button>
         </div>
       )}
 
-      <div className="w-full">
+      <div className="w-full max-w-screen-2xl mx-auto">
         {isMobile ? (
           <MobileCalendarView sessions={sessions} />
         ) : (
@@ -51,6 +54,7 @@ export default function CalendarShell({ sessions }: CalendarShellProps) {
 
       <SessionModal
         session={selectedSession}
+        stravaActivity={selectedSession?.stravaActivity}
         open={!!selectedSession}
         onClose={() => setSelectedSession(null)}
       />

@@ -1,14 +1,10 @@
-export type Sport = 'Swim' | 'Bike' | 'Run' | 'Rest' | 'Strength';
-
 export type Session = {
   id: string;
+  user_id: string;
   date: string;
-  text: string; // this is the workout description
-  sport?: string;
-  structured_workout?: string;
-  title?: string; // optional — some legacy plans might have this
-  details?: string | null;
-  status?: string;
-  strava_id?: string | null; // ← add this line
+  sport: 'Swim' | 'Bike' | 'Run' | 'Rest' | 'Strength' | 'Other';
+  title: string;
+  details: string | null;
+  structured_workout: string | null;
+  strava_id: string | null;
 };
-
