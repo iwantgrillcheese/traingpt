@@ -26,8 +26,8 @@ export default function DayCell({ date, sessions, isOutside, onSessionClick }: P
     <div
       className={clsx(
         'h-28 p-2 border text-xs relative transition-all duration-150 overflow-hidden group',
-        isOutside ? 'bg-zinc-100 text-zinc-400' : 'bg-white',
-        isToday(date) && 'ring-2 ring-zinc-300 bg-zinc-50'
+        isToday(date) && 'ring-2 ring-zinc-300 bg-zinc-50',
+        isOutside ? 'bg-white text-zinc-300' : 'bg-white text-zinc-800'
       )}
     >
       <div className="absolute top-2 right-2 text-[10px] font-medium">
@@ -41,7 +41,6 @@ export default function DayCell({ date, sessions, isOutside, onSessionClick }: P
           const sport = s.sport || normalizeSport(rawTitle);
           const colorClass = getSessionColor(isRest ? 'rest' : sport);
 
-          // Strip emoji and extra labels — show clean tag
           const displayTitle = isRest
             ? '🛌 Rest Day'
             : rawTitle.replace(/^.{0,2}/, '').split(':')[0]?.trim() || 'Untitled';
