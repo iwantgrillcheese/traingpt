@@ -6,7 +6,6 @@ import {
   parseISO,
   differenceInCalendarWeeks,
 } from 'date-fns';
-import { useRouter } from 'next/navigation';
 import { ChevronRightIcon } from '@heroicons/react/20/solid';
 import SessionModal from './SessionModal';
 import type { Session } from '@/types/session';
@@ -18,7 +17,6 @@ export type MobileCalendarViewProps = {
   sessions: EnrichedSession[];
 };
 
-// 🧠 Safe date parse helper
 function safeParseDate(input: string | Date): Date {
   try {
     return typeof input === 'string' ? parseISO(input) : input;
@@ -31,21 +29,12 @@ export default function MobileCalendarView({ sessions }: MobileCalendarViewProps
   const [selectedSession, setSelectedSession] = useState<EnrichedSession | null>(null);
   const [sessionsState, setSessionsState] = useState<EnrichedSession[]>(sessions);
 
-  const router = useRouter();
-
   console.log('[📱 MobileCalendarView] sessions loaded:', sessionsState.slice(0, 5));
 
-  // Guard: nothing to render
-  if (!sessionsState || sessionsState.length === 0) {
-    return (
-      <div className="text-center text-zinc-400 pt-12">
-        No sessions to display.
-      </div>
-    );
-  }
-
   const sortedSessions = useMemo(() => {
-    return [...sessionsState].sort((a, b) => a.date.localeCompare(b.date));
+    return [...sessionsState]
+      .filter((s) => !!s.date)
+      .sort((a, b) => a.date.localeCompare(b.date));
   }, [sessionsState]);
 
   const groupedByWeek = useMemo(() => {
@@ -53,11 +42,6 @@ export default function MobileCalendarView({ sessions }: MobileCalendarViewProps
     const weekMap: Record<string, EnrichedSession[]> = {};
 
     sortedSessions.forEach((s) => {
-      if (!s?.date) {
-        console.warn('⛔ Session missing date:', s);
-        return;
-      }
-
       const weekIndex = differenceInCalendarWeeks(safeParseDate(s.date), start, {
         weekStartsOn: 1,
       });
@@ -76,6 +60,14 @@ export default function MobileCalendarView({ sessions }: MobileCalendarViewProps
     setSelectedSession(updated);
   };
 
+  if (sortedSessions.length === 0) {
+    return (
+      <div className="text-center text-zinc-400 pt-12">
+        No sessions to display.
+      </div>
+    );
+  }
+
   return (
     <div className="px-4 pb-24">
       {Object.entries(groupedByWeek).map(([weekLabel, weekSessions]) => (
@@ -84,8 +76,6 @@ export default function MobileCalendarView({ sessions }: MobileCalendarViewProps
 
           <div className="space-y-4">
             {weekSessions.map((session) => {
-              if (!session?.date) return null;
-
               const title =
                 session.title || session.stravaActivity?.name || 'Unnamed Session';
               const date = safeParseDate(session.date);
