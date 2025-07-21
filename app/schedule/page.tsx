@@ -1,4 +1,3 @@
-// app/schedule/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -12,6 +11,7 @@ export default function SchedulePage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [stravaActivities, setStravaActivities] = useState<StravaActivity[]>([]);
   const [planStartDate, setPlanStartDate] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const supabase = createClientComponentClient();
 
   useEffect(() => {
@@ -19,19 +19,20 @@ export default function SchedulePage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) return;
 
-      // Get sessions
+      if (!user) {
+        console.warn('⚠️ No Supabase user session found');
+        setLoading(false);
+        return;
+      }
+
       const { data: sessionData } = await supabase
         .from('sessions')
         .select('*')
         .eq('user_id', user.id);
 
-      if (!sessionData) return;
+      if (sessionData) setSessions(sessionData);
 
-      setSessions(sessionData);
-
-      // Get Strava activities
       const { data: stravaData } = await supabase
         .from('strava_activities')
         .select('*')
@@ -39,7 +40,6 @@ export default function SchedulePage() {
 
       if (stravaData) setStravaActivities(stravaData);
 
-      // Get plan for start_date
       const { data: plan } = await supabase
         .from('plans')
         .select('start_date')
@@ -47,10 +47,16 @@ export default function SchedulePage() {
         .single();
 
       if (plan?.start_date) setPlanStartDate(plan.start_date);
+
+      setLoading(false);
     };
 
     fetchData();
   }, []);
+
+  if (loading) {
+    return <div className="text-center py-10 text-zinc-400">Loading your training data...</div>;
+  }
 
   const enrichedSessions = mergeSessionsWithStrava(sessions, stravaActivities);
 
