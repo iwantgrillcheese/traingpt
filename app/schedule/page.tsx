@@ -52,9 +52,7 @@ export default function SchedulePage() {
     fetchData();
   }, []);
 
-  const enrichedSessions = planStartDate
-    ? mergeSessionsWithStrava(sessions, stravaActivities, planStartDate)
-    : sessions;
+  const enrichedSessions = mergeSessionsWithStrava(sessions, stravaActivities);
 
   return (
     <div>

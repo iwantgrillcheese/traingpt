@@ -20,7 +20,11 @@ export type MobileCalendarViewProps = {
 
 // 🧠 Safe date parse helper
 function safeParseDate(input: string | Date): Date {
-  return typeof input === 'string' ? parseISO(input) : input;
+  try {
+    return typeof input === 'string' ? parseISO(input) : input;
+  } catch {
+    return new Date();
+  }
 }
 
 export default function MobileCalendarView({ sessions }: MobileCalendarViewProps) {
@@ -29,13 +33,19 @@ export default function MobileCalendarView({ sessions }: MobileCalendarViewProps
 
   const router = useRouter();
 
-  // Log on mount for debug
-  console.log('[MobileCalendarView] Loaded sessions:', sessionsState);
+  console.log('[📱 MobileCalendarView] sessions loaded:', sessionsState.slice(0, 5));
+
+  // Guard: nothing to render
+  if (!sessionsState || sessionsState.length === 0) {
+    return (
+      <div className="text-center text-zinc-400 pt-12">
+        No sessions to display.
+      </div>
+    );
+  }
 
   const sortedSessions = useMemo(() => {
-    return [...sessionsState].sort((a, b) =>
-      a.date.localeCompare(b.date)
-    );
+    return [...sessionsState].sort((a, b) => a.date.localeCompare(b.date));
   }, [sessionsState]);
 
   const groupedByWeek = useMemo(() => {
@@ -43,7 +53,11 @@ export default function MobileCalendarView({ sessions }: MobileCalendarViewProps
     const weekMap: Record<string, EnrichedSession[]> = {};
 
     sortedSessions.forEach((s) => {
-      if (!s.date) return;
+      if (!s?.date) {
+        console.warn('⛔ Session missing date:', s);
+        return;
+      }
+
       const weekIndex = differenceInCalendarWeeks(safeParseDate(s.date), start, {
         weekStartsOn: 1,
       });
@@ -70,6 +84,8 @@ export default function MobileCalendarView({ sessions }: MobileCalendarViewProps
 
           <div className="space-y-4">
             {weekSessions.map((session) => {
+              if (!session?.date) return null;
+
               const title =
                 session.title || session.stravaActivity?.name || 'Unnamed Session';
               const date = safeParseDate(session.date);

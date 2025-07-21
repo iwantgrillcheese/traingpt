@@ -1,43 +1,43 @@
-// utils/mergeSessionWithStrava.ts
+// utils/mergeSessionsWithStrava.ts
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 
-/**
- * Merges planned sessions with Strava activities. Strava activities that fall outside
- * of the training plan window (before planStartDate) are included as standalone sessions.
- */
 export default function mergeSessionsWithStrava(
   sessions: Session[],
-  strava: StravaActivity[],
-  planStartDate: string // ISO date string
+  strava: StravaActivity[]
 ): (Session & { stravaActivity?: StravaActivity })[] {
-  const enrichedSessions: (Session & { stravaActivity?: StravaActivity })[] = [];
+  const enriched: (Session & { stravaActivity?: StravaActivity })[] = [];
+  const matchedStravaIds = new Set<string>();
 
   for (const session of sessions) {
+    if (!session.date || !session.sport) continue;
+
     const match = strava.find(
-      (a) => a.date === session.date && a.sport === session.sport
+      (a) => a.date === session.date && a.sport.toLowerCase() === session.sport.toLowerCase()
     );
 
-    enrichedSessions.push({
+    if (match) matchedStravaIds.add(match.id);
+
+    enriched.push({
       ...session,
       stravaActivity: match ?? undefined,
     });
   }
 
-  // Include extra Strava activities that are *before* the plan start
-  const extraStrava = strava.filter((a) => a.date < planStartDate);
-  const standalone: (Session & { stravaActivity: StravaActivity })[] = extraStrava.map((activity) => ({
-    id: `strava-${activity.id}`,
-    user_id: activity.user_id,
-    date: activity.date,
-    sport: activity.sport,
-    title: `📈 ${activity.sport}: ${activity.distance_km?.toFixed(1)}km`,
-    details: null,
-    text: '',
-    structured_workout: null,
-    strava_id: activity.id,
-    stravaActivity: activity,
-  }));
+  const unmatchedStrava = strava
+    .filter((a) => a.date && a.sport && !matchedStravaIds.has(a.id))
+    .map((a) => ({
+      id: `strava-${a.id}`,
+      user_id: a.user_id,
+      date: a.date,
+      sport: a.sport,
+      title: `${a.sport}: ${a.distance_km?.toFixed(1)}km`,
+      details: null,
+      text: '',
+      structured_workout: null,
+      strava_id: a.id,
+      stravaActivity: a,
+    }));
 
-  return [...enrichedSessions, ...standalone];
+  return [...enriched, ...unmatchedStrava];
 }
