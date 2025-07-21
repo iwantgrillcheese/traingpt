@@ -1,4 +1,3 @@
-// /api/finalize-plan/route.ts
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
@@ -143,13 +142,7 @@ export async function POST(req: Request) {
     'yyyy-MM-dd'
   )}. Stay consistent and trust the process.`;
 
-  // 🔥 DELETE old sessions first
-  await supabase.from('sessions').delete().eq('user_id', user_id);
-
-  // Optionally delete old plans:
-  // await supabase.from('plans').delete().eq('user_id', user_id);
-
-  // ✅ Upsert latest plan
+  // ✅ Upsert plan first so we get the new ID
   const { data: savedPlan, error: saveError } = await supabase
     .from('plans')
     .upsert(
@@ -176,7 +169,12 @@ export async function POST(req: Request) {
 
   const plan_id = savedPlan.id;
 
-  // ✅ Insert sessions
+  // 🔥 Delete sessions tied to the replaced plan
+  if (latestPlan?.id) {
+    await supabase.from('sessions').delete().eq('plan_id', latestPlan.id);
+  }
+
+  // ✅ Insert new sessions
   for (const week of plan) {
     for (const [date, sessions] of Object.entries(week.days)) {
       for (const [index, rawTitle] of sessions.entries()) {

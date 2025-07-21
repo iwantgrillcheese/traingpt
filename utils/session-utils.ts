@@ -14,20 +14,20 @@ export function groupSessionsByDate(sessions: Session[]) {
   }, {});
 }
 
-// ✅ Updated color contrast for better visual clarity
 // session-utils.ts
 export function getSessionColor(sport: string): string {
   switch (sport?.toLowerCase()) {
     case 'swim':
-      return 'bg-[#E0F2FE] text-[#60A5FA]';
+      return 'bg-blue-100 text-blue-700';
     case 'bike':
-      return 'bg-[#D1FAE5] text-[#34D399]';
+      return 'bg-amber-100 text-amber-700';
     case 'run':
-      return 'bg-[#FEF9C3] text-[#FBBF24]';
+      return 'bg-green-100 text-green-700';
+    case 'strength':
+      return 'bg-purple-100 text-purple-700';
     case 'rest':
-      return 'bg-[#F3F4F6] text-zinc-500 italic'; // muted gray
+      return 'bg-zinc-100 text-zinc-500 italic';
     default:
-      return 'bg-zinc-100 text-zinc-700';
+      return 'bg-neutral-100 text-neutral-700';
   }
 }
-

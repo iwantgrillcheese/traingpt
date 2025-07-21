@@ -25,29 +25,33 @@ export default function DayCell({ date, sessions, isOutside, onSessionClick }: P
   return (
     <div
       className={clsx(
-        'h-28 p-2 border text-xs relative transition-all duration-150 overflow-hidden group hover:bg-zinc-50',
+        'h-28 p-2 border text-xs relative transition-all duration-150 overflow-hidden group',
         isOutside ? 'bg-zinc-100 text-zinc-400' : 'bg-white',
         isToday(date) && 'ring-2 ring-zinc-300 bg-zinc-50'
       )}
     >
-      <div className="absolute top-2 right-2 text-[10px] font-medium">{format(date, 'd')}</div>
+      <div className="absolute top-2 right-2 text-[10px] font-medium">
+        {format(date, 'd')}
+      </div>
 
-      <div className="mt-4 space-y-1 max-h-[72px] overflow-y-auto pr-1">
+      <div className="mt-5 flex flex-col gap-1 max-h-[70px] overflow-y-auto pr-1">
         {sessions.map((s) => {
           const rawTitle = s.title ?? '';
           const isRest = rawTitle.toLowerCase().includes('rest day');
           const sport = s.sport || normalizeSport(rawTitle);
           const colorClass = getSessionColor(isRest ? 'rest' : sport);
 
-          const displayTitle =
-            isRest ? '🛌 Rest Day' : rawTitle.split(':')[0]?.trim() || 'Untitled';
+          // Strip emoji and extra labels — show clean tag
+          const displayTitle = isRest
+            ? '🛌 Rest Day'
+            : rawTitle.replace(/^.{0,2}/, '').split(':')[0]?.trim() || 'Untitled';
 
           return (
             <button
               key={s.id}
               onClick={() => !isRest && onSessionClick?.(s)}
               className={clsx(
-                'block text-[11px] truncate rounded-md px-2 py-1 w-full text-left font-medium',
+                'block truncate rounded-md px-2 py-1 w-full text-left text-[11px] font-medium',
                 colorClass
               )}
               title={rawTitle}
