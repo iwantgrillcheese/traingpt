@@ -1,136 +1,123 @@
-// MobileCalendarView.tsx
+// MobileCalendarView.tsx — Updated with tappable session cards
 'use client';
 
 import { useMemo, useState } from 'react';
-import { format, isSameDay, parseISO, startOfWeek, addDays } from 'date-fns';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import {
+  format,
+  isAfter,
+  isSameDay,
+  parseISO,
+  startOfWeek,
+  addDays,
+} from 'date-fns';
 import type { Session } from '@/types/session';
-import { getSessionColor } from '@/utils/session-utils';
-import SessionModal from './SessionModal'; // assumes modal lives alongside view
+import { useRouter } from 'next/navigation';
+import { ChevronRightIcon } from '@heroicons/react/20/solid';
+import SessionModal from './SessionModal';
 
-interface MobileCalendarViewProps {
+export type MobileCalendarViewProps = {
   sessions: Session[];
-}
+};
 
-interface Week {
+type Week = {
   start: Date;
   days: Date[];
-}
+};
 
 export default function MobileCalendarView({ sessions }: MobileCalendarViewProps) {
   const [expandedWeekIndex, setExpandedWeekIndex] = useState<number | null>(0);
-  const [loadingSessionId, setLoadingSessionId] = useState<string | null>(null);
-  const [detailedMap, setDetailedMap] = useState<Record<string, string>>({});
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
-
-  const supabase = createClientComponentClient();
+  const [sessionsState, setSessionsState] = useState<Session[]>(sessions); // local state for updates
+  const router = useRouter();
 
   const weeks: Week[] = useMemo(() => {
     const start = startOfWeek(new Date(), { weekStartsOn: 1 });
-    return Array.from({ length: 8 }, (_, i) => {
-      const startOfThisWeek = addDays(start, i * 7);
-      return {
-        start: startOfThisWeek,
-        days: Array.from({ length: 7 }, (_, j) => addDays(startOfThisWeek, j)),
-      };
-    });
+    const result: Week[] = [];
+    for (let i = 0; i < 12; i++) {
+      const weekStart = addDays(start, i * 7);
+      result.push({
+        start: weekStart,
+        days: Array.from({ length: 7 }, (_, d) => addDays(weekStart, d)),
+      });
+    }
+    return result;
   }, []);
 
-  const handleGenerateWorkout = async (session: Session) => {
-    if (!session) return;
-    setLoadingSessionId(session.id);
-
-    const res = await fetch('/api/generate-detailed-session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        session_id: session.id,
-        title: session.title,
-        sport: session.sport,
-        date: session.date,
-      }),
+  const grouped = useMemo(() => {
+    const map: Record<string, Session[]> = {};
+    sessionsState.forEach((s) => {
+      const key = s.date;
+      if (!map[key]) map[key] = [];
+      map[key].push(s);
     });
+    return map;
+  }, [sessionsState]);
 
-    const { details } = await res.json();
-    await supabase.from('sessions').update({ structured_workout: details }).eq('id', session.id);
-
-    setDetailedMap((prev) => ({ ...prev, [session.id]: details }));
-    setLoadingSessionId(null);
+  const handleUpdateSession = (updated: Session) => {
+    setSessionsState((prev) =>
+      prev.map((s) => (s.id === updated.id ? updated : s))
+    );
+    setSelectedSession(updated);
   };
 
   return (
-    <>
-      <div className="space-y-4">
-        {weeks.map((week, idx) => {
-          const label = `${format(week.start, 'MMM d')} – ${format(week.days[6], 'MMM d')}`;
-          const isExpanded = expandedWeekIndex === idx;
+    <div className="px-4 pb-20">
+      {weeks.map((week, i) => {
+        const weekLabel = `${format(week.days[0], 'MMM d')} – ${format(
+          week.days[6],
+          'MMM d'
+        )}`;
 
-          return (
-            <div key={idx} className="border rounded-md bg-background overflow-hidden">
-              <button
-                onClick={() => setExpandedWeekIndex(isExpanded ? null : idx)}
-                className="w-full px-4 py-3 bg-muted hover:bg-muted/80 transition-colors font-medium text-sm text-left"
-              >
-                {label}
-              </button>
+        return (
+          <div key={i} className="mb-8">
+            <h2
+              onClick={() => setExpandedWeekIndex(i === expandedWeekIndex ? null : i)}
+              className="text-lg font-semibold mb-2 cursor-pointer"
+            >
+              {weekLabel}
+            </h2>
 
-              {isExpanded && (
-                <div className="p-3 space-y-5">
-                  {week.days.map((date) => {
-                    const daySessions = sessions.filter((s) =>
-                      isSameDay(parseISO(s.date), date)
-                    );
+            {expandedWeekIndex === i && (
+              <div className="space-y-6">
+                {week.days.map((day) => {
+                  const key = format(day, 'yyyy-MM-dd');
+                  const items = grouped[key] || [];
 
-                    return (
-                      <div key={date.toISOString()} className="space-y-2">
-                        <div className="text-sm font-semibold text-foreground">
-                          {format(date, 'EEEE, MMM d')}
-                        </div>
-
-                        {daySessions.length > 0 ? (
-                          <div className="space-y-3">
-                            {daySessions.map((s) => {
-                              const rawTitle = s.title ?? '';
-                              const isRest = rawTitle.toLowerCase().includes('rest day');
-                              const displayTitle = isRest
-                                ? '🛌 Rest Day'
-                                : rawTitle.split(':')[0]?.trim() || 'Untitled';
-
-                              const colorClass = getSessionColor(
-                                isRest ? 'rest' : s.sport || ''
-                              );
-
-                              return (
-                                <div
-                                  key={s.id}
-                                  className={`rounded-full px-3 py-1 text-sm font-medium truncate ${colorClass}`}
-                                  onClick={() => !isRest && setSelectedSession(s)}
-                                >
-                                  {displayTitle}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <div className="text-sm text-muted-foreground px-1">
-                            No sessions
-                          </div>
-                        )}
+                  return (
+                    <div key={key}>
+                      <div className="text-sm font-medium text-muted mb-2">
+                        {format(day, 'EEEE, MMM d')}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+                      <div className="space-y-2">
+                        {items.map((session) => (
+                          <div
+                            key={session.id}
+                            onClick={() => setSelectedSession(session)}
+                            className="rounded-xl p-3 bg-white shadow border cursor-pointer flex items-center justify-between"
+                          >
+                            <div>
+                              <div className="text-sm font-medium">{session.title}</div>
+                              <div className="text-xs text-muted">{format(parseISO(session.date), 'MMM d')}</div>
+                            </div>
+                            <ChevronRightIcon className="w-4 h-4 text-gray-400" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
 
       <SessionModal
+        session={selectedSession}
         open={!!selectedSession}
         onClose={() => setSelectedSession(null)}
-        session={selectedSession}
+        onUpdate={handleUpdateSession}
       />
-    </>
+    </div>
   );
 }

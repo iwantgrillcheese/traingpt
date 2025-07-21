@@ -1,20 +1,27 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Dialog } from "@headlessui/react";
-import { format } from "date-fns";
-import type { Session } from "@/types/session";
-import type { StravaActivity } from "@/types/strava";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { useState } from 'react';
+import { Dialog } from '@headlessui/react';
+import { format } from 'date-fns';
+import type { Session } from '@/types/session';
+import type { StravaActivity } from '@/types/strava';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 type Props = {
   session: Session | null;
   stravaActivity?: StravaActivity | null;
   open: boolean;
   onClose: () => void;
+  onUpdate?: (updated: Session) => void;
 };
 
-export default function SessionModal({ session, stravaActivity, open, onClose }: Props) {
+export default function SessionModal({
+  session,
+  stravaActivity,
+  open,
+  onClose,
+  onUpdate,
+}: Props) {
   const [loading, setLoading] = useState(false);
   const [output, setOutput] = useState<string | null>(session?.structured_workout || null);
 
@@ -24,9 +31,9 @@ export default function SessionModal({ session, stravaActivity, open, onClose }:
     if (!session) return;
     setLoading(true);
 
-    const res = await fetch("/api/generate-detailed-session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    const res = await fetch('/api/generate-detailed-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         session_id: session.id,
         title: session.title,
@@ -36,22 +43,27 @@ export default function SessionModal({ session, stravaActivity, open, onClose }:
     });
 
     const { details } = await res.json();
-    setOutput(details);
 
-    await supabase.from("sessions").update({ structured_workout: details }).eq("id", session.id);
+    await supabase
+      .from('sessions')
+      .update({ structured_workout: details })
+      .eq('id', session.id);
+
+    setOutput(details);
+    onUpdate?.({ ...session, structured_workout: details });
     setLoading(false);
   };
 
   if (!session) return null;
 
-  const formattedDate = format(new Date(session.date), "EEE, MMM d");
+  const formattedDate = format(new Date(session.date), 'EEE, MMM d');
 
   return (
     <Dialog open={open} onClose={onClose} className="relative z-50">
       <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" aria-hidden="true" />
       <div className="fixed inset-0 flex items-center justify-center p-4">
-        <Dialog.Panel className="bg-white w-full max-w-2xl rounded-xl shadow-xl p-6 space-y-6 animate-fade-in">
-          {/* Top Section */}
+        <Dialog.Panel className="w-full max-w-2xl rounded-xl bg-white p-6 shadow-xl space-y-6 animate-fade-in">
+          {/* Title */}
           <div>
             <Dialog.Title className="text-xl font-semibold text-zinc-900">
               {session.title}
@@ -61,17 +73,17 @@ export default function SessionModal({ session, stravaActivity, open, onClose }:
             </p>
           </div>
 
-          {/* Middle Section */}
+          {/* Detailed Workout */}
           <div className="space-y-1">
             <h4 className="text-sm font-medium text-zinc-600">📋 Detailed Workout</h4>
             <div className="bg-zinc-100 text-sm rounded-md p-3 whitespace-pre-wrap min-h-[80px]">
-              {loading ? "Generating..." : output || "No details generated yet."}
+              {loading ? 'Generating...' : output || 'No details generated yet.'}
             </div>
           </div>
 
           {/* Strava Metrics */}
           {stravaActivity && (
-            <div className="bg-zinc-100 rounded-md p-4 grid grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-2 gap-4 rounded-md bg-zinc-100 p-4 text-sm">
               {stravaActivity.distance_km && (
                 <Metric label="Distance" value={`${stravaActivity.distance_km} km`} />
               )}
@@ -87,7 +99,7 @@ export default function SessionModal({ session, stravaActivity, open, onClose }:
             </div>
           )}
 
-          {/* Bottom Actions */}
+          {/* Footer Actions */}
           <div className="flex justify-between items-center pt-2">
             <p className="text-xs text-zinc-400">Generated using TrainGPT</p>
             <div className="flex gap-3">
@@ -96,7 +108,7 @@ export default function SessionModal({ session, stravaActivity, open, onClose }:
                 disabled={loading}
                 className="bg-black text-white text-sm px-4 py-2 rounded-md disabled:opacity-50"
               >
-                {loading ? "Generating..." : "Generate Detailed Workout"}
+                {loading ? 'Generating...' : 'Generate Detailed Workout'}
               </button>
               <button
                 onClick={onClose}
