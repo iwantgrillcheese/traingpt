@@ -26,7 +26,7 @@ export default function DayCell({ date, sessions, isOutside, onSessionClick }: P
   return (
     <div
       className={clsx(
-        'min-h-[220px] p-10 border rounded-xl flex flex-col gap-2 transition-all duration-150 w-full',
+        'min-h-[220px] p-4 border rounded-xl flex flex-col gap-2 transition-all duration-150 w-full',
         isOutside ? 'bg-zinc-100 text-zinc-400' : 'bg-white text-black',
         isToday(date) && 'ring-2 ring-blue-400'
       )}
@@ -34,7 +34,7 @@ export default function DayCell({ date, sessions, isOutside, onSessionClick }: P
       <div className="text-sm font-semibold text-right">{format(date, 'd')}</div>
 
       {sessions.length > 0 ? (
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-2">
           {sessions.map((s) => {
             const rawTitle = s.title ?? '';
             const isRest = rawTitle.toLowerCase().includes('rest day');
@@ -52,15 +52,15 @@ export default function DayCell({ date, sessions, isOutside, onSessionClick }: P
                 key={s.id}
                 onClick={() => !isRest && onSessionClick?.(s)}
                 className={clsx(
-  'w-full text-left rounded-lg px-3 py-2 text-base leading-snug shadow-sm hover:brightness-95',
-  colorClass
-)}
-
+                  'w-full text-left rounded-md px-3 py-2 shadow-sm hover:bg-opacity-80 transition-all',
+                  'bg-muted/20',
+                  colorClass
+                )}
                 title={rawTitle}
               >
-                <div className="font-semibold text-sm truncate">{titleLine}</div>
+                <div className="font-medium text-sm truncate">{titleLine}</div>
                 {detailLine && (
-                  <div className="text-sm text-muted truncate">
+                  <div className="text-xs text-muted-foreground truncate">
                     {detailLine}
                   </div>
                 )}
