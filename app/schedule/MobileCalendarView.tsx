@@ -5,10 +5,6 @@ import {
   format,
   parseISO,
   differenceInCalendarWeeks,
-  isBefore,
-  isAfter,
-  startOfWeek,
-  addDays,
 } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { ChevronRightIcon } from '@heroicons/react/20/solid';
@@ -22,26 +18,33 @@ export type MobileCalendarViewProps = {
   sessions: EnrichedSession[];
 };
 
+// 🧠 Safe date parse helper
+function safeParseDate(input: string | Date): Date {
+  return typeof input === 'string' ? parseISO(input) : input;
+}
+
 export default function MobileCalendarView({ sessions }: MobileCalendarViewProps) {
   const [selectedSession, setSelectedSession] = useState<EnrichedSession | null>(null);
   const [sessionsState, setSessionsState] = useState<EnrichedSession[]>(sessions);
 
   const router = useRouter();
 
-  // Sort sessions by date
+  // Log on mount for debug
+  console.log('[MobileCalendarView] Loaded sessions:', sessionsState);
+
   const sortedSessions = useMemo(() => {
     return [...sessionsState].sort((a, b) =>
       a.date.localeCompare(b.date)
     );
   }, [sessionsState]);
 
-  // Group sessions by training week
   const groupedByWeek = useMemo(() => {
-    const start = sortedSessions.length > 0 ? parseISO(sortedSessions[0].date) : new Date();
+    const start = sortedSessions.length > 0 ? safeParseDate(sortedSessions[0].date) : new Date();
     const weekMap: Record<string, EnrichedSession[]> = {};
 
     sortedSessions.forEach((s) => {
-      const weekIndex = differenceInCalendarWeeks(parseISO(s.date), start, {
+      if (!s.date) return;
+      const weekIndex = differenceInCalendarWeeks(safeParseDate(s.date), start, {
         weekStartsOn: 1,
       });
       const label = `Week ${weekIndex + 1}`;
@@ -69,7 +72,7 @@ export default function MobileCalendarView({ sessions }: MobileCalendarViewProps
             {weekSessions.map((session) => {
               const title =
                 session.title || session.stravaActivity?.name || 'Unnamed Session';
-              const date = parseISO(session.date);
+              const date = safeParseDate(session.date);
 
               return (
                 <div
@@ -79,7 +82,9 @@ export default function MobileCalendarView({ sessions }: MobileCalendarViewProps
                 >
                   <div>
                     <div className="text-sm font-medium">{title}</div>
-                    <div className="text-xs text-muted">{format(date, 'EEEE, MMM d')}</div>
+                    <div className="text-xs text-zinc-500">
+                      {format(date, 'EEEE, MMM d')}
+                    </div>
                   </div>
                   <ChevronRightIcon className="w-4 h-4 text-gray-400" />
                 </div>
