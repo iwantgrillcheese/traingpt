@@ -1,25 +1,43 @@
+// utils/mergeSessionWithStrava.ts
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
-import type { EnrichedSession } from '@/types/calendar';
 
 /**
- * Merges planned sessions with any matching Strava activities.
- * A Strava activity replaces a session if the date and sport match.
+ * Merges planned sessions with Strava activities. Strava activities that fall outside
+ * of the training plan window (before planStartDate) are included as standalone sessions.
  */
-export function mergeSessionsWithStrava(
+export default function mergeSessionsWithStrava(
   sessions: Session[],
-  strava: StravaActivity[]
-): EnrichedSession[] {
-  return sessions.map((session) => {
-    const match = strava.find((activity) => {
-      const sameDate = activity.date === session.date;
-      const sameSport = activity.sport.toLowerCase() === session.sport.toLowerCase();
-      return sameDate && sameSport;
-    });
+  strava: StravaActivity[],
+  planStartDate: string // ISO date string
+): (Session & { stravaActivity?: StravaActivity })[] {
+  const enrichedSessions: (Session & { stravaActivity?: StravaActivity })[] = [];
 
-    return {
+  for (const session of sessions) {
+    const match = strava.find(
+      (a) => a.date === session.date && a.sport === session.sport
+    );
+
+    enrichedSessions.push({
       ...session,
-      stravaActivity: match ?? null,
-    } as EnrichedSession;
-  });
+      stravaActivity: match ?? undefined,
+    });
+  }
+
+  // Include extra Strava activities that are *before* the plan start
+  const extraStrava = strava.filter((a) => a.date < planStartDate);
+  const standalone: (Session & { stravaActivity: StravaActivity })[] = extraStrava.map((activity) => ({
+    id: `strava-${activity.id}`,
+    user_id: activity.user_id,
+    date: activity.date,
+    sport: activity.sport,
+    title: `📈 ${activity.sport}: ${activity.distance_km?.toFixed(1)}km`,
+    details: null,
+    text: '',
+    structured_workout: null,
+    strava_id: activity.id,
+    stravaActivity: activity,
+  }));
+
+  return [...enrichedSessions, ...standalone];
 }

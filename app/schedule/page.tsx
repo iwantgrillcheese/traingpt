@@ -1,65 +1,64 @@
+// app/schedule/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import type { Session } from '@/types/session';
-import type { StravaActivity } from '@/types/strava';
 import CalendarShell from './CalendarShell';
-import { mergeSessionsWithStrava } from '@/utils/mergeSessionWithStrava';
+import { Session } from '@/types/session';
+import { StravaActivity } from '@/types/strava';
+import mergeSessionsWithStrava from '@/utils/mergeSessionWithStrava';
 
 export default function SchedulePage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [stravaActivities, setStravaActivities] = useState<StravaActivity[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [planStartDate, setPlanStartDate] = useState<string | null>(null);
+  const supabase = createClientComponentClient();
 
   useEffect(() => {
     const fetchData = async () => {
-      const supabase = createClientComponentClient();
       const {
-        data: { session: authSession },
-        error: authError,
-      } = await supabase.auth.getSession();
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
 
-      if (authError || !authSession?.user) {
-        console.error('Auth error or no user:', authError);
-        return;
-      }
+      // Get sessions
+      const { data: sessionData } = await supabase
+        .from('sessions')
+        .select('*')
+        .eq('user_id', user.id);
 
-      const [sessionsRes, stravaRes] = await Promise.all([
-        supabase
-          .from('sessions')
-          .select('*')
-          .eq('user_id', authSession.user.id)
-          .order('date', { ascending: true }),
-        supabase
-          .from('strava_activities')
-          .select('*')
-          .eq('user_id', authSession.user.id),
-      ]);
+      if (!sessionData) return;
 
-      if (sessionsRes.error) {
-        console.error('Error fetching sessions:', sessionsRes.error.message);
-      } else {
-        setSessions(sessionsRes.data as Session[]);
-      }
+      setSessions(sessionData);
 
-      if (stravaRes.error) {
-        console.error('Error fetching strava:', stravaRes.error.message);
-      } else {
-        setStravaActivities(stravaRes.data as StravaActivity[]);
-      }
+      // Get Strava activities
+      const { data: stravaData } = await supabase
+        .from('strava_activities')
+        .select('*')
+        .eq('user_id', user.id);
 
-      setLoading(false);
+      if (stravaData) setStravaActivities(stravaData);
+
+      // Get plan for start_date
+      const { data: plan } = await supabase
+        .from('plans')
+        .select('start_date')
+        .eq('user_id', user.id)
+        .single();
+
+      if (plan?.start_date) setPlanStartDate(plan.start_date);
     };
 
     fetchData();
   }, []);
 
-  if (loading) {
-    return <div className="p-6 text-center text-muted-foreground">Loading your training plan...</div>;
-  }
+  const enrichedSessions = planStartDate
+    ? mergeSessionsWithStrava(sessions, stravaActivities, planStartDate)
+    : sessions;
 
-  const merged = mergeSessionsWithStrava(sessions, stravaActivities);
-
-  return <CalendarShell sessions={merged} />;
+  return (
+    <div>
+      <CalendarShell sessions={enrichedSessions} />
+    </div>
+  );
 }
