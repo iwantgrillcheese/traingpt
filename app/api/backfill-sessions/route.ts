@@ -1,11 +1,8 @@
-import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+  import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+  import { cookies } from 'next/headers';
+  import { NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
-
-function extractSport(text: string): string {
+  function extractSport(text: string): string {
   const lower = text.toLowerCase();
   if (lower.includes('swim')) return 'Swim';
   if (lower.includes('bike')) return 'Bike';
@@ -14,6 +11,7 @@ function extractSport(text: string): string {
   if (lower.includes('rest')) return 'Rest';
   return 'Other';
 }
+
 
 export async function GET() {
   const supabase = createServerComponentClient({ cookies });
@@ -34,14 +32,23 @@ export async function GET() {
   for (const planRow of plans) {
     const { id: plan_id, user_id, plan } = planRow;
 
-    for (const week of plan) {
+    let weeks = [];
+
+    if (Array.isArray(plan)) {
+      weeks = plan;
+    } else if (plan?.days) {
+      weeks = [plan]; // legacy shape
+    } else {
+      continue; // malformed
+    }
+
+    for (const week of weeks) {
       for (const date in week.days) {
         const sessions: string[] = week.days[date];
 
         for (const title of sessions) {
           const sport = extractSport(title);
 
-          // Check for existing duplicate
           const { data: existing, error: checkError } = await supabase
             .from('sessions')
             .select('id')
@@ -83,6 +90,6 @@ export async function GET() {
 
   return NextResponse.json({
     success: true,
-    message: `Inserted ${insertedCount} sessions. Skipped ${skippedCount} duplicates.`,
+    message: `✅ Backfill complete. Inserted ${insertedCount} sessions. Skipped ${skippedCount} duplicates.`,
   });
 }
