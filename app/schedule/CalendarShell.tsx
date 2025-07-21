@@ -8,15 +8,6 @@ import SessionModal from './SessionModal';
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 
-// 🧠 Add this inline or extract to a `useHasMounted.ts` file
-function useHasMounted() {
-  const [hasMounted, setHasMounted] = useState(false);
-  useEffect(() => {
-    setHasMounted(true);
-  }, []);
-  return hasMounted;
-}
-
 type EnrichedSession = Session & { stravaActivity?: StravaActivity };
 
 type CalendarShellProps = {
@@ -24,19 +15,20 @@ type CalendarShellProps = {
 };
 
 export default function CalendarShell({ sessions }: CalendarShellProps) {
-  const hasMounted = useHasMounted(); // 🚨 prevent SSR mismatch
   const [isMobile, setIsMobile] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
   const [selectedSession, setSelectedSession] = useState<EnrichedSession | null>(null);
   const [currentMonth, setCurrentMonth] = useState<Date>(startOfMonth(new Date()));
 
   useEffect(() => {
+    setHasMounted(true);
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  if (!hasMounted) return null; // 🛑 Skip initial SSR render to prevent flicker
+  if (!hasMounted) return null;
 
   const handleSessionClick = (session: EnrichedSession) => setSelectedSession(session);
   const goToPrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
