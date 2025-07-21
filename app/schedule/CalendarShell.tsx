@@ -32,28 +32,24 @@ export default function CalendarShell({ sessions }: CalendarShellProps) {
 
   return (
     <main className="min-h-screen bg-background px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20 max-w-[1800px] mx-auto">
-      {!isMobile && (
-        <div className="flex items-center justify-between mb-6 w-full">
-          <button onClick={goToPrevMonth} className="text-sm text-gray-500 hover:text-black">←</button>
-          <h2 className="text-2xl font-semibold text-center">{format(currentMonth, 'MMMM yyyy')}</h2>
-          <button onClick={goToNextMonth} className="text-sm text-gray-500 hover:text-black">→</button>
-        </div>
+
+      {isMobile ? (
+        <MobileCalendarView sessions={sessions} />
+      ) : (
+        <>
+          <div className="flex items-center justify-between mb-6 w-full">
+            <button onClick={goToPrevMonth} className="text-sm text-gray-500 hover:text-black">←</button>
+            <h2 className="text-2xl font-semibold text-center">{format(currentMonth, 'MMMM yyyy')}</h2>
+            <button onClick={goToNextMonth} className="text-sm text-gray-500 hover:text-black">→</button>
+          </div>
+
+          <MonthGrid
+            sessions={sessions}
+            onSessionClick={handleSessionClick}
+            currentMonth={currentMonth}
+          />
+        </>
       )}
-
-      <div className="w-full">
-        <div className="block md:hidden">
-  <MobileCalendarView sessions={sessions} />
-</div>
-
-<div className="hidden md:block">
-  <MonthGrid
-    sessions={sessions}
-    onSessionClick={handleSessionClick}
-    currentMonth={currentMonth}
-  />
-</div>
-
-      </div>
 
       <SessionModal
         session={selectedSession}
