@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { format, addDays, addWeeks } from 'date-fns';
-
 import { startPlan } from '@/utils/start-plan';
 import { sendWelcomeEmail } from '@/lib/emails/send-welcome-email';
 
@@ -144,13 +143,14 @@ export async function POST(req: Request) {
     'yyyy-MM-dd'
   )}. Stay consistent and trust the process.`;
 
-  const {
-    data: savedPlan,
-    error: saveError,
-  }: {
-    data: any;
-    error: { message: string } | null;
-  } = await supabase
+  // 🔥 DELETE old sessions first
+  await supabase.from('sessions').delete().eq('user_id', user_id);
+
+  // Optionally delete old plans:
+  // await supabase.from('plans').delete().eq('user_id', user_id);
+
+  // ✅ Upsert latest plan
+  const { data: savedPlan, error: saveError } = await supabase
     .from('plans')
     .upsert(
       {
@@ -176,7 +176,7 @@ export async function POST(req: Request) {
 
   const plan_id = savedPlan.id;
 
-  // Explode into session rows with clean title + sport
+  // ✅ Insert sessions
   for (const week of plan) {
     for (const [date, sessions] of Object.entries(week.days)) {
       for (const [index, rawTitle] of sessions.entries()) {
