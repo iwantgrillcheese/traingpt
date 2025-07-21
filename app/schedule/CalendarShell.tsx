@@ -31,16 +31,16 @@ export default function CalendarShell({ sessions }: CalendarShellProps) {
   const goToNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
 
   return (
-    <main className="min-h-screen bg-background px-6 sm:px-10 md:px-16 lg:px-24 xl:px-36 2xl:px-48 3xl:px-64">
+    <main className="min-h-screen bg-background px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20 max-w-[1800px] mx-auto">
       {!isMobile && (
-        <div className="flex items-center justify-between mb-6 w-full max-w-screen-2xl mx-auto">
+        <div className="flex items-center justify-between mb-6 w-full">
           <button onClick={goToPrevMonth} className="text-sm text-gray-500 hover:text-black">←</button>
           <h2 className="text-2xl font-semibold text-center">{format(currentMonth, 'MMMM yyyy')}</h2>
           <button onClick={goToNextMonth} className="text-sm text-gray-500 hover:text-black">→</button>
         </div>
       )}
 
-      <div className="w-full max-w-screen-2xl mx-auto">
+      <div className="w-full">
         {isMobile ? (
           <MobileCalendarView sessions={sessions} />
         ) : (
