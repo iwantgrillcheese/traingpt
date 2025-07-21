@@ -12,12 +12,21 @@ type Props = {
   onSessionClick?: (session: Session) => void;
 };
 
+function normalizeSport(title: string): string {
+  const lower = title.toLowerCase();
+  if (lower.includes('swim')) return 'swim';
+  if (lower.includes('bike')) return 'bike';
+  if (lower.includes('run')) return 'run';
+  if (lower.includes('rest')) return 'rest';
+  return 'other';
+}
+
 export default function DayCell({ date, sessions, isOutside, onSessionClick }: Props) {
   return (
     <div
       className={clsx(
         'h-28 p-2 border text-xs relative transition-all duration-150 overflow-hidden group hover:bg-zinc-50',
-        isOutside ? 'bg-muted text-muted-foreground' : 'bg-white',
+        isOutside ? 'bg-zinc-100 text-zinc-400' : 'bg-white',
         isToday(date) && 'ring-2 ring-zinc-300 bg-zinc-50'
       )}
     >
@@ -27,15 +36,18 @@ export default function DayCell({ date, sessions, isOutside, onSessionClick }: P
         {sessions.map((s) => {
           const rawTitle = s.title ?? '';
           const isRest = rawTitle.toLowerCase().includes('rest day');
-          const displayTitle = isRest ? '🛌 Rest Day' : rawTitle.split(':')[0]?.trim() || 'Untitled';
-          const colorClass = getSessionColor(isRest ? 'rest' : s.sport || '');
+          const sport = s.sport || normalizeSport(rawTitle);
+          const colorClass = getSessionColor(isRest ? 'rest' : sport);
+
+          const displayTitle =
+            isRest ? '🛌 Rest Day' : rawTitle.split(':')[0]?.trim() || 'Untitled';
 
           return (
             <button
               key={s.id}
               onClick={() => !isRest && onSessionClick?.(s)}
               className={clsx(
-                'block text-[11px] truncate rounded-full px-3 py-1 w-full text-left font-medium',
+                'block text-[11px] truncate rounded-md px-2 py-1 w-full text-left font-medium',
                 colorClass
               )}
               title={rawTitle}
