@@ -17,21 +17,23 @@ export function groupSessionsByDate(sessions: Session[]) {
 // session-utils.ts
 // utils/session-utils.ts
 
+// utils/session-utils.ts
+
 export function getSessionColor(sport: string | null | undefined): string {
   const safe = sport?.toLowerCase?.() || '';
 
   switch (safe) {
     case 'swim':
-      return 'bg-blue-50 text-blue-800 border border-blue-100';
+      return 'bg-blue-50 text-blue-900 border border-blue-200';
     case 'bike':
-      return 'bg-yellow-50 text-yellow-800 border border-yellow-100';
+      return 'bg-yellow-50 text-yellow-900 border border-yellow-200';
     case 'run':
-      return 'bg-green-50 text-green-800 border border-green-100';
+      return 'bg-green-50 text-green-900 border border-green-200';
     case 'strength':
-      return 'bg-purple-50 text-purple-800 border border-purple-100';
+      return 'bg-purple-50 text-purple-900 border border-purple-200';
     case 'rest':
-      return 'bg-zinc-50 text-zinc-500 border border-zinc-200 italic';
+      return 'bg-zinc-100 text-zinc-500 italic border border-zinc-200';
     default:
-      return 'bg-neutral-100 text-neutral-700 border border-neutral-200';
+      return 'bg-neutral-100 text-neutral-800 border border-neutral-200';
   }
 }
