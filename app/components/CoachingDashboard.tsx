@@ -1,69 +1,63 @@
-// ✅ CoachingDashboard.tsx (fully patched)
+// ✅ CoachingDashboard.tsx — Fully working, Strava-optional, fitness-aware
 
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import {
   format,
-  formatDistanceToNow,
   parseISO,
-  isAfter,
-  subDays,
   startOfDay,
+  subDays,
   startOfWeek,
 } from 'date-fns';
-import Link from 'next/link';
-import { useMediaQuery } from 'react-responsive';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { fetchGPTSummary } from '@/utils/fetchGPTSummary';
 
 const supabase = createClientComponentClient();
 const COLORS = ['#60A5FA', '#34D399', '#FBBF24'];
 const validSports = ['Swim', 'Bike', 'Run'] as const;
 type Sport = (typeof validSports)[number];
 
-type ChatMessage = {
-  role: string;
-  content: string;
-  timestamp: number;
-  error?: boolean;
-};
-
 export default function CoachingDashboard({ userId }: { userId: string }) {
-  const [weeklySummary, setWeeklySummary] = useState<string | null>(null);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [stravaData, setStravaData] = useState<any[]>([]);
-  const [loadingSummary, setLoadingSummary] = useState(false);
   const today = new Date();
 
   useEffect(() => {
-    const fetchData = async () => {
+    const load = async () => {
       const { data: stravaData } = await supabase
         .from('strava_activities')
-        .select('sport, avg_power, avg_hr, date, distance_km')
+        .select('sport, date, avg_hr, avg_power, distance_km')
         .eq('user_id', userId)
         .gte('date', startOfDay(subDays(today, 28)).toISOString());
 
       if (stravaData) setStravaData(stravaData);
 
-      setLoadingSummary(true);
-      const res = await fetch('/api/weekly-summary');
-const { summary } = await res.json();
-      setWeeklySummary(summary);
-      setLoadingSummary(false);
+      setLoading(true);
+      try {
+        const res = await fetch('/api/weekly-summary');
+        const json = await res.json();
+        setSummary(json?.summary || null);
+      } catch (err) {
+        console.warn('Summary error:', err);
+        setSummary(null);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    fetchData();
+    load();
   }, [userId]);
 
   const WeeklySummaryPanel = () => (
     <section className="my-6">
       <h2 className="text-lg font-semibold mb-2">Coach’s Weekly Summary</h2>
       <div className="border rounded-xl p-4 bg-white shadow-sm">
-        {loadingSummary ? (
+        {loading ? (
           <p className="text-sm text-gray-500 italic">Generating summary...</p>
-        ) : weeklySummary ? (
-          <p className="text-sm whitespace-pre-line text-gray-800">{weeklySummary}</p>
+        ) : summary ? (
+          <p className="text-sm whitespace-pre-line text-gray-800">{summary}</p>
         ) : (
           <p className="text-sm text-gray-500 italic">No summary available. Try again later.</p>
         )}
@@ -72,7 +66,13 @@ const { summary } = await res.json();
   );
 
   const DashboardSummary = () => {
-    if (!stravaData || stravaData.length === 0) return null;
+    if (!stravaData || stravaData.length === 0) {
+      return (
+        <div className="text-sm text-gray-500 italic mt-6">
+          No training data available. Connect Strava or upload activities to see your stats.
+        </div>
+      );
+    }
 
     const weeklyVolume = [0, 0, 0, 0];
     const sportTotals: Record<Sport, number> = { Swim: 0, Bike: 0, Run: 0 };
@@ -84,7 +84,7 @@ const { summary } = await res.json();
       const date = parseISO(activity.date);
       const weekStart = startOfDay(startOfWeek(date));
       const weekDiff = Math.floor((startOfThisWeek.getTime() - weekStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
-      const hours = 1; // estimate
+      const hours = 1; // estimate if no duration field
 
       if (weekDiff >= 0 && weekDiff < 4) {
         weeklyVolume[3 - weekDiff] += hours;
@@ -102,12 +102,12 @@ const { summary } = await res.json();
     const totalTime = Object.values(sportTotals).reduce((a, b) => a + b, 0);
     const chartData = Object.entries(sportTotals).map(([name, value]) => ({ name, value }));
 
+    const fitnessScore = Math.min(100, Math.round((totalTime * 10) + (uniqueDays.size * 5)));
+
     const formatDuration = (hours: number): string => {
-      const wholeHours = Math.floor(hours);
-      const minutes = Math.round((hours - wholeHours) * 60);
-      if (wholeHours === 0 && minutes > 0) return `${minutes} mins`;
-      if (wholeHours > 0 && minutes > 0) return `${wholeHours}h ${minutes}m`;
-      return `${wholeHours}h`;
+      const h = Math.floor(hours);
+      const m = Math.round((hours - h) * 60);
+      return h > 0 ? `${h}h${m > 0 ? ` ${m}m` : ''}` : `${m} mins`;
     };
 
     return (
@@ -121,6 +121,10 @@ const { summary } = await res.json();
           <div className="border rounded-xl p-4 bg-white shadow-sm">
             <p className="text-sm text-gray-500 mb-1">Training Consistency</p>
             <p className="text-xl font-bold text-gray-800">{uniqueDays.size} of last 7 days</p>
+          </div>
+          <div className="border rounded-xl p-4 bg-white shadow-sm">
+            <p className="text-sm text-gray-500 mb-1">Fitness Score</p>
+            <p className="text-xl font-bold text-gray-800">{fitnessScore} / 100</p>
           </div>
           <div className="border rounded-xl p-4 bg-white shadow-sm col-span-1 sm:col-span-2">
             <p className="text-sm text-gray-500 mb-2">Weekly Volume (hrs)</p>
@@ -149,8 +153,8 @@ const { summary } = await res.json();
                   fill="#8884d8"
                   label={({ name, value }) => `${name}: ${formatDuration(value as number)}`}
                 >
-                  {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  {chartData.map((_, i) => (
+                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
                   ))}
                 </Pie>
               </PieChart>
