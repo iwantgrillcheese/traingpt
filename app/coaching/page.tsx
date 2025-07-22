@@ -1,16 +1,25 @@
-import { Suspense } from 'react';
-import CoachingClient from './CoachingClient';
-import Footer from '../components/footer';
+// /app/coaching/page.tsx
+'use client';
+
+import { useEffect, useState } from 'react';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import CoachingDashboard from '../components/CoachingDashboard'; // from page.tsx
 
 export default function CoachingPage() {
-  return (
-    <div className="flex flex-col min-h-screen">
-      <main className="flex-grow">
-        <Suspense fallback={<div>Loading coach...</div>}>
-          <CoachingClient />
-        </Suspense>
-      </main>
-      <Footer />
-    </div>
-  );
+  const [userId, setUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const supabase = createClientComponentClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) setUserId(user.id);
+    };
+    fetchUser();
+  }, []);
+
+  if (!userId) return <p className="p-4">Loading...</p>;
+
+  return <CoachingDashboard userId={userId} />;
 }
