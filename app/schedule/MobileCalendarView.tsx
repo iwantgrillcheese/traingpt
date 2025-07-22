@@ -4,6 +4,8 @@ import { useMemo, useState } from 'react';
 import {
   format,
   parseISO,
+  isValid,
+  startOfWeek,
   differenceInCalendarWeeks,
 } from 'date-fns';
 import { ChevronRightIcon } from '@heroicons/react/20/solid';
@@ -18,18 +20,16 @@ export type MobileCalendarViewProps = {
 };
 
 function safeParseDate(input: string | Date): Date {
-  try {
-    return typeof input === 'string' ? parseISO(input) : input;
-  } catch {
-    return new Date();
+  if (typeof input === 'string') {
+    const parsed = parseISO(input);
+    return isValid(parsed) ? parsed : new Date();
   }
+  return isValid(input) ? input : new Date();
 }
 
 export default function MobileCalendarView({ sessions }: MobileCalendarViewProps) {
   const [selectedSession, setSelectedSession] = useState<EnrichedSession | null>(null);
   const [sessionsState, setSessionsState] = useState<EnrichedSession[]>(sessions);
-
-  console.log('[📱 MobileCalendarView] sessions loaded:', sessionsState.slice(0, 5));
 
   const sortedSessions = useMemo(() => {
     return [...sessionsState]
@@ -38,16 +38,18 @@ export default function MobileCalendarView({ sessions }: MobileCalendarViewProps
   }, [sessionsState]);
 
   const groupedByWeek = useMemo(() => {
-    const start = sortedSessions.length > 0 ? safeParseDate(sortedSessions[0].date) : new Date();
+    if (sortedSessions.length === 0) return {};
+
+    const start = startOfWeek(safeParseDate(sortedSessions[0].date), { weekStartsOn: 1 });
     const weekMap: Record<string, EnrichedSession[]> = {};
 
-    sortedSessions.forEach((s) => {
-      const weekIndex = differenceInCalendarWeeks(safeParseDate(s.date), start, {
-        weekStartsOn: 1,
-      });
-      const label = `Week ${weekIndex + 1}`;
-      if (!weekMap[label]) weekMap[label] = [];
-      weekMap[label].push(s);
+    sortedSessions.forEach((session) => {
+      const sessionDate = safeParseDate(session.date);
+      const weekIndex = differenceInCalendarWeeks(sessionDate, start, { weekStartsOn: 1 });
+      const weekLabel = `Week ${weekIndex + 1}`;
+
+      if (!weekMap[weekLabel]) weekMap[weekLabel] = [];
+      weekMap[weekLabel].push(session);
     });
 
     return weekMap;
@@ -76,8 +78,7 @@ export default function MobileCalendarView({ sessions }: MobileCalendarViewProps
 
           <div className="space-y-4">
             {weekSessions.map((session) => {
-              const title =
-                session.title || session.stravaActivity?.name || 'Unnamed Session';
+              const title = session.title || session.stravaActivity?.name || 'Unnamed Session';
               const date = safeParseDate(session.date);
 
               return (
