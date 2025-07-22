@@ -33,7 +33,7 @@ export default function WelcomeEmail({ name, plan }: Props) {
               You just took the first step toward your strongest season yet.
             </Text>
             <Text style={paragraph}>
-              TrainGPT creates fully personalized triathlon plans — built by AI, grounded in coaching science, and tailored to your goals.
+              TrainGPT creates fully personalized triathlon & running plans — built by AI, grounded in coaching science, and tailored to your goals.
             </Text>
             <Link href="https://www.traingpt.co/schedule" style={cta}>
               📆 View Your Training Plan
