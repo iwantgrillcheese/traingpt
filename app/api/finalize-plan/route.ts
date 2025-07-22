@@ -9,9 +9,21 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 export const runtime = 'nodejs';
 
-type RaceType = 'Sprint' | 'Olympic' | 'Half Ironman (70.3)' | 'Ironman (140.6)';
+type RaceType =
+  | '5k'
+  | '10k'
+  | 'Half Marathon'
+  | 'Marathon'
+  | 'Sprint'
+  | 'Olympic'
+  | 'Half Ironman (70.3)'
+  | 'Ironman (140.6)';
 
 const MIN_WEEKS: Record<RaceType, number> = {
+  '5k': 4,
+  '10k': 6,
+  'Half Marathon': 8,
+  'Marathon': 12,
   Sprint: 2,
   Olympic: 3,
   'Half Ironman (70.3)': 4,
@@ -19,6 +31,10 @@ const MIN_WEEKS: Record<RaceType, number> = {
 };
 
 const MAX_WEEKS: Record<RaceType, number> = {
+  '5k': 12,
+  '10k': 16,
+  'Half Marathon': 20,
+  'Marathon': 24,
   Sprint: 20,
   Olympic: 24,
   'Half Ironman (70.3)': 28,
@@ -76,6 +92,7 @@ export async function POST(req: Request) {
     .maybeSingle();
 
   const raceType = (body.raceType || latestPlan?.race_type) as RaceType;
+  const planType = body.planType || 'triathlon'; // ✅ NEW: detect if running vs tri
   const raceDate = new Date(body.raceDate || latestPlan?.race_date);
   const experience = body.experience || latestPlan?.experience || 'Intermediate';
   const maxHours = body.maxHours || latestPlan?.max_hours || 8;
@@ -116,7 +133,7 @@ export async function POST(req: Request) {
 
   let plan;
   try {
-    plan = await startPlan({
+    plan = await startPlan(planType, {
       planMeta,
       userParams: {
         raceType,
@@ -137,12 +154,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Plan generation failed' }, { status: 500 });
   }
 
-  const coachNote = `Here's your ${totalWeeks}-week triathlon plan leading to your race on ${format(
+  const coachNote = `Here's your ${totalWeeks}-week ${planType} plan leading to your race on ${format(
     raceDate,
     'yyyy-MM-dd'
   )}. Stay consistent and trust the process.`;
 
-  // ✅ Upsert plan first so we get the new ID
   const { data: savedPlan, error: saveError } = await supabase
     .from('plans')
     .upsert(
@@ -169,12 +185,10 @@ export async function POST(req: Request) {
 
   const plan_id = savedPlan.id;
 
-  // 🔥 Delete sessions tied to the replaced plan
   if (latestPlan?.id) {
     await supabase.from('sessions').delete().eq('plan_id', latestPlan.id);
   }
 
-  // ✅ Insert new sessions
   for (const week of plan) {
     for (const [date, sessions] of Object.entries(week.days)) {
       for (const [index, rawTitle] of sessions.entries()) {

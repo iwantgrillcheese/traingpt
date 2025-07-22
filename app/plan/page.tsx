@@ -45,6 +45,9 @@ export default function PlanPage() {
   const [progress, setProgress] = useState(0);
   const [stepIndex, setStepIndex] = useState(0);
 
+  const runningTypes = ['5k', '10k', 'Half Marathon', 'Marathon'];
+  const isRunningPlan = runningTypes.includes(formData.raceType);
+
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (loading) {
@@ -69,7 +72,6 @@ export default function PlanPage() {
     setLoading(true);
     setError('');
 
-
     try {
       const {
         data: { session },
@@ -77,35 +79,32 @@ export default function PlanPage() {
       const access_token = session?.access_token || null;
       if (!access_token) throw new Error('No Supabase access token found');
 
+      const planType = isRunningPlan ? 'running' : 'triathlon';
+
       const res = await fetch('/api/finalize-plan', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${access_token}`,
-  },
-  body: JSON.stringify({
-    ...formData,
-    userNote,
-    bikeFTP: formData.bikeFTP,
-    runPace: formData.runPace,
-    swimPace: formData.swimPace,
-  }),
-});
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${access_token}`,
+        },
+        body: JSON.stringify({
+          ...formData,
+          userNote,
+          planType,
+        }),
+      });
 
-const json = await res.json();
+      const json = await res.json();
 
-if (!res.ok) {
-  throw new Error(json.error || 'Something went wrong while starting the plan.');
-}
+      if (!res.ok) {
+        throw new Error(json.error || 'Something went wrong while starting the plan.');
+      }
 
-if (res.ok && json.success) {
-  router.push('/schedule');
-} else {
-  throw new Error(json.error || 'Plan generation failed.');
-}
-
-
-      router.push('/schedule');
+      if (json.success) {
+        router.push('/schedule');
+      } else {
+        throw new Error(json.error || 'Plan generation failed.');
+      }
     } catch (err: any) {
       console.error('❌ Finalize plan error:', err);
       setError(err.message || 'Something went wrong');
@@ -137,21 +136,74 @@ if (res.ok && json.success) {
   }, []);
 
   const beginnerFields: FieldConfig[] = [
-  { id: 'raceType', label: 'Race Type', type: 'select', options: ['Half Ironman (70.3)', 'Ironman (140.6)', 'Olympic', 'Sprint'] },
-  { id: 'raceDate', label: 'Race Date', type: 'date' },
-  { id: 'maxHours', label: 'Max Weekly Training Hours', type: 'number' },
-  { id: 'experience', label: 'Experience Level', type: 'select', options: ['Beginner', 'Intermediate', 'Advanced'] },
-];
+    {
+      id: 'raceType',
+      label: 'Race Type',
+      type: 'select',
+      options: [
+        '5k',
+        '10k',
+        'Half Marathon',
+        'Marathon',
+        'Sprint',
+        'Olympic',
+        'Half Ironman (70.3)',
+        'Ironman (140.6)',
+      ],
+    },
+    { id: 'raceDate', label: 'Race Date', type: 'date' },
+    { id: 'maxHours', label: 'Max Weekly Training Hours', type: 'number' },
+    {
+      id: 'experience',
+      label: 'Experience Level',
+      type: 'select',
+      options: ['Beginner', 'Intermediate', 'Advanced'],
+    },
+  ];
 
-const advancedFields: FieldConfig[] = [
-  { id: 'bikeFTP', label: 'Bike FTP (watts)', type: 'number' },
-  { id: 'runPace', label: 'Run Threshold Pace (min/mi)', type: 'text', placeholder: 'e.g. 7:30' },
-  { id: 'swimPace', label: 'Swim Threshold Pace (per 100m)', type: 'text', placeholder: 'e.g. 1:38' },
-  { id: 'restDay', label: 'Preferred Rest Day', type: 'select', options: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] },
-];
+  const advancedFields: FieldConfig[] = isRunningPlan
+    ? [
+        {
+          id: 'runPace',
+          label: 'Run Threshold Pace (min/mi)',
+          type: 'text',
+          placeholder: 'e.g. 7:30',
+        },
+        {
+          id: 'restDay',
+          label: 'Preferred Rest Day',
+          type: 'select',
+          options: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+        },
+      ]
+    : [
+        { id: 'bikeFTP', label: 'Bike FTP (watts)', type: 'number' },
+        {
+          id: 'runPace',
+          label: 'Run Threshold Pace (min/mi)',
+          type: 'text',
+          placeholder: 'e.g. 7:30',
+        },
+        {
+          id: 'swimPace',
+          label: 'Swim Threshold Pace (per 100m)',
+          type: 'text',
+          placeholder: 'e.g. 1:38',
+        },
+        {
+          id: 'restDay',
+          label: 'Preferred Rest Day',
+          type: 'select',
+          options: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+        },
+      ];
 
   if (!sessionChecked) {
-    return <div className="min-h-screen flex items-center justify-center text-gray-600">Checking your session...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center text-gray-600">
+        Checking your session...
+      </div>
+    );
   }
 
   return (
@@ -160,59 +212,88 @@ const advancedFields: FieldConfig[] = [
         <div className="fixed inset-0 z-50 bg-white bg-opacity-90 flex flex-col items-center justify-center text-center px-6">
           <div className="w-full max-w-md">
             <div className="w-full bg-gray-200 rounded-full h-4 mb-3">
-              <div className="bg-black h-4 rounded-full transition-all duration-700" style={{ width: `${progress}%` }} />
+              <div
+                className="bg-black h-4 rounded-full transition-all duration-700"
+                style={{ width: `${progress}%` }}
+              />
             </div>
             <p className="text-gray-600 text-sm mb-2">{steps[stepIndex]}</p>
           </div>
         </div>
       )}
+
       <Suspense fallback={<div className="py-32 text-center text-gray-400">Loading...</div>}>
         <main className="max-w-4xl mx-auto px-6 py-16">
           <div className="text-center mb-12">
-            <h1 className="text-4xl font-semibold tracking-tight">{hasPlan ? 'Re-Generate Your Plan' : 'Generate Your Plan'}</h1>
-            <p className="mt-3 text-gray-500 text-lg">{hasPlan ? 'This will replace your current training plan.' : 'We’ll personalize your training based on your inputs.'}</p>
+            <h1 className="text-4xl font-semibold tracking-tight">
+              {hasPlan ? 'Re-Generate Your Plan' : 'Generate Your Plan'}
+            </h1>
+            <p className="mt-3 text-gray-500 text-lg">
+              {hasPlan
+                ? 'This will replace your current training plan.'
+                : 'We’ll personalize your training based on your inputs.'}
+            </p>
           </div>
 
           {error && <p className="text-center text-red-600 mb-6 font-medium">{error}</p>}
 
-          <form onSubmit={handleFinalize} className="bg-gray-50 border border-gray-200 shadow-sm rounded-xl p-8 grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            {[...beginnerFields, ...(showAdvanced ? advancedFields : [])].map(({ id, label, type, options, placeholder }) => (
-              <div key={id}>
-                <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-                {type === 'select' ? (
-                  <select
-                    id={id}
-                    name={id}
-                    value={formData[id as keyof typeof formData]}
-                    onChange={handleChange}
-                    className="w-full bg-white border border-gray-300 rounded-md p-2 text-sm"
-                    required={!['bikeFTP', 'runPace', 'swimPace', 'restDay'].includes(id)}
+          <form
+            onSubmit={handleFinalize}
+            className="bg-gray-50 border border-gray-200 shadow-sm rounded-xl p-8 grid grid-cols-1 md:grid-cols-2 gap-6 mb-6"
+          >
+            {[...beginnerFields, ...(showAdvanced ? advancedFields : [])].map(
+              ({ id, label, type, options, placeholder }) => (
+                <div key={id}>
+                  <label
+                    htmlFor={id}
+                    className="block text-sm font-medium text-gray-700 mb-1"
                   >
-                    <option value="">Select...</option>
-                    {options?.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
-                  </select>
-                ) : (
-                  <input
-                    type={type}
-                    id={id}
-                    name={id}
-                    placeholder={placeholder}
-                    value={formData[id as keyof typeof formData]}
-                    onChange={handleChange}
-                    className="w-full bg-white border border-gray-300 rounded-md p-2 text-sm"
-                    required={!['bikeFTP', 'runPace', 'swimPace', 'restDay'].includes(id)}
-                  />
-                )}
-              </div>
-            ))}
+                    {label}
+                  </label>
+                  {type === 'select' ? (
+                    <select
+                      id={id}
+                      name={id}
+                      value={formData[id as keyof typeof formData]}
+                      onChange={handleChange}
+                      className="w-full bg-white border border-gray-300 rounded-md p-2 text-sm"
+                      required={!['bikeFTP', 'runPace', 'swimPace', 'restDay'].includes(id)}
+                    >
+                      <option value="">Select...</option>
+                      {options?.map(opt => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type={type}
+                      id={id}
+                      name={id}
+                      placeholder={placeholder}
+                      value={formData[id as keyof typeof formData]}
+                      onChange={handleChange}
+                      className="w-full bg-white border border-gray-300 rounded-md p-2 text-sm"
+                      required={!['bikeFTP', 'runPace', 'swimPace', 'restDay'].includes(id)}
+                    />
+                  )}
+                </div>
+              )
+            )}
 
             <div className="md:col-span-2">
-              <label htmlFor="userNote" className="block text-sm font-medium text-gray-700 mb-1">Customize your plan (optional)</label>
+              <label
+                htmlFor="userNote"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Customize your plan (optional)
+              </label>
               <textarea
                 id="userNote"
                 name="userNote"
                 rows={3}
-                placeholder="E.g. I’m targeting a 1:30 half marathon off the bike and need help with swim fitness..."
+                placeholder="E.g. I’m targeting a 1:45 half marathon and prefer long runs on Sundays..."
                 value={userNote}
                 onChange={e => setUserNote(e.target.value)}
                 className="w-full bg-white border border-gray-300 rounded-md p-2 text-sm"

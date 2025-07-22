@@ -1,7 +1,8 @@
 import OpenAI from 'openai';
-import { COACH_SYSTEM_PROMPT } from '@/lib/coachPrompt';
 import { buildCoachPrompt } from './buildCoachPrompt';
+import { buildRunningPrompt } from './buildRunningPrompt';
 import { WeekMeta, UserParams } from '@/types/plan';
+import type { PlanType } from '@/types/plan';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -15,22 +16,29 @@ export type ParsedWeek = {
 };
 
 export async function generateWeek({
+  planType,
   index,
   meta,
   params,
 }: {
+  planType: PlanType;
   index: number;
   meta: WeekMeta;
   params: UserParams;
 }): Promise<ParsedWeek> {
-  const userPrompt = buildCoachPrompt({ userParams: params, weekMeta: meta, index });
+  const userPrompt =
+    planType === 'running'
+      ? buildRunningPrompt({ userParams: params, weekMeta: meta, index })
+      : buildCoachPrompt({ userParams: params, weekMeta: meta, index });
 
   const response = await openai.chat.completions.create({
     model: 'gpt-4-turbo',
     temperature: 0.7,
     messages: [
-      { role: 'system', content: COACH_SYSTEM_PROMPT },
-      { role: 'user', content: userPrompt },
+      {
+        role: 'user',
+        content: userPrompt,
+      },
     ],
   });
 
