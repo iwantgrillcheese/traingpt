@@ -73,7 +73,7 @@ export default function SessionModal({
             </p>
           </div>
 
-          {/* Detailed Workout */}
+          {/* Planned Workout */}
           <div className="space-y-1">
             <h4 className="text-sm font-medium text-zinc-600">📋 Detailed Workout</h4>
             <div className="bg-zinc-100 text-sm rounded-md p-3 whitespace-pre-wrap min-h-[80px]">
@@ -81,25 +81,37 @@ export default function SessionModal({
             </div>
           </div>
 
-          {/* Strava Metrics */}
+          {/* Optional Strava Metrics */}
           {stravaActivity && (
             <div className="grid grid-cols-2 gap-4 rounded-md bg-zinc-100 p-4 text-sm">
-              {stravaActivity.distance_km && (
-                <Metric label="Distance" value={`${stravaActivity.distance_km} km`} />
+              {stravaActivity.distance && (
+                <Metric
+                  label="Distance"
+                  value={`${(stravaActivity.distance / 1000).toFixed(1)} km`}
+                />
               )}
-              {stravaActivity.avg_pace && (
-                <Metric label="Avg Pace" value={stravaActivity.avg_pace} />
+              {stravaActivity.moving_time && stravaActivity.distance && (
+                <Metric
+                  label="Avg Pace"
+                  value={`${formatPace(stravaActivity.distance, stravaActivity.moving_time)} /km`}
+                />
               )}
-              {stravaActivity.avg_hr && (
-                <Metric label="Heart Rate" value={`${stravaActivity.avg_hr} bpm`} />
+              {stravaActivity.average_heartrate && (
+                <Metric
+                  label="Heart Rate"
+                  value={`${Math.round(stravaActivity.average_heartrate)} bpm`}
+                />
               )}
-              {stravaActivity.avg_power && (
-                <Metric label="Power" value={`${stravaActivity.avg_power}w`} />
+              {stravaActivity.average_watts && (
+                <Metric
+                  label="Power"
+                  value={`${Math.round(stravaActivity.average_watts)} watts`}
+                />
               )}
             </div>
           )}
 
-          {/* Footer Actions */}
+          {/* Footer */}
           <div className="flex justify-between items-center pt-2">
             <p className="text-xs text-zinc-400">Generated using TrainGPT</p>
             <div className="flex gap-3">
@@ -131,4 +143,11 @@ function Metric({ label, value }: { label: string; value: string }) {
       <p className="font-medium text-zinc-900">{value}</p>
     </div>
   );
+}
+
+function formatPace(distanceMeters: number, timeSeconds: number) {
+  const paceSecPerKm = timeSeconds / (distanceMeters / 1000);
+  const minutes = Math.floor(paceSecPerKm / 60);
+  const seconds = Math.round(paceSecPerKm % 60);
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
