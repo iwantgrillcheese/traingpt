@@ -6,6 +6,10 @@ import CalendarShell from './CalendarShell';
 import { Session } from '@/types/session';
 import { StravaActivity } from '@/types/strava';
 import mergeSessionsWithStrava from '@/utils/mergeSessionWithStrava';
+import Footer from '../components/footer';
+
+
+
 
 export default function SchedulePage() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -60,9 +64,12 @@ export default function SchedulePage() {
 
   const enrichedSessions = mergeSessionsWithStrava(sessions, stravaActivities);
 
-  return (
-    <div>
+ return (
+  <div className="flex flex-col min-h-screen">
+    <main className="flex-grow">
       <CalendarShell sessions={enrichedSessions} />
-    </div>
-  );
+    </main>
+    <Footer />
+  </div>
+);
 }
