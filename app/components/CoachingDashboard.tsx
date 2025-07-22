@@ -47,7 +47,8 @@ export default function CoachingDashboard({ userId }: { userId: string }) {
       if (stravaData) setStravaData(stravaData);
 
       setLoadingSummary(true);
-      const summary = await fetchGPTSummary(userId);
+      const res = await fetch('/api/weekly-summary');
+const { summary } = await res.json();
       setWeeklySummary(summary);
       setLoadingSummary(false);
     };
