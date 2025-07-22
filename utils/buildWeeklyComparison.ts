@@ -50,10 +50,10 @@ export function buildWeeklyComparison(
 
   // Process Strava activities
   for (const activity of stravaActivities) {
-    const dateKey = format(parseISO(activity.date), 'yyyy-MM-dd');
+    const dateKey = format(parseISO(activity.start_date), 'yyyy-MM-dd');
     if (!weeks[dateKey]) weeks[dateKey] = { date: dateKey };
 
-    switch (activity.sport) {
+    switch (activity.sport_type) {
       case 'Swim':
         weeks[dateKey].swim = (weeks[dateKey].swim || 0) + 1;
         break;

@@ -1,13 +1,21 @@
 export type StravaActivity = {
   id: string;
   user_id: string;
-  session_id?: string;
-  date: string;
   name: string;
-  sport: 'Swim' | 'Bike' | 'Run' | 'Other';
-  distance_km?: number;      // e.g. 42.2
-  avg_pace?: string;         // e.g. "5:15 / km"
-  avg_power?: number;        // e.g. 210 (watts)
-  avg_hr?: number;           // e.g. 155 (bpm)
-  created_at?: string;
+  sport_type: 'Run' | 'Ride' | 'Swim' | 'Walk' | 'Workout' | 'Hike' | string;
+  start_date: string; // ISO string
+  start_date_local: string;
+  moving_time: number; // in seconds
+  distance: number; // in meters
+  manual: boolean;
+  created_at: string;
+  average_heartrate: number | null;
+  max_heartrate: number | null;
+  average_speed: number | null; // meters per second
+  average_watts: number | null;
+  weighted_average_watts: number | null;
+  kilojoules: number | null;
+  total_elevation_gain: number | null;
+  device_watts: boolean | null;
+  trainer: boolean | null;
 };
