@@ -1,6 +1,6 @@
-// app/components/FitnessPanel.tsx
 'use client';
 
+import { useMemo } from 'react';
 import { Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -9,19 +9,59 @@ import {
   LinearScale,
   Tooltip,
 } from 'chart.js';
-import { format, subWeeks } from 'date-fns';
+import { format, addWeeks, startOfWeek, isWithinInterval, parseISO } from 'date-fns';
+import type { Session } from '@/types/session';
+import type { StravaActivity } from '@/types/strava';
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip);
 
 type FitnessPanelProps = {
-  weeklyVolume: number[];
-  fitnessScore?: number;
+  sessions: Session[];
+  completedSessions: Session[];
+  stravaActivities?: StravaActivity[];
 };
 
-export default function FitnessPanel({ weeklyVolume, fitnessScore }: FitnessPanelProps) {
-  const labels = weeklyVolume.map((_, i) =>
-    format(subWeeks(new Date(), weeklyVolume.length - 1 - i), 'MMM d')
-  );
+export default function FitnessPanel({
+  sessions,
+  completedSessions,
+  stravaActivities = [],
+}: FitnessPanelProps) {
+  const weeksBack = 4;
+
+  const { weeklyVolume, fitnessScore, labels } = useMemo(() => {
+    const result: number[] = [];
+    const labels: string[] = [];
+
+    const now = new Date();
+    const baseStart = startOfWeek(addWeeks(now, -weeksBack + 1), { weekStartsOn: 1 });
+
+    for (let i = 0; i < weeksBack; i++) {
+      const start = addWeeks(baseStart, i);
+      const end = addWeeks(start, 1);
+      labels.push(format(start, 'MMM d'));
+
+      const allSessions = [...sessions, ...completedSessions].filter((s) =>
+        isWithinInterval(parseISO(s.date), { start, end })
+      );
+
+      const sessionMins = allSessions.reduce((sum, s) => {
+        return sum + (s.duration ?? estimateDurationFromTitle(s.title));
+      }, 0);
+
+      const stravaMins = stravaActivities
+        .filter((a) => isWithinInterval(parseISO(a.start_date), { start, end }))
+        .reduce((sum, a) => sum + a.moving_time / 60, 0);
+
+      const totalHours = (sessionMins + stravaMins) / 60;
+      result.push(Math.round(totalHours * 10) / 10); // round to 1 decimal
+    }
+
+    const fitnessScore = Math.round(
+      (result.reduce((sum, x) => sum + x, 0) / weeksBack / 10) * 100
+    );
+
+    return { weeklyVolume: result, fitnessScore, labels };
+  }, [sessions, completedSessions, stravaActivities]);
 
   return (
     <div className="mt-10 rounded-2xl border bg-white p-6 shadow-sm">
@@ -51,11 +91,15 @@ export default function FitnessPanel({ weeklyVolume, fitnessScore }: FitnessPane
         />
       </div>
 
-      {fitnessScore !== undefined && (
-        <div className="mt-6 text-sm text-gray-700">
-          Fitness Score: <span className="font-medium">{fitnessScore}/100</span>
-        </div>
-      )}
+      <div className="mt-6 text-sm text-gray-700">
+        Fitness Score: <span className="font-medium">{fitnessScore}/100</span>
+      </div>
     </div>
   );
+}
+
+function estimateDurationFromTitle(title: string): number {
+  const match = title.match(/(\d{2,3})min/);
+  if (match) return parseInt(match[1], 10);
+  return 45; // fallback if no match
 }

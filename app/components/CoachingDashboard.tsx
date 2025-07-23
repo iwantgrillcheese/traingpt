@@ -1,174 +1,46 @@
-// ✅ CoachingDashboard.tsx — Fully working, Strava-optional, fitness-aware
-
 'use client';
 
-import { useEffect, useState } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import {
-  format,
-  parseISO,
-  startOfDay,
-  subDays,
-  startOfWeek,
-} from 'date-fns';
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import type { Session } from '@/types/session';
+import type { StravaActivity } from '@/types/strava';
+import type { WeeklySummary } from '@/utils/getWeeklySummary';
+import CompliancePanel from '../coaching/CompliancePanel';
+import FitnessPanel from '../coaching/FitnessPanel';
+import WeeklySummaryPanel from '../coaching/WeeklySummaryPanel';
 
-const supabase = createClientComponentClient();
-const COLORS = ['#60A5FA', '#34D399', '#FBBF24'];
-const validSports = ['Swim', 'Bike', 'Run'] as const;
-type Sport = (typeof validSports)[number];
+type Props = {
+  userId: string;
+  sessions: Session[];
+  completedSessions: Session[];
+  stravaActivities?: StravaActivity[];
+  weeklySummary: WeeklySummary;
+  weeklyVolume: number[];
+};
 
-export default function CoachingDashboard({ userId }: { userId: string }) {
-  const [summary, setSummary] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [stravaData, setStravaData] = useState<any[]>([]);
-  const today = new Date();
-
-  useEffect(() => {
-    const load = async () => {
-      const { data: stravaData } = await supabase
-        .from('strava_activities')
-        .select('sport, date, avg_hr, avg_power, distance_km')
-        .eq('user_id', userId)
-        .gte('date', startOfDay(subDays(today, 28)).toISOString());
-
-      if (stravaData) setStravaData(stravaData);
-
-      setLoading(true);
-      try {
-        const res = await fetch('/api/weekly-summary');
-        const json = await res.json();
-        setSummary(json?.summary || null);
-      } catch (err) {
-        console.warn('Summary error:', err);
-        setSummary(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    load();
-  }, [userId]);
-
-  const WeeklySummaryPanel = () => (
-    <section className="my-6">
-      <h2 className="text-lg font-semibold mb-2">Coach’s Weekly Summary</h2>
-      <div className="border rounded-xl p-4 bg-white shadow-sm">
-        {loading ? (
-          <p className="text-sm text-gray-500 italic">Generating summary...</p>
-        ) : summary ? (
-          <p className="text-sm whitespace-pre-line text-gray-800">{summary}</p>
-        ) : (
-          <p className="text-sm text-gray-500 italic">No summary available. Try again later.</p>
-        )}
-      </div>
-    </section>
-  );
-
-  const DashboardSummary = () => {
-    if (!stravaData || stravaData.length === 0) {
-      return (
-        <div className="text-sm text-gray-500 italic mt-6">
-          No training data available. Connect Strava or upload activities to see your stats.
-        </div>
-      );
-    }
-
-    const weeklyVolume = [0, 0, 0, 0];
-    const sportTotals: Record<Sport, number> = { Swim: 0, Bike: 0, Run: 0 };
-    const uniqueDays = new Set<string>();
-    const sevenDaysAgo = subDays(today, 6);
-    const startOfThisWeek = startOfDay(startOfWeek(today));
-
-    for (const activity of stravaData) {
-      const date = parseISO(activity.date);
-      const weekStart = startOfDay(startOfWeek(date));
-      const weekDiff = Math.floor((startOfThisWeek.getTime() - weekStart.getTime()) / (7 * 24 * 60 * 60 * 1000));
-      const hours = 1; // estimate if no duration field
-
-      if (weekDiff >= 0 && weekDiff < 4) {
-        weeklyVolume[3 - weekDiff] += hours;
-      }
-
-      if (weekDiff === 0 && validSports.includes(activity.sport)) {
-        sportTotals[activity.sport as Sport] += hours;
-      }
-
-      if (date >= startOfDay(sevenDaysAgo) && date <= today) {
-        uniqueDays.add(format(date, 'yyyy-MM-dd'));
-      }
-    }
-
-    const totalTime = Object.values(sportTotals).reduce((a, b) => a + b, 0);
-    const chartData = Object.entries(sportTotals).map(([name, value]) => ({ name, value }));
-
-    const fitnessScore = Math.min(100, Math.round((totalTime * 10) + (uniqueDays.size * 5)));
-
-    const formatDuration = (hours: number): string => {
-      const h = Math.floor(hours);
-      const m = Math.round((hours - h) * 60);
-      return h > 0 ? `${h}h${m > 0 ? ` ${m}m` : ''}` : `${m} mins`;
-    };
-
-    return (
-      <section className="mb-6">
-        <h2 className="text-lg font-semibold mb-2">Training Summary</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="border rounded-xl p-4 bg-white shadow-sm">
-            <p className="text-sm text-gray-500 mb-1">Total Time This Week</p>
-            <p className="text-xl font-bold text-gray-800">{formatDuration(totalTime)}</p>
-          </div>
-          <div className="border rounded-xl p-4 bg-white shadow-sm">
-            <p className="text-sm text-gray-500 mb-1">Training Consistency</p>
-            <p className="text-xl font-bold text-gray-800">{uniqueDays.size} of last 7 days</p>
-          </div>
-          <div className="border rounded-xl p-4 bg-white shadow-sm">
-            <p className="text-sm text-gray-500 mb-1">Fitness Score</p>
-            <p className="text-xl font-bold text-gray-800">{fitnessScore} / 100</p>
-          </div>
-          <div className="border rounded-xl p-4 bg-white shadow-sm col-span-1 sm:col-span-2">
-            <p className="text-sm text-gray-500 mb-2">Weekly Volume (hrs)</p>
-            <div className="flex items-end gap-2 h-20">
-              {weeklyVolume.map((val, i) => (
-                <div key={i} className="flex flex-col items-center">
-                  <div
-                    className="bg-blue-500 w-4 rounded"
-                    style={{ height: `${val * 10}px` }}
-                    title={`${val.toFixed(1)} hrs`}
-                  />
-                  <span className="text-[10px] text-gray-500 mt-1">W{i + 1}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="border rounded-xl p-4 bg-white shadow-sm col-span-1 sm:col-span-2">
-            <p className="text-sm text-gray-500 mb-2">Sport Breakdown</p>
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie
-                  data={chartData}
-                  dataKey="value"
-                  nameKey="name"
-                  outerRadius={80}
-                  fill="#8884d8"
-                  label={({ name, value }) => `${name}: ${formatDuration(value as number)}`}
-                >
-                  {chartData.map((_, i) => (
-                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                  ))}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </section>
-    );
-  };
-
+export default function CoachingDashboard({
+  userId,
+  sessions,
+  completedSessions,
+  stravaActivities = [],
+  weeklySummary,
+  weeklyVolume,
+}: Props) {
   return (
-    <main className="flex flex-col min-h-screen max-w-4xl mx-auto px-4 py-6 sm:px-6">
-      <WeeklySummaryPanel />
-      <DashboardSummary />
-    </main>
+    <div className="mx-auto max-w-3xl px-4 py-8">
+      <h1 className="text-2xl font-bold text-gray-900">🧑‍🏫 Coaching Dashboard</h1>
+
+      <CompliancePanel summary={weeklySummary} />
+
+      <FitnessPanel
+        sessions={sessions}
+        completedSessions={completedSessions}
+        stravaActivities={stravaActivities}
+      />
+
+      <WeeklySummaryPanel
+        sessions={sessions}
+        completedSessions={completedSessions}
+        stravaActivities={stravaActivities}
+      />
+    </div>
   );
 }

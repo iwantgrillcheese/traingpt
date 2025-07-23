@@ -5,11 +5,18 @@ import clsx from 'clsx';
 import type { Session } from '@/types/session';
 import { getSessionColor } from '@/utils/session-utils';
 
+type CompletedSession = {
+  session_date: string;
+  session_title: string;
+  strava_id?: string;
+};
+
 type Props = {
   date: Date;
   sessions: Session[];
   isOutside: boolean;
   onSessionClick?: (session: Session) => void;
+  completedSessions: CompletedSession[];
 };
 
 function normalizeSport(title: string): string {
@@ -22,7 +29,22 @@ function normalizeSport(title: string): string {
   return 'other';
 }
 
-export default function DayCell({ date, sessions, isOutside, onSessionClick }: Props) {
+export default function DayCell({
+  date,
+  sessions,
+  isOutside,
+  onSessionClick,
+  completedSessions,
+}: Props) {
+  const dateKey = format(date, 'yyyy-MM-dd');
+
+  const isSessionCompleted = (session: Session) =>
+    completedSessions.some(
+      (c) =>
+        c.session_date === session.date &&
+        c.session_title === session.title
+    );
+
   return (
     <div
       className={clsx(
@@ -40,6 +62,7 @@ export default function DayCell({ date, sessions, isOutside, onSessionClick }: P
             const isRest = rawTitle.toLowerCase().includes('rest day');
             const sport = s.sport || normalizeSport(rawTitle);
             const colorClass = getSessionColor(isRest ? 'rest' : sport);
+            const isCompleted = isSessionCompleted(s);
 
             const [labelLine, ...rest] = rawTitle.split(':');
             const titleLine = isRest
@@ -53,12 +76,14 @@ export default function DayCell({ date, sessions, isOutside, onSessionClick }: P
                 onClick={() => !isRest && onSessionClick?.(s)}
                 className={clsx(
                   'w-full text-left rounded-md px-3 py-2 shadow-sm hover:bg-opacity-80 transition-all',
-                  'bg-muted/20',
-                  colorClass
+                  colorClass,
+                  isCompleted ? 'bg-green-100 border border-green-400' : 'bg-muted/20'
                 )}
                 title={rawTitle}
               >
-                <div className="font-medium text-sm truncate">{titleLine}</div>
+                <div className="font-medium text-sm truncate">
+                  {titleLine} {isCompleted && <span className="text-green-600">✓</span>}
+                </div>
                 {detailLine && (
                   <div className="text-xs text-muted-foreground truncate">
                     {detailLine}

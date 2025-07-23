@@ -1,4 +1,3 @@
-// app/coaching/CoachingClient.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -6,9 +5,12 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import CoachingDashboard from '../components/CoachingDashboard';
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
+import { getWeeklySummary, WeeklySummary } from '@/utils/getWeeklySummary';
+import { getWeeklyVolume } from '@/utils/getWeeklyVolume';
 
 export default function CoachingClient() {
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [completedSessions, setCompletedSessions] = useState<Session[]>([]);
   const [stravaActivities, setStravaActivities] = useState<StravaActivity[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
   const supabase = createClientComponentClient();
@@ -25,13 +27,18 @@ export default function CoachingClient() {
         .from('sessions')
         .select('*')
         .eq('user_id', user.id);
+      if (sessionData) setSessions(sessionData);
+
+      const { data: completedData } = await supabase
+        .from('completed_sessions')
+        .select('*')
+        .eq('user_id', user.id);
+      if (completedData) setCompletedSessions(completedData);
 
       const { data: stravaData } = await supabase
         .from('strava_activities')
         .select('*')
         .eq('user_id', user.id);
-
-      if (sessionData) setSessions(sessionData);
       if (stravaData) setStravaActivities(stravaData);
     };
     fetchData();
@@ -39,7 +46,17 @@ export default function CoachingClient() {
 
   if (!userId) return null;
 
+  const weeklySummary: WeeklySummary = getWeeklySummary(sessions, completedSessions, stravaActivities);
+  const weeklyVolume: number[] = getWeeklyVolume(sessions, completedSessions, stravaActivities);
+
   return (
-<CoachingDashboard userId={userId} />
+    <CoachingDashboard
+      userId={userId}
+      sessions={sessions}
+      completedSessions={completedSessions}
+      stravaActivities={stravaActivities}
+      weeklySummary={weeklySummary}
+      weeklyVolume={weeklyVolume}
+    />
   );
 }

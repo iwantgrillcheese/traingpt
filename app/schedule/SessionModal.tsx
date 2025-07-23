@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Dialog } from '@headlessui/react';
 import { format } from 'date-fns';
+import clsx from 'clsx';
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
@@ -24,6 +25,8 @@ export default function SessionModal({
 }: Props) {
   const [loading, setLoading] = useState(false);
   const [output, setOutput] = useState<string | null>(session?.structured_workout || null);
+  const [markingComplete, setMarkingComplete] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
 
   const supabase = createClientComponentClient();
 
@@ -52,6 +55,38 @@ export default function SessionModal({
     setOutput(details);
     onUpdate?.({ ...session, structured_workout: details });
     setLoading(false);
+  };
+
+  const handleMarkAsDone = async () => {
+    if (!session) return;
+
+    setMarkingComplete(true);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      alert('Not logged in');
+      setMarkingComplete(false);
+      return;
+    }
+
+    const { error } = await supabase.from('completed_sessions').upsert({
+      user_id: user.id,
+      session_date: session.date,
+      session_title: session.title,
+      completed_at: new Date().toISOString(),
+      source: 'manual',
+    });
+
+    if (!error) {
+      setIsCompleted(true);
+    } else {
+      console.error('Error marking session as done:', error.message);
+    }
+
+    setMarkingComplete(false);
   };
 
   if (!session) return null;
@@ -121,6 +156,18 @@ export default function SessionModal({
                 className="bg-black text-white text-sm px-4 py-2 rounded-md disabled:opacity-50"
               >
                 {loading ? 'Generating...' : 'Generate Detailed Workout'}
+              </button>
+              <button
+                onClick={handleMarkAsDone}
+                disabled={markingComplete || isCompleted}
+                className={clsx(
+                  'text-sm px-4 py-2 rounded-md border',
+                  isCompleted
+                    ? 'text-green-700 border-green-300 bg-green-50 cursor-default'
+                    : 'text-zinc-700 hover:text-black border-zinc-300'
+                )}
+              >
+                {isCompleted ? 'Marked as Done ✓' : markingComplete ? 'Saving...' : 'Mark as Done'}
               </button>
               <button
                 onClick={onClose}

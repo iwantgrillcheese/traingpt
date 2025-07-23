@@ -12,13 +12,25 @@ import {
 import type { Session } from '@/types/session';
 import DayCell from './DayCell';
 
+type CompletedSession = {
+  session_date: string;
+  session_title: string;
+  strava_id?: string;
+};
+
 type Props = {
   sessions: Session[];
+  completedSessions: CompletedSession[];
   onSessionClick?: (session: Session) => void;
   currentMonth: Date;
 };
 
-export default function MonthGrid({ sessions, onSessionClick, currentMonth }: Props) {
+export default function MonthGrid({
+  sessions,
+  completedSessions,
+  onSessionClick,
+  currentMonth,
+}: Props) {
   const start = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 });
   const end = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 });
 
@@ -50,6 +62,7 @@ export default function MonthGrid({ sessions, onSessionClick, currentMonth }: Pr
               sessions={daySessions}
               isOutside={day.getMonth() !== currentMonth.getMonth()}
               onSessionClick={onSessionClick}
+              completedSessions={completedSessions}
             />
           );
         })}

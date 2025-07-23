@@ -8,13 +8,23 @@ import SessionModal from './SessionModal';
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 
+type CompletedSession = {
+  session_date: string;
+  session_title: string;
+  strava_id?: string;
+};
+
 type EnrichedSession = Session & { stravaActivity?: StravaActivity };
 
 type CalendarShellProps = {
   sessions: EnrichedSession[];
+  completedSessions: CompletedSession[];
 };
 
-export default function CalendarShell({ sessions }: CalendarShellProps) {
+export default function CalendarShell({
+  sessions,
+  completedSessions,
+}: CalendarShellProps) {
   const [isMobile, setIsMobile] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
   const [selectedSession, setSelectedSession] = useState<EnrichedSession | null>(null);
@@ -37,7 +47,10 @@ export default function CalendarShell({ sessions }: CalendarShellProps) {
   return (
     <main className="min-h-screen bg-background px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20 max-w-[1800px] mx-auto">
       {isMobile ? (
-        <MobileCalendarView sessions={sessions} />
+        <MobileCalendarView
+          sessions={sessions}
+          completedSessions={completedSessions}
+        />
       ) : (
         <>
           <div className="flex items-center justify-between mb-6 w-full">
@@ -48,6 +61,7 @@ export default function CalendarShell({ sessions }: CalendarShellProps) {
 
           <MonthGrid
             sessions={sessions}
+            completedSessions={completedSessions}
             onSessionClick={handleSessionClick}
             currentMonth={currentMonth}
           />

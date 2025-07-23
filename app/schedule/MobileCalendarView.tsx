@@ -13,10 +13,17 @@ import SessionModal from './SessionModal';
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 
-export type EnrichedSession = Session & { stravaActivity?: StravaActivity };
+type EnrichedSession = Session & { stravaActivity?: StravaActivity };
+
+type CompletedSession = {
+  session_date: string;
+  session_title: string;
+  strava_id?: string;
+};
 
 export type MobileCalendarViewProps = {
   sessions: EnrichedSession[];
+  completedSessions: CompletedSession[];
 };
 
 function safeParseDate(input: string | Date): Date {
@@ -27,7 +34,10 @@ function safeParseDate(input: string | Date): Date {
   return isValid(input) ? input : new Date();
 }
 
-export default function MobileCalendarView({ sessions }: MobileCalendarViewProps) {
+export default function MobileCalendarView({
+  sessions,
+  completedSessions,
+}: MobileCalendarViewProps) {
   const [selectedSession, setSelectedSession] = useState<EnrichedSession | null>(null);
   const [sessionsState, setSessionsState] = useState<EnrichedSession[]>(sessions);
 
@@ -81,14 +91,24 @@ export default function MobileCalendarView({ sessions }: MobileCalendarViewProps
               const title = session.title || session.stravaActivity?.name || 'Unnamed Session';
               const date = safeParseDate(session.date);
 
+              const isCompleted = completedSessions.some(
+                (c) =>
+                  c.session_date === session.date && c.session_title === session.title
+              );
+
               return (
                 <div
                   key={session.id}
                   onClick={() => setSelectedSession(session)}
-                  className="rounded-xl p-4 bg-white shadow border cursor-pointer flex items-center justify-between"
+                  className={`rounded-xl p-4 shadow border cursor-pointer flex items-center justify-between ${
+                    isCompleted ? 'bg-green-50 border-green-300' : 'bg-white'
+                  }`}
                 >
                   <div>
-                    <div className="text-sm font-medium">{title}</div>
+                    <div className="text-sm font-medium">
+                      {title}
+                      {isCompleted && <span className="ml-2 text-green-600">✓</span>}
+                    </div>
                     <div className="text-xs text-zinc-500">
                       {format(date, 'EEEE, MMM d')}
                     </div>

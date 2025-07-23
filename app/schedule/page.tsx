@@ -8,12 +8,16 @@ import { StravaActivity } from '@/types/strava';
 import mergeSessionsWithStrava from '@/utils/mergeSessionWithStrava';
 import Footer from '../components/footer';
 
-
-
+type CompletedSession = {
+  session_date: string;
+  session_title: string;
+  strava_id?: string;
+};
 
 export default function SchedulePage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [stravaActivities, setStravaActivities] = useState<StravaActivity[]>([]);
+  const [completedSessions, setCompletedSessions] = useState<CompletedSession[]>([]);
   const [planStartDate, setPlanStartDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const supabase = createClientComponentClient();
@@ -30,27 +34,18 @@ export default function SchedulePage() {
         return;
       }
 
-      const { data: sessionData } = await supabase
-        .from('sessions')
-        .select('*')
-        .eq('user_id', user.id);
+      const [{ data: sessionData }, { data: stravaData }, { data: plan }, { data: completedData }] =
+        await Promise.all([
+          supabase.from('sessions').select('*').eq('user_id', user.id),
+          supabase.from('strava_activities').select('*').eq('user_id', user.id),
+          supabase.from('plans').select('start_date').eq('user_id', user.id).single(),
+          supabase.from('completed_sessions').select('*').eq('user_id', user.id),
+        ]);
 
       if (sessionData) setSessions(sessionData);
-
-      const { data: stravaData } = await supabase
-        .from('strava_activities')
-        .select('*')
-        .eq('user_id', user.id);
-
       if (stravaData) setStravaActivities(stravaData);
-
-      const { data: plan } = await supabase
-        .from('plans')
-        .select('start_date')
-        .eq('user_id', user.id)
-        .single();
-
       if (plan?.start_date) setPlanStartDate(plan.start_date);
+      if (completedData) setCompletedSessions(completedData);
 
       setLoading(false);
     };
@@ -64,12 +59,15 @@ export default function SchedulePage() {
 
   const enrichedSessions = mergeSessionsWithStrava(sessions, stravaActivities);
 
- return (
-  <div className="flex flex-col min-h-screen">
-    <main className="flex-grow">
-      <CalendarShell sessions={enrichedSessions} />
-    </main>
-    <Footer />
-  </div>
-);
+  return (
+    <div className="flex flex-col min-h-screen">
+      <main className="flex-grow">
+        <CalendarShell
+          sessions={enrichedSessions}
+          completedSessions={completedSessions}
+        />
+      </main>
+      <Footer />
+    </div>
+  );
 }
