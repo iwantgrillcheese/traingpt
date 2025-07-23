@@ -8,6 +8,7 @@ import { getWeeklySummary, WeeklySummary } from '@/utils/getWeeklySummary';
 import { getWeeklyVolume } from '@/utils/getWeeklyVolume';
 import { supabase } from '@/utils/supabaseClient';
 
+
 export default function CoachingClient() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [completedSessions, setCompletedSessions] = useState<Session[]>([]);
