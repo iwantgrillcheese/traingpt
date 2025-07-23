@@ -1,50 +1,35 @@
-import type { Session } from '@/types/session';
-import type { StravaActivity } from '@/types/strava';
+import { Session } from '@/types/session';
+import { StravaActivity } from '@/types/strava';
+import { parseISO } from 'date-fns';
 
-export default function mergeSessionsWithStrava(
+/**
+ * For each planned session, merge with matching Strava activity (if any).
+ * Match is based on exact date and sport type.
+ */
+export default function mergeSessionWithStrava(
   sessions: Session[],
   strava: StravaActivity[]
-): (Session & { stravaActivity?: StravaActivity })[] {
-  console.log('💡 Merging sessions:', sessions.length, 'Strava:', strava.length);
-
-  const enriched: (Session & { stravaActivity?: StravaActivity })[] = [];
+): (Session & { stravaActivity?: StravaActivity; duration?: number; distance_km?: number })[] {
   const matchedStravaIds = new Set<string>();
 
-  for (const session of sessions) {
-    if (!session.date || !session.sport) {
-      console.warn('⚠️ Skipping session with missing data:', session);
-      continue;
-    }
-
+  return sessions.map((session) => {
     const match = strava.find(
-      (a) => a.date === session.date && a.sport?.toLowerCase() === session.sport.toLowerCase()
+      (a) =>
+        a.start_date &&
+        new Date(a.start_date).toISOString().slice(0, 10) === session.date &&
+        a.sport_type?.toLowerCase() === session.sport?.toLowerCase()
     );
 
-    if (match) matchedStravaIds.add(match.id);
+    if (match) {
+      matchedStravaIds.add(match.id);
+      return {
+        ...session,
+        stravaActivity: match,
+        duration: match.moving_time / 60,
+        distance_km: match.distance / 1000,
+      };
+    }
 
-    enriched.push({
-      ...session,
-      stravaActivity: match ?? undefined,
-    });
-  }
-
-  const unmatchedStrava = strava
-    .filter((a) => a.date && a.sport && !matchedStravaIds.has(a.id))
-    .map((a) => ({
-      id: `strava-${a.id}`,
-      user_id: a.user_id,
-      date: a.date,
-      sport: a.sport,
-      title: `${a.sport}: ${a.distance_km?.toFixed(1)}km`,
-      details: null,
-      text: '',
-      structured_workout: null,
-      strava_id: a.id,
-      stravaActivity: a,
-    }));
-
-  const combined = [...enriched, ...unmatchedStrava];
-
-  console.log('✅ Returning', combined.length, 'merged sessions');
-  return combined;
+    return session;
+  });
 }
