@@ -1,25 +1,22 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import CoachingDashboard from '../components/CoachingDashboard';
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 import { getWeeklySummary, WeeklySummary } from '@/utils/getWeeklySummary';
 import { getWeeklyVolume } from '@/utils/getWeeklyVolume';
+import { supabase } from '@/utils/supabaseClient';
 
 export default function CoachingClient() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [completedSessions, setCompletedSessions] = useState<Session[]>([]);
   const [stravaActivities, setStravaActivities] = useState<StravaActivity[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
-  const supabase = createClientComponentClient();
 
   useEffect(() => {
     const fetchData = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       setUserId(user.id);
 
@@ -41,6 +38,7 @@ export default function CoachingClient() {
         .eq('user_id', user.id);
       if (stravaData) setStravaActivities(stravaData);
     };
+
     fetchData();
   }, []);
 
