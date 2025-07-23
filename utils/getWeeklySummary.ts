@@ -1,5 +1,6 @@
 import { Session } from '@/types/session';
 import { StravaActivity } from '@/types/strava';
+import estimateDurationFromTitle from '@/utils/estimateDurationFromTitle';
 import { parseISO, isAfter, isSameDay, subDays, startOfDay } from 'date-fns';
 
 export type WeeklySummary = {

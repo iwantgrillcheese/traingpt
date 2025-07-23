@@ -11,6 +11,7 @@ import {
 } from 'chart.js';
 import { format, addWeeks, startOfWeek, isWithinInterval, parseISO } from 'date-fns';
 import type { Session } from '@/types/session';
+import estimateDurationFromTitle from '@/utils/estimateDurationFromTitle';
 import type { StravaActivity } from '@/types/strava';
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip);
@@ -99,8 +100,3 @@ export default function FitnessPanel({
   );
 }
 
-function estimateDurationFromTitle(title?: string | null): number {
-  if (!title) return 45;
-  const match = title.match(/(\d{2,3})min/);
-  return match ? parseInt(match[1], 10) : 45;
-}
