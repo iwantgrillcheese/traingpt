@@ -36,8 +36,8 @@ export function getWeeklyVolume(
   return result;
 }
 
-function estimateDurationFromTitle(title: string): number {
-  const match = title.match(/(\\d{2,3})min/);
-  if (match) return parseInt(match[1], 10);
-  return 45; // fallback if no match
+function estimateDurationFromTitle(title?: string | null): number {
+  if (!title) return 45;
+  const match = title.match(/(\d{2,3})\s*min/i);
+  return match ? parseInt(match[1], 10) : 45;
 }
