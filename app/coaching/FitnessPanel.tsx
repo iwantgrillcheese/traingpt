@@ -45,7 +45,8 @@ export default function FitnessPanel({
       );
 
       const sessionMins = allSessions.reduce((sum, s) => {
-        return sum + (s.duration ?? estimateDurationFromTitle(s.title));
+        const duration = typeof s.duration === 'number' ? s.duration : estimateDurationFromTitle(s.title);
+        return sum + duration;
       }, 0);
 
       const stravaMins = stravaActivities
@@ -98,8 +99,8 @@ export default function FitnessPanel({
   );
 }
 
-function estimateDurationFromTitle(title: string): number {
+function estimateDurationFromTitle(title?: string | null): number {
+  if (!title) return 45;
   const match = title.match(/(\d{2,3})min/);
-  if (match) return parseInt(match[1], 10);
-  return 45; // fallback if no match
+  return match ? parseInt(match[1], 10) : 45;
 }
