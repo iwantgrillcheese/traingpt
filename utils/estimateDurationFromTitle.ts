@@ -1,13 +1,20 @@
-export default function estimateDurationFromTitle(title: string | null | undefined): number {
+// utils/estimateDurationFromTitle.ts
+export default function estimateDurationFromTitle(title?: string | null): number {
   if (!title || typeof title !== 'string') return 0;
 
-  try {
-    // Extract the first instance of something like "90min" or "90 min"
-    const match = title.match(/(\d{2,3})\s*min/i);
-    if (match) return parseInt(match[1], 10);
-  } catch (err) {
-    console.error('Failed to estimate duration from title:', title, err);
+  // Match hours and minutes like "3h", "90min", "25 mins"
+  const hourMatch = title.match(/(\d+(?:\.\d+)?)\s*h/i);
+  const minMatch = title.match(/(\d+)\s*(min|mins)/i);
+
+  let totalMinutes = 0;
+
+  if (hourMatch) {
+    totalMinutes += parseFloat(hourMatch[1]) * 60;
   }
 
-  return 0; // fallback if no match or error
+  if (minMatch) {
+    totalMinutes += parseInt(minMatch[1], 10);
+  }
+
+  return Math.round(totalMinutes);
 }
