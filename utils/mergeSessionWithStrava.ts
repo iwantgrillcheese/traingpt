@@ -1,6 +1,11 @@
 import { Session } from '@/types/session';
 import { StravaActivity } from '@/types/strava';
-import { parseISO } from 'date-fns';
+
+export type MergedSession = Omit<Session, 'duration'> & {
+  stravaActivity?: StravaActivity;
+  duration?: number; // override: optional
+  distance_km?: number;
+};
 
 /**
  * For each planned session, merge with matching Strava activity (if any).
@@ -9,10 +14,10 @@ import { parseISO } from 'date-fns';
 export default function mergeSessionWithStrava(
   sessions: Session[],
   strava: StravaActivity[]
-): (Session & { stravaActivity?: StravaActivity; duration?: number; distance_km?: number })[] {
+): MergedSession[] {
   const matchedStravaIds = new Set<string>();
 
-  return sessions.map((session) => {
+  return sessions.map((session): MergedSession => {
     const match = strava.find(
       (a) =>
         a.start_date &&
@@ -25,8 +30,8 @@ export default function mergeSessionWithStrava(
       return {
         ...session,
         stravaActivity: match,
-        duration: match.moving_time / 60,
-        distance_km: match.distance / 1000,
+        duration: match.moving_time ? match.moving_time / 60 : undefined,
+        distance_km: match.distance ? match.distance / 1000 : undefined,
       };
     }
 
