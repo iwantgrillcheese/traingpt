@@ -1,30 +1,28 @@
 'use client';
 
 import type { WeeklySummary } from '@/utils/getWeeklySummary';
-import { getSummaryTextFromAdherence } from '@/utils/coaching-utils';
 
-type CompliancePanelProps = {
+type Props = {
   summary: WeeklySummary;
 };
 
-export default function CompliancePanel({ summary }: CompliancePanelProps) {
+export default function CompliancePanel({ summary }: Props) {
   const { totalPlanned, totalCompleted, adherence } = summary;
-  const feedback = getSummaryTextFromAdherence(adherence);
+
+  const message =
+    totalPlanned === 0
+      ? 'No sessions were planned this week.'
+      : `You completed ${totalCompleted} of ${totalPlanned} planned sessions.`;
 
   return (
     <div className="mt-10 rounded-2xl border bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-semibold text-gray-900">📈 Training Compliance</h2>
+      <h2 className="text-lg font-semibold text-gray-900">📋 Training Compliance</h2>
 
-      <p className="mt-4 text-sm text-gray-700">
-        You completed <strong>{totalCompleted}</strong> of <strong>{totalPlanned}</strong> planned
-        sessions this week.
-      </p>
+      <p className="mt-4 text-sm text-gray-700">{message}</p>
 
-      <div className="mt-2 text-sm text-gray-700">
+      <p className="mt-2 text-sm text-gray-700">
         Compliance Score: <span className="font-medium">{adherence}%</span>
-      </div>
-
-      <p className="mt-4 text-sm italic text-gray-500">{feedback}</p>
+      </p>
     </div>
   );
 }
