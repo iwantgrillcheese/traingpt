@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import CoachingDashboard from '../components/CoachingDashboard';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Session } from '@/types/session';
+import StravaConnectBanner from '@/app/components/StravaConnectBanner';
 import { StravaActivity } from '@/types/strava';
 
 export default function CoachingPage() {
@@ -13,6 +14,8 @@ export default function CoachingPage() {
   const [stravaActivities, setStravaActivities] = useState<StravaActivity[]>([]);
   const [weeklyVolume, setWeeklyVolume] = useState<number[]>([]);
   const [weeklySummary, setWeeklySummary] = useState<any>(null);
+  const [stravaConnected, setStravaConnected] = useState(false);
+
 
   const supabase = createClientComponentClient();
 
@@ -51,12 +54,13 @@ export default function CoachingPage() {
 
   return (
     <CoachingDashboard
-      userId={userId}
-      sessions={sessions}
-      completedSessions={completedSessions}
-      stravaActivities={stravaActivities}
-      weeklyVolume={weeklyVolume}
-      weeklySummary={weeklySummary}
-    />
+  userId={userId}
+  sessions={sessions}
+  completedSessions={completedSessions}
+  stravaActivities={stravaActivities}
+  weeklyVolume={weeklyVolume}
+  weeklySummary={weeklySummary}
+  stravaConnected={stravaConnected}
+/>
   );
 }

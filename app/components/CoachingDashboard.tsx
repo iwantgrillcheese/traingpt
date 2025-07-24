@@ -8,6 +8,7 @@ import { StravaActivity } from '@/types/strava';
 import CompliancePanel from '@/app/coaching/CompliancePanel';
 import WeeklySummaryPanel from '@/app/coaching/WeeklySummaryPanel';
 import FitnessPanel from '@/app/coaching/FitnessPanel';
+import StravaConnectBanner from '@/app/components/StravaConnectBanner';
 
 const COLORS = ['#60A5FA', '#34D399', '#FBBF24']; // Swim, Bike, Run
 
@@ -27,6 +28,7 @@ type Props = {
     }[];
     adherence: number;
   };
+  stravaConnected: boolean;
 };
 
 export default function CoachingDashboard({
@@ -36,6 +38,7 @@ export default function CoachingDashboard({
   stravaActivities,
   weeklyVolume,
   weeklySummary,
+  stravaConnected,
 }: Props) {
   const [totalTime, setTotalTime] = useState(0);
   const [sportBreakdown, setSportBreakdown] = useState<{ name: string; value: number }[]>([]);
@@ -53,6 +56,8 @@ export default function CoachingDashboard({
 
   return (
     <div className="mt-10 rounded-2xl border bg-white p-6 shadow-sm">
+      <StravaConnectBanner stravaConnected={stravaConnected} />
+
       <h2 className="text-lg font-semibold text-gray-900">🏊‍♀️ Weekly Training Summary</h2>
       <p className="mt-4 text-sm text-gray-700">
         Total time trained: <strong>{totalTime}</strong> minutes

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import CoachingDashboard from '../components/CoachingDashboard';
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
+import StravaConnectBanner from '@/app/components/StravaConnectBanner';
 import { getWeeklySummary, WeeklySummary } from '@/utils/getWeeklySummary';
 import { getWeeklyVolume } from '@/utils/getWeeklyVolume';
 import { supabase } from '@/utils/supabaseClient';
@@ -15,6 +16,8 @@ export default function CoachingClient() {
   const [userId, setUserId] = useState<string | null>(null);
   const [weeklySummary, setWeeklySummary] = useState<WeeklySummary | null>(null);
   const [weeklyVolume, setWeeklyVolume] = useState<number[]>([]);
+  const [stravaConnected, setStravaConnected] = useState(false);
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -57,12 +60,13 @@ export default function CoachingClient() {
 
   return (
     <CoachingDashboard
-      userId={userId}
-      sessions={sessions}
-      completedSessions={completedSessions}
-      stravaActivities={stravaActivities}
-      weeklySummary={weeklySummary}
-      weeklyVolume={weeklyVolume}
-    />
+  userId={userId}
+  sessions={sessions}
+  completedSessions={completedSessions}
+  stravaActivities={stravaActivities}
+  weeklyVolume={weeklyVolume}
+  weeklySummary={weeklySummary}
+  stravaConnected={stravaConnected}
+/>
   );
 }
