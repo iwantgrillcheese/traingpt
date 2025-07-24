@@ -2,82 +2,78 @@
 
 import { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { format, startOfWeek } from 'date-fns';
+import { Session } from '@/types/session';
 import { StravaActivity } from '@/types/strava';
 import estimateDurationFromTitle from '@/utils/estimateDurationFromTitle';
 
-const COLORS = ['#60A5FA', '#34D399', '#FBBF24']; // Swim, Ride, Run
+const COLORS = ['#60A5FA', '#34D399', '#FBBF24']; // Swim, Bike, Run
+
 const categoryMap: Record<string, string> = {
   swim: 'Swim',
-  ride: 'Ride',
-  virtualride: 'Ride',
+  bike: 'Bike',
+  ride: 'Bike',
+  virtualride: 'Bike',
   run: 'Run',
+  strength: 'Strength',
 };
 
-type Summary = {
-  totalTime: number;
+type Props = {
+  userId: string;
+  sessions: Session[];
+  completedSessions: Session[];
+  stravaActivities: StravaActivity[];
   weeklyVolume: number[];
-  sportBreakdown: { name: string; value: number }[];
-  consistency: string;
+  weeklySummary: {
+    totalPlanned: number;
+    totalCompleted: number;
+    sportBreakdown: {
+      sport: string;
+      planned: number;
+      completed: number;
+    }[];
+    adherence: number;
+  };
 };
 
-export default function DashboardSummary({ userId }: { userId: string }) {
-  const [summary, setSummary] = useState<Summary>({
-    totalTime: 0,
-    weeklyVolume: [],
-    sportBreakdown: [],
-    consistency: '',
-  });
+export default function CoachingDashboard({
+  userId,
+  sessions,
+  completedSessions,
+  stravaActivities,
+  weeklyVolume,
+  weeklySummary,
+}: Props) {
+  const [totalTime, setTotalTime] = useState(0);
+  const [sportBreakdown, setSportBreakdown] = useState<{ name: string; value: number }[]>([]);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await fetch(`/api/weekly-summary?userId=${userId}`);
-        const data = await res.json();
+    const breakdownMap: Record<string, number> = {};
+    let timeSum = 0;
 
-        const totalTime = data.sessions.reduce((sum: number, session: any) => {
-          return sum + (session.duration ?? estimateDurationFromTitle(session.title));
-        }, 0);
+    sessions.forEach((s) => {
+      const category = categoryMap[s.sport?.toLowerCase?.() || ''] || 'Other';
+      const duration = s.duration ?? estimateDurationFromTitle(s.title);
+      breakdownMap[category] = (breakdownMap[category] || 0) + duration;
+      timeSum += duration;
+    });
 
-        const sportBreakdownMap: Record<string, number> = {};
-
-        data.sessions.forEach((session: any) => {
-          const category = categoryMap[session.sport?.toLowerCase?.()] || 'Other';
-          const duration = session.duration ?? estimateDurationFromTitle(session.title);
-          sportBreakdownMap[category] = (sportBreakdownMap[category] || 0) + duration;
-        });
-
-        const sportBreakdown = Object.entries(sportBreakdownMap).map(([name, value]) => ({
-          name,
-          value,
-        }));
-
-        setSummary({
-          totalTime,
-          weeklyVolume: data.weeklyVolume,
-          sportBreakdown,
-          consistency: data.consistency,
-        });
-      } catch (err) {
-        console.error('Failed to load dashboard summary:', err);
-      }
-    };
-
-    fetchData();
-  }, [userId]);
+    const breakdown = Object.entries(breakdownMap).map(([name, value]) => ({ name, value }));
+    setSportBreakdown(breakdown);
+    setTotalTime(timeSum);
+  }, [sessions]);
 
   return (
     <div className="mt-10 rounded-2xl border bg-white p-6 shadow-sm">
       <h2 className="text-lg font-semibold text-gray-900">🏊‍♀️ Weekly Training Summary</h2>
       <p className="mt-4 text-sm text-gray-700">
-        Total time trained: <strong>{summary.totalTime}</strong> minutes
+        Total time trained: <strong>{totalTime}</strong> minutes
       </p>
 
       <div className="mt-4 h-48">
         <ResponsiveContainer>
           <PieChart>
             <Pie
-              data={summary.sportBreakdown}
+              data={sportBreakdown}
               dataKey="value"
               nameKey="name"
               cx="50%"
@@ -85,7 +81,7 @@ export default function DashboardSummary({ userId }: { userId: string }) {
               outerRadius={60}
               label
             >
-              {summary.sportBreakdown.map((_, index) => (
+              {sportBreakdown.map((_, index) => (
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
               ))}
             </Pie>
@@ -93,7 +89,9 @@ export default function DashboardSummary({ userId }: { userId: string }) {
         </ResponsiveContainer>
       </div>
 
-      <p className="mt-4 text-sm text-gray-500 italic">{summary.consistency}</p>
+      <p className="mt-4 text-sm text-gray-500 italic">
+        Adherence: {weeklySummary.adherence}% — {weeklySummary.totalCompleted}/{weeklySummary.totalPlanned} sessions completed
+      </p>
     </div>
   );
 }
