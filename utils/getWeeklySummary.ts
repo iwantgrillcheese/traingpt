@@ -1,5 +1,6 @@
 import { Session } from '@/types/session';
 import { StravaActivity } from '@/types/strava';
+import { startOfWeek, endOfWeek, parseISO } from 'date-fns';
 
 export type WeeklySummary = {
   totalPlanned: number;
@@ -40,24 +41,23 @@ export function getWeeklySummary(
   completedSessions: Session[],
   stravaActivities: StravaActivity[] = []
 ): WeeklySummary {
-  const now = new Date();
-  const sevenDaysAgo = new Date(now);
-  sevenDaysAgo.setDate(now.getDate() - 7);
+  const start = startOfWeek(new Date(), { weekStartsOn: 1 }); // Monday
+  const end = endOfWeek(new Date(), { weekStartsOn: 1 }); // Sunday
 
-  const isInLast7Days = (dateStr: string) => {
-    const d = new Date(dateStr);
-    return d >= sevenDaysAgo && d <= now;
+  const isInThisWeek = (dateStr: string) => {
+    const d = parseISO(dateStr);
+    return d >= start && d <= end;
   };
 
-  const plannedLast7 = sessions.filter((s) => isInLast7Days(s.date));
-  const completedLast7 = [...completedSessions, ...stravaActivities].filter((s) =>
-    isInLast7Days('start_date' in s ? s.start_date : s.date)
+  const plannedThisWeek = sessions.filter((s) => isInThisWeek(s.date));
+  const completedThisWeek = [...completedSessions, ...stravaActivities].filter((s) =>
+    isInThisWeek('start_date' in s ? s.start_date : s.date)
   );
 
   const plannedDurationsBySport: Record<string, number> = {};
   const completedDurationsBySport: Record<string, number> = {};
 
-  plannedLast7.forEach((s) => {
+  plannedThisWeek.forEach((s) => {
     const sport = normalizeSport(s.sport ?? '');
     const duration = typeof s.duration === 'number' ? s.duration : 0;
     if (duration > 0) {
@@ -65,7 +65,7 @@ export function getWeeklySummary(
     }
   });
 
-  completedLast7.forEach((s) => {
+  completedThisWeek.forEach((s) => {
     const sport = normalizeSport('sport_type' in s ? s.sport_type : s.sport ?? '');
     const duration =
       'moving_time' in s ? s.moving_time / 60 : typeof s.duration === 'number' ? s.duration : 0;
@@ -91,11 +91,11 @@ export function getWeeklySummary(
     sportBreakdown,
     adherence,
     debug: {
-      plannedSessionsCount: plannedLast7.length,
-      completedSessionsCount: completedSessions.length,
+      plannedSessionsCount: plannedThisWeek.length,
+      completedSessionsCount: completedThisWeek.length,
       stravaCount: stravaActivities.length,
-      rawPlanned: plannedLast7,
-      rawCompleted: completedLast7,
+      rawPlanned: plannedThisWeek,
+      rawCompleted: completedThisWeek,
     },
   };
 }
