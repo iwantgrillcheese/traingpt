@@ -1,5 +1,6 @@
 import { Session } from '@/types/session';
 import { StravaActivity } from '@/types/strava';
+import { parseISO, isAfter, isBefore, startOfDay, subDays } from 'date-fns';
 
 export type WeeklySummary = {
   totalPlanned: number;
@@ -33,18 +34,17 @@ export function getWeeklySummary(
   completedSessions: Session[],
   stravaActivities: StravaActivity[] = []
 ): WeeklySummary {
-  const now = new Date();
-  const sevenDaysAgo = new Date(now);
-  sevenDaysAgo.setDate(now.getDate() - 7);
+  const today = startOfDay(new Date());
+  const weekAgo = subDays(today, 6); // includes today + past 6 days
 
-  const isInLast7Days = (dateStr: string) => {
-    const d = new Date(dateStr);
-    return d >= sevenDaysAgo && d <= now;
+  const isWithinWeek = (dateStr: string) => {
+    const d = parseISO(dateStr);
+    return (isAfter(d, weekAgo) || d.getTime() === weekAgo.getTime()) && d <= today;
   };
 
-  const plannedLast7 = sessions.filter((s) => isInLast7Days(s.date));
+  const plannedLast7 = sessions.filter((s) => isWithinWeek(s.date));
   const completedLast7 = [...completedSessions, ...stravaActivities].filter((s) =>
-    isInLast7Days('start_date' in s ? s.start_date : s.date)
+    isWithinWeek('start_date' in s ? s.start_date : s.date)
   );
 
   const plannedDurationsBySport: Record<string, number> = {};
