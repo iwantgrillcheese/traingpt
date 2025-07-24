@@ -27,6 +27,7 @@ type Props = {
       completed: number;
     }[];
     adherence: number;
+    debug?: any; // optional debug field to inspect
   };
   stravaConnected: boolean;
 };
@@ -40,6 +41,11 @@ export default function CoachingDashboard({
   weeklySummary,
   stravaConnected,
 }: Props) {
+  // 🔍 Debug logging
+  if (weeklySummary?.debug) {
+    console.log('🧠 Weekly Summary Debug:', weeklySummary.debug);
+  }
+
   const [totalTime, setTotalTime] = useState(0);
   const [sportBreakdown, setSportBreakdown] = useState<{ name: string; value: number }[]>([]);
 
@@ -84,7 +90,8 @@ export default function CoachingDashboard({
       </div>
 
       <p className="mt-4 text-sm text-gray-500 italic">
-        Adherence: {weeklySummary?.adherence ?? 0}% — {weeklySummary?.totalCompleted ?? 0}/{weeklySummary?.totalPlanned ?? 0} sessions completed
+        Adherence: {weeklySummary?.adherence ?? 0}% —{' '}
+        {weeklySummary?.totalCompleted ?? 0}/{weeklySummary?.totalPlanned ?? 0} sessions completed
       </p>
 
       <WeeklySummaryPanel weeklySummary={weeklySummary} />

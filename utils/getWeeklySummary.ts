@@ -1,6 +1,5 @@
 import { Session } from '@/types/session';
 import { StravaActivity } from '@/types/strava';
-import { startOfWeek, endOfWeek, parseISO } from 'date-fns';
 
 export type WeeklySummary = {
   totalPlanned: number;
@@ -11,6 +10,13 @@ export type WeeklySummary = {
     completed: number;
   }[];
   adherence: number;
+  debug?: {
+    plannedSessionsCount: number;
+    completedSessionsCount: number;
+    stravaCount: number;
+    rawPlanned: any[];
+    rawCompleted: any[];
+  };
 };
 
 const normalizeSport = (input: string | null | undefined): string => {
@@ -35,33 +41,37 @@ export function getWeeklySummary(
   stravaActivities: StravaActivity[] = []
 ): WeeklySummary {
   const now = new Date();
-  const weekStart = startOfWeek(now, { weekStartsOn: 1 }); // Monday
-  const weekEnd = endOfWeek(now, { weekStartsOn: 1 });     // Sunday
+  const sevenDaysAgo = new Date(now);
+  sevenDaysAgo.setDate(now.getDate() - 7);
 
-  const isInCurrentWeek = (dateStr: string) => {
-    const d = parseISO(dateStr);
-    return d >= weekStart && d <= weekEnd;
+  const isInLast7Days = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d >= sevenDaysAgo && d <= now;
   };
 
-  const plannedThisWeek = sessions.filter((s) => isInCurrentWeek(s.date));
-  const completedThisWeek = [...completedSessions, ...stravaActivities].filter((s) =>
-    isInCurrentWeek('start_date' in s ? s.start_date : s.date)
+  const plannedLast7 = sessions.filter((s) => isInLast7Days(s.date));
+  const completedLast7 = [...completedSessions, ...stravaActivities].filter((s) =>
+    isInLast7Days('start_date' in s ? s.start_date : s.date)
   );
 
   const plannedDurationsBySport: Record<string, number> = {};
   const completedDurationsBySport: Record<string, number> = {};
 
-  plannedThisWeek.forEach((s) => {
+  plannedLast7.forEach((s) => {
     const sport = normalizeSport(s.sport ?? '');
     const duration = typeof s.duration === 'number' ? s.duration : 0;
-    plannedDurationsBySport[sport] = (plannedDurationsBySport[sport] || 0) + duration;
+    if (duration > 0) {
+      plannedDurationsBySport[sport] = (plannedDurationsBySport[sport] || 0) + duration;
+    }
   });
 
-  completedThisWeek.forEach((s) => {
+  completedLast7.forEach((s) => {
     const sport = normalizeSport('sport_type' in s ? s.sport_type : s.sport ?? '');
     const duration =
       'moving_time' in s ? s.moving_time / 60 : typeof s.duration === 'number' ? s.duration : 0;
-    completedDurationsBySport[sport] = (completedDurationsBySport[sport] || 0) + duration;
+    if (duration > 0) {
+      completedDurationsBySport[sport] = (completedDurationsBySport[sport] || 0) + duration;
+    }
   });
 
   const allSports = ['Swim', 'Bike', 'Run'];
@@ -80,5 +90,12 @@ export function getWeeklySummary(
     totalCompleted,
     sportBreakdown,
     adherence,
+    debug: {
+      plannedSessionsCount: plannedLast7.length,
+      completedSessionsCount: completedSessions.length,
+      stravaCount: stravaActivities.length,
+      rawPlanned: plannedLast7,
+      rawCompleted: completedLast7,
+    },
   };
 }
