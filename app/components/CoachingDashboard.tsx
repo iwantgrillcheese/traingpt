@@ -5,6 +5,10 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { Session } from '@/types/session';
 import { StravaActivity } from '@/types/strava';
 
+import CompliancePanel from '@/app/coaching/CompliancePanel';
+import WeeklySummaryPanel from '@/app/coaching/WeeklySummaryPanel';
+import FitnessPanel from '@/app/coaching/FitnessPanel';
+
 const COLORS = ['#60A5FA', '#34D399', '#FBBF24']; // Swim, Bike, Run
 
 type Props = {
@@ -38,8 +42,8 @@ export default function CoachingDashboard({
 
   useEffect(() => {
     const breakdown = weeklySummary.sportBreakdown.map(({ sport, completed }) => ({
-      name: sport,
-      value: completed,
+      name: sport || 'Other',
+      value: completed ?? 0,
     }));
 
     const time = breakdown.reduce((sum, b) => sum + b.value, 0);
@@ -75,8 +79,16 @@ export default function CoachingDashboard({
       </div>
 
       <p className="mt-4 text-sm text-gray-500 italic">
-        Adherence: {weeklySummary.adherence}% — {weeklySummary.totalCompleted}/{weeklySummary.totalPlanned} sessions completed
+        Adherence: {weeklySummary?.adherence ?? 0}% — {weeklySummary?.totalCompleted ?? 0}/{weeklySummary?.totalPlanned ?? 0} sessions completed
       </p>
+
+      <WeeklySummaryPanel weeklySummary={weeklySummary} />
+      <CompliancePanel summary={weeklySummary} />
+      <FitnessPanel
+        sessions={sessions}
+        completedSessions={completedSessions}
+        stravaActivities={stravaActivities}
+      />
     </div>
   );
 }
