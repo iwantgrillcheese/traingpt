@@ -1,6 +1,11 @@
 import { Session } from '@/types/session';
 import { StravaActivity } from '@/types/strava';
-import { parseISO, isAfter, isBefore, startOfDay, subDays } from 'date-fns';
+import {
+  parseISO,
+  isWithinInterval,
+  startOfWeek,
+  endOfWeek,
+} from 'date-fns';
 
 export type WeeklySummary = {
   totalPlanned: number;
@@ -34,29 +39,29 @@ export function getWeeklySummary(
   completedSessions: Session[],
   stravaActivities: StravaActivity[] = []
 ): WeeklySummary {
-  const today = startOfDay(new Date());
-  const weekAgo = subDays(today, 6); // includes today + past 6 days
+  const start = startOfWeek(new Date(), { weekStartsOn: 1 });
+  const end = endOfWeek(new Date(), { weekStartsOn: 1 });
 
-  const isWithinWeek = (dateStr: string) => {
-    const d = parseISO(dateStr);
-    return (isAfter(d, weekAgo) || d.getTime() === weekAgo.getTime()) && d <= today;
+  const isInThisWeek = (dateStr: string) => {
+    const date = parseISO(dateStr);
+    return isWithinInterval(date, { start, end });
   };
 
-  const plannedLast7 = sessions.filter((s) => isWithinWeek(s.date));
-  const completedLast7 = [...completedSessions, ...stravaActivities].filter((s) =>
-    isWithinWeek('start_date' in s ? s.start_date : s.date)
+  const plannedThisWeek = sessions.filter((s) => isInThisWeek(s.date));
+  const completedThisWeek = [...completedSessions, ...stravaActivities].filter((s) =>
+    isInThisWeek('start_date' in s ? s.start_date : s.date)
   );
 
   const plannedDurationsBySport: Record<string, number> = {};
   const completedDurationsBySport: Record<string, number> = {};
 
-  plannedLast7.forEach((s) => {
+  plannedThisWeek.forEach((s) => {
     const sport = normalizeSport(s.sport ?? '');
     const duration = typeof s.duration === 'number' ? s.duration : 0;
     plannedDurationsBySport[sport] = (plannedDurationsBySport[sport] || 0) + duration;
   });
 
-  completedLast7.forEach((s) => {
+  completedThisWeek.forEach((s) => {
     const sport = normalizeSport('sport_type' in s ? s.sport_type : s.sport ?? '');
     const duration =
       'moving_time' in s ? s.moving_time / 60 : typeof s.duration === 'number' ? s.duration : 0;
