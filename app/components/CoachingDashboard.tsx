@@ -4,18 +4,8 @@ import { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { Session } from '@/types/session';
 import { StravaActivity } from '@/types/strava';
-import estimateDurationFromTitle from '@/utils/estimateDurationFromTitle';
 
 const COLORS = ['#60A5FA', '#34D399', '#FBBF24']; // Swim, Bike, Run
-
-const categoryMap: Record<string, string> = {
-  swim: 'Swim',
-  bike: 'Bike',
-  ride: 'Bike',
-  virtualride: 'Bike',
-  run: 'Run',
-  strength: 'Strength',
-};
 
 type Props = {
   userId: string;
@@ -47,20 +37,15 @@ export default function CoachingDashboard({
   const [sportBreakdown, setSportBreakdown] = useState<{ name: string; value: number }[]>([]);
 
   useEffect(() => {
-    const breakdownMap: Record<string, number> = {};
-    let timeSum = 0;
+    const breakdown = weeklySummary.sportBreakdown.map(({ sport, completed }) => ({
+      name: sport,
+      value: completed,
+    }));
 
-    sessions.forEach((s) => {
-      const category = categoryMap[s.sport?.toLowerCase?.() || ''] || 'Other';
-      const duration = s.duration ?? estimateDurationFromTitle(s.title);
-      breakdownMap[category] = (breakdownMap[category] || 0) + duration;
-      timeSum += duration;
-    });
-
-    const breakdown = Object.entries(breakdownMap).map(([name, value]) => ({ name, value }));
+    const time = breakdown.reduce((sum, b) => sum + b.value, 0);
     setSportBreakdown(breakdown);
-    setTotalTime(timeSum);
-  }, [sessions]);
+    setTotalTime(time);
+  }, [weeklySummary]);
 
   return (
     <div className="mt-10 rounded-2xl border bg-white p-6 shadow-sm">

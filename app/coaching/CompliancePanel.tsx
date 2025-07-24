@@ -1,6 +1,7 @@
 'use client';
 
 import type { WeeklySummary } from '@/utils/getWeeklySummary';
+import { getSummaryTextFromAdherence } from '@/utils/coaching-utils';
 
 type CompliancePanelProps = {
   summary: WeeklySummary;
@@ -8,15 +9,7 @@ type CompliancePanelProps = {
 
 export default function CompliancePanel({ summary }: CompliancePanelProps) {
   const { totalPlanned, totalCompleted, adherence } = summary;
-
-  const feedback =
-    totalPlanned === 0
-      ? 'No sessions were planned this week — rest or taper phase?'
-      : adherence >= 90
-      ? 'Excellent consistency 👏'
-      : adherence >= 70
-      ? 'Solid effort — room to tighten up 💪'
-      : "Let’s get back on track next week 🚀";
+  const feedback = getSummaryTextFromAdherence(adherence);
 
   return (
     <div className="mt-10 rounded-2xl border bg-white p-6 shadow-sm">

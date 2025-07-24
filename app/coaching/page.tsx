@@ -1,4 +1,3 @@
-// app/coaching/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -22,33 +21,23 @@ export default function CoachingPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-
       if (!user) return;
       setUserId(user.id);
 
-      // Fetch sessions
-      const { data: sessionData } = await supabase
-        .from('sessions')
-        .select('*')
-        .eq('user_id', user.id);
+      // Fetch session data from Supabase
+      const [{ data: sessionData }, { data: completedData }, { data: stravaData }] =
+        await Promise.all([
+          supabase.from('sessions').select('*').eq('user_id', user.id),
+          supabase.from('completed_sessions').select('*').eq('user_id', user.id),
+          supabase.from('strava_activities').select('*').eq('user_id', user.id),
+        ]);
+
       setSessions(sessionData || []);
-
-      // Fetch completed sessions
-      const { data: completedData } = await supabase
-        .from('completed_sessions')
-        .select('*')
-        .eq('user_id', user.id);
       setCompletedSessions(completedData || []);
-
-      // Fetch Strava activities
-      const { data: stravaData } = await supabase
-        .from('strava_activities')
-        .select('*')
-        .eq('user_id', user.id);
       setStravaActivities(stravaData || []);
 
-      // Weekly summary
-      const summaryRes = await fetch(`/api/weekly-summary?userId=${user.id}`);
+      // Fetch computed summary from API
+      const summaryRes = await fetch(`/api/weekly-summary`);
       const summary = await summaryRes.json();
 
       setWeeklyVolume(summary?.weeklyVolume || []);

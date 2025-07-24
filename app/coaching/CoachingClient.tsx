@@ -8,12 +8,13 @@ import { getWeeklySummary, WeeklySummary } from '@/utils/getWeeklySummary';
 import { getWeeklyVolume } from '@/utils/getWeeklyVolume';
 import { supabase } from '@/utils/supabaseClient';
 
-
 export default function CoachingClient() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [completedSessions, setCompletedSessions] = useState<Session[]>([]);
   const [stravaActivities, setStravaActivities] = useState<StravaActivity[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
+  const [weeklySummary, setWeeklySummary] = useState<WeeklySummary | null>(null);
+  const [weeklyVolume, setWeeklyVolume] = useState<number[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -25,28 +26,34 @@ export default function CoachingClient() {
         .from('sessions')
         .select('*')
         .eq('user_id', user.id);
-      if (sessionData) setSessions(sessionData);
+      const fetchedSessions = sessionData || [];
+      setSessions(fetchedSessions);
 
       const { data: completedData } = await supabase
         .from('completed_sessions')
         .select('*')
         .eq('user_id', user.id);
-      if (completedData) setCompletedSessions(completedData);
+      const fetchedCompleted = completedData || [];
+      setCompletedSessions(fetchedCompleted);
 
       const { data: stravaData } = await supabase
         .from('strava_activities')
         .select('*')
         .eq('user_id', user.id);
-      if (stravaData) setStravaActivities(stravaData);
+      const fetchedStrava = stravaData || [];
+      setStravaActivities(fetchedStrava);
+
+      // Compute summary and volume
+      const summary = getWeeklySummary(fetchedSessions, fetchedCompleted, fetchedStrava);
+      const volume = getWeeklyVolume(fetchedSessions, fetchedCompleted, fetchedStrava);
+      setWeeklySummary(summary);
+      setWeeklyVolume(volume);
     };
 
     fetchData();
   }, []);
 
-  if (!userId) return null;
-
-  const weeklySummary: WeeklySummary = getWeeklySummary(sessions, completedSessions, stravaActivities);
-  const weeklyVolume: number[] = getWeeklyVolume(sessions, completedSessions, stravaActivities);
+  if (!userId || !weeklySummary) return null;
 
   return (
     <CoachingDashboard

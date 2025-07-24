@@ -1,46 +1,28 @@
 'use client';
 
-import type { Session } from '@/types/session';
-import type { StravaActivity } from '@/types/strava';
-import { parseISO, subDays, isAfter, isSameDay } from 'date-fns';
+import type { WeeklySummary } from '@/utils/getWeeklySummary';
 
 type Props = {
-  sessions: Session[];
-  completedSessions: Session[];
-  stravaActivities?: StravaActivity[];
+  weeklySummary: WeeklySummary;
 };
 
-export default function WeeklySummaryPanel({
-  sessions,
-  completedSessions,
-  stravaActivities = [],
-}: Props) {
-  const today = new Date();
-  const weekAgo = subDays(today, 6);
+function getSummaryText(adherence: number): string {
+  if (adherence >= 100) {
+    return "Crushed it! 100% completion. You nailed every session this week. 🔥";
+  } else if (adherence >= 80) {
+    return "Strong consistency — you completed most of your plan. Keep the momentum!";
+  } else if (adherence >= 60) {
+    return "Decent week, but there’s room to improve. Let’s refocus next week. 💪";
+  } else if (adherence > 0) {
+    return "Low adherence this week. Life happens — let’s reset and refocus. 🚀";
+  } else {
+    return "No sessions planned — likely a rest or taper week.";
+  }
+}
 
-  const isWithinWeek = (dateStr: string) => {
-    const date = parseISO(dateStr);
-    return isAfter(date, weekAgo) || isSameDay(date, weekAgo);
-  };
-
-  const planned = sessions.filter((s) => isWithinWeek(s.date)).length;
-  const completed =
-    completedSessions.filter((s) => isWithinWeek(s.date)).length +
-    stravaActivities.filter((a) => isWithinWeek(a.start_date)).length;
-
-  const adherence =
-    planned > 0 ? Math.round((completed / planned) * 100) : 0;
-
-  const summary =
-    planned === 0
-      ? "No sessions planned — likely a rest or taper week."
-      : adherence >= 100
-      ? "Crushed it! 100% completion. You nailed every session this week. 🔥"
-      : adherence >= 80
-      ? "Strong consistency — you completed most of your plan. Keep the momentum!"
-      : adherence >= 60
-      ? "Decent week, but there’s room to improve. Let’s refocus next week. 💪"
-      : "Low adherence this week. Life happens — let’s reset and refocus. 🚀";
+export default function WeeklySummaryPanel({ weeklySummary }: Props) {
+  const { adherence } = weeklySummary;
+  const summary = getSummaryText(adherence);
 
   return (
     <div className="mt-10 rounded-2xl border bg-white p-6 shadow-sm">

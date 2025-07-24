@@ -46,13 +46,14 @@ export default function FitnessPanel({
       );
 
       const sessionMins = allSessions.reduce((sum, s) => {
-        const duration = typeof s.duration === 'number' ? s.duration : estimateDurationFromTitle(s.title);
+        const duration =
+          typeof s.duration === 'number' ? s.duration : estimateDurationFromTitle(s.title) ?? 0;
         return sum + duration;
       }, 0);
 
       const stravaMins = stravaActivities
         .filter((a) => isWithinInterval(parseISO(a.start_date), { start, end }))
-        .reduce((sum, a) => sum + a.moving_time / 60, 0);
+        .reduce((sum, a) => sum + (a.moving_time ?? 0) / 60, 0);
 
       const totalHours = (sessionMins + stravaMins) / 60;
       result.push(Math.round(totalHours * 10) / 10); // round to 1 decimal
@@ -99,4 +100,3 @@ export default function FitnessPanel({
     </div>
   );
 }
-

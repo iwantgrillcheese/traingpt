@@ -1,7 +1,5 @@
 import { Session } from '@/types/session';
 import { StravaActivity } from '@/types/strava';
-import estimateDurationFromTitle from '@/utils/estimateDurationFromTitle';
-import { parseISO, isAfter, isSameDay, subDays, startOfDay } from 'date-fns';
 
 export type WeeklySummary = {
   totalPlanned: number;
@@ -25,8 +23,6 @@ const normalizeSport = (input: string | null | undefined): string => {
       return 'Bike';
     case 'run':
       return 'Run';
-    case 'strength':
-      return 'Strength';
     default:
       return 'Other';
   }
@@ -37,55 +33,46 @@ export function getWeeklySummary(
   completedSessions: Session[],
   stravaActivities: StravaActivity[] = []
 ): WeeklySummary {
-  const today = startOfDay(new Date());
-  const weekAgo = subDays(today, 6); // last 7 days including today
+  const now = new Date();
+  const sevenDaysAgo = new Date(now);
+  sevenDaysAgo.setDate(now.getDate() - 7);
 
-  const summaryMap: Record<string, { planned: number; completed: number }> = {
-    Swim: { planned: 0, completed: 0 },
-    Bike: { planned: 0, completed: 0 },
-    Run: { planned: 0, completed: 0 },
-    Strength: { planned: 0, completed: 0 },
+  const isInLast7Days = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d >= sevenDaysAgo && d <= now;
   };
 
-  const isWithinWeek = (dateStr: string) => {
-    const date = parseISO(dateStr);
-    return isAfter(date, weekAgo) || isSameDay(date, weekAgo);
-  };
+  const plannedLast7 = sessions.filter((s) => isInLast7Days(s.date));
+  const completedLast7 = [...completedSessions, ...stravaActivities].filter((s) =>
+    isInLast7Days('start_date' in s ? s.start_date : s.date)
+  );
 
-  for (const s of sessions) {
-    if (isWithinWeek(s.date)) {
-      const sport = normalizeSport(s.sport);
-      if (!summaryMap[sport]) summaryMap[sport] = { planned: 0, completed: 0 };
-      summaryMap[sport].planned++;
-    }
-  }
+  const plannedDurationsBySport: Record<string, number> = {};
+  const completedDurationsBySport: Record<string, number> = {};
 
-  for (const c of completedSessions) {
-    if (isWithinWeek(c.date)) {
-      const sport = normalizeSport(c.sport);
-      if (!summaryMap[sport]) summaryMap[sport] = { planned: 0, completed: 0 };
-      summaryMap[sport].completed++;
-    }
-  }
+  plannedLast7.forEach((s) => {
+    const sport = normalizeSport(s.sport ?? '');
+    const duration = typeof s.duration === 'number' ? s.duration : 0;
+    plannedDurationsBySport[sport] = (plannedDurationsBySport[sport] || 0) + duration;
+  });
 
-  for (const a of stravaActivities) {
-    if (isWithinWeek(a.start_date)) {
-      const sport = normalizeSport(a.sport_type);
-      if (!summaryMap[sport]) summaryMap[sport] = { planned: 0, completed: 0 };
-      summaryMap[sport].completed++;
-    }
-  }
+  completedLast7.forEach((s) => {
+    const sport = normalizeSport('sport_type' in s ? s.sport_type : s.sport ?? '');
+    const duration =
+      'moving_time' in s ? s.moving_time / 60 : typeof s.duration === 'number' ? s.duration : 0;
+    completedDurationsBySport[sport] = (completedDurationsBySport[sport] || 0) + duration;
+  });
 
-  const sportBreakdown = Object.entries(summaryMap).map(([sport, data]) => ({
+  const allSports = ['Swim', 'Bike', 'Run'];
+  const sportBreakdown = allSports.map((sport) => ({
     sport,
-    planned: data.planned,
-    completed: data.completed,
+    planned: plannedDurationsBySport[sport] ?? 0,
+    completed: completedDurationsBySport[sport] ?? 0,
   }));
 
-  const totalPlanned = sportBreakdown.reduce((sum, s) => sum + s.planned, 0);
-  const totalCompleted = sportBreakdown.reduce((sum, s) => sum + s.completed, 0);
-  const adherence =
-    totalPlanned > 0 ? Math.round((totalCompleted / totalPlanned) * 100) : 0;
+  const totalPlanned = sportBreakdown.reduce((sum, x) => sum + x.planned, 0);
+  const totalCompleted = sportBreakdown.reduce((sum, x) => sum + x.completed, 0);
+  const adherence = totalPlanned > 0 ? Math.round((totalCompleted / totalPlanned) * 100) : 0;
 
   return {
     totalPlanned,
