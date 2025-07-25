@@ -18,7 +18,7 @@ export async function GET(req: Request) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('strava_access_token, strava_refresh_token, strava_expires_at')
+    .select('strava_access_token, strava_refresh_token, strava_expires_at, strava_athlete_id')
     .eq('id', user.id)
     .single();
 
@@ -29,7 +29,6 @@ export async function GET(req: Request) {
 
   let token = profile.strava_access_token;
 
-  // Refresh if expired
   if (profile.strava_expires_at * 1000 < Date.now()) {
     const refreshRes = await fetch('https://www.strava.com/oauth/token', {
       method: 'POST',
@@ -80,8 +79,13 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Invalid Strava response' }, { status: 500 });
   }
 
+  if (activities.length === 0) {
+    return NextResponse.json({ message: 'No new activities' });
+  }
+
   const upserts = activities.map((a) => ({
     user_id: user.id,
+    strava_id: a.id, // new!
     name: a.name,
     sport_type: (a.sport_type ?? '').trim().toLowerCase(),
     start_date: a.start_date,
@@ -92,14 +96,13 @@ export async function GET(req: Request) {
 
   const { error } = await supabase
     .from('strava_activities')
-    .upsert(upserts, { onConflict: 'user_id,start_date' });
+    .upsert(upserts, { onConflict: 'strava_id' }); // better conflict key
 
   if (error) {
     console.error('[SUPABASE_UPSERT_ERROR]', error);
     return NextResponse.json({ error: 'Failed to store activities' }, { status: 500 });
   }
 
-  // ✅ FINAL PATCH: return all recent activities from Supabase
   const { data: allActivities, error: fetchError } = await supabase
     .from('strava_activities')
     .select('*')
@@ -113,7 +116,7 @@ export async function GET(req: Request) {
   }
 
   return NextResponse.json({
-    message: 'Synced successfully',
+    message: 'Strava sync complete',
     count: allActivities.length,
     data: allActivities,
   });

@@ -6,20 +6,36 @@ type Props = {
   weeklySummary: WeeklySummary;
 };
 
-function getSummaryText(adherence: number, plannedSessionsCount: number): string {
-  if (plannedSessionsCount === 0) {
+function getSummaryText(planned: number, completed: number): string {
+  if (planned === 0) {
     return 'No sessions planned — likely a rest or taper week.';
   }
-  if (adherence >= 100) return 'Crushed it — 100% completion! 🔥';
-  if (adherence >= 80) return 'Strong consistency — great momentum.';
-  if (adherence >= 60) return 'Solid week, but there’s room to improve.';
-  if (adherence > 0) return 'Tough week — life happens. Let’s reset. 💪';
-  return 'No sessions completed — time to bounce back.';
+  if (completed === 0) {
+    return 'No sessions completed — time to bounce back.';
+  }
+  const ratio = completed / planned;
+  if (ratio >= 1) return 'Crushed it — 100% completion! 🔥';
+  if (ratio >= 0.8) return 'Strong consistency — great momentum.';
+  if (ratio >= 0.6) return 'Solid week, but there’s room to improve.';
+  return 'Tough week — life happens. Let’s reset. 💪';
 }
 
+import { parseISO, isBefore, isEqual } from 'date-fns';
+
 export default function WeeklySummaryPanel({ weeklySummary }: Props) {
-  const { adherence, debug } = weeklySummary;
-  const summary = getSummaryText(adherence, debug?.plannedSessionsCount || 0);
+  const today = new Date();
+
+  const rawPlanned = weeklySummary.debug?.rawPlanned ?? [];
+  const rawCompleted = weeklySummary.debug?.rawCompleted ?? [];
+
+  const plannedToDate = rawPlanned.filter((s) => {
+    const d = parseISO(s.date);
+    return isBefore(d, today) || isEqual(d, today);
+  }).length;
+
+  const completedToDate = rawCompleted.length;
+
+  const summary = getSummaryText(plannedToDate, completedToDate);
 
   return (
     <div className="mt-10 rounded-2xl border bg-white p-6 shadow-sm">
