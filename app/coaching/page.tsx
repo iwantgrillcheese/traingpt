@@ -4,10 +4,12 @@ import { useEffect, useState } from 'react';
 import CoachingDashboard from '../components/CoachingDashboard';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Session } from '@/types/session';
-import StravaConnectBanner from '@/app/components/StravaConnectBanner';
 import { StravaActivity } from '@/types/strava';
+import { useStravaAutoSync } from '../hooks/useStravaAutoSync';
 
 export default function CoachingPage() {
+  useStravaAutoSync(); // ✅ AUTO SYNC TRIGGER
+
   const [userId, setUserId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [completedSessions, setCompletedSessions] = useState<Session[]>([]);
@@ -15,7 +17,6 @@ export default function CoachingPage() {
   const [weeklyVolume, setWeeklyVolume] = useState<number[]>([]);
   const [weeklySummary, setWeeklySummary] = useState<any>(null);
   const [stravaConnected, setStravaConnected] = useState(false);
-
 
   const supabase = createClientComponentClient();
 
@@ -25,21 +26,22 @@ export default function CoachingPage() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return;
+
       setUserId(user.id);
 
-      // Fetch session data from Supabase
-      const [{ data: sessionData }, { data: completedData }, { data: stravaData }] =
+      const [{ data: sessionData }, { data: completedData }, { data: stravaData }, { data: profile }] =
         await Promise.all([
           supabase.from('sessions').select('*').eq('user_id', user.id),
           supabase.from('completed_sessions').select('*').eq('user_id', user.id),
           supabase.from('strava_activities').select('*').eq('user_id', user.id),
+          supabase.from('profiles').select('strava_access_token').eq('id', user.id).single(),
         ]);
 
       setSessions(sessionData || []);
       setCompletedSessions(completedData || []);
       setStravaActivities(stravaData || []);
+      setStravaConnected(!!profile?.strava_access_token);
 
-      // Fetch computed summary from API
       const summaryRes = await fetch(`/api/weekly-summary`);
       const summary = await summaryRes.json();
 
@@ -54,13 +56,13 @@ export default function CoachingPage() {
 
   return (
     <CoachingDashboard
-  userId={userId}
-  sessions={sessions}
-  completedSessions={completedSessions}
-  stravaActivities={stravaActivities}
-  weeklyVolume={weeklyVolume}
-  weeklySummary={weeklySummary}
-  stravaConnected={stravaConnected}
-/>
+      userId={userId}
+      sessions={sessions}
+      completedSessions={completedSessions}
+      stravaActivities={stravaActivities}
+      weeklyVolume={weeklyVolume}
+      weeklySummary={weeklySummary}
+      stravaConnected={stravaConnected}
+    />
   );
 }
