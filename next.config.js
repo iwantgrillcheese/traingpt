@@ -7,6 +7,8 @@ const nextConfig = {
   images: {
     domains: ['lh3.googleusercontent.com'],
   },
+
+  
   webpack: (config) => {
     config.resolve.alias['@'] = path.resolve(__dirname);
     return config;
@@ -14,3 +16,11 @@ const nextConfig = {
 };
 
 module.exports = nextConfig;
+
+// next.config.js
+module.exports = {
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+};
+

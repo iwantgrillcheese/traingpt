@@ -9,13 +9,13 @@ const getColor = (adherence: number) => {
 };
 
 type Props = {
-  summary: WeeklySummary;
+  weeklySummary: WeeklySummary;
 };
 
-export default function WeeklySummaryPanel({ summary }: Props) {
-  const total = summary.totalPlanned;
-  const done = summary.totalCompleted;
-  const percentage = summary.adherence;
+export default function WeeklySummaryPanel({ weeklySummary }: Props) {
+  const total = weeklySummary.totalPlanned;
+  const done = weeklySummary.totalCompleted;
+  const percentage = weeklySummary.adherence;
 
   return (
     <div className="mt-6 rounded-2xl border bg-white p-6 shadow-sm">
@@ -28,16 +28,21 @@ export default function WeeklySummaryPanel({ summary }: Props) {
 
       <div className="mt-2 text-sm text-gray-700">
         Your weekly adherence is{' '}
-        <span className={`font-semibold ${getColor(percentage)}`}>{percentage}%</span>
+        <span className={`font-semibold ${getColor(percentage)}`}>
+          {isNaN(percentage) ? '—' : `${percentage}%`}
+        </span>
       </div>
 
-      <ul className="mt-4 space-y-1 text-sm text-gray-600">
-        {summary.sportBreakdown.map((s) => (
-          <li key={s.sport}>
-            {s.sport}: {s.completed}/{s.planned}
-          </li>
-        ))}
-      </ul>
+      <div className="mt-4">
+        <p className="text-sm font-medium text-gray-800">By sport:</p>
+        <ul className="mt-1 space-y-1 text-sm text-gray-600">
+          {weeklySummary.sportBreakdown.map(({ sport, completed, planned }) => (
+            <li key={sport}>
+              {sport}: {completed}/{planned}
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }

@@ -35,23 +35,25 @@ export default function CompliancePanel({ weeklySummary }: Props) {
 
   return (
     <div className="mt-6 rounded-2xl border bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-semibold text-gray-900">📋 Training Compliance
-      </h2>
+      <h2 className="text-lg font-semibold text-gray-900">📋 Training Compliance</h2>
 
-      <p className="mt-4 text-sm text-gray-700 leading-relaxed">{message}</p>
+      <p className="mt-4 text-sm leading-relaxed text-gray-700">{message}</p>
 
-      <div className="mt-4 flex items-center justify-between">
-        <div className="text-xs text-gray-500">
-          Week-to-date:{' '}
+      <div className="mt-4 grid grid-cols-2 gap-4 text-xs text-gray-600">
+        <div>
+          <span className="block font-medium text-gray-800">Week-to-date</span>
           {plannedToDate > 0
             ? Math.round((completedToDate / plannedToDate) * 100)
             : 0}
           %
         </div>
-        <div className="text-xs text-gray-500">Plan-to-date: {adherence}%</div>
+        <div>
+          <span className="block font-medium text-gray-800">Plan-to-date</span>
+          {adherence}%
+        </div>
       </div>
 
-      <div className="mt-1 flex items-center justify-between text-xs text-gray-400">
+      <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
         <span>
           {completed}/{planned} sessions completed
         </span>
@@ -72,8 +74,8 @@ export default function CompliancePanel({ weeklySummary }: Props) {
         )}
       </div>
 
-      <div className="mt-1 text-[10px] text-gray-400">
-        Tracks all sessions assigned since your plan started
+      <div className="mt-2 text-[11px] text-gray-400">
+        Tracks all sessions assigned since your plan started.
       </div>
     </div>
   );

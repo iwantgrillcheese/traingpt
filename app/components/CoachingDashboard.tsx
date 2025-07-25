@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { Session } from '@/types/session';
 import { StravaActivity } from '@/types/strava';
-import { WeeklySummary } from '@/utils/getWeeklySummary'; // ✅ imported correctly
+import { WeeklySummary } from '@/utils/getWeeklySummary';
 
 import CompliancePanel from '@/app/coaching/CompliancePanel';
 import WeeklySummaryPanel from '@/app/coaching/WeeklySummaryPanel';
@@ -19,7 +19,7 @@ type Props = {
   completedSessions: Session[];
   stravaActivities: StravaActivity[];
   weeklyVolume: number[];
-  weeklySummary: WeeklySummary; // ✅ uses full typed shape
+  weeklySummary: WeeklySummary;
   stravaConnected: boolean;
 };
 
@@ -93,6 +93,7 @@ export default function CoachingDashboard({
         {weeklySummary.debug?.plannedSessionsCount ?? 0} sessions completed
       </p>
 
+      {/* ✅ Updated prop names to match */}
       <WeeklySummaryPanel weeklySummary={weeklySummary} />
       <CompliancePanel weeklySummary={weeklySummary} />
 
