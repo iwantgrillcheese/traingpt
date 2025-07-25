@@ -24,7 +24,7 @@ export default function StravaConnectBanner({ stravaConnected }: Props) {
           </p>
         </div>
         <a
-          href="/api/strava/connect"
+          href="/api/strava"
           className="ml-4 rounded bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600"
         >
           Connect

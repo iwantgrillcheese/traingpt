@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { Session } from '@/types/session';
 import { StravaActivity } from '@/types/strava';
 
@@ -27,7 +27,13 @@ type Props = {
       completed: number;
     }[];
     adherence: number;
-    debug?: any;
+    debug?: {
+      plannedSessionsCount: number;
+      completedSessionsCount: number;
+      stravaCount: number;
+      rawPlanned: any[];
+      rawCompleted: any[];
+    };
   };
   stravaConnected: boolean;
 };
@@ -41,10 +47,6 @@ export default function CoachingDashboard({
   weeklySummary,
   stravaConnected,
 }: Props) {
-  if (weeklySummary?.debug) {
-    console.log('🧠 Weekly Summary Debug:', weeklySummary.debug);
-  }
-
   const [totalTime, setTotalTime] = useState(0);
   const [sportBreakdown, setSportBreakdown] = useState<{ name: string; value: number }[]>([]);
 
@@ -56,7 +58,7 @@ export default function CoachingDashboard({
 
     const time = breakdown.reduce((sum, b) => sum + b.value, 0);
     setSportBreakdown(breakdown);
-    setTotalTime(time);
+    setTotalTime(Math.round(time * 10) / 10); // round to 1 decimal
   }, [weeklySummary]);
 
   return (
@@ -78,20 +80,24 @@ export default function CoachingDashboard({
               cx="50%"
               cy="50%"
               outerRadius={60}
-              label
+              label={({ name, value }) => `${name}: ${Math.round(value)} min`}
+              labelLine={false}
             >
               {sportBreakdown.map((_, index) => (
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
               ))}
             </Pie>
+            <Tooltip formatter={(value) => `${Math.round(value as number)} min`} />
           </PieChart>
         </ResponsiveContainer>
       </div>
 
-      <p className="mt-4 text-sm text-gray-500 italic">
-        Adherence: {weeklySummary.adherence ?? 0}% —{' '}
-        {weeklySummary.totalCompleted ?? 0}/{weeklySummary.totalPlanned ?? 0} sessions completed
-      </p>
+<p className="mt-4 text-sm text-gray-500 italic">
+  Adherence: {weeklySummary.adherence}% —{' '}
+  {weeklySummary.debug?.completedSessionsCount ?? 0}/
+  {weeklySummary.debug?.plannedSessionsCount ?? 0} sessions completed
+</p>
+
 
       <WeeklySummaryPanel weeklySummary={weeklySummary} />
       <CompliancePanel weeklySummary={weeklySummary} />
