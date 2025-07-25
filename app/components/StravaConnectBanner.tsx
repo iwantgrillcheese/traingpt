@@ -18,7 +18,7 @@ export default function StravaConnectBanner({ stravaConnected }: Props) {
     <div className="mt-6 mb-6 rounded-xl border border-orange-500 bg-orange-50 p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <div className="flex items-center">
-          <img src="/strava-icon.svg" alt="Strava" className="w-6 h-6 mr-3" />
+          <img src="/strava-2.svg" alt="Strava" className="w-6 h-6 mr-3" />
           <p className="text-sm text-orange-800">
             Connect with Strava to automatically track your completed workouts.
           </p>

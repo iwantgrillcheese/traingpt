@@ -6,27 +6,18 @@ type Props = {
   weeklySummary: WeeklySummary;
 };
 
-function getComplianceMessage(adherence: number, totalPlanned: number): string {
-  if (totalPlanned === 0) {
-    return 'No sessions were planned this week.';
-  }
-
-  if (adherence >= 100) {
-    return 'Perfect week — you nailed everything!';
-  } else if (adherence >= 80) {
-    return 'Nice work — high adherence.';
-  } else if (adherence >= 60) {
-    return 'Decent adherence — but some gaps to close.';
-  } else if (adherence > 0) {
-    return 'Low adherence — consider adjusting your plan.';
-  } else {
-    return 'You didn’t complete any sessions this week.';
-  }
+function getComplianceMessage(adherence: number, plannedSessionsCount: number): string {
+  if (plannedSessionsCount === 0) return 'No sessions were planned this week.';
+  if (adherence >= 100) return 'Perfect week — you nailed everything!';
+  if (adherence >= 80) return 'Nice work — high adherence.';
+  if (adherence >= 60) return 'Decent adherence — but some gaps to close.';
+  if (adherence > 0) return 'Low adherence — consider adjusting your plan.';
+  return 'You didn’t complete any sessions this week.';
 }
 
 export default function CompliancePanel({ weeklySummary }: Props) {
-  const { adherence, totalPlanned } = weeklySummary;
-  const message = getComplianceMessage(adherence, totalPlanned);
+  const { adherence, debug } = weeklySummary;
+  const message = getComplianceMessage(adherence, debug?.plannedSessionsCount || 0);
 
   return (
     <div className="mt-6 rounded-2xl border bg-white p-6 shadow-sm">
