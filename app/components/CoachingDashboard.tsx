@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { Session } from '@/types/session';
 import { StravaActivity } from '@/types/strava';
+import { WeeklySummary } from '@/utils/getWeeklySummary'; // ✅ imported correctly
 
 import CompliancePanel from '@/app/coaching/CompliancePanel';
 import WeeklySummaryPanel from '@/app/coaching/WeeklySummaryPanel';
@@ -18,23 +19,7 @@ type Props = {
   completedSessions: Session[];
   stravaActivities: StravaActivity[];
   weeklyVolume: number[];
-  weeklySummary: {
-    totalPlanned: number;
-    totalCompleted: number;
-    sportBreakdown: {
-      sport: string;
-      planned: number;
-      completed: number;
-    }[];
-    adherence: number;
-    debug?: {
-      plannedSessionsCount: number;
-      completedSessionsCount: number;
-      stravaCount: number;
-      rawPlanned: any[];
-      rawCompleted: any[];
-    };
-  };
+  weeklySummary: WeeklySummary; // ✅ uses full typed shape
   stravaConnected: boolean;
 };
 
@@ -96,7 +81,7 @@ export default function CoachingDashboard({
             </Pie>
             <Tooltip
               formatter={(value) => formatMinutes(Number(value))}
-              labelFormatter={(label) => `Sport`}
+              labelFormatter={() => `Sport`}
             />
           </PieChart>
         </ResponsiveContainer>
