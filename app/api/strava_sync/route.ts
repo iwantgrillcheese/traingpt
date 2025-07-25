@@ -61,7 +61,7 @@ export async function GET(req: Request) {
       .eq('id', user.id);
   }
 
-  // Expanded range: full 30 days, start at midnight to prevent cutoff
+  // Expanded range: full 30 days, start at midnight
   const after = Math.floor(subDays(new Date(), 30).setHours(0, 0, 0, 0) / 1000);
   const before = Math.floor(new Date().getTime() / 1000);
 
@@ -128,4 +128,9 @@ export async function GET(req: Request) {
     count: allActivities.length,
     data: allActivities,
   });
+}
+
+// 👇 Enable POST sync trigger for client-side hook
+export async function POST(req: Request) {
+  return GET(req);
 }
