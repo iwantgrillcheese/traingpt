@@ -38,6 +38,13 @@ type Props = {
   stravaConnected: boolean;
 };
 
+const formatMinutes = (minutes: number): string => {
+  if (minutes <= 0) return '0 min';
+  const hrs = Math.floor(minutes / 60);
+  const mins = Math.round(minutes % 60);
+  return hrs > 0 ? `${hrs}h ${mins}min` : `${mins}min`;
+};
+
 export default function CoachingDashboard({
   userId,
   sessions,
@@ -67,7 +74,7 @@ export default function CoachingDashboard({
 
       <h2 className="text-lg font-semibold text-gray-900">🏊‍♀️ Weekly Training Summary</h2>
       <p className="mt-4 text-sm text-gray-700">
-        Total time trained: <strong>{totalTime.toFixed(1)}</strong> minutes
+        Total time trained: <strong>{formatMinutes(totalTime)}</strong>
       </p>
 
       <div className="mt-4 h-48">
@@ -80,24 +87,26 @@ export default function CoachingDashboard({
               cx="50%"
               cy="50%"
               outerRadius={60}
-              label={({ name, value }) => `${name}: ${Math.round(value)} min`}
+              label={({ name, value }) => `${name}: ${formatMinutes(Number(value))}`}
               labelLine={false}
             >
               {sportBreakdown.map((_, index) => (
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
               ))}
             </Pie>
-            <Tooltip formatter={(value) => `${Math.round(value as number)} min`} />
+            <Tooltip
+              formatter={(value) => formatMinutes(Number(value))}
+              labelFormatter={(label) => `Sport`}
+            />
           </PieChart>
         </ResponsiveContainer>
       </div>
 
-<p className="mt-4 text-sm text-gray-500 italic">
-  Adherence: {weeklySummary.adherence}% —{' '}
-  {weeklySummary.debug?.completedSessionsCount ?? 0}/
-  {weeklySummary.debug?.plannedSessionsCount ?? 0} sessions completed
-</p>
-
+      <p className="mt-4 text-sm text-gray-500 italic">
+        Adherence: {weeklySummary.adherence}% —{' '}
+        {weeklySummary.debug?.completedSessionsCount ?? 0}/
+        {weeklySummary.debug?.plannedSessionsCount ?? 0} sessions completed
+      </p>
 
       <WeeklySummaryPanel weeklySummary={weeklySummary} />
       <CompliancePanel weeklySummary={weeklySummary} />
