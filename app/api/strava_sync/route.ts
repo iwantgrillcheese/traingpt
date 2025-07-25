@@ -29,6 +29,7 @@ export async function GET(req: Request) {
 
   let token = profile.strava_access_token;
 
+  // Refresh token if expired
   if (profile.strava_expires_at * 1000 < Date.now()) {
     const refreshRes = await fetch('https://www.strava.com/oauth/token', {
       method: 'POST',
@@ -60,11 +61,16 @@ export async function GET(req: Request) {
       .eq('id', user.id);
   }
 
-  const afterDate = Math.floor(subDays(new Date(), 28).getTime() / 1000);
+  // Expanded range: full 30 days, start at midnight to prevent cutoff
+  const after = Math.floor(subDays(new Date(), 30).setHours(0, 0, 0, 0) / 1000);
+  const before = Math.floor(new Date().getTime() / 1000);
 
-  const res = await fetch(`https://www.strava.com/api/v3/athlete/activities?after=${afterDate}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const res = await fetch(
+    `https://www.strava.com/api/v3/athlete/activities?after=${after}&before=${before}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
 
   let activities;
   try {
@@ -83,9 +89,11 @@ export async function GET(req: Request) {
     return NextResponse.json({ message: 'No new activities' });
   }
 
+  console.log(`[STRAVA_SYNC] Fetched ${activities.length} activities for user ${user.id}`);
+
   const upserts = activities.map((a) => ({
     user_id: user.id,
-    strava_id: a.id, // new!
+    strava_id: a.id,
     name: a.name,
     sport_type: (a.sport_type ?? '').trim().toLowerCase(),
     start_date: a.start_date,
@@ -96,7 +104,7 @@ export async function GET(req: Request) {
 
   const { error } = await supabase
     .from('strava_activities')
-    .upsert(upserts, { onConflict: 'strava_id' }); // better conflict key
+    .upsert(upserts, { onConflict: 'strava_id' });
 
   if (error) {
     console.error('[SUPABASE_UPSERT_ERROR]', error);
@@ -107,7 +115,7 @@ export async function GET(req: Request) {
     .from('strava_activities')
     .select('*')
     .eq('user_id', user.id)
-    .gte('start_date_local', subDays(new Date(), 28).toISOString())
+    .gte('start_date_local', subDays(new Date(), 30).toISOString())
     .order('start_date_local', { ascending: true });
 
   if (fetchError) {
