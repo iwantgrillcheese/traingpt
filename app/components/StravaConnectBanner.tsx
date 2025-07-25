@@ -8,7 +8,7 @@ export default function StravaConnectBanner({ stravaConnected }: Props) {
   if (stravaConnected) {
     return (
       <div className="mt-6 mb-6 inline-flex items-center space-x-3 rounded-lg border border-gray-200 bg-white px-4 py-2 shadow-sm">
-        <img src="public/strava-2.svg" alt="Strava" className="w-5 h-5" />
+        <img src="/strava-2.svg" alt="Strava" className="w-5 h-5" />
         <span className="text-sm text-gray-700">Strava Connected</span>
       </div>
     );

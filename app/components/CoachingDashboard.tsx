@@ -27,7 +27,7 @@ type Props = {
       completed: number;
     }[];
     adherence: number;
-    debug?: any; // optional debug field to inspect
+    debug?: any;
   };
   stravaConnected: boolean;
 };
@@ -41,7 +41,6 @@ export default function CoachingDashboard({
   weeklySummary,
   stravaConnected,
 }: Props) {
-  // 🔍 Debug logging
   if (weeklySummary?.debug) {
     console.log('🧠 Weekly Summary Debug:', weeklySummary.debug);
   }
@@ -66,7 +65,7 @@ export default function CoachingDashboard({
 
       <h2 className="text-lg font-semibold text-gray-900">🏊‍♀️ Weekly Training Summary</h2>
       <p className="mt-4 text-sm text-gray-700">
-        Total time trained: <strong>{totalTime}</strong> minutes
+        Total time trained: <strong>{totalTime.toFixed(1)}</strong> minutes
       </p>
 
       <div className="mt-4 h-48">
@@ -90,12 +89,13 @@ export default function CoachingDashboard({
       </div>
 
       <p className="mt-4 text-sm text-gray-500 italic">
-        Adherence: {weeklySummary?.adherence ?? 0}% —{' '}
-        {weeklySummary?.totalCompleted ?? 0}/{weeklySummary?.totalPlanned ?? 0} sessions completed
+        Adherence: {weeklySummary.adherence ?? 0}% —{' '}
+        {weeklySummary.totalCompleted ?? 0}/{weeklySummary.totalPlanned ?? 0} sessions completed
       </p>
 
       <WeeklySummaryPanel weeklySummary={weeklySummary} />
-      <CompliancePanel summary={weeklySummary} />
+      <CompliancePanel weeklySummary={weeklySummary} />
+
       <FitnessPanel
         sessions={sessions}
         completedSessions={completedSessions}

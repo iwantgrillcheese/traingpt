@@ -6,7 +6,11 @@ type Props = {
   weeklySummary: WeeklySummary;
 };
 
-function getSummaryText(adherence: number): string {
+function getSummaryText(adherence: number, totalPlanned: number): string {
+  if (totalPlanned === 0) {
+    return 'No sessions planned — likely a rest or taper week.';
+  }
+
   if (adherence >= 100) {
     return 'Crushed it — 100% completion! 🔥';
   } else if (adherence >= 80) {
@@ -16,13 +20,13 @@ function getSummaryText(adherence: number): string {
   } else if (adherence > 0) {
     return 'Tough week — life happens. Let’s reset. 💪';
   } else {
-    return 'No sessions planned — likely a rest or taper week.';
+    return 'No sessions completed — time to bounce back.';
   }
 }
 
 export default function WeeklySummaryPanel({ weeklySummary }: Props) {
-  const { adherence } = weeklySummary;
-  const summary = getSummaryText(adherence);
+  const { adherence, totalPlanned } = weeklySummary;
+  const summary = getSummaryText(adherence, totalPlanned);
 
   return (
     <div className="mt-10 rounded-2xl border bg-white p-6 shadow-sm">
