@@ -6,7 +6,7 @@ import { subDays } from 'date-fns';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-export async function GET(req: Request) {
+export async function POST(req: Request) {
   const supabase = createRouteHandlerClient({ cookies });
   const {
     data: { user },
@@ -18,18 +18,17 @@ export async function GET(req: Request) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('strava_access_token, strava_refresh_token, strava_expires_at, strava_athlete_id')
+    .select('strava_access_token, strava_refresh_token, strava_expires_at')
     .eq('id', user.id)
     .single();
 
   if (!profile?.strava_access_token || !profile.strava_refresh_token) {
-    console.error('[NO TOKEN FOUND]', profile);
-    return NextResponse.json({ error: 'No Strava token info' }, { status: 400 });
+    console.error('[NO STRAVA TOKENS]', profile);
+    return NextResponse.json({ error: 'Missing Strava token' }, { status: 400 });
   }
 
   let token = profile.strava_access_token;
 
-  // Refresh token if expired
   if (profile.strava_expires_at * 1000 < Date.now()) {
     const refreshRes = await fetch('https://www.strava.com/oauth/token', {
       method: 'POST',
@@ -45,8 +44,8 @@ export async function GET(req: Request) {
     const refreshData = await refreshRes.json();
 
     if (!refreshRes.ok) {
-      console.error('[STRAVA_REFRESH_ERROR]', refreshData);
-      return NextResponse.json({ error: 'Failed to refresh Strava token' }, { status: 401 });
+      console.error('[STRAVA TOKEN REFRESH FAILED]', refreshData);
+      return NextResponse.json({ error: 'Token refresh failed' }, { status: 401 });
     }
 
     token = refreshData.access_token;
@@ -61,7 +60,6 @@ export async function GET(req: Request) {
       .eq('id', user.id);
   }
 
-  // Expanded range: full 30 days, start at midnight
   const after = Math.floor(subDays(new Date(), 30).setHours(0, 0, 0, 0) / 1000);
   const before = Math.floor(new Date().getTime() / 1000);
 
@@ -76,20 +74,14 @@ export async function GET(req: Request) {
   try {
     activities = await res.json();
   } catch (err) {
-    console.error('[STRAVA_JSON_ERROR]', err);
+    console.error('[STRAVA RESPONSE ERROR]', err);
     return NextResponse.json({ error: 'Failed to parse Strava response' }, { status: 500 });
   }
 
   if (!Array.isArray(activities)) {
-    console.error('[STRAVA_ACTIVITY_FORMAT_ERROR]', activities);
+    console.error('[STRAVA RESPONSE FORMAT ERROR]', activities);
     return NextResponse.json({ error: 'Invalid Strava response' }, { status: 500 });
   }
-
-  if (activities.length === 0) {
-    return NextResponse.json({ message: 'No new activities' });
-  }
-
-  console.log(`[STRAVA_SYNC] Fetched ${activities.length} activities for user ${user.id}`);
 
   const upserts = activities.map((a) => ({
     user_id: user.id,
@@ -108,29 +100,8 @@ export async function GET(req: Request) {
 
   if (error) {
     console.error('[SUPABASE_UPSERT_ERROR]', error);
-    return NextResponse.json({ error: 'Failed to store activities' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to store Strava activities' }, { status: 500 });
   }
 
-  const { data: allActivities, error: fetchError } = await supabase
-    .from('strava_activities')
-    .select('*')
-    .eq('user_id', user.id)
-    .gte('start_date_local', subDays(new Date(), 30).toISOString())
-    .order('start_date_local', { ascending: true });
-
-  if (fetchError) {
-    console.error('[SUPABASE_FETCH_ERROR]', fetchError);
-    return NextResponse.json({ error: 'Failed to fetch synced data' }, { status: 500 });
-  }
-
-  return NextResponse.json({
-    message: 'Strava sync complete',
-    count: allActivities.length,
-    data: allActivities,
-  });
-}
-
-// 👇 Enable POST sync trigger for client-side hook
-export async function POST(req: Request) {
-  return GET(req);
+  return NextResponse.json({ message: 'Strava sync complete', count: upserts.length });
 }
