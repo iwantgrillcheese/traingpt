@@ -1,22 +1,26 @@
+// utils/getWeeklySummary.ts
+
 import { Session } from '@/types/session';
 import { StravaActivity } from '@/types/strava';
+import estimateDurationFromTitle from '@/utils/estimateDurationFromTitle';
 import {
   startOfWeek,
+  endOfWeek,
+  isWithinInterval,
   parseISO,
   isBefore,
   isEqual,
-  isAfter,
 } from 'date-fns';
 
 export type WeeklySummary = {
   totalPlanned: number;
   totalCompleted: number;
+  adherence: number;
   sportBreakdown: {
     sport: string;
     planned: number;
     completed: number;
   }[];
-  adherence: number;
   planToDate: {
     planned: number;
     completed: number;
@@ -27,8 +31,8 @@ export type WeeklySummary = {
     plannedSessionsCount: number;
     completedSessionsCount: number;
     stravaCount: number;
-    rawPlanned: any[];
-    rawCompleted: any[];
+    rawPlanned: Session[];
+    rawCompleted: Session[];
   };
 };
 
@@ -53,96 +57,72 @@ const normalizeSport = (input: string | null | undefined): string => {
 export function getWeeklySummary(
   sessions: Session[],
   completedSessions: Session[],
-  stravaActivities: StravaActivity[] = [],
-  previousWeekAdherence?: number,
-  planStartDate?: string
+  stravaActivities: StravaActivity[] = []
 ): WeeklySummary {
-  const today = new Date();
-  const weekStart = startOfWeek(today, { weekStartsOn: 1 });
+  const now = new Date();
+  const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
 
-  const isInWeekToDate = (dateStr: string) => {
-    const d = parseISO(dateStr);
-    return d >= weekStart && (isBefore(d, today) || isEqual(d, today));
-  };
+  const isThisWeek = (d: string) =>
+    isWithinInterval(parseISO(d), { start: weekStart, end: weekEnd });
 
-  const plannedThisWeek = sessions.filter((s) => isInWeekToDate(s.date));
-  const completedThisWeek = [...completedSessions, ...stravaActivities].filter((s) =>
-    isInWeekToDate('start_date' in s ? s.start_date : s.date)
-  );
+  const weeklyPlanned = sessions.filter((s) => isThisWeek(s.date));
+  const weeklyCompleted = completedSessions.filter((s) => isThisWeek(s.date));
+  const stravaThisWeek = stravaActivities.filter((a) => isThisWeek(a.start_date));
 
-  const plannedDurationsBySport: Record<string, number> = {};
-  const completedDurationsBySport: Record<string, number> = {};
+  const sportMap = new Map<string, { planned: number; completed: number }>();
 
-  plannedThisWeek.forEach((s) => {
-    const sport = normalizeSport(s.sport ?? '');
-    const duration = typeof s.duration === 'number' ? s.duration : 0;
-    if (duration > 0) {
-      plannedDurationsBySport[sport] = (plannedDurationsBySport[sport] || 0) + duration;
-    }
+  weeklyPlanned.forEach((s) => {
+    const key = normalizeSport(s.sport);
+    if (!sportMap.has(key)) sportMap.set(key, { planned: 0, completed: 0 });
+    sportMap.get(key)!.planned += 1;
+  });
+  weeklyCompleted.forEach((s) => {
+    const key = normalizeSport(s.sport);
+    if (!sportMap.has(key)) sportMap.set(key, { planned: 0, completed: 0 });
+    sportMap.get(key)!.completed += 1;
   });
 
-  completedThisWeek.forEach((s) => {
-    const sport = normalizeSport('sport_type' in s ? s.sport_type : s.sport ?? '');
-    const duration =
-      'moving_time' in s ? s.moving_time / 60 : typeof s.duration === 'number' ? s.duration : 0;
-    if (duration > 0) {
-      completedDurationsBySport[sport] = (completedDurationsBySport[sport] || 0) + duration;
-    }
-  });
-
-  const allSports = ['Swim', 'Bike', 'Run'];
-  const sportBreakdown = allSports.map((sport) => ({
+  const breakdown = Array.from(sportMap.entries()).map(([sport, { planned, completed }]) => ({
     sport,
-    planned: plannedDurationsBySport[sport] ?? 0,
-    completed: completedDurationsBySport[sport] ?? 0,
+    planned,
+    completed,
   }));
 
-  const totalPlanned = sportBreakdown.reduce((sum, x) => sum + x.planned, 0);
-  const totalCompleted = sportBreakdown.reduce((sum, x) => sum + x.completed, 0);
-  const adherence = totalPlanned > 0 ? Math.round((totalCompleted / totalPlanned) * 100) : 0;
+  // Week-to-date adherence
+  const today = new Date();
+  const weekToDatePlanned = weeklyPlanned.filter((s) => {
+    const d = parseISO(s.date);
+    return isBefore(d, today) || isEqual(d, today);
+  });
+  const adherence =
+    weekToDatePlanned.length > 0
+      ? Math.round((weeklyCompleted.length / weekToDatePlanned.length) * 100)
+      : 0;
 
-  // ----- PLAN-TO-DATE COMPLIANCE -----
-  const planStart = planStartDate ? parseISO(planStartDate) : null;
-
-  const isInPlanToDate = (dateStr: string) => {
-    const d = parseISO(dateStr);
-    return planStart && (isAfter(d, planStart) || isEqual(d, planStart)) && (isBefore(d, today) || isEqual(d, today));
-  };
-
-  const plannedToDate = planStart
-    ? sessions.filter((s) => isInPlanToDate(s.date))
-    : [];
-  const completedToDate = planStart
-    ? [...completedSessions, ...stravaActivities].filter((s) =>
-        isInPlanToDate('start_date' in s ? s.start_date : s.date)
-      )
-    : [];
-
-  const planPlannedCount = plannedToDate.length;
-  const planCompletedCount = completedToDate.length;
+  // Plan-to-date compliance
+  const allPlanned = sessions.filter((s) => isBefore(parseISO(s.date), now) || isEqual(parseISO(s.date), now));
+  const allCompleted = completedSessions;
   const planAdherence =
-    planPlannedCount > 0 ? Math.round((planCompletedCount / planPlannedCount) * 100) : 0;
-
-  // ----- TREND -----
-  const trend = previousWeekAdherence !== undefined ? adherence - previousWeekAdherence : undefined;
+    allPlanned.length > 0 ? Math.round((allCompleted.length / allPlanned.length) * 100) : 0;
 
   return {
-    totalPlanned,
-    totalCompleted,
-    sportBreakdown,
+    totalPlanned: weeklyPlanned.length,
+    totalCompleted: weeklyCompleted.length,
     adherence,
-    trend,
+    sportBreakdown: breakdown,
     planToDate: {
-      planned: planPlannedCount,
-      completed: planCompletedCount,
+      planned: allPlanned.length,
+      completed: allCompleted.length,
       adherence: planAdherence,
     },
+    trend: undefined, // can be filled by external logic
     debug: {
-      plannedSessionsCount: plannedThisWeek.length,
-      completedSessionsCount: completedThisWeek.length,
-      stravaCount: stravaActivities.length,
-      rawPlanned: plannedThisWeek,
-      rawCompleted: completedThisWeek,
+      plannedSessionsCount: weeklyPlanned.length,
+      completedSessionsCount: weeklyCompleted.length,
+      stravaCount: stravaThisWeek.length,
+      rawPlanned: weeklyPlanned,
+      rawCompleted: weeklyCompleted,
     },
   };
 }
