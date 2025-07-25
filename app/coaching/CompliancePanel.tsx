@@ -35,21 +35,26 @@ export default function CompliancePanel({ weeklySummary }: Props) {
 
   return (
     <div className="mt-6 rounded-2xl border bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-semibold text-gray-900">📋 Training Compliance</h2>
+      <h2 className="text-lg font-semibold text-gray-900">📋 Training Compliance
+      </h2>
 
       <p className="mt-4 text-sm text-gray-700 leading-relaxed">{message}</p>
 
       <div className="mt-4 flex items-center justify-between">
         <div className="text-xs text-gray-500">
-          Week-to-date: {plannedToDate > 0 ? Math.round((completedToDate / plannedToDate) * 100) : 0}%
+          Week-to-date:{' '}
+          {plannedToDate > 0
+            ? Math.round((completedToDate / plannedToDate) * 100)
+            : 0}
+          %
         </div>
-        <div className="text-xs text-gray-500">
-          Plan-to-date: {adherence}%
-        </div>
+        <div className="text-xs text-gray-500">Plan-to-date: {adherence}%</div>
       </div>
 
       <div className="mt-1 flex items-center justify-between text-xs text-gray-400">
-        <span>{completed}/{planned} sessions completed</span>
+        <span>
+          {completed}/{planned} sessions completed
+        </span>
         {trend !== undefined && (
           <span
             className={clsx(
