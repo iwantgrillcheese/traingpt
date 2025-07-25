@@ -1,6 +1,6 @@
 import { Session } from '@/types/session';
 import { StravaActivity } from '@/types/strava';
-import { startOfWeek, endOfWeek, parseISO } from 'date-fns';
+import { startOfWeek, parseISO, isBefore, isEqual } from 'date-fns';
 
 export type WeeklySummary = {
   totalPlanned: number;
@@ -42,16 +42,16 @@ export function getWeeklySummary(
   stravaActivities: StravaActivity[] = []
 ): WeeklySummary {
   const start = startOfWeek(new Date(), { weekStartsOn: 1 }); // Monday
-  const end = endOfWeek(new Date(), { weekStartsOn: 1 }); // Sunday
+  const today = new Date();
 
-  const isInThisWeek = (dateStr: string) => {
+  const isInWeekToDate = (dateStr: string) => {
     const d = parseISO(dateStr);
-    return d >= start && d <= end;
+    return d >= start && (isBefore(d, today) || isEqual(d, today));
   };
 
-  const plannedThisWeek = sessions.filter((s) => isInThisWeek(s.date));
+  const plannedThisWeek = sessions.filter((s) => isInWeekToDate(s.date));
   const completedThisWeek = [...completedSessions, ...stravaActivities].filter((s) =>
-    isInThisWeek('start_date' in s ? s.start_date : s.date)
+    isInWeekToDate('start_date' in s ? s.start_date : s.date)
   );
 
   const plannedDurationsBySport: Record<string, number> = {};

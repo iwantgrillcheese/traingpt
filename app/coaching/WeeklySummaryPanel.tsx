@@ -1,6 +1,7 @@
 'use client';
 
 import type { WeeklySummary } from '@/utils/getWeeklySummary';
+import { parseISO, isBefore, isEqual } from 'date-fns';
 
 type Props = {
   weeklySummary: WeeklySummary;
@@ -19,8 +20,6 @@ function getSummaryText(planned: number, completed: number): string {
   if (ratio >= 0.6) return 'Solid week, but there’s room to improve.';
   return 'Tough week — life happens. Let’s reset. 💪';
 }
-
-import { parseISO, isBefore, isEqual } from 'date-fns';
 
 export default function WeeklySummaryPanel({ weeklySummary }: Props) {
   const today = new Date();
@@ -41,6 +40,9 @@ export default function WeeklySummaryPanel({ weeklySummary }: Props) {
     <div className="mt-10 rounded-2xl border bg-white p-6 shadow-sm">
       <h2 className="text-lg font-semibold text-gray-900">🧠 Weekly Summary</h2>
       <p className="mt-4 text-sm text-gray-700 leading-relaxed">{summary}</p>
+      <p className="mt-2 text-sm text-gray-500">
+        {completedToDate} of {plannedToDate} sessions completed so far this week
+      </p>
     </div>
   );
 }
