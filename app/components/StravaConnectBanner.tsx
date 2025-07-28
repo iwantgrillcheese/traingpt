@@ -8,12 +8,15 @@ type Props = {
 
 export default function StravaConnectBanner({ stravaConnected }: Props) {
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   const connectUrl =
     'https://www.strava.com/oauth/authorize?client_id=145662&response_type=code&redirect_uri=https://www.traingpt.co/api/strava/callback&scope=activity:read_all,profile:read_all&approval_prompt=auto';
 
   const handleSync = async () => {
     setLoading(true);
+    setSuccess(false);
+
     try {
       const res = await fetch('/api/strava_sync', { method: 'POST' });
       const data = await res.json();
@@ -23,6 +26,8 @@ export default function StravaConnectBanner({ stravaConnected }: Props) {
         alert('Strava sync failed.');
       } else {
         console.log(`✅ Synced ${data.inserted} activities`);
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 3000); // hide after 3s
       }
     } catch (err) {
       console.error('Error syncing Strava:', err);
@@ -38,6 +43,9 @@ export default function StravaConnectBanner({ stravaConnected }: Props) {
         <div className="flex items-center gap-2">
           <img src="/strava-2.svg" alt="Strava" className="w-5 h-5" />
           <span className="text-sm text-gray-700">Strava Connected</span>
+          {success && (
+            <span className="ml-2 text-sm text-green-600">✅ Up to date</span>
+          )}
         </div>
         <button
           onClick={handleSync}
