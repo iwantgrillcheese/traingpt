@@ -106,26 +106,25 @@ export async function POST(req: Request) {
 
     const detail = await detailRes.json();
 
-    detailedActivities.push({
-      user_id: user.id,
-      strava_id: detail.id,
-      name: detail.name,
-      sport_type: detail.sport_type,
-      distance: detail.distance,
-      moving_time: detail.moving_time,
-      elapsed_time: detail.elapsed_time,
-      start_date: detail.start_date,
-      average_speed: detail.average_speed,
-      average_heartrate: detail.average_heartrate,
-      max_heartrate: detail.max_heartrate,
-      average_watts: detail.average_watts,
-      weighted_average_watts: detail.weighted_average_watts,
-      kilojoules: detail.kilojoules,
-      device_watts: detail.device_watts,
-      trainer: detail.trainer,
-      total_elevation_gain: detail.total_elevation_gain,
-      type: detail.type,
-    });
+  detailedActivities.push({
+  user_id: user.id,
+  strava_id: detail.id,
+  name: detail.name,
+  sport_type: detail.sport_type,
+  distance: detail.distance,
+  moving_time: detail.moving_time,
+  start_date: detail.start_date,
+  average_speed: detail.average_speed,
+  average_heartrate: detail.average_heartrate,
+  max_heartrate: detail.max_heartrate,
+  average_watts: detail.average_watts,
+  weighted_average_watts: detail.weighted_average_watts,
+  kilojoules: detail.kilojoules,
+  device_watts: detail.device_watts,
+  trainer: detail.trainer,
+  total_elevation_gain: detail.total_elevation_gain,
+  type: detail.type,
+});
 
     // optional throttle to avoid rate limits
     await new Promise((r) => setTimeout(r, 150));
