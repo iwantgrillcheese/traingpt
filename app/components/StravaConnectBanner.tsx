@@ -1,12 +1,36 @@
 'use client';
 
+import { useState } from 'react';
+
 type Props = {
   stravaConnected: boolean;
 };
 
 export default function StravaConnectBanner({ stravaConnected }: Props) {
+  const [loading, setLoading] = useState(false);
+
   const connectUrl =
     'https://www.strava.com/oauth/authorize?client_id=145662&response_type=code&redirect_uri=https://www.traingpt.co/api/strava/callback&scope=activity:read_all,profile:read_all&approval_prompt=auto';
+
+  const handleSync = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/strava_sync', { method: 'POST' });
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error('Sync failed:', data?.error);
+        alert('Strava sync failed.');
+      } else {
+        console.log(`✅ Synced ${data.inserted} activities`);
+      }
+    } catch (err) {
+      console.error('Error syncing Strava:', err);
+      alert('Unexpected sync error.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (stravaConnected) {
     return (
@@ -16,10 +40,33 @@ export default function StravaConnectBanner({ stravaConnected }: Props) {
           <span className="text-sm text-gray-700">Strava Connected</span>
         </div>
         <button
-          onClick={() => fetch('/api/strava_sync', { method: 'POST' })}
-          className="rounded bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200"
+          onClick={handleSync}
+          disabled={loading}
+          className="inline-flex items-center rounded bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200 disabled:opacity-50"
         >
-          Sync Latest
+          {loading && (
+            <svg
+              className="mr-2 h-4 w-4 animate-spin text-gray-500"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              ></circle>
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8z"
+              ></path>
+            </svg>
+          )}
+          {loading ? 'Syncing…' : 'Sync Latest'}
         </button>
       </div>
     );
