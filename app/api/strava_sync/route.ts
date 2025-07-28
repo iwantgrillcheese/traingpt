@@ -123,8 +123,8 @@ export async function POST(req: Request) {
   device_watts: detail.device_watts,
   trainer: detail.trainer,
   total_elevation_gain: detail.total_elevation_gain,
-  type: detail.type,
 });
+
 
     // optional throttle to avoid rate limits
     await new Promise((r) => setTimeout(r, 150));
