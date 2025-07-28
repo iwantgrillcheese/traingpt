@@ -13,31 +13,74 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Get Strava access token
-  const { data: profile } = await supabase
+  // Fetch Strava tokens from profile
+  const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('strava_access_token')
+    .select('strava_access_token, strava_refresh_token, strava_expires_at')
     .eq('id', user.id)
     .single();
 
-  const token = profile?.strava_access_token;
-  if (!token) {
+  if (profileError || !profile?.strava_access_token || !profile?.strava_refresh_token) {
     return NextResponse.json({ error: 'Strava not connected' }, { status: 400 });
   }
 
-  // Optional: only fetch activities from the last 14 days
-  const after = Math.floor(Date.now() / 1000) - 60 * 60 * 24 * 14; // last 14 days
+  let accessToken = profile.strava_access_token;
+
+  // 🔁 Refresh token if expired
+  const now = Math.floor(Date.now() / 1000);
+  if (profile.strava_expires_at && profile.strava_expires_at < now) {
+    console.log('🔁 Refreshing Strava token…');
+
+    const refreshRes = await fetch('https://www.strava.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: process.env.STRAVA_CLIENT_ID,
+        client_secret: process.env.STRAVA_CLIENT_SECRET,
+        grant_type: 'refresh_token',
+        refresh_token: profile.strava_refresh_token,
+      }),
+    });
+
+    const refreshData = await refreshRes.json();
+
+    if (!refreshRes.ok) {
+      console.error('[STRAVA_REFRESH_ERROR]', refreshData);
+      return NextResponse.json({ error: 'Failed to refresh Strava token' }, { status: 500 });
+    }
+
+    const { access_token, refresh_token, expires_at } = refreshData;
+    accessToken = access_token;
+
+    await supabase
+      .from('profiles')
+      .update({
+        strava_access_token: access_token,
+        strava_refresh_token: refresh_token,
+        strava_expires_at: expires_at,
+      })
+      .eq('id', user.id);
+  }
+
+  // ⏳ Optional: only fetch last 14 days of activity
+  const after = Math.floor(Date.now() / 1000) - 60 * 60 * 24 * 14;
 
   const res = await fetch(`https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=200`, {
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${accessToken}`,
     },
   });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error('[STRAVA_API_ERROR]', res.status, errorText);
+    return NextResponse.json({ error: 'Failed to fetch Strava activities' }, { status: 500 });
+  }
 
   const rawActivities = await res.json();
 
   if (!Array.isArray(rawActivities)) {
-    console.error('❌ Invalid Strava response:', rawActivities);
+    console.error('[STRAVA_RESPONSE_INVALID]', rawActivities);
     return NextResponse.json({ error: 'Invalid response from Strava' }, { status: 500 });
   }
 
@@ -57,7 +100,7 @@ export async function POST(req: Request) {
     type: a.type,
   }));
 
-  // ✅ Use strava_id for deduplication
+  // Deduplicate by strava_id
   const { data: existingRows } = await supabase
     .from('strava_activities')
     .select('strava_id')
@@ -67,11 +110,22 @@ export async function POST(req: Request) {
   const newActivities = activities.filter((a) => !existingIds.has(a.strava_id));
 
   if (newActivities.length > 0) {
-    await supabase.from('strava_activities').insert(newActivities);
+    const { error: insertError } = await supabase
+      .from('strava_activities')
+      .insert(newActivities);
+
+    if (insertError) {
+      console.error('[SUPABASE_INSERT_ERROR]', insertError);
+      return NextResponse.json({ error: 'Failed to insert activities' }, { status: 500 });
+    }
+
     console.log(`✅ Inserted ${newActivities.length} new Strava activities`);
   } else {
     console.log('ℹ️ No new Strava activities to insert');
   }
 
-  return NextResponse.json({ inserted: newActivities.length, totalFetched: rawActivities.length });
+  return NextResponse.json({
+    inserted: newActivities.length,
+    totalFetched: rawActivities.length,
+  });
 }
