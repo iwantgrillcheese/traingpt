@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Get profile to check Strava token
+  // Get Strava access token
   const { data: profile } = await supabase
     .from('profiles')
     .select('strava_access_token')
@@ -25,8 +25,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Strava not connected' }, { status: 400 });
   }
 
-  // Fetch activities from Strava
-  const res = await fetch(`https://www.strava.com/api/v3/athlete/activities?per_page=200`, {
+  // Optional: only fetch activities from the last 14 days
+  const after = Math.floor(Date.now() / 1000) - 60 * 60 * 24 * 14; // last 14 days
+
+  const res = await fetch(`https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=200`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -35,6 +37,7 @@ export async function POST(req: Request) {
   const rawActivities = await res.json();
 
   if (!Array.isArray(rawActivities)) {
+    console.error('❌ Invalid Strava response:', rawActivities);
     return NextResponse.json({ error: 'Invalid response from Strava' }, { status: 500 });
   }
 
@@ -54,22 +57,21 @@ export async function POST(req: Request) {
     type: a.type,
   }));
 
-  // ✅ Deduplication logic — filter out already synced activities
+  // ✅ Use strava_id for deduplication
   const { data: existingRows } = await supabase
     .from('strava_activities')
-    .select('start_date')
+    .select('strava_id')
     .eq('user_id', user.id);
 
-  const existingDates = new Set(existingRows?.map((row) => row.start_date));
-
-  const newActivities = activities.filter((a) => !existingDates.has(a.start_date));
+  const existingIds = new Set(existingRows?.map((row) => row.strava_id));
+  const newActivities = activities.filter((a) => !existingIds.has(a.strava_id));
 
   if (newActivities.length > 0) {
     await supabase.from('strava_activities').insert(newActivities);
-    console.log(`✅ Inserted ${newActivities.length} new activities`);
+    console.log(`✅ Inserted ${newActivities.length} new Strava activities`);
   } else {
-    console.log('ℹ️ No new activities to insert');
+    console.log('ℹ️ No new Strava activities to insert');
   }
 
-  return NextResponse.json({ inserted: newActivities.length });
+  return NextResponse.json({ inserted: newActivities.length, totalFetched: rawActivities.length });
 }
