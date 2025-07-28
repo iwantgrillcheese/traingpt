@@ -16,5 +16,6 @@ export default function estimateDurationFromTitle(title?: string | null): number
     totalMinutes += parseInt(minMatch[1], 10);
   }
 
-  return Math.round(totalMinutes);
+  // Add a floor to prevent tiny/ghost sessions from skewing charts
+  return totalMinutes >= 5 ? Math.round(totalMinutes) : 0;
 }
