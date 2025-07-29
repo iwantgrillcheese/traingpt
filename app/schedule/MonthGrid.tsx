@@ -9,8 +9,10 @@ import {
   addDays,
   parseISO,
 } from 'date-fns';
-import type { Session } from '@/types/session';
 import DayCell from './DayCell';
+import mergeSessionWithStrava, { MergedSession } from '@/utils/mergeSessionWithStrava';
+import { StravaActivity } from '@/types/strava';
+import { Session } from '@/types/session';
 
 type CompletedSession = {
   session_date: string;
@@ -21,6 +23,7 @@ type CompletedSession = {
 type Props = {
   sessions: Session[];
   completedSessions: CompletedSession[];
+  stravaActivities: StravaActivity[];
   onSessionClick?: (session: Session) => void;
   currentMonth: Date;
 };
@@ -28,9 +31,12 @@ type Props = {
 export default function MonthGrid({
   sessions,
   completedSessions,
+  stravaActivities,
   onSessionClick,
   currentMonth,
 }: Props) {
+  const mergedSessions: MergedSession[] = mergeSessionWithStrava(sessions, stravaActivities);
+
   const start = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 });
   const end = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 });
 
@@ -51,7 +57,7 @@ export default function MonthGrid({
 
       <div className="grid grid-cols-7 gap-6 w-full">
         {days.map((day) => {
-          const daySessions = sessions.filter((s) =>
+          const daySessions = mergedSessions.filter((s) =>
             isSameDay(parseISO(s.date), day)
           );
 

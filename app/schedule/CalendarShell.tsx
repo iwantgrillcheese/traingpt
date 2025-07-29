@@ -14,20 +14,20 @@ type CompletedSession = {
   strava_id?: string;
 };
 
-type EnrichedSession = Session & { stravaActivity?: StravaActivity };
-
 type CalendarShellProps = {
-  sessions: EnrichedSession[];
+  sessions: Session[];
   completedSessions: CompletedSession[];
+  stravaActivities: StravaActivity[];
 };
 
 export default function CalendarShell({
   sessions,
   completedSessions,
+  stravaActivities,
 }: CalendarShellProps) {
   const [isMobile, setIsMobile] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
-  const [selectedSession, setSelectedSession] = useState<EnrichedSession | null>(null);
+  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [currentMonth, setCurrentMonth] = useState<Date>(startOfMonth(new Date()));
 
   useEffect(() => {
@@ -40,7 +40,7 @@ export default function CalendarShell({
 
   if (!hasMounted) return null;
 
-  const handleSessionClick = (session: EnrichedSession) => setSelectedSession(session);
+  const handleSessionClick = (session: Session) => setSelectedSession(session);
   const goToPrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
   const goToNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
 
@@ -62,18 +62,20 @@ export default function CalendarShell({
           <MonthGrid
             sessions={sessions}
             completedSessions={completedSessions}
+            stravaActivities={stravaActivities}
             onSessionClick={handleSessionClick}
             currentMonth={currentMonth}
           />
         </>
       )}
 
-      <SessionModal
-        session={selectedSession}
-        stravaActivity={selectedSession?.stravaActivity}
-        open={!!selectedSession}
-        onClose={() => setSelectedSession(null)}
-      />
+<SessionModal
+  session={selectedSession}
+  stravaActivity={(selectedSession as any)?.stravaActivity}
+  open={!!selectedSession}
+  onClose={() => setSelectedSession(null)}
+/>
+
     </main>
   );
 }
