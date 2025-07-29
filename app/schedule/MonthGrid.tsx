@@ -1,18 +1,17 @@
 'use client';
 
 import {
-  isSameDay,
   startOfMonth,
   endOfMonth,
   startOfWeek,
   endOfWeek,
   addDays,
-  parseISO,
+  isSameMonth,
 } from 'date-fns';
+import { useMemo } from 'react';
 import DayCell from './DayCell';
-import type { Session } from '@/types/session';
-import type { StravaActivity } from '@/types/strava';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
+import type { StravaActivity } from '@/types/strava';
 
 type CompletedSession = {
   session_date: string;
@@ -21,63 +20,65 @@ type CompletedSession = {
 };
 
 type Props = {
-  sessions: MergedSession[];
-  stravaActivities: StravaActivity[];
-  extraStravaActivities?: StravaActivity[];
-  completedSessions: CompletedSession[];
-  onSessionClick?: (session: MergedSession) => void;
   currentMonth: Date;
+  sessionsByDate: Record<string, MergedSession[]>;
+  completedSessions: CompletedSession[];
+  stravaByDate: Record<string, StravaActivity[]>;
+  onSessionClick?: (session: MergedSession) => void;
 };
 
 export default function MonthGrid({
-  sessions,
-  stravaActivities,
-  extraStravaActivities = [],
-  completedSessions,
-  onSessionClick,
   currentMonth,
+  sessionsByDate,
+  completedSessions,
+  stravaByDate,
+  onSessionClick,
 }: Props) {
-  const start = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 });
-  const end = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 });
+  const weeks = useMemo(() => {
+    const start = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 0 });
+    const end = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 0 });
 
-  const days = [];
-  let current = start;
-  while (current <= end) {
-    days.push(current);
-    current = addDays(current, 1);
-  }
+    const days: Date[] = [];
+    let day = start;
+    while (day <= end) {
+      days.push(day);
+      day = addDays(day, 1);
+    }
+
+    const chunks: Date[][] = [];
+    for (let i = 0; i < days.length; i += 7) {
+      chunks.push(days.slice(i, i + 7));
+    }
+
+    return chunks;
+  }, [currentMonth]);
 
   return (
-    <div className="w-full space-y-4">
-      <div className="grid grid-cols-7 text-sm text-muted-foreground font-medium w-full">
-        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
-          <div key={day} className="text-center">{day}</div>
-        ))}
-      </div>
+    <div className="grid grid-cols-7 gap-x-6 gap-y-4">
+      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+        <div key={day} className="text-center font-medium text-sm text-muted-foreground">
+          {day}
+        </div>
+      ))}
 
-      <div className="grid grid-cols-7 gap-6 w-full">
-        {days.map((day) => {
-          const daySessions = sessions.filter((s) =>
-            isSameDay(parseISO(s.date), day)
-          );
-
-          const dayExtras = extraStravaActivities.filter((a) =>
-            isSameDay(parseISO(a.start_date), day)
-          );
+      {weeks.flatMap((week) =>
+        week.map((date) => {
+          const dateStr = date.toISOString().split('T')[0];
+          const isOutside = !isSameMonth(date, currentMonth);
 
           return (
             <DayCell
-              key={day.toISOString()}
-              date={day}
-              sessions={daySessions}
-              extraActivities={dayExtras}
-              isOutside={day.getMonth() !== currentMonth.getMonth()}
-              onSessionClick={onSessionClick}
+              key={dateStr}
+              date={date}
+              isOutside={isOutside}
+              sessions={sessionsByDate[dateStr] || []}
               completedSessions={completedSessions}
+              extraActivities={stravaByDate[dateStr] || []}
+              onSessionClick={onSessionClick}
             />
           );
-        })}
-      </div>
+        })
+      )}
     </div>
   );
 }

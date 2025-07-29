@@ -67,7 +67,7 @@ export default function SchedulePage() {
           sessions={enrichedSessions}
           completedSessions={completedSessions}
           stravaActivities={stravaActivities}
-          extraStravaActivities={unmatchedActivities} // optional depending on your CalendarShell props
+          extraStravaActivities={unmatchedActivities}
         />
       </main>
       <Footer />

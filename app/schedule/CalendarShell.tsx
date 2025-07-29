@@ -5,9 +5,8 @@ import { startOfMonth, subMonths, addMonths, format } from 'date-fns';
 import MonthGrid from './MonthGrid';
 import MobileCalendarView from './MobileCalendarView';
 import SessionModal from './SessionModal';
-import type { Session } from '@/types/session';
-import type { StravaActivity } from '@/types/strava';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
+import type { StravaActivity } from '@/types/strava';
 
 type CompletedSession = {
   session_date: string;
@@ -16,10 +15,10 @@ type CompletedSession = {
 };
 
 type CalendarShellProps = {
-  sessions: MergedSession[]; // from merged[]
+  sessions: MergedSession[];
   completedSessions: CompletedSession[];
-  stravaActivities: StravaActivity[]; // optional, in case MonthGrid wants to re-merge
-  extraStravaActivities?: StravaActivity[]; // unmatched ones to display separately
+  stravaActivities: StravaActivity[];
+  extraStravaActivities?: StravaActivity[];
 };
 
 export default function CalendarShell({
@@ -43,6 +42,21 @@ export default function CalendarShell({
 
   if (!hasMounted) return null;
 
+  const sessionsByDate: Record<string, MergedSession[]> = {};
+  sessions.forEach((s) => {
+    if (!s.date) return;
+    if (!sessionsByDate[s.date]) sessionsByDate[s.date] = [];
+    sessionsByDate[s.date].push(s);
+  });
+
+  const stravaByDate: Record<string, StravaActivity[]> = {};
+  [...stravaActivities, ...extraStravaActivities].forEach((a) => {
+    const dateStr = a.start_date?.split('T')[0];
+    if (!dateStr) return;
+    if (!stravaByDate[dateStr]) stravaByDate[dateStr] = [];
+    stravaByDate[dateStr].push(a);
+  });
+
   const handleSessionClick = (session: MergedSession) => setSelectedSession(session);
   const goToPrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
   const goToNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
@@ -63,12 +77,11 @@ export default function CalendarShell({
           </div>
 
           <MonthGrid
-            sessions={sessions}
-            completedSessions={completedSessions}
-            stravaActivities={stravaActivities}
-            extraStravaActivities={extraStravaActivities}
-            onSessionClick={handleSessionClick}
             currentMonth={currentMonth}
+            sessionsByDate={sessionsByDate}
+            completedSessions={completedSessions}
+            stravaByDate={stravaByDate}
+            onSessionClick={handleSessionClick}
           />
         </>
       )}

@@ -18,7 +18,7 @@ type Props = {
   isOutside: boolean;
   onSessionClick?: (session: MergedSession) => void;
   completedSessions: CompletedSession[];
-  extraActivities?: StravaActivity[]; // ✅ allows unmatched Strava
+  extraActivities?: StravaActivity[];
 };
 
 function normalizeSport(title: string): string {
@@ -32,14 +32,14 @@ function normalizeSport(title: string): string {
 }
 
 function sportEmoji(sport: string): string {
-  switch (sport) {
-    case 'Swim':
+  switch (sport.toLowerCase()) {
+    case 'swim':
       return '🏊';
-    case 'Bike':
+    case 'bike':
       return '🚴';
-    case 'Run':
+    case 'run':
       return '🏃';
-    case 'Strength':
+    case 'strength':
       return '💪';
     default:
       return '🔸';
@@ -74,6 +74,8 @@ export default function DayCell({
           const rawTitle = s.title ?? '';
           const isRest = rawTitle.toLowerCase().includes('rest day');
           const sport = s.sport || normalizeSport(rawTitle);
+          const emoji = sportEmoji(sport);
+
           const colorClass = getSessionColor(isRest ? 'rest' : sport);
 
           const isStravaMatch = !!s.stravaActivity;
@@ -113,16 +115,14 @@ export default function DayCell({
             >
               <div className="flex items-center justify-between mb-1">
                 <div className="font-medium text-sm truncate">
-                  {sportEmoji(sport)} {titleLine}
+                  {emoji} {titleLine}
                 </div>
                 {isStravaMatch && <span className="text-xs text-blue-500">(Strava)</span>}
                 {!isStravaMatch && isCompleted && <span className="text-sm text-green-600">✓</span>}
               </div>
 
               {detailLine && (
-                <div className="text-xs text-muted-foreground truncate">
-                  {detailLine}
-                </div>
+                <div className="text-xs text-muted-foreground truncate">{detailLine}</div>
               )}
 
               {isStravaMatch && (
