@@ -31,7 +31,7 @@ export default function SessionModal({
   const supabase = createClientComponentClient();
 
   useEffect(() => {
-    setIsCompleted(false); // reset state on session open
+    setIsCompleted(false);
     setOutput(session?.structured_workout || null);
   }, [session]);
 
@@ -66,29 +66,21 @@ export default function SessionModal({
     if (!session) return;
     setMarkingComplete(true);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      alert('Not logged in');
-      setMarkingComplete(false);
-      return;
-    }
-
-    const { error } = await supabase.from('completed_sessions').upsert({
-      user_id: user.id,
-      session_date: session.date,
-      session_title: session.title,
-      completed_at: new Date().toISOString(),
-      source: 'manual',
+    const res = await fetch('/api/schedule/mark-done', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_date: session.date,
+        session_title: session.title,
+        undo: isCompleted,
+      }),
     });
 
-    if (!error) {
-      setIsCompleted(true);
-      onUpdate?.(session); // refresh UI
+    if (res.ok) {
+      setIsCompleted(!isCompleted);
+      onUpdate?.(session);
     } else {
-      console.error('Error marking session as done:', error.message);
+      alert('Failed to update session status.');
     }
 
     setMarkingComplete(false);
@@ -108,7 +100,6 @@ export default function SessionModal({
             isCompleted ? 'bg-green-50 border border-green-300' : 'bg-white'
           )}
         >
-          {/* Title */}
           <div>
             <Dialog.Title className="text-xl font-semibold text-zinc-900">
               {session.title}
@@ -118,7 +109,6 @@ export default function SessionModal({
             </p>
           </div>
 
-          {/* Planned Workout */}
           <div className="space-y-1">
             <h4 className="text-sm font-medium text-zinc-600">📋 Detailed Workout</h4>
             <div className="bg-zinc-100 text-sm rounded-md p-3 whitespace-pre-wrap min-h-[80px]">
@@ -126,7 +116,6 @@ export default function SessionModal({
             </div>
           </div>
 
-          {/* Optional Strava Metrics */}
           {stravaActivity && (
             <div className="grid grid-cols-2 gap-4 rounded-md bg-zinc-100 p-4 text-sm">
               {stravaActivity.distance && (
@@ -147,7 +136,6 @@ export default function SessionModal({
             </div>
           )}
 
-          {/* Footer */}
           <div className="flex justify-between items-center pt-2">
             <p className="text-xs text-zinc-400">Generated using TrainGPT</p>
             <div className="flex gap-3">
@@ -158,18 +146,20 @@ export default function SessionModal({
               >
                 {loading ? 'Generating...' : 'Generate Detailed Workout'}
               </button>
+
               <button
                 onClick={handleMarkAsDone}
-                disabled={markingComplete || isCompleted}
+                disabled={markingComplete}
                 className={clsx(
                   'text-sm px-4 py-2 rounded-md border',
                   isCompleted
-                    ? 'text-green-700 border-green-300 bg-white cursor-default'
+                    ? 'text-green-700 border-green-300 bg-white'
                     : 'text-zinc-700 hover:text-black border-zinc-300'
                 )}
               >
-                {isCompleted ? 'Marked as Done ✓' : markingComplete ? 'Saving...' : 'Mark as Done'}
+                {isCompleted ? 'Undo Completion' : markingComplete ? 'Saving...' : 'Mark as Done'}
               </button>
+
               <button
                 onClick={onClose}
                 className="text-sm text-zinc-500 hover:text-black underline"

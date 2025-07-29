@@ -9,13 +9,13 @@ export default function Footer() {
         <div>
           <h3 className="text-xs font-semibold text-gray-400 uppercase mb-4">TRAINGPT</h3>
           <ul className="space-y-2">
-            <li><Link href="/">Plan Generator</Link></li>
-            <li><Link href="/schedule">My Schedule</Link></li>
             <li>
               <Link href="/about" className="text-sm text-gray-400 hover:text-black transition">
                 About this project
               </Link>
             </li>
+            <li><Link href="/">Plan Generator</Link></li>
+            <li><Link href="/schedule">My Schedule</Link></li>
             <li><Link href="/coaching">Coaching</Link></li>
             <li><Link href="/settings">Settings</Link></li>
             <li><Link href="/privacy">Privacy</Link></li>
@@ -33,7 +33,18 @@ export default function Footer() {
         </div>
 
         <div className="flex flex-col items-center justify-center md:items-end">
-          <p className="text-xs text-gray-400">© {new Date().getFullYear()} TrainGPT. All rights reserved.</p>
+          <p className="text-xs text-gray-400">
+            © {new Date().getFullYear()} TrainGPT. All rights reserved.
+          </p>
+          <p className="text-xs text-gray-400 mt-2">
+            Questions or feedback?{' '}
+            <a
+              href="mailto:hello@traingpt.co"
+              className="underline hover:text-black"
+            >
+              hello@traingpt.co
+            </a>
+          </p>
           <div className="flex space-x-4 mt-4 text-gray-400">
             <Link href="https://www.strava.com/athletes/44311272" aria-label="Strava">
               <span className="hover:text-black">Strava</span>
@@ -41,7 +52,7 @@ export default function Footer() {
             <Link href="https://youtube.com" aria-label="YouTube">
               <span className="hover:text-black">YouTube</span>
             </Link>
-            <Link href="https://linkedin.com" aria-label="LinkedIn">
+            <Link href="https://www.linkedin.com/in/cameronmcdiarmid/" aria-label="LinkedIn">
               <span className="hover:text-black">LinkedIn</span>
             </Link>
             <Link href="https://github.com" aria-label="GitHub">

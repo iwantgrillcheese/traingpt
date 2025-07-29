@@ -187,7 +187,7 @@ export default function MobileCalendarView({
                   }
                   className="text-sm text-zinc-400 underline"
                 >
-                  {isCollapsed ? 'Show' : 'Hide'}
+                  {isCollapsed ? 'Show Previous Week' : 'Hide Previous Week'}
                 </button>
               )}
             </div>
