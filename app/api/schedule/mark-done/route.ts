@@ -19,17 +19,17 @@ export async function POST(req: Request) {
     .from('completed_sessions')
     .select('*')
     .eq('user_id', session.user.id)
-    .eq('session_date', session_date)
+    .eq('date', session_date) // ✅ match actual column name
     .eq('session_title', session_title)
     .maybeSingle();
 
   if (existing) {
-    // If already marked done → delete the record to undo
+    // If already marked done → delete to undo
     const { error: deleteError } = await supabase
       .from('completed_sessions')
       .delete()
       .eq('user_id', session.user.id)
-      .eq('session_date', session_date)
+      .eq('date', session_date) // ✅ match actual column name
       .eq('session_title', session_title);
 
     if (deleteError) {
@@ -39,10 +39,10 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, wasMarkedDone: true });
   } else {
-    // Else insert new "done" row
+    // Insert new "done" row
     const { error: insertError } = await supabase.from('completed_sessions').upsert({
       user_id: session.user.id,
-      session_date,
+      date: session_date, // ✅ match actual column name
       session_title,
       status: 'done',
     });
