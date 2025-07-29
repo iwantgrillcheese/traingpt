@@ -18,8 +18,8 @@ export default function SchedulePage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [stravaActivities, setStravaActivities] = useState<StravaActivity[]>([]);
   const [completedSessions, setCompletedSessions] = useState<CompletedSession[]>([]);
-  const [planStartDate, setPlanStartDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
   const supabase = createClientComponentClient();
 
   useEffect(() => {
@@ -34,17 +34,15 @@ export default function SchedulePage() {
         return;
       }
 
-      const [{ data: sessionData }, { data: stravaData }, { data: plan }, { data: completedData }] =
+      const [{ data: sessionData }, { data: stravaData }, { data: completedData }] =
         await Promise.all([
           supabase.from('sessions').select('*').eq('user_id', user.id),
           supabase.from('strava_activities').select('*').eq('user_id', user.id),
-          supabase.from('plans').select('start_date').eq('user_id', user.id).single(),
           supabase.from('completed_sessions').select('*').eq('user_id', user.id),
         ]);
 
       if (sessionData) setSessions(sessionData);
       if (stravaData) setStravaActivities(stravaData);
-      if (plan?.start_date) setPlanStartDate(plan.start_date);
       if (completedData) setCompletedSessions(completedData);
 
       setLoading(false);
@@ -57,16 +55,20 @@ export default function SchedulePage() {
     return <div className="text-center py-10 text-zinc-400">Loading your training data...</div>;
   }
 
-  const enrichedSessions = mergeSessionsWithStrava(sessions, stravaActivities);
+  const { merged: enrichedSessions, unmatched: unmatchedActivities } = mergeSessionsWithStrava(
+    sessions,
+    stravaActivities
+  );
 
   return (
     <div className="flex flex-col min-h-screen">
       <main className="flex-grow">
         <CalendarShell
-  sessions={enrichedSessions}
-  completedSessions={completedSessions}
-  stravaActivities={stravaActivities}
-/>
+          sessions={enrichedSessions}
+          completedSessions={completedSessions}
+          stravaActivities={stravaActivities}
+          extraStravaActivities={unmatchedActivities} // optional depending on your CalendarShell props
+        />
       </main>
       <Footer />
     </div>

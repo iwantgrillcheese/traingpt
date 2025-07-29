@@ -10,9 +10,9 @@ import {
   parseISO,
 } from 'date-fns';
 import DayCell from './DayCell';
-import mergeSessionWithStrava, { MergedSession } from '@/utils/mergeSessionWithStrava';
-import { StravaActivity } from '@/types/strava';
-import { Session } from '@/types/session';
+import type { Session } from '@/types/session';
+import type { StravaActivity } from '@/types/strava';
+import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 
 type CompletedSession = {
   session_date: string;
@@ -21,22 +21,22 @@ type CompletedSession = {
 };
 
 type Props = {
-  sessions: Session[];
-  completedSessions: CompletedSession[];
+  sessions: MergedSession[];
   stravaActivities: StravaActivity[];
-  onSessionClick?: (session: Session) => void;
+  extraStravaActivities?: StravaActivity[];
+  completedSessions: CompletedSession[];
+  onSessionClick?: (session: MergedSession) => void;
   currentMonth: Date;
 };
 
 export default function MonthGrid({
   sessions,
-  completedSessions,
   stravaActivities,
+  extraStravaActivities = [],
+  completedSessions,
   onSessionClick,
   currentMonth,
 }: Props) {
-  const mergedSessions: MergedSession[] = mergeSessionWithStrava(sessions, stravaActivities);
-
   const start = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 });
   const end = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 });
 
@@ -57,8 +57,12 @@ export default function MonthGrid({
 
       <div className="grid grid-cols-7 gap-6 w-full">
         {days.map((day) => {
-          const daySessions = mergedSessions.filter((s) =>
+          const daySessions = sessions.filter((s) =>
             isSameDay(parseISO(s.date), day)
+          );
+
+          const dayExtras = extraStravaActivities.filter((a) =>
+            isSameDay(parseISO(a.start_date), day)
           );
 
           return (
@@ -66,6 +70,7 @@ export default function MonthGrid({
               key={day.toISOString()}
               date={day}
               sessions={daySessions}
+              extraActivities={dayExtras}
               isOutside={day.getMonth() !== currentMonth.getMonth()}
               onSessionClick={onSessionClick}
               completedSessions={completedSessions}

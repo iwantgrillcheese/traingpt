@@ -7,6 +7,7 @@ import MobileCalendarView from './MobileCalendarView';
 import SessionModal from './SessionModal';
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
+import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 
 type CompletedSession = {
   session_date: string;
@@ -15,19 +16,21 @@ type CompletedSession = {
 };
 
 type CalendarShellProps = {
-  sessions: Session[];
+  sessions: MergedSession[]; // from merged[]
   completedSessions: CompletedSession[];
-  stravaActivities: StravaActivity[];
+  stravaActivities: StravaActivity[]; // optional, in case MonthGrid wants to re-merge
+  extraStravaActivities?: StravaActivity[]; // unmatched ones to display separately
 };
 
 export default function CalendarShell({
   sessions,
   completedSessions,
   stravaActivities,
+  extraStravaActivities = [],
 }: CalendarShellProps) {
   const [isMobile, setIsMobile] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
-  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+  const [selectedSession, setSelectedSession] = useState<MergedSession | null>(null);
   const [currentMonth, setCurrentMonth] = useState<Date>(startOfMonth(new Date()));
 
   useEffect(() => {
@@ -40,7 +43,7 @@ export default function CalendarShell({
 
   if (!hasMounted) return null;
 
-  const handleSessionClick = (session: Session) => setSelectedSession(session);
+  const handleSessionClick = (session: MergedSession) => setSelectedSession(session);
   const goToPrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
   const goToNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
 
@@ -63,19 +66,19 @@ export default function CalendarShell({
             sessions={sessions}
             completedSessions={completedSessions}
             stravaActivities={stravaActivities}
+            extraStravaActivities={extraStravaActivities}
             onSessionClick={handleSessionClick}
             currentMonth={currentMonth}
           />
         </>
       )}
 
-<SessionModal
-  session={selectedSession}
-  stravaActivity={(selectedSession as any)?.stravaActivity}
-  open={!!selectedSession}
-  onClose={() => setSelectedSession(null)}
-/>
-
+      <SessionModal
+        session={selectedSession}
+        stravaActivity={selectedSession?.stravaActivity}
+        open={!!selectedSession}
+        onClose={() => setSelectedSession(null)}
+      />
     </main>
   );
 }
