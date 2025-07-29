@@ -28,6 +28,24 @@ export async function POST(req: Request) {
 
   let accessToken = profile.strava_access_token;
 
+  // Dedupe
+
+  // 🔧 Add this utility function near the top
+function normalizeSportType(input: string | null | undefined): string {
+  switch (input?.toLowerCase()) {
+    case 'ride':
+    case 'virtualride':
+      return 'Bike';
+    case 'run':
+      return 'Run';
+    case 'swim':
+      return 'Swim';
+    default:
+      return 'Other';
+  }
+}
+
+
   // Refresh token if expired
   const now = Math.floor(Date.now() / 1000);
   if (profile.strava_expires_at < now) {
@@ -110,7 +128,7 @@ export async function POST(req: Request) {
   user_id: user.id,
   strava_id: detail.id,
   name: detail.name,
-  sport_type: detail.sport_type,
+  sport_type: normalizeSportType(detail.sport_type),
   distance: detail.distance,
   moving_time: detail.moving_time,
   start_date: detail.start_date,
