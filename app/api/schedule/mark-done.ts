@@ -15,17 +15,43 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { error } = await supabase.from('completed_sessions').upsert({
-    user_id: session.user.id,
-    session_date,
-    session_title,
-    status: 'done',
-  });
+  const { data: existing } = await supabase
+    .from('completed_sessions')
+    .select('*')
+    .eq('user_id', session.user.id)
+    .eq('session_date', session_date)
+    .eq('session_title', session_title)
+    .maybeSingle();
 
-  if (error) {
-    console.error(error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (existing) {
+    // If already marked done → delete the record to undo
+    const { error: deleteError } = await supabase
+      .from('completed_sessions')
+      .delete()
+      .eq('user_id', session.user.id)
+      .eq('session_date', session_date)
+      .eq('session_title', session_title);
+
+    if (deleteError) {
+      console.error(deleteError);
+      return NextResponse.json({ error: deleteError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, wasMarkedDone: true });
+  } else {
+    // Else insert new "done" row
+    const { error: insertError } = await supabase.from('completed_sessions').upsert({
+      user_id: session.user.id,
+      session_date,
+      session_title,
+      status: 'done',
+    });
+
+    if (insertError) {
+      console.error(insertError);
+      return NextResponse.json({ error: insertError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, wasMarkedDone: false });
   }
-
-  return NextResponse.json({ success: true });
 }

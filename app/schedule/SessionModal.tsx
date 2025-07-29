@@ -31,7 +31,7 @@ export default function SessionModal({
   const supabase = createClientComponentClient();
 
   useEffect(() => {
-    setIsCompleted(false);
+    setIsCompleted(false); // reset on open
     setOutput(session?.structured_workout || null);
   }, [session]);
 
@@ -52,10 +52,7 @@ export default function SessionModal({
 
     const { details } = await res.json();
 
-    await supabase
-      .from('sessions')
-      .update({ structured_workout: details })
-      .eq('id', session.id);
+    await supabase.from('sessions').update({ structured_workout: details }).eq('id', session.id);
 
     setOutput(details);
     onUpdate?.({ ...session, structured_workout: details });
@@ -72,15 +69,18 @@ export default function SessionModal({
       body: JSON.stringify({
         session_date: session.date,
         session_title: session.title,
-        undo: isCompleted,
       }),
     });
 
+    const result = await res.json();
+
     if (res.ok) {
-      setIsCompleted(!isCompleted);
+      const newStatus = !result.wasMarkedDone;
+      setIsCompleted(newStatus);
       onUpdate?.(session);
     } else {
-      alert('Failed to update session status.');
+      console.error('Failed to mark session:', result);
+      alert('Error marking session.');
     }
 
     setMarkingComplete(false);
