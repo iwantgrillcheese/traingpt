@@ -1,5 +1,3 @@
-// Updated ProfilePage with editable training metrics
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -9,17 +7,17 @@ export default function ProfilePage() {
   const supabase = createClientComponentClient();
   const [profile, setProfile] = useState<any>(null);
   const [optIn, setOptIn] = useState<boolean>(true);
-const secondsToTimeString = (seconds: number) => {
-  const min = Math.floor(seconds / 60);
-  const sec = seconds % 60;
-  return `${min}:${sec.toString().padStart(2, '0')}`;
-};
 
-const timeStringToSeconds = (input: string) => {
-  const [min, sec] = input.split(':').map(Number);
-  return min * 60 + (sec || 0);
-};
+  const secondsToTimeString = (seconds: number) => {
+    const min = Math.floor(seconds / 60);
+    const sec = seconds % 60;
+    return `${min}:${sec.toString().padStart(2, '0')}`;
+  };
 
+  const timeStringToSeconds = (input: string) => {
+    const [min, sec] = input.split(':').map(Number);
+    return min * 60 + (sec || 0);
+  };
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -27,7 +25,6 @@ const timeStringToSeconds = (input: string) => {
         data: { session },
         error,
       } = await supabase.auth.getSession();
-
       if (error || !session?.user) return;
 
       const { user_metadata, email } = session.user;
@@ -99,6 +96,12 @@ const timeStringToSeconds = (input: string) => {
     window.location.href = '/';
   };
 
+  const handleManageSubscription = async () => {
+    const res = await fetch('/api/stripe/create-portal-link', { method: 'POST' });
+    const { url } = await res.json();
+    if (url) window.location.href = url;
+  };
+
   if (!profile) return <div className="text-center py-20 text-gray-500">Loading profile...</div>;
 
   return (
@@ -106,60 +109,62 @@ const timeStringToSeconds = (input: string) => {
       <h1 className="text-2xl sm:text-3xl font-semibold mb-8">Account Settings</h1>
 
       <div className="space-y-8">
+        {/* Training Zones */}
         <section className="bg-white border rounded-xl p-6 shadow-sm">
-  <h2 className="text-lg font-medium mb-4">Training Zones</h2>
-  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-    <div>
-      <label className="block text-sm text-gray-500 mb-1">Swim Threshold (mm:ss / 100m)</label>
-      <input
-        type="text"
-        value={secondsToTimeString(profile.swim_threshold_per_100m || 0)}
-        onChange={(e) =>
-          handleProfileUpdate('swim_threshold_per_100m', timeStringToSeconds(e.target.value))
-        }
-        className="w-full border rounded px-3 py-2"
-        placeholder="e.g. 1:45"
-      />
-    </div>
+          <h2 className="text-lg font-medium mb-4">Training Zones</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm text-gray-500 mb-1">Swim Threshold (mm:ss / 100m)</label>
+              <input
+                type="text"
+                value={secondsToTimeString(profile.swim_threshold_per_100m || 0)}
+                onChange={(e) =>
+                  handleProfileUpdate('swim_threshold_per_100m', timeStringToSeconds(e.target.value))
+                }
+                className="w-full border rounded px-3 py-2"
+                placeholder="e.g. 1:45"
+              />
+            </div>
 
-    <div>
-      <label className="block text-sm text-gray-500 mb-1">Bike FTP (watts)</label>
-      <input
-        type="number"
-        value={profile.bike_ftp || ''}
-        onChange={(e) => handleProfileUpdate('bike_ftp', parseInt(e.target.value))}
-        className="w-full border rounded px-3 py-2"
-      />
-    </div>
+            <div>
+              <label className="block text-sm text-gray-500 mb-1">Bike FTP (watts)</label>
+              <input
+                type="number"
+                value={profile.bike_ftp || ''}
+                onChange={(e) => handleProfileUpdate('bike_ftp', parseInt(e.target.value))}
+                className="w-full border rounded px-3 py-2"
+              />
+            </div>
 
-    <div>
-      <label className="block text-sm text-gray-500 mb-1">
-        Run Threshold (mm:ss / {profile.run_pace_unit === 'km' ? 'km' : 'mile'})
-      </label>
-      <input
-        type="text"
-        value={secondsToTimeString(profile.run_threshold_per_mile || 0)}
-        onChange={(e) =>
-          handleProfileUpdate('run_threshold_per_mile', timeStringToSeconds(e.target.value))
-        }
-        className="w-full border rounded px-3 py-2"
-        placeholder="e.g. 7:30"
-      />
-      <div className="mt-2">
-        <label className="text-xs text-gray-500 mr-2">Units:</label>
-        <select
-          value={profile.run_pace_unit || 'mile'}
-          onChange={(e) => handleProfileUpdate('run_pace_unit', e.target.value)}
-          className="text-sm border rounded px-2 py-1"
-        >
-          <option value="mile">mile</option>
-          <option value="km">km</option>
-        </select>
-      </div>
-    </div>
-  </div>
-</section>
+            <div>
+              <label className="block text-sm text-gray-500 mb-1">
+                Run Threshold (mm:ss / {profile.run_pace_unit === 'km' ? 'km' : 'mile'})
+              </label>
+              <input
+                type="text"
+                value={secondsToTimeString(profile.run_threshold_per_mile || 0)}
+                onChange={(e) =>
+                  handleProfileUpdate('run_threshold_per_mile', timeStringToSeconds(e.target.value))
+                }
+                className="w-full border rounded px-3 py-2"
+                placeholder="e.g. 7:30"
+              />
+              <div className="mt-2">
+                <label className="text-xs text-gray-500 mr-2">Units:</label>
+                <select
+                  value={profile.run_pace_unit || 'mile'}
+                  onChange={(e) => handleProfileUpdate('run_pace_unit', e.target.value)}
+                  className="text-sm border rounded px-2 py-1"
+                >
+                  <option value="mile">mile</option>
+                  <option value="km">km</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </section>
 
+        {/* Email Opt-In */}
         <section className="bg-white border rounded-xl p-6 shadow-sm">
           <h2 className="text-lg font-medium mb-4">Email Preferences</h2>
           <label className="flex items-center gap-3 text-sm text-gray-700">
@@ -168,6 +173,7 @@ const timeStringToSeconds = (input: string) => {
           </label>
         </section>
 
+        {/* Strava */}
         <section className="bg-white border rounded-xl p-6 shadow-sm">
           <h2 className="text-lg font-medium mb-4">Connected Apps</h2>
           <div className="flex items-center justify-between">
@@ -192,6 +198,21 @@ const timeStringToSeconds = (input: string) => {
           </div>
         </section>
 
+        {/* Subscription */}
+        <section className="bg-white border rounded-xl p-6 shadow-sm">
+          <h2 className="text-lg font-medium mb-4">Subscription</h2>
+          <p className="text-sm text-gray-600 mb-4">
+            View your current plan, update payment info, or cancel anytime via Stripe.
+          </p>
+          <button
+            onClick={handleManageSubscription}
+            className="px-5 py-2 text-sm rounded-full bg-blue-600 text-white hover:bg-blue-700 transition"
+          >
+            Manage Subscription
+          </button>
+        </section>
+
+        {/* Danger Zone */}
         <section className="bg-red-50 border border-red-200 rounded-xl p-6 shadow-sm">
           <h2 className="text-lg font-medium text-red-700 mb-4">Danger Zone</h2>
           <p className="text-sm text-red-600 mb-4">

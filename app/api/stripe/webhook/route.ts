@@ -1,11 +1,11 @@
-// app/api/stripe/webhook/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { stripe } from '@/utils/stripe';
 import Stripe from 'stripe';
 
-export const config = {
+// ✅ New syntax for Next.js 14+
+export const routeSegmentConfig = {
   api: {
     bodyParser: false,
   },
@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
     event.type === 'invoice.payment_failed'
   ) {
     const subscription = event.data.object as Stripe.Subscription;
+
     await supabase
       .from('profiles')
       .update({ stripe_subscription_active: false })
