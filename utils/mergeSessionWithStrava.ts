@@ -1,7 +1,6 @@
-// utils/mergeSessionWithStrava.ts
-
 import { Session } from '@/types/session';
 import { StravaActivity } from '@/types/strava';
+import estimateDurationFromTitle from '@/utils/estimateDurationFromTitle';
 
 export type MergedSession = Omit<Session, 'duration'> & {
   stravaActivity?: StravaActivity;
@@ -14,6 +13,13 @@ export type MergedResult = {
   unmatched: StravaActivity[];
 };
 
+function isDurationSimilar(estimatedMinutes: number | null, stravaSeconds: number): boolean {
+  if (!estimatedMinutes) return true;
+  const stravaMinutes = stravaSeconds / 60;
+  const diff = Math.abs(stravaMinutes - estimatedMinutes);
+  return diff / estimatedMinutes <= 0.2; // within 20%
+}
+
 export default function mergeSessionsWithStrava(
   sessions: Session[],
   strava: StravaActivity[]
@@ -23,13 +29,16 @@ export default function mergeSessionsWithStrava(
   const merged: MergedSession[] = sessions.map((session) => {
     const sessionDate = session.date;
     const sessionSport = session.sport?.toLowerCase();
+    const estimatedDuration = estimateDurationFromTitle(session.title);
 
     const match = strava.find((a) => {
       const activityDate = new Date(a.start_date).toISOString().slice(0, 10);
       const activitySport = a.sport_type?.toLowerCase();
 
       const matched =
-        activityDate === sessionDate && activitySport === sessionSport;
+        activityDate === sessionDate &&
+        activitySport === sessionSport &&
+        isDurationSimilar(estimatedDuration, a.moving_time);
 
       if (matched) matchedIds.add(a.id);
       return matched;
