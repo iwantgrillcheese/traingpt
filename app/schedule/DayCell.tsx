@@ -46,6 +46,11 @@ function sportEmoji(sport: string): string {
   }
 }
 
+// ✅ Unicode-safe emoji prefix checker
+function startsWithEmoji(text: string) {
+  return /^(\p{Emoji_Presentation}|\p{Extended_Pictographic})/u.test(text);
+}
+
 export default function DayCell({
   date,
   sessions,
@@ -115,7 +120,7 @@ export default function DayCell({
             >
               <div className="flex items-center justify-between mb-1">
                 <div className="font-medium text-sm truncate">
-                  {emoji} {titleLine}
+                  {startsWithEmoji(titleLine) ? titleLine : `${emoji} ${titleLine}`}
                 </div>
                 {isStravaMatch && <span className="text-xs text-blue-500">(Strava)</span>}
                 {!isStravaMatch && isCompleted && <span className="text-sm text-green-600">✓</span>}

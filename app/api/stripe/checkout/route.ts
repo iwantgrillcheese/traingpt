@@ -1,4 +1,3 @@
-// app/api/stripe/checkout/route.ts
 import { NextResponse } from 'next/server';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
@@ -7,6 +6,7 @@ import { stripe } from '@/utils/stripe';
 export async function POST() {
   try {
     const supabase = createServerComponentClient({ cookies });
+
     const {
       data: { session },
       error: authError,
@@ -34,12 +34,17 @@ export async function POST() {
       profile?.stripe_customer_id ||
       (await stripe.customers.create({ email: user.email! })).id;
 
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+    if (!baseUrl) {
+      throw new Error('Missing NEXT_PUBLIC_BASE_URL in env');
+    }
+
     const checkoutSession = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: 'subscription',
       line_items: [{ price: process.env.STRIPE_PRICE_ID!, quantity: 1 }],
-      success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/schedule?upgraded=true`,
-      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/schedule`,
+      success_url: `${baseUrl}/schedule?upgraded=true`,
+      cancel_url: `${baseUrl}/schedule`,
     });
 
     if (!profile?.stripe_customer_id) {

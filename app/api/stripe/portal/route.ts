@@ -1,4 +1,3 @@
-// app/api/stripe/portal/route.ts
 import { NextResponse } from 'next/server';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
@@ -35,9 +34,14 @@ export async function POST() {
       return NextResponse.json({ error: 'No Stripe customer ID' }, { status: 400 });
     }
 
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+    if (!baseUrl) {
+      throw new Error('Missing NEXT_PUBLIC_BASE_URL in env');
+    }
+
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: profile.stripe_customer_id,
-      return_url: `${process.env.NEXT_PUBLIC_SITE_URL}/schedule`,
+      return_url: `${baseUrl}/schedule`,
     });
 
     return NextResponse.json({ url: portalSession.url });
