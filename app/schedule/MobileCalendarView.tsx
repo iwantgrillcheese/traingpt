@@ -1,13 +1,14 @@
 'use client';
 
-import { useMemo, useState } from 'react';
 import {
   format,
   parseISO,
   isValid,
   startOfWeek,
   differenceInCalendarWeeks,
+  isWithinInterval,
 } from 'date-fns';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronRightIcon } from '@heroicons/react/20/solid';
 import SessionModal from './SessionModal';
 import type { Session } from '@/types/session';
@@ -24,6 +25,7 @@ type CompletedSession = {
 export type MobileCalendarViewProps = {
   sessions: EnrichedSession[];
   completedSessions: CompletedSession[];
+  stravaActivities?: StravaActivity[];
 };
 
 function safeParseDate(input: string | Date): Date {
@@ -34,12 +36,20 @@ function safeParseDate(input: string | Date): Date {
   return isValid(input) ? input : new Date();
 }
 
+function normalizeDate(date: Date): string {
+  return date.toISOString().split('T')[0];
+}
+
 export default function MobileCalendarView({
   sessions,
   completedSessions,
+  stravaActivities = [],
 }: MobileCalendarViewProps) {
   const [selectedSession, setSelectedSession] = useState<EnrichedSession | null>(null);
   const [sessionsState, setSessionsState] = useState<EnrichedSession[]>(sessions);
+  const weekRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const today = new Date();
 
   const sortedSessions = useMemo(() => {
     return [...sessionsState]
@@ -47,23 +57,69 @@ export default function MobileCalendarView({
       .sort((a, b) => a.date.localeCompare(b.date));
   }, [sessionsState]);
 
+  // Dates of all planned sessions
+  const sessionDates = useMemo(
+    () => new Set(sortedSessions.map((s) => normalizeDate(safeParseDate(s.date)))),
+    [sortedSessions]
+  );
+
+  const extraStravaMap = useMemo(() => {
+    const map: Record<string, StravaActivity[]> = {};
+    stravaActivities.forEach((a) => {
+      const dateStr = a.start_date_local?.split('T')[0];
+      if (!dateStr || sessionDates.has(dateStr)) return; // skip matched sessions
+      if (!map[dateStr]) map[dateStr] = [];
+      map[dateStr].push(a);
+    });
+    return map;
+  }, [stravaActivities, sessionDates]);
+
   const groupedByWeek = useMemo(() => {
-    if (sortedSessions.length === 0) return {};
+    const allDates = new Set<string>();
+    sortedSessions.forEach((s) => allDates.add(normalizeDate(safeParseDate(s.date))));
+    Object.keys(extraStravaMap).forEach((d) => allDates.add(d));
 
-    const start = startOfWeek(safeParseDate(sortedSessions[0].date), { weekStartsOn: 1 });
-    const weekMap: Record<string, EnrichedSession[]> = {};
+    const allDateArray = [...allDates].sort();
 
-    sortedSessions.forEach((session) => {
-      const sessionDate = safeParseDate(session.date);
-      const weekIndex = differenceInCalendarWeeks(sessionDate, start, { weekStartsOn: 1 });
+    if (allDateArray.length === 0) return {};
+
+    const start = startOfWeek(safeParseDate(allDateArray[0]), { weekStartsOn: 1 });
+    const weekMap: Record<string, { sessions: EnrichedSession[]; extras: StravaActivity[] }> = {};
+
+    allDateArray.forEach((dateStr) => {
+      const date = safeParseDate(dateStr);
+      const weekIndex = differenceInCalendarWeeks(date, start, { weekStartsOn: 1 });
       const weekLabel = `Week ${weekIndex + 1}`;
 
-      if (!weekMap[weekLabel]) weekMap[weekLabel] = [];
-      weekMap[weekLabel].push(session);
+      if (!weekMap[weekLabel]) weekMap[weekLabel] = { sessions: [], extras: [] };
+
+      sortedSessions
+        .filter((s) => normalizeDate(safeParseDate(s.date)) === dateStr)
+        .forEach((s) => weekMap[weekLabel].sessions.push(s));
+
+      (extraStravaMap[dateStr] || []).forEach((a) => weekMap[weekLabel].extras.push(a));
     });
 
     return weekMap;
-  }, [sortedSessions]);
+  }, [sortedSessions, extraStravaMap]);
+
+  useEffect(() => {
+    const currentWeekEntry = Object.entries(groupedByWeek).find(([_, val]) =>
+      [...val.sessions, ...val.extras].some((s: any) => {
+        const date = safeParseDate(s.date || s.start_date_local);
+        return isWithinInterval(today, {
+          start: startOfWeek(date, { weekStartsOn: 1 }),
+          end: new Date(startOfWeek(date, { weekStartsOn: 1 }).getTime() + 6 * 86400000),
+        });
+      })
+    );
+
+    if (currentWeekEntry) {
+      const weekLabel = currentWeekEntry[0];
+      const el = weekRefs.current[weekLabel];
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [groupedByWeek]);
 
   const handleUpdateSession = (updated: EnrichedSession) => {
     setSessionsState((prev) =>
@@ -72,22 +128,40 @@ export default function MobileCalendarView({
     setSelectedSession(updated);
   };
 
-  if (sortedSessions.length === 0) {
-    return (
-      <div className="text-center text-zinc-400 pt-12">
-        No sessions to display.
-      </div>
-    );
+  if (sortedSessions.length === 0 && stravaActivities.length === 0) {
+    return <div className="text-center text-zinc-400 pt-12">No sessions to display.</div>;
   }
 
   return (
-    <div className="px-4 pb-24">
-      {Object.entries(groupedByWeek).map(([weekLabel, weekSessions]) => (
-        <div key={weekLabel} className="mb-10">
-          <h2 className="text-xl font-semibold mb-4">{weekLabel}</h2>
+    <div className="px-4 pb-32">
+      {/* Sticky Donate CTA */}
+      <div className="sticky top-0 z-10 bg-white pt-4 pb-2">
+        <div className="flex justify-center">
+          <button
+            onClick={async () => {
+              const res = await fetch('/api/stripe/checkout', { method: 'POST' });
+              const { url } = await res.json();
+              if (url) window.location.href = url;
+            }}
+            className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-black transition"
+          >
+            🙌 Has TrainGPT been helpful? Support the project ($5/month)
+          </button>
+        </div>
+      </div>
 
-          <div className="space-y-4">
-            {weekSessions.map((session) => {
+      {Object.entries(groupedByWeek).map(([weekLabel, { sessions, extras }]) => (
+        <div
+          key={weekLabel}
+          ref={(el) => {
+            weekRefs.current[weekLabel] = el;
+          }}
+          className="mb-10"
+        >
+          <h2 className="text-lg font-semibold mb-3 text-zinc-600">{weekLabel}</h2>
+
+          <div className="space-y-3">
+            {sessions.map((session) => {
               const title = session.title || session.stravaActivity?.name || 'Unnamed Session';
               const date = safeParseDate(session.date);
 
@@ -100,12 +174,14 @@ export default function MobileCalendarView({
                 <div
                   key={session.id}
                   onClick={() => setSelectedSession(session)}
-                  className={`rounded-xl p-4 shadow border cursor-pointer flex items-center justify-between ${
-                    isCompleted ? 'bg-green-50 border-green-300' : 'bg-white'
+                  className={`rounded-xl p-4 border flex items-center justify-between cursor-pointer transition shadow-sm ${
+                    isCompleted
+                      ? 'bg-green-50 border-green-300'
+                      : 'bg-white hover:bg-zinc-50'
                   }`}
                 >
                   <div>
-                    <div className="text-sm font-medium">
+                    <div className="text-sm font-medium text-zinc-900">
                       {title}
                       {isCompleted && <span className="ml-2 text-green-600">✓</span>}
                     </div>
@@ -113,7 +189,29 @@ export default function MobileCalendarView({
                       {format(date, 'EEEE, MMM d')}
                     </div>
                   </div>
-                  <ChevronRightIcon className="w-4 h-4 text-gray-400" />
+                  <ChevronRightIcon className="w-4 h-4 text-zinc-400" />
+                </div>
+              );
+            })}
+
+            {extras.map((a) => {
+              const date = safeParseDate(a.start_date_local);
+              const distance = a.distance ? `${(a.distance / 1609).toFixed(1)} mi` : '';
+              const pace =
+                a.moving_time && a.distance
+                  ? `${Math.round((a.moving_time / (a.distance / 1000)) / 60)} min/km`
+                  : '';
+              const hr = a.average_heartrate ? `${Math.round(a.average_heartrate)} bpm` : '';
+
+              return (
+                <div
+                  key={a.id}
+                  className="rounded-xl p-4 border flex flex-col bg-blue-50 border-blue-300"
+                >
+                  <div className="text-sm font-medium text-blue-800 mb-1">🚴 {a.name}</div>
+                  <div className="text-xs text-blue-700">
+                    {format(date, 'EEEE, MMM d')} • {distance} {hr && `• ${hr}`} {pace && `• ${pace}`}
+                  </div>
                 </div>
               );
             })}
@@ -128,19 +226,6 @@ export default function MobileCalendarView({
         onClose={() => setSelectedSession(null)}
         onUpdate={handleUpdateSession}
       />
-
-      <div className="mt-12 mb-6 w-full flex justify-center">
-        <button
-          onClick={async () => {
-            const res = await fetch('/api/stripe/checkout', { method: 'POST' });
-            const { url } = await res.json();
-            if (url) window.location.href = url;
-          }}
-          className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-black transition"
-        >
-          🙌 Has TrainGPT been helpful? Support the project ($5/month)
-        </button>
-      </div>
     </div>
   );
 }
