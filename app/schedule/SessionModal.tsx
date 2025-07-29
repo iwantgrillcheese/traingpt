@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog } from '@headlessui/react';
 import { format } from 'date-fns';
 import clsx from 'clsx';
@@ -29,6 +29,11 @@ export default function SessionModal({
   const [isCompleted, setIsCompleted] = useState(false);
 
   const supabase = createClientComponentClient();
+
+  useEffect(() => {
+    setIsCompleted(false); // reset state on session open
+    setOutput(session?.structured_workout || null);
+  }, [session]);
 
   const handleGenerate = async () => {
     if (!session) return;
@@ -59,7 +64,6 @@ export default function SessionModal({
 
   const handleMarkAsDone = async () => {
     if (!session) return;
-
     setMarkingComplete(true);
 
     const {
@@ -82,6 +86,7 @@ export default function SessionModal({
 
     if (!error) {
       setIsCompleted(true);
+      onUpdate?.(session); // refresh UI
     } else {
       console.error('Error marking session as done:', error.message);
     }
@@ -97,7 +102,12 @@ export default function SessionModal({
     <Dialog open={open} onClose={onClose} className="relative z-50">
       <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" aria-hidden="true" />
       <div className="fixed inset-0 flex items-center justify-center p-4">
-        <Dialog.Panel className="w-full max-w-2xl rounded-xl bg-white p-6 shadow-xl space-y-6 animate-fade-in">
+        <Dialog.Panel
+          className={clsx(
+            'w-full max-w-2xl rounded-xl p-6 shadow-xl space-y-6 animate-fade-in',
+            isCompleted ? 'bg-green-50 border border-green-300' : 'bg-white'
+          )}
+        >
           {/* Title */}
           <div>
             <Dialog.Title className="text-xl font-semibold text-zinc-900">
@@ -120,10 +130,7 @@ export default function SessionModal({
           {stravaActivity && (
             <div className="grid grid-cols-2 gap-4 rounded-md bg-zinc-100 p-4 text-sm">
               {stravaActivity.distance && (
-                <Metric
-                  label="Distance"
-                  value={`${(stravaActivity.distance / 1000).toFixed(1)} km`}
-                />
+                <Metric label="Distance" value={`${(stravaActivity.distance / 1000).toFixed(1)} km`} />
               )}
               {stravaActivity.moving_time && stravaActivity.distance && (
                 <Metric
@@ -132,16 +139,10 @@ export default function SessionModal({
                 />
               )}
               {stravaActivity.average_heartrate && (
-                <Metric
-                  label="Heart Rate"
-                  value={`${Math.round(stravaActivity.average_heartrate)} bpm`}
-                />
+                <Metric label="Heart Rate" value={`${Math.round(stravaActivity.average_heartrate)} bpm`} />
               )}
               {stravaActivity.average_watts && (
-                <Metric
-                  label="Power"
-                  value={`${Math.round(stravaActivity.average_watts)} watts`}
-                />
+                <Metric label="Power" value={`${Math.round(stravaActivity.average_watts)} watts`} />
               )}
             </div>
           )}
@@ -163,7 +164,7 @@ export default function SessionModal({
                 className={clsx(
                   'text-sm px-4 py-2 rounded-md border',
                   isCompleted
-                    ? 'text-green-700 border-green-300 bg-green-50 cursor-default'
+                    ? 'text-green-700 border-green-300 bg-white cursor-default'
                     : 'text-zinc-700 hover:text-black border-zinc-300'
                 )}
               >
