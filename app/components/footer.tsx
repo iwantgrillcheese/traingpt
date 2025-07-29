@@ -58,7 +58,7 @@ export default function Footer() {
             <Link href="https://github.com" aria-label="GitHub">
               <span className="hover:text-black">GitHub</span>
             </Link>
-            <Link href="https://tiktok.com" aria-label="TikTok">
+            <Link href="https://tiktok.com/xxxstrikerxxx" aria-label="TikTok">
               <span className="hover:text-black">TikTok</span>
             </Link>
             <Link href="https://discord.com" aria-label="Discord">
