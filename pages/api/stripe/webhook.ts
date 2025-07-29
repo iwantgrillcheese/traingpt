@@ -1,33 +1,37 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { NextApiRequest, NextApiResponse } from 'next';
 import { stripe } from '@/utils/stripe';
 import Stripe from 'stripe';
+import { buffer } from 'micro';
+import { createServerSupabaseClient } from '@supabase/auth-helpers-nextjs';
 
-// ✅ New syntax for Next.js 14+
-export const routeSegmentConfig = {
+export const config = {
   api: {
     bodyParser: false,
   },
 };
 
-export async function POST(req: NextRequest) {
-  const sig = req.headers.get('stripe-signature');
-  const body = await req.arrayBuffer();
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'POST') {
+    return res.status(405).end('Method Not Allowed');
+  }
+
+  const buf = await buffer(req);
+  const sig = req.headers['stripe-signature'] as string;
+
   let event: Stripe.Event;
 
   try {
     event = stripe.webhooks.constructEvent(
-      Buffer.from(body),
-      sig!,
+      buf,
+      sig,
       process.env.STRIPE_WEBHOOK_SECRET!
     );
   } catch (err) {
     console.error('[Webhook Error]', err);
-    return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
+    return res.status(400).send(`Webhook Error: ${(err as Error).message}`);
   }
 
-  const supabase = createServerComponentClient({ cookies });
+  const supabase = createServerSupabaseClient({ req, res });
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
@@ -55,5 +59,5 @@ export async function POST(req: NextRequest) {
       .eq('stripe_subscription_id', subscription.id);
   }
 
-  return NextResponse.json({ received: true });
+  return res.json({ received: true });
 }
