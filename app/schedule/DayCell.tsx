@@ -46,7 +46,6 @@ function sportEmoji(sport: string): string {
   }
 }
 
-// ✅ Unicode-safe emoji prefix checker
 function startsWithEmoji(text: string) {
   return /^(\p{Emoji_Presentation}|\p{Extended_Pictographic})/u.test(text);
 }
@@ -72,7 +71,9 @@ export default function DayCell({
         isToday(date) && 'ring-2 ring-blue-400'
       )}
     >
-      <div className="text-sm font-semibold text-right">{format(date, 'd')}</div>
+      <div className="text-xs text-zinc-500 font-medium text-right uppercase tracking-wide">
+        {format(date, 'EEE d')}
+      </div>
 
       <div className="flex flex-col gap-2">
         {sessions.map((s) => {
@@ -82,7 +83,6 @@ export default function DayCell({
           const emoji = sportEmoji(sport);
 
           const colorClass = getSessionColor(isRest ? 'rest' : sport);
-
           const isStravaMatch = !!s.stravaActivity;
           const isCompleted = isSessionCompleted(s) || isStravaMatch;
 
@@ -109,7 +109,7 @@ export default function DayCell({
               key={s.id}
               onClick={() => !isRest && onSessionClick?.(s)}
               className={clsx(
-                'w-full text-left rounded-md px-3 py-2 shadow-sm hover:bg-opacity-80 transition-all border',
+                'w-full text-left rounded-md px-3 py-2 transition-all border hover:shadow-sm',
                 isStravaMatch
                   ? 'bg-blue-50 border-blue-300'
                   : isCompleted
@@ -119,15 +119,15 @@ export default function DayCell({
               title={rawTitle}
             >
               <div className="flex items-center justify-between mb-1">
-                <div className="font-medium text-sm truncate">
-                  {startsWithEmoji(titleLine) ? titleLine : `${emoji} ${titleLine}`}
+                <div className="font-medium text-sm leading-snug line-clamp-2">
+                  {startsWithEmoji(titleLine) ? titleLine : <><span className="mr-1">{emoji}</span>{titleLine}</>}
                 </div>
                 {isStravaMatch && <span className="text-xs text-blue-500">(Strava)</span>}
                 {!isStravaMatch && isCompleted && <span className="text-sm text-green-600">✓</span>}
               </div>
 
               {detailLine && (
-                <div className="text-xs text-muted-foreground truncate">{detailLine}</div>
+                <div className="text-xs text-muted-foreground line-clamp-2">{detailLine}</div>
               )}
 
               {isStravaMatch && (

@@ -54,31 +54,35 @@ export default function MonthGrid({
   }, [currentMonth]);
 
   return (
-    <div className="grid grid-cols-7 gap-x-6 gap-y-4">
-      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-        <div key={day} className="text-center font-medium text-sm text-muted-foreground">
-          {day}
-        </div>
-      ))}
+    <div className="w-full animate-fade-in space-y-2">
+      {/* Header row */}
+      <div className="grid grid-cols-7 text-center font-medium text-sm text-muted-foreground pb-1">
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+          <div key={day} className="tracking-wide">{day}</div>
+        ))}
+      </div>
 
-      {weeks.flatMap((week) =>
-        week.map((date) => {
-          const dateStr = date.toISOString().split('T')[0];
-          const isOutside = !isSameMonth(date, currentMonth);
+      {/* Calendar grid */}
+      <div className="grid grid-cols-7 gap-x-4 gap-y-4">
+        {weeks.flatMap((week) =>
+          week.map((date) => {
+            const dateStr = date.toISOString().split('T')[0];
+            const isOutside = !isSameMonth(date, currentMonth);
 
-          return (
-            <DayCell
-              key={dateStr}
-              date={date}
-              isOutside={isOutside}
-              sessions={sessionsByDate[dateStr] || []}
-              completedSessions={completedSessions}
-              extraActivities={stravaByDate[dateStr] || []}
-              onSessionClick={onSessionClick}
-            />
-          );
-        })
-      )}
+            return (
+              <DayCell
+                key={dateStr}
+                date={date}
+                isOutside={isOutside}
+                sessions={sessionsByDate[dateStr] || []}
+                completedSessions={completedSessions}
+                extraActivities={stravaByDate[dateStr] || []}
+                onSessionClick={onSessionClick}
+              />
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }
