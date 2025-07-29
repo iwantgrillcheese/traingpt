@@ -96,11 +96,18 @@ export default function ProfilePage() {
     window.location.href = '/';
   };
 
-  const handleManageSubscription = async () => {
-    const res = await fetch('/api/stripe/create-portal-link', { method: 'POST' });
-    const { url } = await res.json();
-    if (url) window.location.href = url;
-  };
+const handleManageSubscription = async () => {
+  const res = await fetch('/api/stripe/portal', { method: 'POST' });
+
+  if (!res.ok) {
+    console.error('Failed to load Stripe portal');
+    return;
+  }
+
+  const { url } = await res.json();
+  if (url) window.location.href = url;
+};
+
 
   if (!profile) return <div className="text-center py-20 text-gray-500">Loading profile...</div>;
 
@@ -206,14 +213,11 @@ export default function ProfilePage() {
           </p>
           <button
   className="rounded-md bg-blue-600 text-white px-4 py-2 text-sm hover:bg-blue-700 transition"
-  onClick={async () => {
-    const res = await fetch('/api/stripe/portal', { method: 'POST' });
-    const { url } = await res.json();
-    if (url) window.location.href = url;
-  }}
+  onClick={handleManageSubscription}
 >
   Manage Subscription
 </button>
+
 
         </section>
 
