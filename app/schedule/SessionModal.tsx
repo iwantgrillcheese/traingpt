@@ -13,7 +13,7 @@ type Props = {
   stravaActivity?: StravaActivity | null;
   open: boolean;
   onClose: () => void;
-  onUpdate?: (updated: Session) => void;
+  onUpdate?: (updated: Session, action: 'mark' | 'undo') => void;
 };
 
 export default function SessionModal({
@@ -55,7 +55,7 @@ export default function SessionModal({
     await supabase.from('sessions').update({ structured_workout: details }).eq('id', session.id);
 
     setOutput(details);
-    onUpdate?.({ ...session, structured_workout: details });
+    onUpdate?.({ ...session, structured_workout: details }, 'mark');
     setLoading(false);
   };
 
@@ -63,27 +63,33 @@ export default function SessionModal({
     if (!session) return;
     setMarkingComplete(true);
 
-    const res = await fetch('/api/schedule/mark-done', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        session_date: session.date,
-        session_title: session.title,
-      }),
-    });
+    try {
+      const res = await fetch('/api/schedule/mark-done', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_date: session.date,
+          session_title: session.title,
+          undo: isCompleted,
+        }),
+      });
 
-    const result = await res.json();
+      if (!res.ok) {
+        const msg = await res.text();
+        console.error('Failed to mark done:', msg);
+        alert('Failed to update session status.');
+        return;
+      }
 
-    if (res.ok) {
-      const newStatus = !result.wasMarkedDone;
+      const newStatus = !isCompleted;
       setIsCompleted(newStatus);
-      onUpdate?.(session);
-    } else {
-      console.error('Failed to mark session:', result);
-      alert('Error marking session.');
+      onUpdate?.(session, newStatus ? 'mark' : 'undo');
+    } catch (err) {
+      console.error(err);
+      alert('Unexpected error updating session.');
+    } finally {
+      setMarkingComplete(false);
     }
-
-    setMarkingComplete(false);
   };
 
   if (!session) return null;
@@ -157,7 +163,11 @@ export default function SessionModal({
                     : 'text-zinc-700 hover:text-black border-zinc-300'
                 )}
               >
-                {isCompleted ? 'Undo Completion' : markingComplete ? 'Saving...' : 'Mark as Done'}
+                {markingComplete
+                  ? 'Saving...'
+                  : isCompleted
+                  ? 'Undo Completion'
+                  : '✅ Mark as Done'}
               </button>
 
               <button

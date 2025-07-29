@@ -125,20 +125,28 @@ export default function MobileCalendarView({
     }
   }, [groupedByWeek]);
 
-  const handleUpdateSession = (updated: EnrichedSession) => {
+  const handleUpdateSession = (updated: EnrichedSession, action: 'mark' | 'undo') => {
     setSessionsState((prev) =>
       prev.map((s) => (s.id === updated.id ? updated : s))
     );
     setSelectedSession(updated);
 
-    // Optimistic completion patch
     setCompletedSessions((prev) => {
       const exists = prev.some(
         (c) => c.session_date === updated.date && c.session_title === updated.title
       );
-      return exists
-        ? prev
-        : [...prev, { session_date: updated.date, session_title: updated.title }];
+
+      if (action === 'mark' && !exists) {
+        return [...prev, { session_date: updated.date, session_title: updated.title }];
+      }
+
+      if (action === 'undo' && exists) {
+        return prev.filter(
+          (c) => !(c.session_date === updated.date && c.session_title === updated.title)
+        );
+      }
+
+      return prev;
     });
   };
 

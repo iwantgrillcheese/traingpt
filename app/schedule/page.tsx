@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import CalendarShell from './CalendarShell';
 import { Session } from '@/types/session';
@@ -20,7 +20,6 @@ export default function SchedulePage() {
   const [stravaActivities, setStravaActivities] = useState<StravaActivity[]>([]);
   const [completedSessions, setCompletedSessions] = useState<CompletedSession[]>([]);
   const [loading, setLoading] = useState(true);
-  const normalized = normalizeStravaActivities(stravaActivities);
   const supabase = createClientComponentClient();
 
   useEffect(() => {
@@ -52,6 +51,10 @@ export default function SchedulePage() {
     fetchData();
   }, []);
 
+  const handleCompletedUpdate = useCallback((updated: CompletedSession[]) => {
+    setCompletedSessions(updated);
+  }, []);
+
   if (loading) {
     return <div className="text-center py-10 text-zinc-400">Loading your training data...</div>;
   }
@@ -69,6 +72,7 @@ export default function SchedulePage() {
           completedSessions={completedSessions}
           stravaActivities={stravaActivities}
           extraStravaActivities={unmatchedActivities}
+          onCompletedUpdate={handleCompletedUpdate}
         />
       </main>
       <Footer />

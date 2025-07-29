@@ -19,8 +19,9 @@ type CalendarShellProps = {
   sessions: MergedSession[];
   completedSessions: CompletedSession[];
   stravaActivities: StravaActivity[];
-  extraStravaActivities?: StravaActivity[];
-  timezone?: string;
+  extraStravaActivities: StravaActivity[];
+  onCompletedUpdate?: (updated: CompletedSession[]) => void;
+    timezone?: string;
 };
 
 export default function CalendarShell({
@@ -34,6 +35,7 @@ export default function CalendarShell({
   const [hasMounted, setHasMounted] = useState(false);
   const [selectedSession, setSelectedSession] = useState<MergedSession | null>(null);
   const [currentMonth, setCurrentMonth] = useState<Date>(startOfMonth(new Date()));
+  const [completed, setCompleted] = useState<CompletedSession[]>(completedSessions);
 
   useEffect(() => {
     setHasMounted(true);
@@ -74,24 +76,22 @@ export default function CalendarShell({
       {isMobile ? (
         <MobileCalendarView
           sessions={sessions}
-          completedSessions={completedSessions}
+          completedSessions={completed}
         />
       ) : (
         <>
-
-<div className="mb-6 w-full flex justify-center">
-  <button
-    onClick={async () => {
-      const res = await fetch('/api/stripe/checkout', { method: 'POST' });
-      const { url } = await res.json();
-      if (url) window.location.href = url;
-    }}
-    className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-black transition"
-  >
-    🙌 Has TrainGPT been helpful? Support the project ($5/month)
-  </button>
-</div>
-
+          <div className="mb-6 w-full flex justify-center">
+            <button
+              onClick={async () => {
+                const res = await fetch('/api/stripe/checkout', { method: 'POST' });
+                const { url } = await res.json();
+                if (url) window.location.href = url;
+              }}
+              className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-black transition"
+            >
+              🙌 Has TrainGPT been helpful? Support the project ($5/month)
+            </button>
+          </div>
 
           <div className="flex items-center justify-between mb-6 w-full">
             <button onClick={goToPrevMonth} className="text-sm text-gray-500 hover:text-black">←</button>
@@ -102,7 +102,7 @@ export default function CalendarShell({
           <MonthGrid
             currentMonth={currentMonth}
             sessionsByDate={sessionsByDate}
-            completedSessions={completedSessions}
+            completedSessions={completed}
             stravaByDate={stravaByDate}
             onSessionClick={handleSessionClick}
           />
@@ -114,6 +114,18 @@ export default function CalendarShell({
         stravaActivity={selectedSession?.stravaActivity}
         open={!!selectedSession}
         onClose={() => setSelectedSession(null)}
+        onUpdate={(updated, action) => {
+          if (!updated?.date || !updated?.title) return;
+
+          const key = (c: CompletedSession) =>
+            c.session_date === updated.date && c.session_title === updated.title;
+
+          setCompleted((prev) =>
+            action === 'mark'
+              ? [...prev.filter((c) => !key(c)), { session_date: updated.date, session_title: updated.title }]
+              : prev.filter((c) => !key(c))
+          );
+        }}
       />
     </main>
   );
