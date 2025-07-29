@@ -205,11 +205,16 @@ export default function ProfilePage() {
             View your current plan, update payment info, or cancel anytime via Stripe.
           </p>
           <button
-            onClick={handleManageSubscription}
-            className="px-5 py-2 text-sm rounded-full bg-blue-600 text-white hover:bg-blue-700 transition"
-          >
-            Manage Subscription
-          </button>
+  className="rounded-md bg-blue-600 text-white px-4 py-2 text-sm hover:bg-blue-700 transition"
+  onClick={async () => {
+    const res = await fetch('/api/stripe/portal', { method: 'POST' });
+    const { url } = await res.json();
+    if (url) window.location.href = url;
+  }}
+>
+  Manage Subscription
+</button>
+
         </section>
 
         {/* Danger Zone */}
