@@ -7,6 +7,7 @@ import { Session } from '@/types/session';
 import { StravaActivity } from '@/types/strava';
 import mergeSessionsWithStrava from '@/utils/mergeSessionWithStrava';
 import Footer from '../components/footer';
+import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
 
 type CompletedSession = {
   session_date: string;
@@ -19,7 +20,7 @@ export default function SchedulePage() {
   const [stravaActivities, setStravaActivities] = useState<StravaActivity[]>([]);
   const [completedSessions, setCompletedSessions] = useState<CompletedSession[]>([]);
   const [loading, setLoading] = useState(true);
-
+  const normalized = normalizeStravaActivities(stravaActivities);
   const supabase = createClientComponentClient();
 
   useEffect(() => {

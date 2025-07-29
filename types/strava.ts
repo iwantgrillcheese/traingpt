@@ -1,6 +1,7 @@
 export type StravaActivity = {
   id: string;
   user_id: string;
+  strava_id: number;
   name: string;
   sport_type: 'Run' | 'Ride' | 'Swim' | 'Walk' | 'Workout' | 'Hike' | string;
   start_date: string; // ISO string
@@ -18,4 +19,5 @@ export type StravaActivity = {
   total_elevation_gain: number | null;
   device_watts: boolean | null;
   trainer: boolean | null;
+  local_date?: string;
 };

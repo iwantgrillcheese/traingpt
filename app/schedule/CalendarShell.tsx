@@ -7,6 +7,7 @@ import MobileCalendarView from './MobileCalendarView';
 import SessionModal from './SessionModal';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
+import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
 
 type CompletedSession = {
   session_date: string;
@@ -19,6 +20,7 @@ type CalendarShellProps = {
   completedSessions: CompletedSession[];
   stravaActivities: StravaActivity[];
   extraStravaActivities?: StravaActivity[];
+  timezone?: string;
 };
 
 export default function CalendarShell({
@@ -26,6 +28,7 @@ export default function CalendarShell({
   completedSessions,
   stravaActivities,
   extraStravaActivities = [],
+  timezone = 'America/Los_Angeles',
 }: CalendarShellProps) {
   const [isMobile, setIsMobile] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
@@ -49,9 +52,14 @@ export default function CalendarShell({
     sessionsByDate[s.date].push(s);
   });
 
+  const normalizedStrava = normalizeStravaActivities(
+    [...stravaActivities, ...extraStravaActivities],
+    timezone
+  );
+
   const stravaByDate: Record<string, StravaActivity[]> = {};
-  [...stravaActivities, ...extraStravaActivities].forEach((a) => {
-    const dateStr = a.start_date?.split('T')[0];
+  normalizedStrava.forEach((a) => {
+    const dateStr = a.local_date;
     if (!dateStr) return;
     if (!stravaByDate[dateStr]) stravaByDate[dateStr] = [];
     stravaByDate[dateStr].push(a);
