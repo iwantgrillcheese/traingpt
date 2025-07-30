@@ -10,6 +10,8 @@ import WeeklySummaryPanel from '@/app/coaching/WeeklySummaryPanel';
 import FitnessPanel from '@/app/coaching/FitnessPanel';
 import StravaConnectBanner from '@/app/components/StravaConnectBanner';
 import CoachChatModal from '@/app/components/CoachChatModal';
+import { startOfWeek, addDays, parseISO, isWithinInterval } from 'date-fns';
+
 
 const SPORT_COLORS: Record<string, string> = {
   Swim: '#60A5FA',
@@ -73,25 +75,41 @@ export default function CoachingDashboard({
   const [chatOpen, setChatOpen] = useState(false);
   const [sportBreakdown, setSportBreakdown] = useState<{ name: string; value: number }[]>([]);
 
-  useEffect(() => {
-    const breakdownMap = new Map<string, number>();
+useEffect(() => {
+  const breakdownMap = new Map<string, number>();
 
-    const source = [...completedSessions, ...stravaActivities];
+  // Filter by week or plan-to-date
+  const now = new Date();
+  const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+  const weekEnd = addDays(weekStart, 7);
 
-    source.forEach((item) => {
-      const sport = normalizeSportName((item as any).sport_type || (item as any).sport);
-      const duration = 'moving_time' in item
+  const isThisWeek = viewMode === 'week';
+  const dateFilter = (dateStr: string) => {
+    const d = parseISO(dateStr);
+    return isThisWeek ? isWithinInterval(d, { start: weekStart, end: weekEnd }) : true;
+  };
+
+  const filteredCompleted = completedSessions.filter((s) => dateFilter(s.date));
+  const filteredStrava = stravaActivities.filter((a) => dateFilter(a.start_date));
+
+  const source = [...filteredCompleted, ...filteredStrava];
+
+  source.forEach((item) => {
+    const sport = normalizeSportName((item as any).sport_type || (item as any).sport);
+    const duration =
+      'moving_time' in item
         ? item.moving_time / 60
         : item.duration ?? estimateDurationFromTitle((item as any).title);
-      breakdownMap.set(sport, (breakdownMap.get(sport) || 0) + duration);
-    });
+    breakdownMap.set(sport, (breakdownMap.get(sport) || 0) + duration);
+  });
 
-    const result = Array.from(breakdownMap.entries())
-      .map(([name, value]) => ({ name, value }))
-      .filter((entry) => entry.value > 0);
+  const result = Array.from(breakdownMap.entries())
+    .map(([name, value]) => ({ name, value }))
+    .filter((entry) => entry.value > 0);
 
-    setSportBreakdown(result);
-  }, [completedSessions, stravaActivities, viewMode]);
+  setSportBreakdown(result);
+}, [completedSessions, stravaActivities, viewMode]);
+
 
   const totalTime = sportBreakdown.reduce((sum, b) => sum + b.value, 0);
 
