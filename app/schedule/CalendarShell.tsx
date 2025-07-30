@@ -8,6 +8,7 @@ import SessionModal from './SessionModal';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
 import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
+import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 
 type CompletedSession = {
   session_date: string;
@@ -23,6 +24,24 @@ type CalendarShellProps = {
   onCompletedUpdate?: (updated: CompletedSession[]) => void;
   timezone?: string;
 };
+
+function SupportBanner() {
+  return (
+    <div className="mx-auto mb-6 flex w-fit items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 shadow-sm hover:bg-gray-50 transition">
+      <ChatBubbleLeftRightIcon className="h-4 w-4 text-gray-400" />
+      <span className="text-gray-600">
+        <a
+          href="https://buy.stripe.com/8wM7vR8hH5Ejbf27ss"
+          target="_blank"
+          rel="noreferrer"
+          className="underline hover:text-gray-800"
+        >
+          Support the project ($5/month)
+        </a>
+      </span>
+    </div>
+  );
+}
 
 export default function CalendarShell({
   sessions,
@@ -74,30 +93,21 @@ export default function CalendarShell({
   return (
     <main className="min-h-screen bg-background px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20 max-w-[1800px] mx-auto">
       {isMobile ? (
-        <MobileCalendarView
-          sessions={sessions}
-          completedSessions={completed}
-        />
+        <MobileCalendarView sessions={sessions} completedSessions={completed} />
       ) : (
         <>
-          <div className="mx-auto mt-4 max-w-md rounded-md border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-600 shadow-sm">
-  <span className="text-gray-600">
-    Has TrainGPT been helpful?{' '}
-    <a
-      href="https://buy.stripe.com/8wM7vR8hH5Ejbf27ss"
-      target="_blank"
-      rel="noreferrer"
-      className="font-medium text-blue-600 underline hover:text-blue-500"
-    >
-      Support the project ($5/month)
-    </a>
-  </span>
-</div>
+          <SupportBanner />
 
           <div className="flex items-center justify-between mb-6 w-full">
-            <button onClick={goToPrevMonth} className="text-sm text-gray-500 hover:text-black">←</button>
-            <h2 className="text-2xl font-semibold text-center">{format(currentMonth, 'MMMM yyyy')}</h2>
-            <button onClick={goToNextMonth} className="text-sm text-gray-500 hover:text-black">→</button>
+            <button onClick={goToPrevMonth} className="text-sm text-gray-500 hover:text-black">
+              ←
+            </button>
+            <h2 className="text-2xl font-semibold text-center">
+              {format(currentMonth, 'MMMM yyyy')}
+            </h2>
+            <button onClick={goToNextMonth} className="text-sm text-gray-500 hover:text-black">
+              →
+            </button>
           </div>
 
           <MonthGrid
