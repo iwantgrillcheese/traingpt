@@ -1,3 +1,5 @@
+// /app/api/coach-feedback/route.ts
+
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
@@ -6,6 +8,9 @@ import {
   subWeeks,
   formatISO,
   parseISO,
+  addDays,
+  isWithinInterval,
+  isBefore,
 } from 'date-fns';
 import { OpenAI } from 'openai';
 
@@ -13,6 +18,29 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+function secondsToPace(sec: number | null | undefined, units: string = 'mile') {
+  if (!sec || isNaN(sec)) return 'unknown';
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${s.toString().padStart(2, '0')} per ${units}`;
+}
+
+function getCurrentPlanWeek(plan: any[], today = new Date()) {
+  const week = plan.find((w) => {
+    const start = parseISO(w.startDate);
+    const end = addDays(start, 6);
+    return isWithinInterval(today, { start, end });
+  });
+
+  if (week) return week;
+
+  const pastWeeks = plan
+    .filter((w) => isBefore(parseISO(w.startDate), today))
+    .sort((a, b) => parseISO(b.startDate).getTime() - parseISO(a.startDate).getTime());
+
+  return pastWeeks[0] ?? plan[0];
+}
 
 export async function POST(req: Request) {
   const { message: userMessage } = await req.json();
@@ -25,23 +53,26 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const user_id = user.id;
 
-  // Load profile + plan
+  // Load profile and full plan
   const { data: profile } = await supabase
     .from('profiles')
     .select('bike_ftp, run_threshold, swim_css, pace_units')
     .eq('id', user_id)
     .single();
 
-  const { data: planMeta } = await supabase
+  const { data: planRow } = await supabase
     .from('plans')
-    .select('raceType, raceDate, experience, maxHours, restDay')
+    .select('plan, raceType, raceDate, experience, maxHours, restDay')
     .eq('user_id', user_id)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  // Load 4 weeks of sessions, completions, strava
+  const planMeta = planRow;
+  const fullPlan = planRow?.plan ?? [];
+
   const now = new Date();
+  const todayStr = formatISO(now, { representation: 'date' });
   const fourWeeksAgoStr = formatISO(subWeeks(now, 4), { representation: 'date' });
 
   const [{ data: sessions = [] }, { data: completed = [] }, { data: strava = [] }] =
@@ -59,13 +90,17 @@ export async function POST(req: Request) {
         .gte('start_date', fourWeeksAgoStr),
     ]);
 
-  const todayStr = formatISO(now, { representation: 'date' });
   const summary = buildTrainingSummary(sessions ?? [], completed ?? [], strava ?? []);
 
-  const systemPrompt = `
-You are a smart, helpful triathlon coach inside TrainGPT. The athlete is asking a question. Respond like a real coach: conversational, realistic, and honest — not robotic or overly formal.
+  const currentWeek = getCurrentPlanWeek(fullPlan);
+  const currentWeekLabel = currentWeek?.label ?? 'Unknown';
+  const currentWeekStart = currentWeek?.startDate ?? 'Unknown';
+  const sessionLines = Object.entries(currentWeek?.days ?? {})
+.map(([date, list]) => `• ${date}: ${(list as string[]).join(', ')}`)
+    .join('\n');
 
-Focus on what matters most. Don’t sugarcoat poor consistency, but do be encouraging and constructive.
+  const systemPrompt = `
+You are a smart, helpful triathlon coach inside TrainGPT. The athlete is asking a question. Respond like a real coach: conversational, realistic, and honest — not robotic or overly formal. Focus on what matters most. Don’t sugarcoat poor consistency, but do be encouraging and constructive.
 
 Avoid:
 - repeating training data unless relevant
@@ -84,13 +119,14 @@ Avoid:
 
 📈 Performance Metrics
 • Bike FTP: ${profile?.bike_ftp ?? 'unknown'}
-• Run threshold: ${profile?.run_threshold ?? 'unknown'} sec/${profile?.pace_units ?? 'mile'}
-• Swim CSS: ${profile?.swim_css ?? 'unknown'}
+• Run threshold: ${secondsToPace(profile?.run_threshold, profile?.pace_units)}
+• Swim CSS: ${secondsToPace(profile?.swim_css, '100m')}
+
+📅 This Week's Planned Sessions (${currentWeekLabel}, starting ${currentWeekStart})
+${sessionLines || 'No sessions found'}
 
 📅 Training History (Last 4 Weeks)
 ${summary}
-
----
 `.trim();
 
   try {
@@ -110,19 +146,8 @@ ${summary}
   }
 }
 
-function buildTrainingSummary(
-  sessions: any[],
-  completed: any[],
-  strava: any[]
-): string {
-  const weeks: Record<
-    string,
-    {
-      planned: string[];
-      completed: string[];
-      strava: string[];
-    }
-  > = {};
+function buildTrainingSummary(sessions: any[], completed: any[], strava: any[]): string {
+  const weeks: Record<string, { planned: string[]; completed: string[]; strava: string[] }> = {};
 
   const weekOf = (dateStr: string) =>
     formatISO(startOfWeek(parseISO(dateStr), { weekStartsOn: 1 }), { representation: 'date' });
@@ -147,12 +172,11 @@ function buildTrainingSummary(
   }
 
   return Object.entries(weeks)
-    .sort(([a], [b]) => (a < b ? 1 : -1)) // most recent first
+    .sort(([a], [b]) => (a < b ? 1 : -1))
     .map(([week, data]) => {
       const planned = data.planned.length;
       const done = data.completed.length + data.strava.length;
       const percent = Math.round((done / (planned || 1)) * 100);
-
       return `- Week of ${week}: ${done}/${planned} completed (${percent}%)
   • Planned: ${data.planned.join(', ') || 'None'}
   • Completed: ${data.completed.join(', ') || 'None'}
