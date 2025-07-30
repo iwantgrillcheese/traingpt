@@ -14,6 +14,7 @@ import { ChevronRightIcon } from '@heroicons/react/20/solid';
 import SessionModal from './SessionModal';
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
+import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline'
 
 type EnrichedSession = Session & { stravaActivity?: StravaActivity };
 
@@ -161,28 +162,18 @@ export default function MobileCalendarView({
 
 return (
   <div className="px-4 pb-32">
-    <div className="sticky top-0 z-10 bg-white pt-4 pb-2">
-      <button
-        onClick={handleSupportClick}
-        className="mx-auto flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-1.5 text-sm font-medium text-blue-600 shadow-sm hover:bg-gray-50 transition"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-          strokeWidth={1.5}
-          stroke="currentColor"
-          className="w-4 h-4 text-blue-500"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12m-19.5 0l8.954 8.955c.44.439 1.152.439 1.591 0L21.75 12M4.5 12h15"
-          />
-        </svg>
-        Support the project ($5/month)
-      </button>
-    </div>
+    
+<div className="sticky top-0 z-10 bg-white pt-4 pb-2">
+  <button
+    onClick={handleSupportClick}
+    className="mx-auto mb-6 flex w-fit items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 shadow-sm hover:bg-gray-50 transition"
+  >
+    <ChatBubbleLeftRightIcon className="h-4 w-4 text-gray-400" />
+    <span className="text-gray-600 underline hover:text-gray-800">
+      Support the project ($5/month)
+    </span>
+  </button>
+</div>
 
 
       {Object.entries(groupedByWeek).map(([weekLabel, { sessions, extras, start }]) => {
