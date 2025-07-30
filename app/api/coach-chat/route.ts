@@ -9,7 +9,7 @@ import {
   formatISO,
   isWithinInterval,
   parseISO,
-  differenceInMinutes,
+  isValid,
 } from 'date-fns';
 import { OpenAI } from 'openai';
 
@@ -48,7 +48,7 @@ export async function POST(req: Request) {
         .from('completed_sessions')
         .select('*')
         .eq('user_id', user_id)
-        .gte('session_date', fourWeeksAgoStr), // ✅ fixed this
+        .gte('session_date', fourWeeksAgoStr),
       supabase
         .from('strava_activities')
         .select('*')
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
     ]);
 
   // Step 3: Build summary string
-const summary = buildTrainingSummary(sessions ?? [], completed ?? [], strava ?? []);
+  const summary = buildTrainingSummary(sessions ?? [], completed ?? [], strava ?? []);
 
   const systemPrompt = `You are a highly intelligent triathlon coach inside TrainGPT. The athlete is asking a question. You have access to their recent training history and performance metrics. Provide thoughtful and realistic feedback.
 
@@ -93,39 +93,40 @@ function buildTrainingSummary(
   completed: any[],
   strava: any[]
 ): string {
-  const weeks: Record<
-    string,
-    {
-      planned: string[];
-      completed: string[];
-      strava: string[];
-    }
-  > = {};
+  const weeks: Record<string, { planned: string[]; completed: string[]; strava: string[] }> = {};
+  const now = new Date();
 
-  const weekOf = (dateStr: string) =>
-    formatISO(startOfWeek(parseISO(dateStr), { weekStartsOn: 1 }), { representation: 'date' });
+  const getWeekKey = (dateStr: string | null | undefined): string | null => {
+    if (!dateStr) return null;
+    const parsed = parseISO(dateStr);
+    if (!isValid(parsed) || parsed > now) return null;
+    return formatISO(startOfWeek(parsed, { weekStartsOn: 1 }), { representation: 'date' });
+  };
 
   for (const s of sessions) {
-    const week = weekOf(s.date);
+    const week = getWeekKey(s.date);
+    if (!week) continue;
     weeks[week] ??= { planned: [], completed: [], strava: [] };
     weeks[week].planned.push(s.title);
   }
 
   for (const c of completed) {
-    const week = weekOf(c.session_date); // ✅ fixed field
+    const week = getWeekKey(c.session_date);
+    if (!week) continue;
     weeks[week] ??= { planned: [], completed: [], strava: [] };
     weeks[week].completed.push(c.session_title);
   }
 
   for (const a of strava) {
-    const week = weekOf(a.start_date);
+    const week = getWeekKey(a.start_date);
+    if (!week) continue;
     const label = `${a.name} (${Math.round(a.moving_time / 60)}min ${a.sport_type})`;
     weeks[week] ??= { planned: [], completed: [], strava: [] };
     weeks[week].strava.push(label);
   }
 
   return Object.entries(weeks)
-    .sort(([a], [b]) => (a < b ? 1 : -1)) // sort desc by week
+    .sort(([a], [b]) => (a < b ? 1 : -1))
     .map(([week, data]) => {
       const planned = data.planned.length;
       const done = data.completed.length + data.strava.length;
