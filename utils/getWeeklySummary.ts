@@ -66,7 +66,11 @@ export function getWeeklySummary(
   const isThisWeek = (d: string) =>
     isWithinInterval(parseISO(d), { start: weekStart, end: weekEnd });
 
-  const weeklyPlanned = sessions.filter((s) => isThisWeek(s.date));
+const today = new Date();
+const weeklyPlanned = sessions.filter((s) => {
+  const d = parseISO(s.date);
+  return isThisWeek(s.date) && (isBefore(d, today) || isEqual(d, today));
+});
   const weeklyCompleted = completedSessions.filter((s) => isThisWeek(s.date));
   const stravaThisWeek = stravaActivities.filter((a) => isThisWeek(a.start_date));
 
