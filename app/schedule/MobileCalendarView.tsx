@@ -265,12 +265,14 @@ export default function MobileCalendarView({
       })}
 
       <SessionModal
-        session={selectedSession}
-        stravaActivity={selectedSession?.stravaActivity}
-        open={!!selectedSession}
-        onClose={() => setSelectedSession(null)}
-        onUpdate={handleUpdateSession}
-      />
+  session={selectedSession}
+  stravaActivity={selectedSession?.stravaActivity}
+  open={!!selectedSession}
+  onClose={() => setSelectedSession(null)}
+  completedSessions={completedSessions}
+  onCompletedUpdate={(updatedList) => setCompletedSessions(updatedList)}
+/>
+
     </div>
   );
 }
