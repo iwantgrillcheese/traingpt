@@ -59,8 +59,8 @@ export async function POST(req: Request) {
         .gte('start_date', fourWeeksAgoStr),
     ]);
 
-const summary = buildTrainingSummary(sessions ?? [], completed ?? [], strava ?? []);
-
+  const todayStr = formatISO(now, { representation: 'date' });
+  const summary = buildTrainingSummary(sessions ?? [], completed ?? [], strava ?? []);
 
   const systemPrompt = `
 You are a smart, helpful triathlon coach inside TrainGPT. The athlete is asking a question. Respond like a real coach: conversational, realistic, and honest — not robotic or overly formal.
@@ -72,6 +72,8 @@ Avoid:
 - fake enthusiasm or filler phrases like “You’ve got this!”
 
 ---
+
+📅 Today’s Date: ${todayStr}
 
 📌 Plan Overview
 • Race type: ${planMeta?.raceType ?? 'unknown'}
