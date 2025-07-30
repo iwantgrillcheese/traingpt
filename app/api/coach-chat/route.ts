@@ -1,7 +1,14 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { startOfWeek, subWeeks, formatISO, isWithinInterval, parseISO } from 'date-fns';
+import {
+  startOfWeek,
+  subWeeks,
+  formatISO,
+  isWithinInterval,
+  parseISO,
+  differenceInMinutes,
+} from 'date-fns';
 import { OpenAI } from 'openai';
 
 export const runtime = 'nodejs';
@@ -21,25 +28,20 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const user_id = user.id;
 
-  // Step 1: Load user profile + performance metrics
+  // Step 1: Load profile
   const { data: profile } = await supabase
     .from('profiles')
     .select('bike_ftp, run_threshold, swim_css, pace_units')
     .eq('id', user_id)
     .single();
 
-  // Step 2: Load last 4 weeks of sessions + completions + strava
+  // Step 2: Load 4 weeks of data
   const now = new Date();
-  const fourWeeksAgo = subWeeks(now, 4);
-  const fourWeeksAgoStr = formatISO(fourWeeksAgo, { representation: 'date' });
+  const fourWeeksAgoStr = formatISO(subWeeks(now, 4), { representation: 'date' });
 
   const [{ data: sessions = [] }, { data: completed = [] }, { data: strava = [] }] =
     await Promise.all([
-      supabase
-        .from('sessions')
-        .select('*')
-        .eq('user_id', user_id)
-        .gte('date', fourWeeksAgoStr),
+      supabase.from('sessions').select('*').eq('user_id', user_id).gte('date', fourWeeksAgoStr),
       supabase
         .from('completed_sessions')
         .select('*')
@@ -52,28 +54,20 @@ export async function POST(req: Request) {
         .gte('start_date', fourWeeksAgoStr),
     ]);
 
-  // Step 3: Compute basic stats
-const recentSummary = summarizeTrainingByWeek(sessions ?? [], completed ?? []);
+  // Step 3: Build summary text
+  const summary = buildTrainingSummary(sessions ?? [], completed ?? [], strava ?? []);
 
-  // Step 4: Build system prompt
-  const baseline = {
-    bike_ftp: profile?.bike_ftp,
-    run_threshold: profile?.run_threshold,
-    swim_css: profile?.swim_css,
-    pace_units: profile?.pace_units || 'mile',
-  };
+  const systemPrompt = `You are a highly intelligent triathlon coach inside TrainGPT. The athlete is asking a question. You have access to their recent training history and performance metrics. Provide thoughtful and realistic feedback.
 
-  const systemPrompt = `You are a highly intelligent triathlon coach inside TrainGPT. You have access to the athlete’s recent training history and performance metrics.
+Performance metrics:
+- Bike FTP: ${profile?.bike_ftp ?? 'unknown'}
+- Run threshold pace: ${profile?.run_threshold ?? 'unknown'} seconds per ${profile?.pace_units ?? 'mile'}
+- Swim CSS: ${profile?.swim_css ?? 'unknown'}
 
-Their baseline performance:
-- Bike FTP: ${baseline.bike_ftp ?? 'unknown'}
-- Run Threshold Pace: ${baseline.run_threshold ?? 'unknown'} seconds per ${baseline.pace_units}
-- Swim CSS: ${baseline.swim_css ?? 'unknown'}
+Recent training summary:
+${summary}
 
-Recent 4-week summary:
-${recentSummary}
-
-Use this information to answer questions thoughtfully.`;
+Use this data to give specific advice — e.g. about race readiness, missed sessions, strengths/weaknesses, or improvement strategies.`.trim();
 
   try {
     const completion = await openai.chat.completions.create({
@@ -92,32 +86,53 @@ Use this information to answer questions thoughtfully.`;
   }
 }
 
-function summarizeTrainingByWeek(sessions: any[], completed: any[]) {
-  const buckets: Record<string, { planned: number; completed: number }> = {};
+function buildTrainingSummary(
+  sessions: any[],
+  completed: any[],
+  strava: any[]
+): string {
+  const weeks: Record<
+    string,
+    {
+      planned: string[];
+      completed: string[];
+      strava: string[];
+    }
+  > = {};
 
-  sessions.forEach((s) => {
-    const weekStart = formatISO(startOfWeek(parseISO(s.date), { weekStartsOn: 1 }), {
-      representation: 'date',
-    });
-    if (!buckets[weekStart]) buckets[weekStart] = { planned: 0, completed: 0 };
-    buckets[weekStart].planned += 1;
-  });
+  const weekOf = (dateStr: string) =>
+    formatISO(startOfWeek(parseISO(dateStr), { weekStartsOn: 1 }), { representation: 'date' });
 
-  completed.forEach((s) => {
-    const weekStart = formatISO(startOfWeek(parseISO(s.date), { weekStartsOn: 1 }), {
-      representation: 'date',
-    });
-    if (!buckets[weekStart]) buckets[weekStart] = { planned: 0, completed: 0 };
-    buckets[weekStart].completed += 1;
-  });
+  for (const s of sessions) {
+    const week = weekOf(s.date);
+    weeks[week] ??= { planned: [], completed: [], strava: [] };
+    weeks[week].planned.push(s.title);
+  }
 
-  return Object.entries(buckets)
+  for (const c of completed) {
+    const week = weekOf(c.date);
+    weeks[week] ??= { planned: [], completed: [], strava: [] };
+    weeks[week].completed.push(c.session_title);
+  }
+
+  for (const a of strava) {
+    const week = weekOf(a.start_date);
+    const label = `${a.name} (${Math.round(a.moving_time / 60)}min ${a.sport_type})`;
+    weeks[week] ??= { planned: [], completed: [], strava: [] };
+    weeks[week].strava.push(label);
+  }
+
+  return Object.entries(weeks)
     .sort(([a], [b]) => (a < b ? 1 : -1))
-    .map(
-      ([week, { planned, completed }]) =>
-        `- Week of ${week}: ${completed}/${planned} sessions completed (${Math.round(
-          (completed / (planned || 1)) * 100
-        )}%)`
-    )
-    .join('\n');
+    .map(([week, data]) => {
+      const planned = data.planned.length;
+      const done = data.completed.length + data.strava.length;
+      const percent = Math.round((done / (planned || 1)) * 100);
+
+      return `- Week of ${week}: ${done}/${planned} completed (${percent}%)
+    • Planned: ${data.planned.join(', ') || 'None'}
+    • Completed: ${data.completed.join(', ') || 'None'}
+    • Strava: ${data.strava.join(', ') || 'None'}`.trim();
+    })
+    .join('\n\n');
 }
