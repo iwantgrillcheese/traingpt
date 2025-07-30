@@ -70,6 +70,7 @@ export function getWeeklySummary(
   const weeklyCompleted = completedSessions.filter((s) => isThisWeek(s.date));
   const stravaThisWeek = stravaActivities.filter((a) => isThisWeek(a.start_date));
 
+  // Sport breakdown
   const sportMap = new Map<string, { planned: number; completed: number }>();
 
   weeklyPlanned.forEach((s) => {
@@ -77,46 +78,46 @@ export function getWeeklySummary(
     if (!sportMap.has(key)) sportMap.set(key, { planned: 0, completed: 0 });
     sportMap.get(key)!.planned += 1;
   });
+
   weeklyCompleted.forEach((s) => {
     const key = normalizeSport(s.sport);
     if (!sportMap.has(key)) sportMap.set(key, { planned: 0, completed: 0 });
     sportMap.get(key)!.completed += 1;
   });
 
-  const breakdown = Array.from(sportMap.entries()).map(([sport, { planned, completed }]) => ({
+  const sportBreakdown = Array.from(sportMap.entries()).map(([sport, counts]) => ({
     sport,
-    planned,
-    completed,
+    planned: counts.planned,
+    completed: counts.completed,
   }));
 
-  // Week-to-date adherence
-  const today = new Date();
-  const weekToDatePlanned = weeklyPlanned.filter((s) => {
-    const d = parseISO(s.date);
-    return isBefore(d, today) || isEqual(d, today);
-  });
   const adherence =
-    weekToDatePlanned.length > 0
-      ? Math.round((weeklyCompleted.length / weekToDatePlanned.length) * 100)
+    weeklyPlanned.length > 0
+      ? Math.round((weeklyCompleted.length / weeklyPlanned.length) * 100)
       : 0;
 
-  // Plan-to-date compliance
-  const allPlanned = sessions.filter((s) => isBefore(parseISO(s.date), now) || isEqual(parseISO(s.date), now));
-  const allCompleted = completedSessions;
+  // Plan-to-date adherence (all time up to now)
+  const allPlanned = sessions.filter((s) => {
+    const d = parseISO(s.date);
+    return isBefore(d, now) || isEqual(d, now);
+  });
+
   const planAdherence =
-    allPlanned.length > 0 ? Math.round((allCompleted.length / allPlanned.length) * 100) : 0;
+    allPlanned.length > 0
+      ? Math.round((completedSessions.length / allPlanned.length) * 100)
+      : 0;
 
   return {
     totalPlanned: weeklyPlanned.length,
     totalCompleted: weeklyCompleted.length,
     adherence,
-    sportBreakdown: breakdown,
+    sportBreakdown,
     planToDate: {
       planned: allPlanned.length,
-      completed: allCompleted.length,
+      completed: completedSessions.length,
       adherence: planAdherence,
     },
-    trend: undefined, // can be filled by external logic
+    trend: undefined,
     debug: {
       plannedSessionsCount: weeklyPlanned.length,
       completedSessionsCount: weeklyCompleted.length,

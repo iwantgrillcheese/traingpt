@@ -1,30 +1,32 @@
 // /utils/computeCompliance.ts
 import type { Session } from '@/types/session';
+import { startOfWeek, endOfWeek, parseISO, isWithinInterval, isEqual, isBefore } from 'date-fns';
 
 /**
- * Computes the user's adherence to their plan over the last 7 days.
+ * Computes the user's adherence to their plan for the current training week (Mon–Sun).
  * @param planned Array of sessions from the training plan
- * @param completed Array of sessions completed via Strava
- * @returns Percent of sessions completed out of those planned in last 7 days
+ * @param completed Array of sessions completed via Strava or manually
+ * @returns Percent of sessions completed out of those planned for the current week
  */
 export function computeCompliance(planned: Session[], completed: Session[]): number {
   const now = new Date();
-  const sevenDaysAgo = new Date(now);
-  sevenDaysAgo.setDate(now.getDate() - 7);
+  const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
 
-  const plannedLast7 = planned.filter((s) => {
-    const date = new Date(s.date);
-    return date >= sevenDaysAgo && date <= now;
-  });
+  const isThisWeek = (d: string) =>
+    isWithinInterval(parseISO(d), { start: weekStart, end: weekEnd });
+
+  const plannedThisWeek = planned.filter((s) => isThisWeek(s.date));
+  const completedThisWeek = completed.filter((s) => isThisWeek(s.date));
 
   const completedDates = new Set(
-    completed.map((s) => new Date(s.date).toISOString().slice(0, 10))
+    completedThisWeek.map((s) => parseISO(s.date).toISOString().slice(0, 10))
   );
 
-  const completedCount = plannedLast7.filter((s) =>
-    completedDates.has(new Date(s.date).toISOString().slice(0, 10))
+  const completedCount = plannedThisWeek.filter((s) =>
+    completedDates.has(parseISO(s.date).toISOString().slice(0, 10))
   ).length;
 
-  if (plannedLast7.length === 0) return 0;
-  return Math.round((completedCount / plannedLast7.length) * 100);
+  if (plannedThisWeek.length === 0) return 0;
+  return Math.round((completedCount / plannedThisWeek.length) * 100);
 }
