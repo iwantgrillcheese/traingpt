@@ -84,7 +84,7 @@ export default function FitnessPanel({
       redZone.push(-30);
     });
 
-    dailyLoad.forEach((load, i) => {
+    dailyLoad.forEach((load) => {
       ctl = ctl + ctlDecay * (load - ctl);
       atl = atl + atlDecay * (load - atl);
       const currentFitness = ctl;
@@ -101,9 +101,11 @@ export default function FitnessPanel({
   }, [sessions, completedSessions, stravaActivities]);
 
   return (
-    <div className="mt-10 rounded-2xl border bg-white p-6 shadow-sm relative">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900">📈 Fitness Trends</h2>
+    <div className="mt-10 rounded-2xl border bg-white p-4 sm:p-6 shadow-sm relative">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
+        <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          📈 Fitness Trends
+        </h2>
         <button
           onClick={() => setShowInfo(!showInfo)}
           className="text-sm text-gray-500 underline hover:text-gray-700"
@@ -113,77 +115,84 @@ export default function FitnessPanel({
       </div>
 
       {showInfo && (
-        <div className="mt-4 rounded-lg border bg-gray-50 p-4 text-sm text-gray-700">
+        <div className="mt-4 rounded-lg border bg-gray-50 p-4 text-sm text-gray-700 space-y-2">
           <p><span className="font-semibold text-blue-600">Fitness</span> is a 6-week rolling average of your training load.</p>
           <p><span className="font-semibold text-purple-600">Fatigue</span> is a 1-week average — it spikes after intense blocks.</p>
           <p><span className="font-semibold text-green-600">Form</span> = Fitness − Fatigue. It measures how fresh or overreached you are.</p>
-          <p className="mt-2">
-            Stay in the <span className="text-green-600 font-medium">green zone</span> (moderate form) for fitness gains. Avoid the
-            <span className="text-red-600 font-medium"> high risk zone</span> (very low form) for too long — it can lead to overtraining.
+          <p>
+            Stay in the <span className="text-green-600 font-medium">green zone</span> (moderate form) for fitness gains.
+            Avoid the <span className="text-red-600 font-medium">high risk zone</span> for too long — it can lead to overtraining.
           </p>
         </div>
       )}
 
-      <div className="mt-4">
-        <Line
-          data={{
-            labels,
-            datasets: [
-              {
-                label: 'Fitness',
-                data: fitness,
-                borderColor: '#3B82F6',
-                backgroundColor: 'rgba(59, 130, 246, 0.2)',
-                fill: true,
-                tension: 0.3,
+      <div className="mt-4 overflow-x-auto">
+        <div className="min-w-[600px]">
+          <Line
+            data={{
+              labels,
+              datasets: [
+                {
+                  label: 'Fitness',
+                  data: fitness,
+                  borderColor: '#3B82F6',
+                  backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                  fill: true,
+                  tension: 0.3,
+                },
+                {
+                  label: 'Fatigue',
+                  data: fatigue,
+                  borderColor: '#C084FC',
+                  backgroundColor: 'rgba(192, 132, 252, 0.2)',
+                  fill: true,
+                  tension: 0.3,
+                },
+                {
+                  label: 'Form',
+                  data: form,
+                  borderColor: '#10B981',
+                  backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                  fill: true,
+                  tension: 0.3,
+                },
+                {
+                  label: 'Green Zone',
+                  data: greenZone,
+                  borderColor: 'rgba(34,197,94,0.5)',
+                  borderDash: [5, 5],
+                  pointRadius: 0,
+                  fill: false,
+                },
+                {
+                  label: 'High Risk Zone',
+                  data: redZone,
+                  borderColor: 'rgba(239,68,68,0.6)',
+                  borderDash: [5, 5],
+                  pointRadius: 0,
+                  fill: false,
+                },
+              ],
+            }}
+            options={{
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: {
+                  position: 'bottom',
+                  labels: { boxWidth: 12, font: { size: 10 } },
+                },
               },
-              {
-                label: 'Fatigue',
-                data: fatigue,
-                borderColor: '#C084FC',
-                backgroundColor: 'rgba(192, 132, 252, 0.2)',
-                fill: true,
-                tension: 0.3,
+              scales: {
+                y: { beginAtZero: false },
               },
-              {
-                label: 'Form',
-                data: form,
-                borderColor: '#10B981',
-                backgroundColor: 'rgba(16, 185, 129, 0.2)',
-                fill: true,
-                tension: 0.3,
-              },
-              {
-                label: 'Green Zone',
-                data: greenZone,
-                borderColor: 'rgba(34,197,94,0.5)',
-                borderDash: [5, 5],
-                pointRadius: 0,
-                fill: false,
-              },
-              {
-                label: 'High Risk Zone',
-                data: redZone,
-                borderColor: 'rgba(239,68,68,0.6)',
-                borderDash: [5, 5],
-                pointRadius: 0,
-                fill: false,
-              },
-            ],
-          }}
-          options={{
-            responsive: true,
-            plugins: {
-              legend: { position: 'bottom' },
-            },
-            scales: {
-              y: { beginAtZero: false },
-            },
-          }}
-        />
+            }}
+            height={280}
+          />
+        </div>
       </div>
 
-      <div className="mt-6 text-sm text-gray-700">
+      <div className="mt-4 text-sm text-gray-700">
         Fitness Score: <span className="font-medium">{fitnessScore}/100</span>
       </div>
     </div>
