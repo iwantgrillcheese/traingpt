@@ -1,16 +1,15 @@
+// CoachingDashboard.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { Session } from '@/types/session';
 import { StravaActivity } from '@/types/strava';
-import { WeeklySummary } from '@/utils/getWeeklySummary';
-
 import CompliancePanel from '@/app/coaching/CompliancePanel';
 import WeeklySummaryPanel from '@/app/coaching/WeeklySummaryPanel';
 import FitnessPanel from '@/app/coaching/FitnessPanel';
 import StravaConnectBanner from '@/app/components/StravaConnectBanner';
-import CoachChatModal from '@/app/components/CoachChatModal'; // 🧠 GPT Modal
+import CoachChatModal from '@/app/components/CoachChatModal';
 
 const SPORT_COLORS: Record<string, string> = {
   Swim: '#60A5FA',
@@ -38,6 +37,12 @@ const normalizeSportName = (raw: string | null | undefined): string => {
   }
 };
 
+const estimateDurationFromTitle = (title?: string | null): number => {
+  if (!title) return 45;
+  const match = title.match(/(\d{2,3})\s*min/i);
+  return match ? parseInt(match[1], 10) : 45;
+};
+
 const formatMinutes = (minutes: number): string => {
   if (minutes <= 0) return '0 min';
   const hrs = Math.floor(minutes / 60);
@@ -51,7 +56,7 @@ type Props = {
   completedSessions: Session[];
   stravaActivities: StravaActivity[];
   weeklyVolume: number[];
-  weeklySummary: WeeklySummary;
+  weeklySummary: any;
   stravaConnected: boolean;
 };
 
@@ -66,21 +71,29 @@ export default function CoachingDashboard({
 }: Props) {
   const [viewMode, setViewMode] = useState<'week' | 'plan'>('week');
   const [chatOpen, setChatOpen] = useState(false);
-  const [totalTime, setTotalTime] = useState(0);
   const [sportBreakdown, setSportBreakdown] = useState<{ name: string; value: number }[]>([]);
 
   useEffect(() => {
-    const breakdown = weeklySummary.sportBreakdown
-      .map(({ sport, completed }) => ({
-        name: normalizeSportName(sport),
-        value: completed ?? 0,
-      }))
+    const breakdownMap = new Map<string, number>();
+
+    const source = [...completedSessions, ...stravaActivities];
+
+    source.forEach((item) => {
+      const sport = normalizeSportName((item as any).sport_type || (item as any).sport);
+      const duration = 'moving_time' in item
+        ? item.moving_time / 60
+        : item.duration ?? estimateDurationFromTitle((item as any).title);
+      breakdownMap.set(sport, (breakdownMap.get(sport) || 0) + duration);
+    });
+
+    const result = Array.from(breakdownMap.entries())
+      .map(([name, value]) => ({ name, value }))
       .filter((entry) => entry.value > 0);
 
-    const total = breakdown.reduce((sum, b) => sum + b.value, 0);
-    setSportBreakdown(breakdown);
-    setTotalTime(Math.round(total * 10) / 10);
-  }, [weeklySummary]);
+    setSportBreakdown(result);
+  }, [completedSessions, stravaActivities, viewMode]);
+
+  const totalTime = sportBreakdown.reduce((sum, b) => sum + b.value, 0);
 
   const displayedAdherence =
     viewMode === 'plan'
@@ -158,20 +171,18 @@ export default function CoachingDashboard({
 
       <p className="mt-2 text-xs text-gray-400">
         {viewMode === 'week'
-          ? 'Includes all sessions planned for and completed this week (Mon–Sun).'
-          : 'Includes all sessions since your plan started.'}
+          ? 'Includes completed sessions and Strava uploads for this week (Mon–Sun).'
+          : 'Includes completed sessions and Strava uploads since your plan started.'}
       </p>
 
       <WeeklySummaryPanel weeklySummary={weeklySummary} viewMode={viewMode} />
       <CompliancePanel weeklySummary={weeklySummary} viewMode={viewMode} />
-
       <FitnessPanel
         sessions={sessions}
         completedSessions={completedSessions}
         stravaActivities={stravaActivities}
       />
 
-      {/* 💬 Ask Coach Button */}
       <button
         onClick={() => setChatOpen(true)}
         className="fixed bottom-6 right-6 z-50 rounded-full bg-blue-600 px-4 py-2 text-sm text-white shadow-lg hover:bg-blue-700"
@@ -179,7 +190,6 @@ export default function CoachingDashboard({
         💬 Ask Your Coach
       </button>
 
-      {/* GPT Coach Modal */}
       <CoachChatModal open={chatOpen} onClose={() => setChatOpen(false)} />
     </div>
   );
