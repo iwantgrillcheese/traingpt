@@ -159,21 +159,31 @@ export default function MobileCalendarView({
     return <div className="text-center text-zinc-400 pt-12">No sessions to display.</div>;
   }
 
-  return (
-    <div className="px-4 pb-32">
-      <div className="sticky top-0 z-10 bg-white pt-4 pb-2">
-        <div className="mx-auto w-full max-w-md rounded-md border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-600 shadow-sm sm:flex sm:items-center sm:justify-between">
-          <span className="block sm:inline text-center sm:text-left">
-            Has TrainGPT been helpful?
-          </span>
-          <button
-            onClick={handleSupportClick}
-            className="mt-1 inline-block text-blue-600 underline hover:text-blue-500 sm:mt-0 sm:ml-2"
-          >
-            Support the project ($5/month)
-          </button>
-        </div>
-      </div>
+return (
+  <div className="px-4 pb-32">
+    <div className="sticky top-0 z-10 bg-white pt-4 pb-2">
+      <button
+        onClick={handleSupportClick}
+        className="mx-auto flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-1.5 text-sm font-medium text-blue-600 shadow-sm hover:bg-gray-50 transition"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth={1.5}
+          stroke="currentColor"
+          className="w-4 h-4 text-blue-500"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12m-19.5 0l8.954 8.955c.44.439 1.152.439 1.591 0L21.75 12M4.5 12h15"
+          />
+        </svg>
+        Support the project ($5/month)
+      </button>
+    </div>
+
 
       {Object.entries(groupedByWeek).map(([weekLabel, { sessions, extras, start }]) => {
         const isPast = isBefore(start, startOfWeek(today, { weekStartsOn: 1 }));
