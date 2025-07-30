@@ -1,20 +1,40 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Bar } from 'react-chartjs-2';
 import {
+  LineElement,
+  PointElement,
+  CategoryScale,
+  LinearScale,
   Chart as ChartJS,
-  BarElement,
+  Tooltip,
+  Filler,
+  Legend,
+  LineController,
+} from 'chart.js';
+import { Line } from 'react-chartjs-2';
+import {
+  format,
+  addWeeks,
+  startOfWeek,
+  isWithinInterval,
+  parseISO,
+} from 'date-fns';
+
+import type { Session } from '@/types/session';
+import type { StravaActivity } from '@/types/strava';
+import estimateDurationFromTitle from '@/utils/estimateDurationFromTitle';
+
+ChartJS.register(
+  LineElement,
+  PointElement,
   CategoryScale,
   LinearScale,
   Tooltip,
-} from 'chart.js';
-import { format, addWeeks, startOfWeek, isWithinInterval, parseISO } from 'date-fns';
-import type { Session } from '@/types/session';
-import estimateDurationFromTitle from '@/utils/estimateDurationFromTitle';
-import type { StravaActivity } from '@/types/strava';
-
-ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip);
+  Filler,
+  Legend,
+  LineController
+);
 
 type FitnessPanelProps = {
   sessions: Session[];
@@ -27,14 +47,19 @@ export default function FitnessPanel({
   completedSessions,
   stravaActivities = [],
 }: FitnessPanelProps) {
-  const weeksBack = 4;
+  const weeksBack = 12;
 
-  const { weeklyVolume, fitnessScore, labels } = useMemo(() => {
-    const result: number[] = [];
+  const { labels, fitness, fatigue, form, fitnessScore } = useMemo(() => {
+    const fitness: number[] = [];
+    const fatigue: number[] = [];
+    const form: number[] = [];
     const labels: string[] = [];
 
     const now = new Date();
     const baseStart = startOfWeek(addWeeks(now, -weeksBack + 1), { weekStartsOn: 1 });
+
+    const rollingFitness: number[] = [];
+    const rollingFatigue: number[] = [];
 
     for (let i = 0; i < weeksBack; i++) {
       const start = addWeeks(baseStart, i);
@@ -55,40 +80,92 @@ export default function FitnessPanel({
         .filter((a) => isWithinInterval(parseISO(a.start_date), { start, end }))
         .reduce((sum, a) => sum + (a.moving_time ?? 0) / 60, 0);
 
-      const totalHours = (sessionMins + stravaMins) / 60;
-      result.push(Math.round(totalHours * 10) / 10); // round to 1 decimal
+      const totalLoad = sessionMins + stravaMins;
+
+      // Simulate CTL (42d), ATL (7d), and TSB (CTL - ATL)
+      const ctl = i < 6 ? totalLoad : (rollingFitness.slice(-6).reduce((a, b) => a + b, 0) + totalLoad) / 7;
+      const atl = i < 2 ? totalLoad : (rollingFatigue.slice(-2).reduce((a, b) => a + b, 0) + totalLoad) / 3;
+      const tsb = ctl - atl;
+
+      rollingFitness.push(ctl);
+      rollingFatigue.push(atl);
+
+      fitness.push(Math.round(ctl));
+      fatigue.push(Math.round(atl));
+      form.push(Math.round(tsb));
     }
 
-    const fitnessScore = Math.round(
-      (result.reduce((sum, x) => sum + x, 0) / weeksBack / 10) * 100
-    );
+    const avgLoad = fitness.reduce((sum, x) => sum + x, 0) / fitness.length;
+    const fitnessScore = Math.round((avgLoad / 10) * 100); // arbitrary scaling
 
-    return { weeklyVolume: result, fitnessScore, labels };
+    return { labels, fitness, fatigue, form, fitnessScore };
   }, [sessions, completedSessions, stravaActivities]);
 
   return (
     <div className="mt-10 rounded-2xl border bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-semibold text-gray-900">📊 Fitness Trends</h2>
+      <h2 className="text-lg font-semibold text-gray-900">📈 Fitness Trends</h2>
 
       <div className="mt-4">
-        <Bar
+        <Line
           data={{
             labels,
             datasets: [
               {
-                label: 'Weekly Volume (hrs)',
-                data: weeklyVolume,
-                backgroundColor: 'rgba(59, 130, 246, 0.5)',
+                label: 'Fitness',
+                data: fitness,
+                borderColor: '#3B82F6',
+                backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                tension: 0.3,
+                fill: true,
+              },
+              {
+                label: 'Fatigue',
+                data: fatigue,
+                borderColor: '#A855F7',
+                backgroundColor: 'rgba(168, 85, 247, 0.2)',
+                tension: 0.3,
+                fill: true,
+              },
+              {
+                label: 'Form',
+                data: form,
+                borderColor: '#10B981',
+                backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                tension: 0.3,
+                fill: true,
               },
             ],
           }}
           options={{
             responsive: true,
-            scales: {
-              y: { beginAtZero: true, ticks: { stepSize: 1 } },
-            },
             plugins: {
-              legend: { display: false },
+              legend: {
+                position: 'bottom',
+                labels: {
+                  color: '#374151',
+                  boxWidth: 12,
+                  boxHeight: 12,
+                  font: { size: 12 },
+                },
+              },
+              tooltip: {
+                mode: 'index' as const,
+                intersect: false,
+              },
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  color: '#6B7280',
+                  stepSize: 10,
+                },
+              },
+              x: {
+                ticks: {
+                  color: '#6B7280',
+                },
+              },
             },
           }}
         />
