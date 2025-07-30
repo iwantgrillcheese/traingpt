@@ -26,20 +26,22 @@ type CalendarShellProps = {
 };
 
 function SupportBanner() {
+  async function handleClick() {
+    const res = await fetch('/api/stripe/checkout', { method: 'POST' });
+    const { url } = await res.json();
+    if (url) window.location.href = url;
+  }
+
   return (
-    <div className="mx-auto mb-6 flex w-fit items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 shadow-sm hover:bg-gray-50 transition">
+    <button
+      onClick={handleClick}
+      className="mx-auto mb-6 flex w-fit items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 shadow-sm hover:bg-gray-50 transition"
+    >
       <ChatBubbleLeftRightIcon className="h-4 w-4 text-gray-400" />
-      <span className="text-gray-600">
-        <a
-          href="https://buy.stripe.com/8wM7vR8hH5Ejbf27ss"
-          target="_blank"
-          rel="noreferrer"
-          className="underline hover:text-gray-800"
-        >
-          Support the project ($5/month)
-        </a>
+      <span className="text-gray-600 underline hover:text-gray-800">
+        Support the project ($5/month)
       </span>
-    </div>
+    </button>
   );
 }
 

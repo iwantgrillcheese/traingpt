@@ -13,6 +13,7 @@ import {
   Legend,
 } from 'chart.js';
 import { format, subDays, eachDayOfInterval } from 'date-fns';
+import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 
 ChartJS.register(
@@ -27,9 +28,13 @@ ChartJS.register(
 
 type FitnessPanelProps = {
   stravaActivities: StravaActivity[];
+  sessions?: Session[]; // Accept but not used
+  completedSessions?: Session[]; // Accept but not used
 };
 
-export default function FitnessPanel({ stravaActivities = [] }: FitnessPanelProps) {
+export default function FitnessPanel({
+  stravaActivities = [],
+}: FitnessPanelProps) {
   const [showInfo, setShowInfo] = useState(false);
 
   const { labels, fitness, fatigue, form, fitnessScore, greenZone, redZone } = useMemo(() => {

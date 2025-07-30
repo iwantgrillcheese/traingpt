@@ -50,7 +50,6 @@ export default function MobileCalendarView({
   const [sessionsState, setSessionsState] = useState<EnrichedSession[]>(sessions);
   const [completedSessions, setCompletedSessions] = useState<CompletedSession[]>(initialCompleted);
   const [collapsedWeeks, setCollapsedWeeks] = useState<Record<string, boolean>>({});
-
   const weekRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const today = new Date();
@@ -150,6 +149,12 @@ export default function MobileCalendarView({
     });
   };
 
+  async function handleSupportClick() {
+    const res = await fetch('/api/stripe/checkout', { method: 'POST' });
+    const { url } = await res.json();
+    if (url) window.location.href = url;
+  }
+
   if (sortedSessions.length === 0 && stravaActivities.length === 0) {
     return <div className="text-center text-zinc-400 pt-12">No sessions to display.</div>;
   }
@@ -161,14 +166,12 @@ export default function MobileCalendarView({
           <span className="block sm:inline text-center sm:text-left">
             Has TrainGPT been helpful?
           </span>
-          <a
-            href="https://buy.stripe.com/8wM7vR8hH5Ejbf27ss"
-            target="_blank"
-            rel="noreferrer"
+          <button
+            onClick={handleSupportClick}
             className="mt-1 inline-block text-blue-600 underline hover:text-blue-500 sm:mt-0 sm:ml-2"
           >
             Support the project ($5/month)
-          </a>
+          </button>
         </div>
       </div>
 
