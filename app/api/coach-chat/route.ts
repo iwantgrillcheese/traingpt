@@ -1,3 +1,5 @@
+// /app/api/coach-feedback/route.ts
+
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
@@ -35,7 +37,7 @@ export async function POST(req: Request) {
     .eq('id', user_id)
     .single();
 
-  // Step 2: Load 4 weeks of data
+  // Step 2: Load 4 weeks of sessions, completions, strava
   const now = new Date();
   const fourWeeksAgoStr = formatISO(subWeeks(now, 4), { representation: 'date' });
 
@@ -46,7 +48,7 @@ export async function POST(req: Request) {
         .from('completed_sessions')
         .select('*')
         .eq('user_id', user_id)
-        .gte('date', fourWeeksAgoStr),
+        .gte('session_date', fourWeeksAgoStr), // ✅ fixed this
       supabase
         .from('strava_activities')
         .select('*')
@@ -54,8 +56,8 @@ export async function POST(req: Request) {
         .gte('start_date', fourWeeksAgoStr),
     ]);
 
-  // Step 3: Build summary text
-  const summary = buildTrainingSummary(sessions ?? [], completed ?? [], strava ?? []);
+  // Step 3: Build summary string
+const summary = buildTrainingSummary(sessions ?? [], completed ?? [], strava ?? []);
 
   const systemPrompt = `You are a highly intelligent triathlon coach inside TrainGPT. The athlete is asking a question. You have access to their recent training history and performance metrics. Provide thoughtful and realistic feedback.
 
@@ -110,7 +112,7 @@ function buildTrainingSummary(
   }
 
   for (const c of completed) {
-    const week = weekOf(c.date);
+    const week = weekOf(c.session_date); // ✅ fixed field
     weeks[week] ??= { planned: [], completed: [], strava: [] };
     weeks[week].completed.push(c.session_title);
   }
@@ -123,16 +125,16 @@ function buildTrainingSummary(
   }
 
   return Object.entries(weeks)
-    .sort(([a], [b]) => (a < b ? 1 : -1))
+    .sort(([a], [b]) => (a < b ? 1 : -1)) // sort desc by week
     .map(([week, data]) => {
       const planned = data.planned.length;
       const done = data.completed.length + data.strava.length;
       const percent = Math.round((done / (planned || 1)) * 100);
 
       return `- Week of ${week}: ${done}/${planned} completed (${percent}%)
-    • Planned: ${data.planned.join(', ') || 'None'}
-    • Completed: ${data.completed.join(', ') || 'None'}
-    • Strava: ${data.strava.join(', ') || 'None'}`.trim();
+  • Planned: ${data.planned.join(', ') || 'None'}
+  • Completed: ${data.completed.join(', ') || 'None'}
+  • Strava: ${data.strava.join(', ') || 'None'}`;
     })
     .join('\n\n');
 }
