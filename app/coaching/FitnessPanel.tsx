@@ -1,39 +1,34 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { Line } from 'react-chartjs-2';
 import {
+  Chart as ChartJS,
   LineElement,
-  PointElement,
   CategoryScale,
   LinearScale,
-  Chart as ChartJS,
+  PointElement,
   Tooltip,
   Filler,
   Legend,
-  LineController,
 } from 'chart.js';
-import { Line } from 'react-chartjs-2';
 import {
   format,
-  addWeeks,
-  startOfWeek,
-  isWithinInterval,
-  parseISO,
+  subDays,
+  eachDayOfInterval,
 } from 'date-fns';
-
 import type { Session } from '@/types/session';
-import type { StravaActivity } from '@/types/strava';
 import estimateDurationFromTitle from '@/utils/estimateDurationFromTitle';
+import type { StravaActivity } from '@/types/strava';
 
 ChartJS.register(
   LineElement,
-  PointElement,
   CategoryScale,
   LinearScale,
+  PointElement,
   Tooltip,
   Filler,
-  Legend,
-  LineController
+  Legend
 );
 
 type FitnessPanelProps = {
@@ -47,63 +42,78 @@ export default function FitnessPanel({
   completedSessions,
   stravaActivities = [],
 }: FitnessPanelProps) {
-  const weeksBack = 12;
+  const [showInfo, setShowInfo] = useState(false);
 
   const { labels, fitness, fatigue, form, fitnessScore } = useMemo(() => {
+    const daysBack = 90;
+    const today = new Date();
+    const start = subDays(today, daysBack);
+    const allDays = eachDayOfInterval({ start, end: today });
+    const labels = allDays.map((d) => format(d, 'MMM d'));
+    const allSessions = [...sessions, ...completedSessions];
+
+    const dailyLoad = allDays.map((day) => {
+      const str = day.toISOString().split('T')[0];
+      const s = allSessions.filter((sess) => sess.date.startsWith(str));
+      const a = stravaActivities.filter((act) => act.start_date.startsWith(str));
+
+      const sLoad = s.reduce((sum, x) => {
+        const min = typeof x.duration === 'number'
+          ? x.duration
+          : estimateDurationFromTitle(x.title) ?? 0;
+        return sum + min;
+      }, 0);
+
+      const aLoad = a.reduce((sum, x) => sum + (x.moving_time ?? 0) / 60, 0);
+      return sLoad + aLoad;
+    });
+
     const fitness: number[] = [];
     const fatigue: number[] = [];
     const form: number[] = [];
-    const labels: string[] = [];
 
-    const now = new Date();
-    const baseStart = startOfWeek(addWeeks(now, -weeksBack + 1), { weekStartsOn: 1 });
+    let ctl = 0; // fitness (42-day EWMA)
+    let atl = 0; // fatigue (7-day EWMA)
+    const ctlDecay = 1 / 42;
+    const atlDecay = 1 / 7;
 
-    const rollingFitness: number[] = [];
-    const rollingFatigue: number[] = [];
-
-    for (let i = 0; i < weeksBack; i++) {
-      const start = addWeeks(baseStart, i);
-      const end = addWeeks(start, 1);
-      labels.push(format(start, 'MMM d'));
-
-      const allSessions = [...sessions, ...completedSessions].filter((s) =>
-        isWithinInterval(parseISO(s.date), { start, end })
-      );
-
-      const sessionMins = allSessions.reduce((sum, s) => {
-        const duration =
-          typeof s.duration === 'number' ? s.duration : estimateDurationFromTitle(s.title) ?? 0;
-        return sum + duration;
-      }, 0);
-
-      const stravaMins = stravaActivities
-        .filter((a) => isWithinInterval(parseISO(a.start_date), { start, end }))
-        .reduce((sum, a) => sum + (a.moving_time ?? 0) / 60, 0);
-
-      const totalLoad = sessionMins + stravaMins;
-
-      // Simulate CTL (42d), ATL (7d), and TSB (CTL - ATL)
-      const ctl = i < 6 ? totalLoad : (rollingFitness.slice(-6).reduce((a, b) => a + b, 0) + totalLoad) / 7;
-      const atl = i < 2 ? totalLoad : (rollingFatigue.slice(-2).reduce((a, b) => a + b, 0) + totalLoad) / 3;
-      const tsb = ctl - atl;
-
-      rollingFitness.push(ctl);
-      rollingFatigue.push(atl);
-
+    dailyLoad.forEach((load) => {
+      ctl = ctl + ctlDecay * (load - ctl);
+      atl = atl + atlDecay * (load - atl);
       fitness.push(Math.round(ctl));
       fatigue.push(Math.round(atl));
-      form.push(Math.round(tsb));
-    }
+      form.push(Math.round(ctl - atl));
+    });
 
-    const avgLoad = fitness.reduce((sum, x) => sum + x, 0) / fitness.length;
-    const fitnessScore = Math.round((avgLoad / 10) * 100); // arbitrary scaling
+    const avgHours = fitness.reduce((sum, x) => sum + x, 0) / fitness.length / 60;
+    const fitnessScore = Math.min(100, Math.max(0, Math.round(avgHours * 100)));
 
     return { labels, fitness, fatigue, form, fitnessScore };
   }, [sessions, completedSessions, stravaActivities]);
 
   return (
-    <div className="mt-10 rounded-2xl border bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-semibold text-gray-900">📈 Fitness Trends</h2>
+    <div className="mt-10 rounded-2xl border bg-white p-6 shadow-sm relative">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-gray-900">📈 Fitness Trends</h2>
+        <button
+          onClick={() => setShowInfo(!showInfo)}
+          className="text-sm text-gray-500 underline hover:text-gray-700"
+        >
+          {showInfo ? 'Hide Info' : 'Learn how this works'}
+        </button>
+      </div>
+
+      {showInfo && (
+        <div className="mt-4 rounded-lg border bg-gray-50 p-4 text-sm text-gray-700">
+          <p><span className="font-semibold text-blue-600">Fitness</span> is a 6-week rolling average of your training load.</p>
+          <p><span className="font-semibold text-purple-600">Fatigue</span> is a 1-week average — it spikes after intense blocks.</p>
+          <p><span className="font-semibold text-green-600">Form</span> = Fitness − Fatigue. It measures how fresh or overreached you are.</p>
+          <p className="mt-2">
+            Stay in the <span className="text-green-600 font-medium">green zone</span> (moderate form) for fitness gains. Avoid the
+            <span className="text-red-600 font-medium"> high risk zone</span> (very low form) for too long — it can lead to overtraining.
+          </p>
+        </div>
+      )}
 
       <div className="mt-4">
         <Line
@@ -115,57 +125,34 @@ export default function FitnessPanel({
                 data: fitness,
                 borderColor: '#3B82F6',
                 backgroundColor: 'rgba(59, 130, 246, 0.2)',
-                tension: 0.3,
                 fill: true,
+                tension: 0.3,
               },
               {
                 label: 'Fatigue',
                 data: fatigue,
-                borderColor: '#A855F7',
-                backgroundColor: 'rgba(168, 85, 247, 0.2)',
-                tension: 0.3,
+                borderColor: '#C084FC',
+                backgroundColor: 'rgba(192, 132, 252, 0.2)',
                 fill: true,
+                tension: 0.3,
               },
               {
                 label: 'Form',
                 data: form,
                 borderColor: '#10B981',
                 backgroundColor: 'rgba(16, 185, 129, 0.2)',
-                tension: 0.3,
                 fill: true,
+                tension: 0.3,
               },
             ],
           }}
           options={{
             responsive: true,
             plugins: {
-              legend: {
-                position: 'bottom',
-                labels: {
-                  color: '#374151',
-                  boxWidth: 12,
-                  boxHeight: 12,
-                  font: { size: 12 },
-                },
-              },
-              tooltip: {
-                mode: 'index' as const,
-                intersect: false,
-              },
+              legend: { position: 'bottom' },
             },
             scales: {
-              y: {
-                beginAtZero: true,
-                ticks: {
-                  color: '#6B7280',
-                  stepSize: 10,
-                },
-              },
-              x: {
-                ticks: {
-                  color: '#6B7280',
-                },
-              },
+              y: { beginAtZero: true },
             },
           }}
         />

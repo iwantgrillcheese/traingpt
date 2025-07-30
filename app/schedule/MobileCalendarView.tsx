@@ -157,17 +157,18 @@ export default function MobileCalendarView({
   return (
     <div className="px-4 pb-32">
       <div className="sticky top-0 z-10 bg-white pt-4 pb-2">
-        <div className="flex justify-center">
-          <button
-            onClick={async () => {
-              const res = await fetch('/api/stripe/checkout', { method: 'POST' });
-              const { url } = await res.json();
-              if (url) window.location.href = url;
-            }}
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-black transition"
+        <div className="mx-auto w-full max-w-md rounded-md border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-600 shadow-sm sm:flex sm:items-center sm:justify-between">
+          <span className="block sm:inline text-center sm:text-left">
+            Has TrainGPT been helpful?
+          </span>
+          <a
+            href="https://buy.stripe.com/8wM7vR8hH5Ejbf27ss"
+            target="_blank"
+            rel="noreferrer"
+            className="mt-1 inline-block text-blue-600 underline hover:text-blue-500 sm:mt-0 sm:ml-2"
           >
-            🙌 Has TrainGPT been helpful? Support the project ($5/month)
-          </button>
+            Support the project ($5/month)
+          </a>
         </div>
       </div>
 
@@ -265,14 +266,13 @@ export default function MobileCalendarView({
       })}
 
       <SessionModal
-  session={selectedSession}
-  stravaActivity={selectedSession?.stravaActivity}
-  open={!!selectedSession}
-  onClose={() => setSelectedSession(null)}
-  completedSessions={completedSessions}
-  onCompletedUpdate={(updatedList) => setCompletedSessions(updatedList)}
-/>
-
+        session={selectedSession}
+        stravaActivity={selectedSession?.stravaActivity}
+        open={!!selectedSession}
+        onClose={() => setSelectedSession(null)}
+        completedSessions={completedSessions}
+        onCompletedUpdate={(updatedList) => setCompletedSessions(updatedList)}
+      />
     </div>
   );
 }
