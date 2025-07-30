@@ -33,16 +33,11 @@ function normalizeSport(title: string): string {
 
 function sportEmoji(sport: string): string {
   switch (sport.toLowerCase()) {
-    case 'swim':
-      return '🏊';
-    case 'bike':
-      return '🚴';
-    case 'run':
-      return '🏃';
-    case 'strength':
-      return '💪';
-    default:
-      return '🔸';
+    case 'swim': return '🏊';
+    case 'bike': return '🚴';
+    case 'run': return '🏃';
+    case 'strength': return '💪';
+    default: return '🔸';
   }
 }
 
@@ -81,8 +76,8 @@ export default function DayCell({
           const isRest = rawTitle.toLowerCase().includes('rest day');
           const sport = s.sport || normalizeSport(rawTitle);
           const emoji = sportEmoji(sport);
-
           const colorClass = getSessionColor(isRest ? 'rest' : sport);
+
           const isStravaMatch = !!s.stravaActivity;
           const isCompleted = isSessionCompleted(s) || isStravaMatch;
 
