@@ -21,7 +21,7 @@ type CalendarShellProps = {
   stravaActivities: StravaActivity[];
   extraStravaActivities: StravaActivity[];
   onCompletedUpdate?: (updated: CompletedSession[]) => void;
-    timezone?: string;
+  timezone?: string;
 };
 
 export default function CalendarShell({
@@ -114,17 +114,9 @@ export default function CalendarShell({
         stravaActivity={selectedSession?.stravaActivity}
         open={!!selectedSession}
         onClose={() => setSelectedSession(null)}
-        onUpdate={(updated, action) => {
-          if (!updated?.date || !updated?.title) return;
-
-          const key = (c: CompletedSession) =>
-            c.session_date === updated.date && c.session_title === updated.title;
-
-          setCompleted((prev) =>
-            action === 'mark'
-              ? [...prev.filter((c) => !key(c)), { session_date: updated.date, session_title: updated.title }]
-              : prev.filter((c) => !key(c))
-          );
+        completedSessions={completed}
+        onCompletedUpdate={(updatedList) => {
+          setCompleted(updatedList);
         }}
       />
     </main>

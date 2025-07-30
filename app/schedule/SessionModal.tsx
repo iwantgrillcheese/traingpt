@@ -8,12 +8,19 @@ import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
+type CompletedSession = {
+  session_date: string;
+  session_title: string;
+  strava_id?: string;
+};
+
 type Props = {
   session: Session | null;
   stravaActivity?: StravaActivity | null;
   open: boolean;
   onClose: () => void;
-  onUpdate?: (updated: Session, action: 'mark' | 'undo') => void;
+  completedSessions: CompletedSession[];
+  onCompletedUpdate: (updated: CompletedSession[]) => void;
 };
 
 export default function SessionModal({
@@ -21,17 +28,22 @@ export default function SessionModal({
   stravaActivity,
   open,
   onClose,
-  onUpdate,
+  completedSessions,
+  onCompletedUpdate,
 }: Props) {
   const [loading, setLoading] = useState(false);
   const [output, setOutput] = useState<string | null>(session?.structured_workout || null);
   const [markingComplete, setMarkingComplete] = useState(false);
-  const [isCompleted, setIsCompleted] = useState(false);
 
   const supabase = createClientComponentClient();
 
+  const isCompleted = completedSessions.some(
+    (s) =>
+      s.session_date === session?.date &&
+      s.session_title === session?.title
+  );
+
   useEffect(() => {
-    setIsCompleted(false); // reset on open
     setOutput(session?.structured_workout || null);
   }, [session]);
 
@@ -55,7 +67,6 @@ export default function SessionModal({
     await supabase.from('sessions').update({ structured_workout: details }).eq('id', session.id);
 
     setOutput(details);
-    onUpdate?.({ ...session, structured_workout: details }, 'mark');
     setLoading(false);
   };
 
@@ -81,9 +92,21 @@ export default function SessionModal({
         return;
       }
 
-      const newStatus = !isCompleted;
-      setIsCompleted(newStatus);
-      onUpdate?.(session, newStatus ? 'mark' : 'undo');
+      const newEntry = {
+        session_date: session.date,
+        session_title: session.title,
+        strava_id: session.strava_id ?? undefined,
+      };
+
+      const newCompletedList = isCompleted
+        ? completedSessions.filter(
+            (s) =>
+              s.session_date !== session.date ||
+              s.session_title !== session.title
+          )
+        : [...completedSessions, newEntry];
+
+      onCompletedUpdate(newCompletedList);
     } catch (err) {
       console.error(err);
       alert('Unexpected error updating session.');
