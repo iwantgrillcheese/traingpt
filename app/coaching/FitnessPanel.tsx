@@ -44,7 +44,7 @@ export default function FitnessPanel({
 }: FitnessPanelProps) {
   const [showInfo, setShowInfo] = useState(false);
 
-  const { labels, fitness, fatigue, form, fitnessScore } = useMemo(() => {
+  const { labels, fitness, fatigue, form, fitnessScore, greenZone, redZone } = useMemo(() => {
     const daysBack = 90;
     const today = new Date();
     const start = subDays(today, daysBack);
@@ -71,24 +71,33 @@ export default function FitnessPanel({
     const fitness: number[] = [];
     const fatigue: number[] = [];
     const form: number[] = [];
+    const greenZone: number[] = [];
+    const redZone: number[] = [];
 
-    let ctl = 0; // fitness (42-day EWMA)
-    let atl = 0; // fatigue (7-day EWMA)
+    let ctl = 0;
+    let atl = 0;
     const ctlDecay = 1 / 42;
     const atlDecay = 1 / 7;
 
-    dailyLoad.forEach((load) => {
-      ctl = ctl + ctlDecay * (load - ctl);
-      atl = atl + atlDecay * (load - atl);
-      fitness.push(Math.round(ctl));
-      fatigue.push(Math.round(atl));
-      form.push(Math.round(ctl - atl));
+    dailyLoad.forEach(() => {
+      greenZone.push(20);
+      redZone.push(-30);
     });
 
-    const avgHours = fitness.reduce((sum, x) => sum + x, 0) / fitness.length / 60;
-    const fitnessScore = Math.min(100, Math.max(0, Math.round(avgHours * 100)));
+    dailyLoad.forEach((load, i) => {
+      ctl = ctl + ctlDecay * (load - ctl);
+      atl = atl + atlDecay * (load - atl);
+      const currentFitness = ctl;
+      fitness.push(Math.round(currentFitness));
+      fatigue.push(Math.round(atl));
+      form.push(Math.round(currentFitness - atl));
+    });
 
-    return { labels, fitness, fatigue, form, fitnessScore };
+    const currentFitness = fitness.at(-1) ?? 0;
+    const maxFitness = Math.max(...fitness.slice(-42));
+    const fitnessScore = Math.round((currentFitness / maxFitness) * 100);
+
+    return { labels, fitness, fatigue, form, fitnessScore, greenZone, redZone };
   }, [sessions, completedSessions, stravaActivities]);
 
   return (
@@ -144,6 +153,22 @@ export default function FitnessPanel({
                 fill: true,
                 tension: 0.3,
               },
+              {
+                label: 'Green Zone',
+                data: greenZone,
+                borderColor: 'rgba(34,197,94,0.5)',
+                borderDash: [5, 5],
+                pointRadius: 0,
+                fill: false,
+              },
+              {
+                label: 'High Risk Zone',
+                data: redZone,
+                borderColor: 'rgba(239,68,68,0.6)',
+                borderDash: [5, 5],
+                pointRadius: 0,
+                fill: false,
+              },
             ],
           }}
           options={{
@@ -152,7 +177,7 @@ export default function FitnessPanel({
               legend: { position: 'bottom' },
             },
             scales: {
-              y: { beginAtZero: true },
+              y: { beginAtZero: false },
             },
           }}
         />
