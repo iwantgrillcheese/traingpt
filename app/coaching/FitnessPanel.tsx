@@ -12,13 +12,7 @@ import {
   Filler,
   Legend,
 } from 'chart.js';
-import {
-  format,
-  subDays,
-  eachDayOfInterval,
-} from 'date-fns';
-import type { Session } from '@/types/session';
-import estimateDurationFromTitle from '@/utils/estimateDurationFromTitle';
+import { format, subDays, eachDayOfInterval } from 'date-fns';
 import type { StravaActivity } from '@/types/strava';
 
 ChartJS.register(
@@ -32,16 +26,10 @@ ChartJS.register(
 );
 
 type FitnessPanelProps = {
-  sessions: Session[];
-  completedSessions: Session[];
-  stravaActivities?: StravaActivity[];
+  stravaActivities: StravaActivity[];
 };
 
-export default function FitnessPanel({
-  sessions,
-  completedSessions,
-  stravaActivities = [],
-}: FitnessPanelProps) {
+export default function FitnessPanel({ stravaActivities = [] }: FitnessPanelProps) {
   const [showInfo, setShowInfo] = useState(false);
 
   const { labels, fitness, fatigue, form, fitnessScore, greenZone, redZone } = useMemo(() => {
@@ -50,22 +38,14 @@ export default function FitnessPanel({
     const start = subDays(today, daysBack);
     const allDays = eachDayOfInterval({ start, end: today });
     const labels = allDays.map((d) => format(d, 'MMM d'));
-    const allSessions = [...sessions, ...completedSessions];
 
     const dailyLoad = allDays.map((day) => {
       const str = day.toISOString().split('T')[0];
-      const s = allSessions.filter((sess) => sess.date.startsWith(str));
-      const a = stravaActivities.filter((act) => act.start_date.startsWith(str));
-
-      const sLoad = s.reduce((sum, x) => {
-        const min = typeof x.duration === 'number'
-          ? x.duration
-          : estimateDurationFromTitle(x.title) ?? 0;
-        return sum + min;
-      }, 0);
-
+      const a = stravaActivities.filter((act) =>
+        act.start_date.startsWith(str)
+      );
       const aLoad = a.reduce((sum, x) => sum + (x.moving_time ?? 0) / 60, 0);
-      return sLoad + aLoad;
+      return aLoad;
     });
 
     const fitness: number[] = [];
@@ -98,7 +78,7 @@ export default function FitnessPanel({
     const fitnessScore = Math.round((currentFitness / maxFitness) * 100);
 
     return { labels, fitness, fatigue, form, fitnessScore, greenZone, redZone };
-  }, [sessions, completedSessions, stravaActivities]);
+  }, [stravaActivities]);
 
   return (
     <div className="mt-10 rounded-2xl border bg-white p-4 sm:p-6 shadow-sm relative">
