@@ -79,8 +79,8 @@ function normalizeSportType(input: string | null | undefined): string {
       .eq('id', user.id);
   }
 
-  // Fetch recent activities (last 14 days)
-  const after = Math.floor(Date.now() / 1000) - 60 * 60 * 24 * 14;
+// Fetch recent activities (last 90 days)
+const after = Math.floor(Date.now() / 1000) - 60 * 60 * 24 * 90;
 
   const res = await fetch(
     `https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=200`,
