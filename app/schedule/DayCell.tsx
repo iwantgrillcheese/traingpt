@@ -6,8 +6,9 @@ import { getSessionColor } from '@/utils/session-utils';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
 
+// CompletedSession uses `date` instead of `session_date` so it matches the DB schema.
 type CompletedSession = {
-  session_date: string;
+  date: string;
   session_title: string;
   strava_id?: string;
 };
@@ -55,7 +56,7 @@ export default function DayCell({
 }: Props) {
   const isSessionCompleted = (session: MergedSession) =>
     completedSessions.some(
-      (c) => c.session_date === session.date && c.session_title === session.title
+      (c) => c.date === session.date && c.session_title === session.title
     );
 
   return (

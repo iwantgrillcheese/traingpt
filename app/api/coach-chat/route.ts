@@ -43,7 +43,7 @@ function getCurrentPlanWeek(plan: any[], today = new Date()) {
 }
 
 export async function POST(req: Request) {
-  const { message: userMessage } = await req.json();
+  const { message: userMessage, history = [] } = await req.json();
   if (!userMessage) return NextResponse.json({ error: 'Missing message' }, { status: 400 });
 
   const supabase = createServerComponentClient({ cookies });
@@ -78,16 +78,8 @@ export async function POST(req: Request) {
   const [{ data: sessions = [] }, { data: completed = [] }, { data: strava = [] }] =
     await Promise.all([
       supabase.from('sessions').select('*').eq('user_id', user_id).gte('date', fourWeeksAgoStr),
-      supabase
-        .from('completed_sessions')
-        .select('*')
-        .eq('user_id', user_id)
-        .gte('session_date', fourWeeksAgoStr),
-      supabase
-        .from('strava_activities')
-        .select('*')
-        .eq('user_id', user_id)
-        .gte('start_date', fourWeeksAgoStr),
+      supabase.from('completed_sessions').select('*').eq('user_id', user_id),
+      supabase.from('strava_activities').select('*').eq('user_id', user_id),
     ]);
 
   const summary = buildTrainingSummary(sessions ?? [], completed ?? [], strava ?? []);
@@ -96,7 +88,7 @@ export async function POST(req: Request) {
   const currentWeekLabel = currentWeek?.label ?? 'Unknown';
   const currentWeekStart = currentWeek?.startDate ?? 'Unknown';
   const sessionLines = Object.entries(currentWeek?.days ?? {})
-.map(([date, list]) => `• ${date}: ${(list as string[]).join(', ')}`)
+    .map(([date, list]) => `• ${date}: ${(list as string[]).join(', ')}`)
     .join('\n');
 
   const systemPrompt = `
@@ -134,6 +126,7 @@ ${summary}
       model: 'gpt-4-turbo',
       messages: [
         { role: 'system', content: systemPrompt },
+        ...history.slice(-10),
         { role: 'user', content: userMessage },
       ],
     });
@@ -159,9 +152,11 @@ function buildTrainingSummary(sessions: any[], completed: any[], strava: any[]):
   }
 
   for (const c of completed) {
-    const week = weekOf(c.session_date);
+    const compDate = (c as any).date || (c as any).session_date;
+    const compTitle = (c as any).session_title || (c as any).title;
+    const week = weekOf(compDate);
     weeks[week] ??= { planned: [], completed: [], strava: [] };
-    weeks[week].completed.push(c.session_title);
+    weeks[week].completed.push(compTitle);
   }
 
   for (const a of strava) {

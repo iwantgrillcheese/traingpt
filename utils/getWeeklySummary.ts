@@ -2,6 +2,7 @@
 
 import { Session } from '@/types/session';
 import { StravaActivity } from '@/types/strava';
+import mergeSessionsWithStrava from '@/utils/mergeSessionWithStrava';
 import estimateDurationFromTitle from '@/utils/estimateDurationFromTitle';
 import {
   startOfWeek,
@@ -56,7 +57,7 @@ const normalizeSport = (input: string | null | undefined): string => {
 
 export function getWeeklySummary(
   sessions: Session[],
-  completedSessions: Session[],
+  completedSessions: any[],
   stravaActivities: StravaActivity[] = []
 ): WeeklySummary {
   const now = new Date();

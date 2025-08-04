@@ -14,10 +14,11 @@ import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
 
 type CompletedSession = {
-  session_date: string;
+  date: string;
   session_title: string;
   strava_id?: string;
 };
+
 
 type Props = {
   currentMonth: Date;

@@ -9,11 +9,14 @@ import mergeSessionsWithStrava from '@/utils/mergeSessionWithStrava';
 import Footer from '../components/footer';
 import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
 
+// Use date instead of session_date to align with the DB schema. This makes 
+// "mark done" rows persist across refreshes because the API stores the field as `date`.
 type CompletedSession = {
-  session_date: string;
+  date: string;
   session_title: string;
   strava_id?: string;
 };
+
 
 export default function SchedulePage() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -43,7 +46,16 @@ export default function SchedulePage() {
 
       if (sessionData) setSessions(sessionData);
       if (stravaData) setStravaActivities(stravaData);
-      if (completedData) setCompletedSessions(completedData);
+if (completedData) {
+  // Normalize completed sessions so downstream components always have a `date`.
+  const normalized = completedData.map((c: any) => ({
+    date: c.date || c.session_date,
+    session_title: c.session_title || c.title,
+    strava_id: c.strava_id,
+  }));
+  setCompletedSessions(normalized);
+}
+
 
       setLoading(false);
     };

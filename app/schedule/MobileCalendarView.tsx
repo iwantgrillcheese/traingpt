@@ -14,12 +14,13 @@ import { ChevronRightIcon } from '@heroicons/react/20/solid';
 import SessionModal from './SessionModal';
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
-import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline'
+import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 
 type EnrichedSession = Session & { stravaActivity?: StravaActivity };
 
+// CompletedSession uses `date` instead of `session_date` to match the DB schema.
 type CompletedSession = {
-  session_date: string;
+  date: string;
   session_title: string;
   strava_id?: string;
 };
@@ -133,16 +134,16 @@ export default function MobileCalendarView({
 
     setCompletedSessions((prev) => {
       const exists = prev.some(
-        (c) => c.session_date === updated.date && c.session_title === updated.title
+        (c) => c.date === updated.date && c.session_title === updated.title
       );
 
       if (action === 'mark' && !exists) {
-        return [...prev, { session_date: updated.date, session_title: updated.title }];
+        return [...prev, { date: updated.date, session_title: updated.title }];
       }
 
       if (action === 'undo' && exists) {
         return prev.filter(
-          (c) => !(c.session_date === updated.date && c.session_title === updated.title)
+          (c) => !(c.date === updated.date && c.session_title === updated.title)
         );
       }
 
@@ -160,21 +161,19 @@ export default function MobileCalendarView({
     return <div className="text-center text-zinc-400 pt-12">No sessions to display.</div>;
   }
 
-return (
-  <div className="px-4 pb-32">
-    
-<div className="sticky top-0 z-10 bg-white pt-4 pb-2">
-  <button
-    onClick={handleSupportClick}
-    className="mx-auto mb-6 flex w-fit items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 shadow-sm hover:bg-gray-50 transition"
-  >
-    <ChatBubbleLeftRightIcon className="h-4 w-4 text-gray-400" />
-    <span className="text-gray-600 underline hover:text-gray-800">
-      Support the project ($5/month)
-    </span>
-  </button>
-</div>
-
+  return (
+    <div className="px-4 pb-32">
+      <div className="sticky top-0 z-10 bg-white pt-4 pb-2">
+        <button
+          onClick={handleSupportClick}
+          className="mx-auto mb-6 flex w-fit items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 shadow-sm hover:bg-gray-50 transition"
+        >
+          <ChatBubbleLeftRightIcon className="h-4 w-4 text-gray-400" />
+          <span className="text-gray-600 underline hover:text-gray-800">
+            Support the project ($5/month)
+          </span>
+        </button>
+      </div>
 
       {Object.entries(groupedByWeek).map(([weekLabel, { sessions, extras, start }]) => {
         const isPast = isBefore(start, startOfWeek(today, { weekStartsOn: 1 }));
@@ -212,8 +211,7 @@ return (
                   const date = safeParseDate(session.date);
 
                   const isCompleted = completedSessions.some(
-                    (c) =>
-                      c.session_date === session.date && c.session_title === session.title
+                    (c) => c.date === session.date && c.session_title === session.title
                   );
 
                   return (

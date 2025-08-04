@@ -10,8 +10,10 @@ import type { StravaActivity } from '@/types/strava';
 import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 
+// Align with DB schema: completed sessions store the date in a `date` column.
+// Use `date` so comparisons remain consistent across the app.
 type CompletedSession = {
-  session_date: string;
+  date: string;
   session_title: string;
   strava_id?: string;
 };

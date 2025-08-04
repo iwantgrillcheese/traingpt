@@ -8,8 +8,9 @@ import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
+// CompletedSession uses `date` instead of `session_date` so it matches the DB schema.
 type CompletedSession = {
-  session_date: string;
+  date: string;
   session_title: string;
   strava_id?: string;
 };
@@ -38,9 +39,7 @@ export default function SessionModal({
   const supabase = createClientComponentClient();
 
   const isCompleted = completedSessions.some(
-    (s) =>
-      s.session_date === session?.date &&
-      s.session_title === session?.title
+    (s) => s.date === session?.date && s.session_title === session?.title
   );
 
   useEffect(() => {
@@ -93,16 +92,14 @@ export default function SessionModal({
       }
 
       const newEntry = {
-        session_date: session.date,
+        date: session.date,
         session_title: session.title,
         strava_id: session.strava_id ?? undefined,
       };
 
       const newCompletedList = isCompleted
         ? completedSessions.filter(
-            (s) =>
-              s.session_date !== session.date ||
-              s.session_title !== session.title
+            (s) => s.date !== session.date || s.session_title !== session.title
           )
         : [...completedSessions, newEntry];
 
