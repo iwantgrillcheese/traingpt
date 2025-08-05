@@ -16,18 +16,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           TrainGPT
         </Link>
 
-        {/* Toggle Button */}
-        <button
+<button
   onClick={() => setSidebarOpen(!sidebarOpen)}
-  className="relative w-6 h-4 rounded-full border border-gray-300 hover:border-gray-400 transition-all bg-white flex items-center justify-center"
+  aria-label="Toggle sidebar"
+  className={`relative w-14 h-8 rounded-full transition-colors duration-300 ${
+    sidebarOpen ? 'bg-indigo-500' : 'bg-gray-300'
+  }`}
 >
-  <span className="sr-only">Toggle Sidebar</span>
   <div
-    className={`absolute w-0.5 h-2 bg-gray-700 transition-transform duration-300 ${
-      sidebarOpen ? 'translate-x-1.5' : '-translate-x-1.5'
+    className={`absolute top-1 left-1 w-6 h-6 rounded-full bg-white shadow-md transition-transform duration-300 ${
+      sidebarOpen ? 'translate-x-6' : 'translate-x-0'
     }`}
   />
 </button>
+
 
         {/* Profile (pushed right on desktop) */}
         <div className="ml-auto">
