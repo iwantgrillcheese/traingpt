@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // service role to bypass RLS for admin task
+  process.env.SUPABASE_SERVICE_ROLE_KEY! // service role for admin backfill
 );
 
 type InsertRow = {
@@ -17,6 +17,16 @@ type InsertRow = {
   status: 'planned';
   plan_id: string | null;
   source?: string | null;
+};
+
+// yyyy-mm-dd or bust
+const asISODate = (s: string) => {
+  // accept 'YYYY-MM-DD' or ISO timestamp; output 'YYYY-MM-DD'
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (m) return m[1];
+  const d = new Date(s);
+  if (!isNaN(d.valueOf())) return d.toISOString().slice(0, 10);
+  return ''; // invalid
 };
 
 const detectSport = (title: string): string => {
@@ -30,24 +40,28 @@ const detectSport = (title: string): string => {
 };
 
 function collectFromPlanShape(plan: any, user_id: string, plan_id: string | null): InsertRow[] {
+  const pushRow = (rows: InsertRow[], dateRaw: string, titleRaw: string) => {
+    const date = asISODate(dateRaw);
+    const title = (titleRaw || '').trim();
+    if (!date || !title) return;
+    rows.push({
+      user_id,
+      date,
+      title,
+      sport: detectSport(title),
+      status: 'planned',
+      plan_id,
+      source: 'plan_backfill',
+    });
+  };
+
   const rows: InsertRow[] = [];
 
   // Shape A: { days: { 'YYYY-MM-DD': string[] } }
   if (plan && plan.days && typeof plan.days === 'object') {
     for (const [date, arr] of Object.entries(plan.days as Record<string, string[] | undefined>)) {
       if (!Array.isArray(arr)) continue;
-      for (const title of arr) {
-        if (!title || !date) continue;
-        rows.push({
-          user_id,
-          date,
-          title,
-          sport: detectSport(title),
-          status: 'planned',
-          plan_id,
-          source: 'plan_backfill',
-        });
-      }
+      for (const title of arr) pushRow(rows, date, title);
     }
   }
 
@@ -57,18 +71,7 @@ function collectFromPlanShape(plan: any, user_id: string, plan_id: string | null
       if (!week?.days) continue;
       for (const [date, arr] of Object.entries(week.days as Record<string, string[] | undefined>)) {
         if (!Array.isArray(arr)) continue;
-        for (const title of arr) {
-          if (!title || !date) continue;
-          rows.push({
-            user_id,
-            date,
-            title,
-            sport: detectSport(title),
-            status: 'planned',
-            plan_id,
-            source: 'plan_backfill',
-          });
-        }
+        for (const title of arr) pushRow(rows, date, title);
       }
     }
   }
@@ -77,30 +80,25 @@ function collectFromPlanShape(plan: any, user_id: string, plan_id: string | null
 }
 
 export async function GET(req: NextRequest) {
-  // Filters
   const dryRun = req.nextUrl.searchParams.get('dry') === '1';
-  const userId = req.nextUrl.searchParams.get('userId') ?? undefined;
-  const planIdsCSV = req.nextUrl.searchParams.get('planIds') ?? undefined; // comma-separated
   const onlyNoSessions = req.nextUrl.searchParams.get('onlyNoSessions') === '1';
+  const userId = req.nextUrl.searchParams.get('userId') ?? undefined;
+  const planIdsCSV = req.nextUrl.searchParams.get('planIds') ?? undefined;
 
-  // If onlyNoSessions, fetch the list of user_ids with plans but no sessions
-  let limitToUserIds: string[] | undefined;
+  // Optional: limit to users with plan but no sessions
+  let restrictUserIds: string[] | undefined;
   if (onlyNoSessions) {
-    const { data: missing } = await supabase.rpc('users_with_plan_but_no_sessions'); // optional helper RPC
-    limitToUserIds = (missing ?? []).map((r: any) => r.user_id);
+    const { data: missing } = await supabase.rpc('users_with_plan_but_no_sessions');
+    restrictUserIds = (missing ?? []).map((r: any) => r.user_id);
   }
 
-  // Build the base query for plans
   let q = supabase.from('plans').select('id, user_id, plan').order('created_at', { ascending: false });
-
   if (userId) q = q.eq('user_id', userId);
   if (planIdsCSV) q = q.in('id', planIdsCSV.split(',').map(s => s.trim()));
-  if (limitToUserIds?.length) q = q.in('user_id', limitToUserIds);
+  if (restrictUserIds?.length) q = q.in('user_id', restrictUserIds);
 
   const { data: planRows, error } = await q;
-  if (error) {
-    return NextResponse.json({ ok: false, step: 'fetch_plans', error: error.message }, { status: 500 });
-  }
+  if (error) return NextResponse.json({ ok: false, step: 'fetch_plans', error: error.message }, { status: 500 });
 
   let totalCandidates = 0;
   let totalUpserts = 0;
@@ -110,7 +108,7 @@ export async function GET(req: NextRequest) {
     const extracted = collectFromPlanShape(row.plan, row.user_id, row.id);
     if (!extracted.length) continue;
 
-    // De-dupe within the batch by (user_id, date, title)
+    // De-dupe within batch by (user_id, date, title)
     const seen = new Set<string>();
     const batch: InsertRow[] = [];
     for (const s of extracted) {
@@ -126,11 +124,11 @@ export async function GET(req: NextRequest) {
 
     if (dryRun) continue;
 
-    // Chunked upsert
+    // Chunked upsert with actual count
     const CHUNK = 500;
     for (let i = 0; i < batch.length; i += CHUNK) {
       const chunk = batch.slice(i, i + CHUNK);
-      const { error: upErr, count } = await supabase
+      const { data: upData, error: upErr, count } = await supabase
         .from('sessions')
         .upsert(
           chunk.map(s => ({
@@ -142,15 +140,17 @@ export async function GET(req: NextRequest) {
             plan_id: s.plan_id,
             source: s.source ?? 'plan_backfill',
           })),
-          { onConflict: 'user_id,date,title', ignoreDuplicates: true, count: 'exact' }
-        );
+          { onConflict: 'user_id,date,title', ignoreDuplicates: true }
+        )
+        .select('user_id,date,title', { count: 'exact' });
+
       if (upErr) {
-        // keep going; report error inline
         console.error('Upsert error:', upErr.message);
-      } else {
-        totalUpserts += (count ?? 0);
-        perUser[row.user_id].upserts += (count ?? 0);
+        continue;
       }
+      const inserted = count ?? upData?.length ?? 0;
+      totalUpserts += inserted;
+      perUser[row.user_id].upserts += inserted;
     }
   }
 
@@ -161,11 +161,6 @@ export async function GET(req: NextRequest) {
     totalCandidates,
     totalUpserts,
     perUser,
-    tips: [
-      "Add unique constraint on (user_id, date, title) to keep this idempotent.",
-      "Use ?onlyNoSessions=1 to target just users with plans but no sessions.",
-      "Use ?planIds=csv or ?userId=<uuid> to narrow scope.",
-      "Add &dry=1 to preview without writing."
-    ],
+    note: "Uniqueness is (user_id, date, title). Re-run safe. Use ?onlyNoSessions=1 to target the 85 only.",
   });
 }
