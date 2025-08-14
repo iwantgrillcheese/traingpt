@@ -206,25 +206,3 @@ export async function GET(req: NextRequest) {
     ],
   });
 }
-
-/*
--- Optional helper RPC for ?onlyNoSessions=1
-create or replace function users_with_plan_but_no_sessions()
-returns table(user_id uuid)
-language sql stable as $$
-  with plan_users as (select distinct user_id from plans),
-       sess_users as (select distinct user_id from sessions)
-  select pu.user_id
-  from plan_users pu
-  left join sess_users su on su.user_id = pu.user_id
-  where su.user_id is null;
-$$;
-
--- Recommended DB indexes (run once)
--- IMPORTANT: if 'date' is a column name, quote it in DDL
-create unique index if not exists sessions_user_date_title_uidx
-  on sessions(user_id, "date", title);
-
-create index if not exists sessions_user_date_idx
-  on sessions(user_id, "date");
-*/
