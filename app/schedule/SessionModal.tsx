@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { Dialog } from '@headlessui/react';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import clsx from 'clsx';
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
-// CompletedSession uses `date` instead of `session_date` so it matches the DB schema.
+// CompletedSession uses `date` to match the DB schema.
 type CompletedSession = {
   date: string;
   session_title: string;
@@ -114,7 +114,8 @@ export default function SessionModal({
 
   if (!session) return null;
 
-  const formattedDate = format(new Date(session.date), 'EEE, MMM d');
+  // Parse ISO to local midnight (avoids UTC shift)
+  const formattedDate = format(parseISO(session.date), 'EEE, MMM d');
 
   return (
     <Dialog open={open} onClose={onClose} className="relative z-50">

@@ -7,6 +7,7 @@ import {
   endOfWeek,
   addDays,
   isSameMonth,
+  format, // added for local-safe date keys
 } from 'date-fns';
 import { useMemo } from 'react';
 import DayCell from './DayCell';
@@ -18,7 +19,6 @@ type CompletedSession = {
   session_title: string;
   strava_id?: string;
 };
-
 
 type Props = {
   currentMonth: Date;
@@ -67,7 +67,8 @@ export default function MonthGrid({
       <div className="grid grid-cols-7 gap-x-4 gap-y-4">
         {weeks.flatMap((week) =>
           week.map((date) => {
-            const dateStr = date.toISOString().split('T')[0];
+            // ✅ Local-safe string key
+            const dateStr = format(date, 'yyyy-MM-dd');
             const isOutside = !isSameMonth(date, currentMonth);
 
             return (
