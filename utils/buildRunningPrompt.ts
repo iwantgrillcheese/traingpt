@@ -1,53 +1,46 @@
-import { WeekMeta, UserParams } from '@/types/plan';
+// utils/buildRunningPrompt.ts
+import type { WeekMeta, UserParams } from '@/types/plan';
+
+const dayName = (d: number) =>
+  ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d];
 
 export function buildRunningPrompt({
   userParams,
   weekMeta,
-  index,
+  index, // optional for compatibility
 }: {
   userParams: UserParams;
   weekMeta: WeekMeta;
-  index: number;
-}): string {
+  index?: number;
+}) {
+  const prefs = userParams.trainingPrefs ?? {};
+  const longRunDay  = prefs.longRunDay  ?? 0; // default Sunday
+
   return `
-You are a world-class running coach generating week ${index + 1} of a ${userParams.raceType} training plan.
+You are creating ${weekMeta.label} for a running plan.
 
-## Athlete Profile
-- Race Type: ${userParams.raceType}
-- Race Date: ${userParams.raceDate.toISOString().split('T')[0]}
-- Experience Level: ${userParams.experience}
-- Max Training Hours per Week: ${userParams.maxHours}
-- Rest Day: ${userParams.restDay || 'Not specified'}
+## Athlete
+- Race: ${userParams.raceType}
+- Race Date: ${userParams.raceDate}
+- Experience: ${userParams.experience}
+- Max Weekly Hours: ${userParams.maxHours}
+- Rest Day: ${userParams.restDay}
 
-## Week Details
-- Week Label: ${weekMeta.label}
+## Week
+- Label: ${weekMeta.label}
 - Phase: ${weekMeta.phase}
 - Start Date: ${weekMeta.startDate}
-- Deload Week: ${weekMeta.deload ? 'Yes' : 'No'}
+- Deload: ${weekMeta.deload ? 'Yes' : 'No'}
 
-## Performance Metrics
-${userParams.runPace ? `- Run Threshold Pace: ${userParams.runPace} per mile` : '- No run pace provided'}
+## Preferences
+- Long Run Day: ${dayName(longRunDay)} (${longRunDay})
+
+## Metrics
+- Run Threshold Pace: ${userParams.runPace ?? 'unknown'}
 
 ## Instructions
-- Generate 5–6 runs per week, depending on volume and experience.
-- Include at least one full rest day.
-- Include a mix of easy runs, long runs, strides, and (if appropriate) tempo or intervals.
-- Scale intensity and distance to the athlete's experience and plan phase.
-- Avoid overloading volume in deload weeks.
-- Format your output as strict JSON, exactly like this example:
-
-{
-  "label": "${weekMeta.label}",
-  "phase": "${weekMeta.phase}",
-  "startDate": "${weekMeta.startDate}",
-  "deload": ${weekMeta.deload},
-  "days": {
-    "YYYY-MM-DD": ["Run: 45min easy", "Strides: 4x20sec"],
-    ...
-  },
-  "debug": "This is week ${index + 1} of a ${userParams.raceType} running plan."
-}
-
-Return **only** valid JSON — no explanations or extra text.
-  `.trim();
+- Generate 5–6 sessions plus the Rest Day, appropriate to the phase.
+- Emphasize progressive aerobic development with appropriate quality (tempo/intervals) and recovery.
+- Return ONLY valid JSON matching the schema in the system message.
+`.trim();
 }

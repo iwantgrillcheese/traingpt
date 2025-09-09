@@ -1,226 +1,154 @@
+// /app/api/finalize-plan/route.ts
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { format, addDays, addWeeks } from 'date-fns';
+import {
+  parseISO,
+  isValid as isValidDate,
+  addWeeks,
+  differenceInCalendarWeeks,
+  startOfWeek,
+  formatISO,
+} from 'date-fns';
+
+import type { UserParams, WeekMeta, PlanType, GeneratedPlan, WeekJson } from '@/types/plan';
+import { extractPrefs } from '@/utils/extractPrefs';
 import { startPlan } from '@/utils/start-plan';
-import { sendWelcomeEmail } from '@/lib/emails/send-welcome-email';
 
-export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
-type RaceType =
-  | '5k'
-  | '10k'
-  | 'Half Marathon'
-  | 'Marathon'
-  | 'Sprint'
-  | 'Olympic'
-  | 'Half Ironman (70.3)'
-  | 'Ironman (140.6)';
+function buildPlanMeta(totalWeeks: number, startDateISO: string): WeekMeta[] {
+  const weeks: WeekMeta[] = [];
+  const start = startOfWeek(parseISO(startDateISO), { weekStartsOn: 1 }); // Monday
+  const peakWeeks = Math.min(2, Math.max(0, totalWeeks >= 10 ? 2 : totalWeeks >= 8 ? 1 : 0));
+  const taperWeeks = Math.min(2, Math.max(1, totalWeeks >= 10 ? 2 : 1));
+  const remaining = Math.max(0, totalWeeks - (peakWeeks + taperWeeks));
+  const baseWeeks = Math.max(1, Math.round(remaining * 0.5));
+  const buildWeeks = Math.max(0, remaining - baseWeeks);
 
-const MIN_WEEKS: Record<RaceType, number> = {
-  '5k': 4,
-  '10k': 6,
-  'Half Marathon': 8,
-  'Marathon': 12,
-  Sprint: 2,
-  Olympic: 3,
-  'Half Ironman (70.3)': 4,
-  'Ironman (140.6)': 6,
-};
+  const phases: Array<'Base' | 'Build' | 'Peak' | 'Taper'> = [];
+  for (let i = 0; i < baseWeeks; i++) phases.push('Base');
+  for (let i = 0; i < buildWeeks; i++) phases.push('Build');
+  for (let i = 0; i < peakWeeks; i++) phases.push('Peak');
+  for (let i = 0; i < taperWeeks; i++) phases.push('Taper');
 
-const MAX_WEEKS: Record<RaceType, number> = {
-  '5k': 12,
-  '10k': 16,
-  'Half Marathon': 20,
-  'Marathon': 24,
-  Sprint: 20,
-  Olympic: 24,
-  'Half Ironman (70.3)': 28,
-  'Ironman (140.6)': 32,
-};
+  for (let i = 0; i < totalWeeks; i++) {
+    const weekStart = addWeeks(start, i);
+    const phase = phases[i] ?? 'Base';
+    const deload = (phase === 'Base' || phase === 'Build') && i > 0 && (i + 1) % 4 === 0;
 
-const getNextMonday = (date: Date): Date => {
-  const day = date.getDay();
-  const diff = (8 - day) % 7;
-  return addDays(date, diff);
-};
+    weeks.push({
+      label: `Week ${i + 1}`,
+      phase,
+      startDate: formatISO(weekStart, { representation: 'date' }),
+      deload,
+    });
+  }
+  return weeks;
+}
 
-const getPhase = (index: number, total: number): string => {
-  if (index === total - 1) return 'Race Week';
-  if (index === total - 2) return 'Taper';
-  if (index === total - 3) return 'Peak';
-  if (index >= Math.floor(total * 0.5)) return 'Build';
-  return 'Base';
-};
-
-const getDeload = (index: number): boolean => (index + 1) % 4 === 0;
-
-function extractSport(text: string): string {
-  const lower = text.toLowerCase();
-  if (lower.includes('swim')) return 'Swim';
-  if (lower.includes('bike')) return 'Bike';
-  if (lower.includes('run')) return 'Run';
-  if (lower.includes('rest')) return 'Rest';
-  if (lower.includes('strength')) return 'Strength';
-  return 'Other';
+function computeTotalWeeks(todayISO: string, raceDateISO: string): number {
+  const start = startOfWeek(parseISO(todayISO), { weekStartsOn: 1 });
+  const race = startOfWeek(parseISO(raceDateISO), { weekStartsOn: 1 });
+  const diff = differenceInCalendarWeeks(race, start, { weekStartsOn: 1 });
+  return Math.max(1, diff);
 }
 
 export async function POST(req: Request) {
-  console.time('[⏱️ finalize-plan total]');
-  console.log('🔥 /api/finalize-plan hit');
-
-  const supabase = createServerComponentClient<any>({ cookies });
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const user_id = user.id;
-  const user_email = user.email;
-  const body = await req.json();
-  const today = new Date();
-  const startDate = getNextMonday(today);
-
-  const { data: latestPlan } = await supabase
-    .from('plans')
-    .select('*')
-    .eq('user_id', user_id)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const raceType = (body.raceType || latestPlan?.race_type) as RaceType;
-  const planType = body.planType || 'triathlon'; // ✅ NEW: detect if running vs tri
-  const raceDate = new Date(body.raceDate || latestPlan?.race_date);
-  const experience = body.experience || latestPlan?.experience || 'Intermediate';
-  const maxHours = body.maxHours || latestPlan?.max_hours || 8;
-  const restDay = body.restDay || latestPlan?.rest_day || 'Monday';
-  const userNote = body.userNote || '';
-  const bikeFTP = body.bikeFTP || null;
-  const runPace = body.runPace || null;
-  const swimPace = body.swimPace || null;
-
-  const msPerWeek = 7 * 24 * 60 * 60 * 1000;
-  const totalWeeks = Math.ceil((raceDate.getTime() - startDate.getTime()) / msPerWeek);
-
-  if (totalWeeks < MIN_WEEKS[raceType]) {
-    return NextResponse.json(
-      { error: `Your race is too soon. Minimum required: ${MIN_WEEKS[raceType]} weeks.` },
-      { status: 400 }
-    );
-  }
-
-  if (totalWeeks > MAX_WEEKS[raceType]) {
-    return NextResponse.json(
-      {
-        error: `Race too far. Max supported: ${MAX_WEEKS[raceType]} weeks.`,
-        code: 'TOO_MANY_WEEKS',
-      },
-      { status: 400 }
-    );
-  }
-
-  const planMeta = Array.from({ length: totalWeeks }, (_, i) => ({
-    label: `Week ${i + 1}`,
-    phase: getPhase(i, totalWeeks),
-    deload: getDeload(i),
-    startDate: format(addWeeks(startDate, i), 'yyyy-MM-dd'),
-  }));
-
-  console.log(`🧠 Generating ${totalWeeks} weeks of training...`);
-
-  let plan;
   try {
-    plan = await startPlan(planType, {
-      planMeta,
-      userParams: {
-        raceType,
-        raceDate,
-        startDate,
-        totalWeeks,
-        experience,
-        maxHours,
-        restDay,
-        bikeFTP,
-        runPace,
-        swimPace,
-        userNote,
-      },
-    });
-  } catch (err: any) {
-    console.error('❌ GPT Plan generation failed:', err);
-    return NextResponse.json({ error: 'Plan generation failed' }, { status: 500 });
-  }
+    const body = await req.json();
 
-  const coachNote = `Here's your ${totalWeeks}-week ${planType} plan leading to your race on ${format(
-    raceDate,
-    'yyyy-MM-dd'
-  )}. Stay consistent and trust the process.`;
+    const {
+      raceType,
+      raceDate,
+      experience,
+      maxHours,
+      restDay,
+      bikeFtp,
+      runPace,
+      swimPace,
+      planType,
+      preferencesText, // optional free-form
+    } = body ?? {};
 
-  const { data: savedPlan, error: saveError } = await supabase
-    .from('plans')
-    .upsert(
-      {
-        user_id,
-        plan,
-        coach_note: coachNote,
-        note: userNote,
-        race_type: raceType,
-        race_date: format(raceDate, 'yyyy-MM-dd'),
-        experience,
-        max_hours: maxHours,
-        rest_day: restDay,
-      },
-      { onConflict: 'user_id' }
-    )
-    .select()
-    .maybeSingle();
-
-  if (saveError || !savedPlan) {
-    console.error('❌ Supabase Insert Error:', saveError);
-    return NextResponse.json({ error: saveError?.message || 'Failed to save plan' }, { status: 500 });
-  }
-
-  const plan_id = savedPlan.id;
-
-  if (latestPlan?.id) {
-    await supabase.from('sessions').delete().eq('plan_id', latestPlan.id);
-  }
-
-  for (const week of plan) {
-    for (const [date, sessions] of Object.entries(week.days)) {
-      for (const [index, rawTitle] of sessions.entries()) {
-        const sport = extractSport(rawTitle);
-        const title = rawTitle;
-
-        const { error: insertError } = await supabase.from('sessions').insert({
-          user_id,
-          plan_id,
-          date,
-          title,
-          sport,
-          status: 'planned',
-        });
-
-        if (insertError) {
-          console.error(`❌ Failed inserting session: ${title}`, insertError);
-        }
-      }
+    const supabase = createServerComponentClient({ cookies });
+    const {
+      data: { user },
+      error: userErr,
+    } = await supabase.auth.getUser();
+    if (userErr || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-  }
+    const userId = user.id;
 
-  try {
-    await sendWelcomeEmail({
-      to: user_email ?? '',
-      name: user.user_metadata?.name ?? 'Athlete',
-      plan: `${raceType} — ${format(raceDate, 'MMMM d')}`,
+    if (!raceType || !raceDate || !experience || !maxHours || !restDay) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+    const raceISO = parseISO(raceDate);
+    if (!isValidDate(raceISO)) {
+      return NextResponse.json({ error: 'Invalid raceDate' }, { status: 400 });
+    }
+
+    // Extract preferences (undefined if none provided) → defaults downstream
+    const trainingPrefs = extractPrefs(preferencesText);
+
+    const userParams: UserParams = {
+      raceType,
+      raceDate,
+      experience,
+      maxHours: Number(maxHours),
+      restDay,
+      bikeFtp: bikeFtp ?? undefined,
+      runPace: runPace ?? undefined,
+      swimPace: swimPace ?? undefined,
+      trainingPrefs, // may be undefined
+    };
+
+    const todayISO = formatISO(new Date(), { representation: 'date' });
+    const totalWeeks = computeTotalWeeks(todayISO, raceDate);
+    const planMeta: WeekMeta[] = buildPlanMeta(totalWeeks, todayISO);
+
+    const planTypeResolved: PlanType = planType ?? 'triathlon';
+
+    const weeks: WeekJson[] = await startPlan({
+      planMeta,
+      userParams,
+      planType: planTypeResolved,
     });
-  } catch (err) {
-    console.error('📪 Welcome email failed:', err);
-  }
 
-  console.timeEnd('[⏱️ finalize-plan total]');
-  return NextResponse.json({ success: true, plan, coachNote });
+    const generatedPlan: GeneratedPlan = {
+      planType: planTypeResolved,
+      weeks,
+      params: userParams,
+      createdAt: new Date().toISOString(),
+    };
+
+    // Persist — adjust to your schema
+    const { error: upsertErr } = await supabase
+      .from('plans')
+      .upsert(
+        {
+          user_id: userId,
+          race_date: raceDate,
+          race_type: raceType,
+          plan: generatedPlan,
+          created_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id' } // change if multiple plans per user
+      );
+
+    if (upsertErr) {
+      console.error('[finalize-plan] upsert error', upsertErr);
+      return NextResponse.json({ error: 'Failed to save plan' }, { status: 500 });
+    }
+
+    return NextResponse.json({ plan: generatedPlan }, { status: 200 });
+  } catch (err: any) {
+    console.error('[finalize-plan] error', err);
+    return NextResponse.json(
+      { error: 'Internal error', details: String(err?.message ?? err) },
+      { status: 500 }
+    );
+  }
 }

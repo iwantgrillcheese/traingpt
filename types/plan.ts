@@ -1,38 +1,54 @@
-export type RaceType =
-  | '5k'
-  | '10k'
-  | 'Half Marathon'
-  | 'Marathon'
-  | 'Sprint'
-  | 'Olympic'
-  | 'Half Ironman (70.3)'
-  | 'Ironman (140.6)';
+// types/plan.ts
 
-export type PlanType = 'running' | 'triathlon';
+// Day-of-week: 0 = Sunday ... 6 = Saturday
+export type DayOfWeek = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+
+export type TrainingPrefs = {
+  /** Preferred day for the long ride. Default: 6 (Saturday) */
+  longRideDay?: DayOfWeek;
+  /** Preferred day for the long run. Default: 0 (Sunday) */
+  longRunDay?: DayOfWeek;
+  /** Allowed brick day(s). Default: [6] (Saturday). Example override: [0] for Sunday */
+  brickDays?: DayOfWeek[];
+};
+
+export type PlanType = 'triathlon' | 'running' | 'swim' | 'bike' | 'run';
 
 export type UserParams = {
-  raceType: RaceType;
-  raceDate: Date;
-  startDate: Date;
-  totalWeeks: number;
-  experience: string;
-  maxHours: number;
-  restDay: string;
-  userNote?: string;
+  raceType: string;         // e.g., "Half Ironman (70.3)"
+  raceDate: string;         // ISO "YYYY-MM-DD"
+  experience: 'Beginner' | 'Intermediate' | 'Advanced' | string;
+  maxHours: number;         // hours per week cap
+  restDay: string;          // e.g., "Monday"
 
-  // Optional metrics
-  bikeFTP?: number | null;
-  runPace?: string | null;  // formatted like "7:30"
-  swimPace?: string | null; // formatted like "1:50"
+  // Metrics (optional)
+  bikeFtp?: number;
+  runPace?: string;         // "6:55 / mi"
+  swimPace?: string;        // "1:32 / 100m"
+
+  // Preferences (optional)
+  trainingPrefs?: TrainingPrefs;
 };
 
 export type WeekMeta = {
-  label: string;     // e.g. "Week 5"
-  phase: string;     // e.g. "Build", "Taper", "Race Week"
+  label: string; // "Week 1"
+  phase: 'Base' | 'Build' | 'Peak' | 'Taper' | 'Recovery' | string;
+  startDate: string; // "YYYY-MM-DD"
   deload: boolean;
-  startDate: string; // "yyyy-MM-dd"
 };
 
-export type Week = WeekMeta & {
-  days: Record<string, string[]>; // e.g. "2025-07-22": ["🏃 Run: 40min Z2"]
+export type WeekJson = {
+  label: string;
+  phase: WeekMeta['phase'];
+  startDate: string; // "YYYY-MM-DD"
+  deload: boolean;
+  days: Record<string, string[]>; // map date → session strings
+  debug?: string;
+};
+
+export type GeneratedPlan = {
+  planType: PlanType;
+  weeks: WeekJson[];
+  params: UserParams;
+  createdAt: string; // ISO timestamp
 };

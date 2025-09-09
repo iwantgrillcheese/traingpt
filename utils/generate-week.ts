@@ -1,54 +1,39 @@
+// utils/generate-week.ts
 import OpenAI from 'openai';
+import { COACH_SYSTEM_PROMPT } from '@/lib/coachPrompt';
 import { buildCoachPrompt } from './buildCoachPrompt';
 import { buildRunningPrompt } from './buildRunningPrompt';
-import { WeekMeta, UserParams } from '@/types/plan';
-import type { PlanType } from '@/types/plan';
+import type { WeekMeta, UserParams, WeekJson, PlanType } from '@/types/plan';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-export type ParsedWeek = {
-  label: string;
-  phase: string;
-  startDate: string;
-  deload: boolean;
-  days: Record<string, string[]>;
-  debug?: string;
-};
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
 export async function generateWeek({
-  planType,
-  index,
-  meta,
-  params,
+  weekMeta,
+  userParams,
+  planType = 'triathlon',
+  index, // ← optional
 }: {
-  planType: PlanType;
-  index: number;
-  meta: WeekMeta;
-  params: UserParams;
-}): Promise<ParsedWeek> {
-  const userPrompt =
+  weekMeta: WeekMeta;
+  userParams: UserParams;
+  planType?: PlanType;
+  index?: number;
+}): Promise<WeekJson> {
+  const userMsg =
     planType === 'running'
-      ? buildRunningPrompt({ userParams: params, weekMeta: meta, index })
-      : buildCoachPrompt({ userParams: params, weekMeta: meta, index });
+      ? buildRunningPrompt({ userParams, weekMeta, index })
+      : buildCoachPrompt({ userParams, weekMeta, index });
 
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4-turbo',
-    temperature: 0.7,
+  const resp = await openai.chat.completions.create({
+    model: process.env.PLAN_MODEL ?? 'gpt-4o',
+    temperature: 0.2,
+    top_p: 1,
+    response_format: { type: 'json_object' },
     messages: [
-      {
-        role: 'user',
-        content: userPrompt,
-      },
+      { role: 'system', content: COACH_SYSTEM_PROMPT },
+      { role: 'user', content: userMsg },
     ],
   });
 
-  const content = response.choices[0]?.message?.content || '';
-
-  try {
-    const parsed = JSON.parse(content);
-    return parsed as ParsedWeek;
-  } catch (err) {
-    console.error(`❌ Failed to parse GPT response for week ${index + 1}`, content);
-    throw new Error(`Failed to parse GPT response: ${err}`);
-  }
+  const content = resp.choices[0]?.message?.content ?? '{}';
+  return JSON.parse(content) as WeekJson;
 }
