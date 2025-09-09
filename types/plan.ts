@@ -1,4 +1,6 @@
-// types/plan.ts
+// /types/plan.ts
+
+// ----------------- Plan-related types -----------------
 
 // Day-of-week: 0 = Sunday ... 6 = Saturday
 export type DayOfWeek = 0 | 1 | 2 | 3 | 4 | 5 | 6;
@@ -16,9 +18,9 @@ export type PlanType = 'triathlon' | 'running' | 'swim' | 'bike' | 'run';
 
 export type UserParams = {
   raceType: string;         // e.g., "Half Ironman (70.3)"
-  raceDate: string;         // ISO "YYYY-MM-DD"
+  raceDate: string;         // ISO date "YYYY-MM-DD"
   experience: 'Beginner' | 'Intermediate' | 'Advanced' | string;
-  maxHours: number;         // hours per week cap
+  maxHours: number;         // max training hours per week
   restDay: string;          // e.g., "Monday"
 
   // Metrics (optional)
@@ -52,3 +54,18 @@ export type GeneratedPlan = {
   params: UserParams;
   createdAt: string; // ISO timestamp
 };
+
+// ----------------- Sessions-related types -----------------
+
+export type SessionStatus = 'planned' | 'done' | 'skipped';
+
+export interface Session {
+  id?: string;             // Supabase PK
+  created_at?: string;     // Supabase default timestamp
+  user_id: string;         // FK → profiles.id
+  plan_id: string;         // FK → plans.id
+  session_date: string;    // ISO "YYYY-MM-DD"
+  session_title: string;   // e.g. "Bike 90min Z2 — 3x10min tempo"
+  status: SessionStatus;   // planned | done | skipped
+  strava_id?: string | null; // linked Strava activity if any
+}

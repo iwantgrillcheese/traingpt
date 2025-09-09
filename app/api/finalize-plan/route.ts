@@ -20,11 +20,12 @@ import type {
 } from '@/types/plan';
 import { extractPrefs } from '@/utils/extractPrefs';
 import { startPlan } from '@/utils/start-plan';
+import { convertPlanToSessions } from '@/utils/convertPlanToSessions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/* ---------- helpers: week meta + flatten sessions ---------- */
+/* ---------- helpers: week meta ---------- */
 
 function buildPlanMeta(totalWeeks: number, startDateISO: string): WeekMeta[] {
   const weeks: WeekMeta[] = [];
@@ -61,25 +62,6 @@ function computeTotalWeeks(todayISO: string, raceDateISO: string): number {
   const race = startOfWeek(parseISO(raceDateISO), { weekStartsOn: 1 });
   const diff = differenceInCalendarWeeks(race, start, { weekStartsOn: 1 });
   return Math.max(1, diff);
-}
-
-/** Flatten weeks.days → [{date,title,description,sequence}] */
-function flattenSessions(weeks: WeekJson[]) {
-  type Flat = { date: string; title: string; description: string; sequence: number };
-  const flat: Flat[] = [];
-  for (const w of weeks) {
-    const entries = Object.entries(w.days).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-    for (const [date, items] of entries) {
-      items.forEach((raw, idx) => {
-        // Normalize: split "Title — Description"
-        const [titlePart, ...descParts] = String(raw).split(' — ');
-        const title = titlePart?.trim() || 'Workout';
-        const description = descParts.join(' — ').trim() || 'Details';
-        flat.push({ date, title, description, sequence: idx });
-      });
-    }
-  }
-  return flat;
 }
 
 /* ----------------------------- route ----------------------------- */
@@ -188,17 +170,14 @@ export async function POST(req: Request) {
     }
     const planId = upserted?.id as string;
 
-    // Explode into sessions:
-    const sessionRows = flattenSessions(weeks).map((s) => ({
+    // Explode into sessions
+    const sessionRows = convertPlanToSessions(weeks).map((s) => ({
       user_id: userId,
       plan_id: planId,
-      session_date: s.date,     // date (YYYY-MM-DD)
-      title: s.title,           // text
-      description: s.description, // text
-      sequence: s.sequence,     // int per day ordering
+      ...s,
     }));
 
-    // Clear old sessions for this user/plan (idempotent)
+    // Clear old sessions for this user/plan
     const { error: delErr } = await supabase
       .from('sessions')
       .delete()
@@ -207,14 +186,12 @@ export async function POST(req: Request) {
 
     if (delErr) {
       console.error('[finalize-plan] sessions delete error', delErr);
-      // not fatal — we can still try to insert; but warn
     }
 
     if (sessionRows.length > 0) {
       const { error: insErr } = await supabase.from('sessions').insert(sessionRows);
       if (insErr) {
         console.error('[finalize-plan] sessions insert error', insErr);
-        // Return OK but indicate sessions failed (UI can still show JSON plan)
         return NextResponse.json(
           {
             plan: generatedPlan,
