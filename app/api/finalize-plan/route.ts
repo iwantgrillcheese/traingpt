@@ -11,12 +11,20 @@ import {
   formatISO,
 } from 'date-fns';
 
-import type { UserParams, WeekMeta, PlanType, GeneratedPlan, WeekJson } from '@/types/plan';
+import type {
+  UserParams,
+  WeekMeta,
+  PlanType,
+  GeneratedPlan,
+  WeekJson,
+} from '@/types/plan';
 import { extractPrefs } from '@/utils/extractPrefs';
 import { startPlan } from '@/utils/start-plan';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+/* ---------- helpers: week meta + flatten sessions ---------- */
 
 function buildPlanMeta(totalWeeks: number, startDateISO: string): WeekMeta[] {
   const weeks: WeekMeta[] = [];
@@ -55,6 +63,27 @@ function computeTotalWeeks(todayISO: string, raceDateISO: string): number {
   return Math.max(1, diff);
 }
 
+/** Flatten weeks.days → [{date,title,description,sequence}] */
+function flattenSessions(weeks: WeekJson[]) {
+  type Flat = { date: string; title: string; description: string; sequence: number };
+  const flat: Flat[] = [];
+  for (const w of weeks) {
+    const entries = Object.entries(w.days).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    for (const [date, items] of entries) {
+      items.forEach((raw, idx) => {
+        // Normalize: split "Title — Description"
+        const [titlePart, ...descParts] = String(raw).split(' — ');
+        const title = titlePart?.trim() || 'Workout';
+        const description = descParts.join(' — ').trim() || 'Details';
+        flat.push({ date, title, description, sequence: idx });
+      });
+    }
+  }
+  return flat;
+}
+
+/* ----------------------------- route ----------------------------- */
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -82,6 +111,7 @@ export async function POST(req: Request) {
     }
     const userId = user.id;
 
+    // Basic validation
     if (!raceType || !raceDate || !experience || !maxHours || !restDay) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
@@ -105,17 +135,26 @@ export async function POST(req: Request) {
       trainingPrefs, // may be undefined
     };
 
+    // Build plan meta & generate
     const todayISO = formatISO(new Date(), { representation: 'date' });
     const totalWeeks = computeTotalWeeks(todayISO, raceDate);
     const planMeta: WeekMeta[] = buildPlanMeta(totalWeeks, todayISO);
-
     const planTypeResolved: PlanType = planType ?? 'triathlon';
 
-    const weeks: WeekJson[] = await startPlan({
-      planMeta,
-      userParams,
-      planType: planTypeResolved,
-    });
+    let weeks: WeekJson[];
+    try {
+      weeks = await startPlan({
+        planMeta,
+        userParams,
+        planType: planTypeResolved,
+      });
+    } catch (err) {
+      console.error('[finalize-plan] startPlan error', err);
+      return NextResponse.json(
+        { error: 'Failed to generate plan', details: String(err) },
+        { status: 500 }
+      );
+    }
 
     const generatedPlan: GeneratedPlan = {
       planType: planTypeResolved,
@@ -124,8 +163,8 @@ export async function POST(req: Request) {
       createdAt: new Date().toISOString(),
     };
 
-    // Persist — adjust to your schema
-    const { error: upsertErr } = await supabase
+    // One plan per user: upsert by user_id; return id
+    const { data: upserted, error: upsertErr } = await supabase
       .from('plans')
       .upsert(
         {
@@ -135,12 +174,56 @@ export async function POST(req: Request) {
           plan: generatedPlan,
           created_at: new Date().toISOString(),
         },
-        { onConflict: 'user_id' } // change if multiple plans per user
-      );
+        { onConflict: 'user_id' }
+      )
+      .select('id')
+      .single();
 
     if (upsertErr) {
       console.error('[finalize-plan] upsert error', upsertErr);
-      return NextResponse.json({ error: 'Failed to save plan' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Failed to save plan', details: upsertErr.message },
+        { status: 500 }
+      );
+    }
+    const planId = upserted?.id as string;
+
+    // Explode into sessions:
+    const sessionRows = flattenSessions(weeks).map((s) => ({
+      user_id: userId,
+      plan_id: planId,
+      session_date: s.date,     // date (YYYY-MM-DD)
+      title: s.title,           // text
+      description: s.description, // text
+      sequence: s.sequence,     // int per day ordering
+    }));
+
+    // Clear old sessions for this user/plan (idempotent)
+    const { error: delErr } = await supabase
+      .from('sessions')
+      .delete()
+      .eq('user_id', userId)
+      .eq('plan_id', planId);
+
+    if (delErr) {
+      console.error('[finalize-plan] sessions delete error', delErr);
+      // not fatal — we can still try to insert; but warn
+    }
+
+    if (sessionRows.length > 0) {
+      const { error: insErr } = await supabase.from('sessions').insert(sessionRows);
+      if (insErr) {
+        console.error('[finalize-plan] sessions insert error', insErr);
+        // Return OK but indicate sessions failed (UI can still show JSON plan)
+        return NextResponse.json(
+          {
+            plan: generatedPlan,
+            warning: 'Plan saved but sessions not populated',
+            details: insErr.message,
+          },
+          { status: 200 }
+        );
+      }
     }
 
     return NextResponse.json({ plan: generatedPlan }, { status: 200 });
