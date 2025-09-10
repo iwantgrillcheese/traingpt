@@ -57,10 +57,19 @@ function buildPlanMeta(totalWeeks: number, startDateISO: string): WeekMeta[] {
   return weeks;
 }
 
+/**
+ * Compute total weeks between today and race date,
+ * ensuring the race week is always included.
+ */
 function computeTotalWeeks(todayISO: string, raceDateISO: string): number {
   const start = startOfWeek(parseISO(todayISO), { weekStartsOn: 1 });
-  const race = startOfWeek(parseISO(raceDateISO), { weekStartsOn: 1 });
-  const diff = differenceInCalendarWeeks(race, start, { weekStartsOn: 1 });
+  const raceDate = parseISO(raceDateISO);
+  const raceWeekStart = startOfWeek(raceDate, { weekStartsOn: 1 });
+
+  let diff = differenceInCalendarWeeks(raceWeekStart, start, { weekStartsOn: 1 });
+  if (raceDate > raceWeekStart) {
+    diff += 1; // ✅ include race week
+  }
   return Math.max(1, diff);
 }
 
@@ -80,7 +89,7 @@ export async function POST(req: Request) {
       runPace,
       swimPace,
       planType,
-      preferencesText, // optional free-form
+      preferencesText,
     } = body ?? {};
 
     const supabase = createServerComponentClient({ cookies });
@@ -93,16 +102,15 @@ export async function POST(req: Request) {
     }
     const userId = user.id;
 
-    // Basic validation
-if (!raceType || !raceDate || !experience || !maxHours) {
-  return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-}
+    // Validation
+    if (!raceType || !raceDate || !experience || !maxHours || !restDay) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
     const raceISO = parseISO(raceDate);
     if (!isValidDate(raceISO)) {
       return NextResponse.json({ error: 'Invalid raceDate' }, { status: 400 });
     }
 
-    // Extract preferences
     const trainingPrefs = extractPrefs(preferencesText);
 
     const userParams: UserParams = {
@@ -110,7 +118,7 @@ if (!raceType || !raceDate || !experience || !maxHours) {
       raceDate,
       experience,
       maxHours: Number(maxHours),
-      restDay: restDay ?? 'Monday',
+      restDay,
       bikeFtp: bikeFtp ?? undefined,
       runPace: runPace ?? undefined,
       swimPace: swimPace ?? undefined,
@@ -145,7 +153,7 @@ if (!raceType || !raceDate || !experience || !maxHours) {
       createdAt: new Date().toISOString(),
     };
 
-    // One plan per user: upsert by user_id; return id
+    // Upsert plan
     const { data: upserted, error: upsertErr } = await supabase
       .from('plans')
       .upsert(
@@ -170,7 +178,7 @@ if (!raceType || !raceDate || !experience || !maxHours) {
     }
     const planId = upserted?.id as string;
 
-    // Clear old sessions for this user/plan
+    // Clear old sessions
     const { error: delErr } = await supabase
       .from('sessions')
       .delete()
@@ -178,25 +186,32 @@ if (!raceType || !raceDate || !experience || !maxHours) {
       .eq('plan_id', planId);
     if (delErr) console.error('[finalize-plan] sessions delete error', delErr);
 
-    // Explode into session rows
+    // Explode into sessions
     const sessionRows = convertPlanToSessions(userId, planId, generatedPlan);
 
-    // Insert new sessions
     if (sessionRows.length > 0) {
       const { error: insErr } = await supabase.from('sessions').insert(sessionRows);
       if (insErr) {
         console.error('[finalize-plan] sessions insert error', insErr);
         return NextResponse.json(
-          {
-            plan: generatedPlan,
-            warning: 'Plan saved but sessions not populated',
-            details: insErr.message,
-          },
-          { status: 200 }
+          { error: 'Failed to save sessions', details: insErr.message },
+          { status: 500 }
         );
       }
     }
 
+    // ✅ Trigger welcome email (non-blocking)
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/send-welcome-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, planId }),
+      });
+    } catch (emailErr) {
+      console.error('[finalize-plan] welcome email error', emailErr);
+    }
+
+    // ✅ Clean success
     return NextResponse.json({ plan: generatedPlan }, { status: 200 });
   } catch (err: any) {
     console.error('[finalize-plan] error', err);
