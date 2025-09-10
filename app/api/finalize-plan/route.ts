@@ -25,7 +25,7 @@ import { convertPlanToSessions } from '@/utils/convertPlanToSessions';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/* ---------- helpers: week meta ---------- */
+/* ---------- helpers ---------- */
 
 function buildPlanMeta(totalWeeks: number, startDateISO: string): WeekMeta[] {
   const weeks: WeekMeta[] = [];
@@ -62,6 +62,14 @@ function computeTotalWeeks(todayISO: string, raceDateISO: string): number {
   const race = startOfWeek(parseISO(raceDateISO), { weekStartsOn: 1 });
   const diff = differenceInCalendarWeeks(race, start, { weekStartsOn: 1 });
   return Math.max(1, diff);
+}
+
+function detectSport(title: string): string {
+  const t = title.toLowerCase();
+  if (/\bswim\b|pool|css/.test(t)) return 'swim';
+  if (/\bbike\b|ride|ftp|watts/.test(t)) return 'bike';
+  if (/\brun\b|pace|tempo|track/.test(t)) return 'run';
+  return 'other';
 }
 
 /* ----------------------------- route ----------------------------- */
@@ -170,11 +178,19 @@ export async function POST(req: Request) {
     }
     const planId = upserted?.id as string;
 
-    // Explode into sessions
-    const sessionRows = convertPlanToSessions(weeks).map((s) => ({
+    // Explode into sessions (map util output to your DB column names)
+    const baseRows = convertPlanToSessions(weeks); // returns { session_date, session_title, status, strava_id }
+    const sessionRows = baseRows.map((s) => ({
       user_id: userId,
       plan_id: planId,
-      ...s,
+      // Your table column is `date` (not `session_date`)
+      date: s.session_date,
+      session_title: s.session_title,
+      status: s.status,
+      strava_id: s.strava_id ?? null,
+      // New columns:
+      sport: detectSport(s.session_title),
+      structured_workout: null,
     }));
 
     // Clear old sessions for this user/plan
@@ -192,6 +208,7 @@ export async function POST(req: Request) {
       const { error: insErr } = await supabase.from('sessions').insert(sessionRows);
       if (insErr) {
         console.error('[finalize-plan] sessions insert error', insErr);
+        // Return OK so the plan JSON still renders, but surface a warning
         return NextResponse.json(
           {
             plan: generatedPlan,
