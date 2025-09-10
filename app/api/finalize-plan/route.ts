@@ -94,9 +94,9 @@ export async function POST(req: Request) {
     const userId = user.id;
 
     // Basic validation
-    if (!raceType || !raceDate || !experience || !maxHours || !restDay) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-    }
+if (!raceType || !raceDate || !experience || !maxHours) {
+  return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+}
     const raceISO = parseISO(raceDate);
     if (!isValidDate(raceISO)) {
       return NextResponse.json({ error: 'Invalid raceDate' }, { status: 400 });
@@ -110,7 +110,7 @@ export async function POST(req: Request) {
       raceDate,
       experience,
       maxHours: Number(maxHours),
-      restDay,
+      restDay: restDay ?? 'Monday',
       bikeFtp: bikeFtp ?? undefined,
       runPace: runPace ?? undefined,
       swimPace: swimPace ?? undefined,
