@@ -202,7 +202,7 @@ export async function POST(req: Request) {
 
     // ✅ Trigger welcome email (non-blocking)
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/send-welcome-email`, {
+      await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/send-welcome-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, planId }),
