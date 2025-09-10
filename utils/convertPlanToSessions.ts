@@ -43,7 +43,7 @@ function parseStringItem(str: string) {
   const sport =
     (emoji && EmojiSportMap[emoji]) || detectSport(withoutEmoji);
 
-  const title = parts.slice(0, 2).join(' — ').trim() || withoutEmoji;
+  const title = parts.join(' ').trim() || withoutEmoji;
   const details = parts.slice(2).join(' — ').trim() || null;
 
   return { sport, title, details, raw: str };
