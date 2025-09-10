@@ -146,6 +146,18 @@ export async function POST(req: Request) {
       );
     }
 
+    // ✅ Force taper for final week
+    if (weeks.length > 0) {
+      weeks[weeks.length - 1].phase = 'Taper';
+    }
+
+    // ✅ Replace/add race-day session
+    const raceDay = formatISO(parseISO(raceDate), { representation: 'date' });
+    const lastWeek = weeks[weeks.length - 1];
+    if (lastWeek) {
+      lastWeek.days[raceDay] = [`🏁 ${raceType} Race Day`];
+    }
+
     const generatedPlan: GeneratedPlan = {
       planType: planTypeResolved,
       weeks,
