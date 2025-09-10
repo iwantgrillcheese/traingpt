@@ -48,13 +48,17 @@ export default function PlanPage() {
   const runningTypes = ['5k', '10k', 'Half Marathon', 'Marathon'];
   const isRunningPlan = runningTypes.includes(formData.raceType);
 
+  // 🔄 Fake loading progress simulation
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (loading) {
       interval = setInterval(() => {
         setStepIndex(prev => (prev + 1) % steps.length);
-        setProgress(prev => (prev < 100 ? prev + 100 / steps.length : 100));
-      }, 6000);
+        setProgress(prev => {
+          if (prev >= 95) return prev; // cap at 95% until success
+          return prev + 5; // slower increments
+        });
+      }, 1500);
     } else {
       setProgress(0);
       setStepIndex(0);
@@ -100,19 +104,26 @@ export default function PlanPage() {
         throw new Error(json.error || 'Something went wrong while starting the plan.');
       }
 
-      if (json.success) {
-        router.push('/schedule');
+      // ✅ Success check
+      if (json.plan) {
+        // complete the progress bar before redirect
+        setProgress(100);
+
+        // wait a short beat so user sees it finish
+        setTimeout(() => {
+          router.push('/schedule');
+        }, 800);
       } else {
         throw new Error(json.error || 'Plan generation failed.');
       }
     } catch (err: any) {
       console.error('❌ Finalize plan error:', err);
       setError(err.message || 'Something went wrong');
-    } finally {
-      setLoading(false);
+      setLoading(false); // allow retry
     }
   };
 
+  // Check if user already has a plan
   useEffect(() => {
     const checkSessionAndPlan = async () => {
       const {
