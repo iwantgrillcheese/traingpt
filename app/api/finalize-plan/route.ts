@@ -64,14 +64,6 @@ function computeTotalWeeks(todayISO: string, raceDateISO: string): number {
   return Math.max(1, diff);
 }
 
-function detectSport(title: string): string {
-  const t = title.toLowerCase();
-  if (/\bswim\b|pool|css/.test(t)) return 'swim';
-  if (/\bbike\b|ride|ftp|watts/.test(t)) return 'bike';
-  if (/\brun\b|pace|tempo|track/.test(t)) return 'run';
-  return 'other';
-}
-
 /* ----------------------------- route ----------------------------- */
 
 export async function POST(req: Request) {
@@ -110,7 +102,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid raceDate' }, { status: 400 });
     }
 
-    // Extract preferences (undefined if none provided) → defaults downstream
+    // Extract preferences
     const trainingPrefs = extractPrefs(preferencesText);
 
     const userParams: UserParams = {
@@ -122,7 +114,7 @@ export async function POST(req: Request) {
       bikeFtp: bikeFtp ?? undefined,
       runPace: runPace ?? undefined,
       swimPace: swimPace ?? undefined,
-      trainingPrefs, // may be undefined
+      trainingPrefs,
     };
 
     // Build plan meta & generate
@@ -178,37 +170,22 @@ export async function POST(req: Request) {
     }
     const planId = upserted?.id as string;
 
-    // Explode into sessions (map util output to your DB column names)
-    const baseRows = convertPlanToSessions(weeks); // returns { session_date, session_title, status, strava_id }
-    const sessionRows = baseRows.map((s) => ({
-      user_id: userId,
-      plan_id: planId,
-      // Your table column is `date` (not `session_date`)
-      date: s.session_date,
-      session_title: s.session_title,
-      status: s.status,
-      strava_id: s.strava_id ?? null,
-      // New columns:
-      sport: detectSport(s.session_title),
-      structured_workout: null,
-    }));
-
     // Clear old sessions for this user/plan
     const { error: delErr } = await supabase
       .from('sessions')
       .delete()
       .eq('user_id', userId)
       .eq('plan_id', planId);
+    if (delErr) console.error('[finalize-plan] sessions delete error', delErr);
 
-    if (delErr) {
-      console.error('[finalize-plan] sessions delete error', delErr);
-    }
+    // Explode into session rows
+    const sessionRows = convertPlanToSessions(userId, planId, generatedPlan);
 
+    // Insert new sessions
     if (sessionRows.length > 0) {
       const { error: insErr } = await supabase.from('sessions').insert(sessionRows);
       if (insErr) {
         console.error('[finalize-plan] sessions insert error', insErr);
-        // Return OK so the plan JSON still renders, but surface a warning
         return NextResponse.json(
           {
             plan: generatedPlan,
