@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { blogPosts } from '@/lib/blog-data'; // ✅ Pulls in real content
+import { blogPosts } from '@/lib/blog-data';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -12,7 +12,7 @@ export default function BlogHome() {
 
   const featured = sortedPosts[0];
   const secondary = sortedPosts.slice(1, 4);
-  const grid = sortedPosts.slice(4, 12); // Rest in grid
+  const grid = sortedPosts.slice(4, 12);
 
   return (
     <main className="bg-white text-black">
@@ -32,7 +32,9 @@ export default function BlogHome() {
                 />
               </div>
               <h2 className="text-3xl font-semibold mb-2">{featured.title}</h2>
-              <p className="text-gray-500 mb-2 text-sm">{featured.tag} · {featured.date}</p>
+              <p className="text-gray-500 mb-2 text-sm">
+                {featured.tag} · {featured.date}
+              </p>
               <p className="text-gray-700 text-base">{featured.description}</p>
             </Link>
           </div>
@@ -50,7 +52,9 @@ export default function BlogHome() {
                       className="object-cover"
                     />
                   </div>
-                  <p className="text-sm text-gray-500 mb-1">{post.tag} · {post.date}</p>
+                  <p className="text-sm text-gray-500 mb-1">
+                    {post.tag} · {post.date}
+                  </p>
                   <h3 className="font-medium text-md leading-snug">{post.title}</h3>
                 </div>
               </Link>
@@ -74,7 +78,9 @@ export default function BlogHome() {
                     className="object-cover"
                   />
                 </div>
-                <p className="text-sm text-gray-500 mb-1">{post.tag} · {post.date}</p>
+                <p className="text-sm text-gray-500 mb-1">
+                  {post.tag} · {post.date}
+                </p>
                 <h3 className="font-medium text-lg leading-tight">{post.title}</h3>
               </div>
             </Link>

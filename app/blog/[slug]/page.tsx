@@ -4,11 +4,11 @@ import { notFound } from 'next/navigation';
 import { blogPosts } from '../../../lib/blog-data';
 import { marked } from 'marked';
 
-type Props = {
+export default function BlogPostPage({
+  params,
+}: {
   params: { slug: string };
-};
-
-export default function BlogPostPage({ params }: Props) {
+}) {
   const post = blogPosts.find((p) => p.slug === params.slug);
 
   if (!post) return notFound();
