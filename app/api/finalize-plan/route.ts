@@ -1,7 +1,8 @@
 // /app/api/finalize-plan/route.ts
-import { NextResponse } from 'next/server';
+// @ts-expect-error Next.js 15 runtime exports unstable_after
+import { NextResponse, unstable_after as after } from 'next/server';
 import { cookies } from 'next/headers';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import {
   parseISO,
   isValid as isValidDate,
@@ -24,6 +25,7 @@ import { convertPlanToSessions } from '@/utils/convertPlanToSessions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 /* ---------- helpers ---------- */
 
@@ -57,19 +59,13 @@ function buildPlanMeta(totalWeeks: number, startDateISO: string): WeekMeta[] {
   return weeks;
 }
 
-/**
- * Compute total weeks between today and race date,
- * ensuring the race week is always included.
- */
 function computeTotalWeeks(todayISO: string, raceDateISO: string): number {
   const start = startOfWeek(parseISO(todayISO), { weekStartsOn: 1 });
   const raceDate = parseISO(raceDateISO);
   const raceWeekStart = startOfWeek(raceDate, { weekStartsOn: 1 });
 
   let diff = differenceInCalendarWeeks(raceWeekStart, start, { weekStartsOn: 1 });
-  if (raceDate > raceWeekStart) {
-    diff += 1; // ✅ include race week
-  }
+  if (raceDate > raceWeekStart) diff += 1; // include race week
   return Math.max(1, diff);
 }
 
@@ -92,23 +88,24 @@ export async function POST(req: Request) {
       preferencesText,
     } = body ?? {};
 
-    const supabase = createServerComponentClient({ cookies });
+    const supabase = createRouteHandlerClient({ cookies });
     const {
       data: { user },
       error: userErr,
     } = await supabase.auth.getUser();
+
     if (userErr || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
     }
     const userId = user.id;
 
     // Validation
     if (!raceType || !raceDate || !experience || !maxHours || !restDay) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+      return NextResponse.json({ ok: false, error: 'Missing required fields' }, { status: 400 });
     }
     const raceISO = parseISO(raceDate);
     if (!isValidDate(raceISO)) {
-      return NextResponse.json({ error: 'Invalid raceDate' }, { status: 400 });
+      return NextResponse.json({ ok: false, error: 'Invalid raceDate' }, { status: 400 });
     }
 
     const trainingPrefs = extractPrefs(preferencesText);
@@ -125,7 +122,7 @@ export async function POST(req: Request) {
       trainingPrefs,
     };
 
-    // Build plan meta & generate
+    // Build plan meta & generate (chunked)
     const todayISO = formatISO(new Date(), { representation: 'date' });
     const totalWeeks = computeTotalWeeks(todayISO, raceDate);
     const planMeta: WeekMeta[] = buildPlanMeta(totalWeeks, todayISO);
@@ -140,23 +137,16 @@ export async function POST(req: Request) {
       });
     } catch (err) {
       console.error('[finalize-plan] startPlan error', err);
-      return NextResponse.json(
-        { error: 'Failed to generate plan', details: String(err) },
-        { status: 500 }
-      );
+      return NextResponse.json({ ok: false, error: 'Failed to generate plan' }, { status: 500 });
     }
 
-    // ✅ Force taper for final week
-    if (weeks.length > 0) {
-      weeks[weeks.length - 1].phase = 'Taper';
-    }
+    // Force taper on final week
+    if (weeks.length > 0) weeks[weeks.length - 1].phase = 'Taper';
 
-    // ✅ Replace/add race-day session
+    // Add race-day session
     const raceDay = formatISO(parseISO(raceDate), { representation: 'date' });
     const lastWeek = weeks[weeks.length - 1];
-    if (lastWeek) {
-      lastWeek.days[raceDay] = [`🏁 ${raceType} Race Day`];
-    }
+    if (lastWeek) lastWeek.days[raceDay] = [`🏁 ${raceType} Race Day`];
 
     const generatedPlan: GeneratedPlan = {
       planType: planTypeResolved,
@@ -165,7 +155,7 @@ export async function POST(req: Request) {
       createdAt: new Date().toISOString(),
     };
 
-    // Upsert plan
+    // Upsert plan ASAP (so we can respond)
     const { data: upserted, error: upsertErr } = await supabase
       .from('plans')
       .upsert(
@@ -184,51 +174,57 @@ export async function POST(req: Request) {
     if (upsertErr) {
       console.error('[finalize-plan] upsert error', upsertErr);
       return NextResponse.json(
-        { error: 'Failed to save plan', details: upsertErr.message },
+        { ok: false, error: 'Failed to save plan', details: upsertErr.message },
         { status: 500 }
       );
     }
+
     const planId = upserted?.id as string;
 
-    // Clear old sessions
-    const { error: delErr } = await supabase
-      .from('sessions')
-      .delete()
-      .eq('user_id', userId)
-      .eq('plan_id', planId);
-    if (delErr) console.error('[finalize-plan] sessions delete error', delErr);
+    // ✅ Respond NOW to avoid Cloudflare/Vercel timeouts
+    const response = NextResponse.json(
+      { ok: true, planId, planSummary: { weeks: weeks.length, raceDate } },
+      { headers: { 'cache-control': 'no-store' } }
+    );
 
-    // Explode into sessions
-    const sessionRows = convertPlanToSessions(userId, planId, generatedPlan);
+    // 🔧 Finish slow work AFTER response
+    after(async () => {
+      try {
+        // Clear old sessions for this plan/user
+        const { error: delErr } = await supabase
+          .from('sessions')
+          .delete()
+          .eq('user_id', userId)
+          .eq('plan_id', planId);
+        if (delErr) console.error('[finalize-plan] sessions delete error', delErr);
 
-    if (sessionRows.length > 0) {
-      const { error: insErr } = await supabase.from('sessions').insert(sessionRows);
-      if (insErr) {
-        console.error('[finalize-plan] sessions insert error', insErr);
-        return NextResponse.json(
-          { error: 'Failed to save sessions', details: insErr.message },
-          { status: 500 }
-        );
+        // Insert new sessions
+        const sessionRows = convertPlanToSessions(userId, planId, generatedPlan);
+        if (sessionRows.length > 0) {
+          const { error: insErr } = await supabase.from('sessions').insert(sessionRows);
+          if (insErr) console.error('[finalize-plan] sessions insert error', insErr);
+        }
+
+        // Fire-and-forget welcome email (idempotent check recommended)
+        try {
+          await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/send-welcome-email`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, planId }),
+          });
+        } catch (emailErr) {
+          console.error('[finalize-plan] welcome email error', emailErr);
+        }
+      } catch (e) {
+        console.error('[finalize-plan] post-response work failed', e);
       }
-    }
+    });
 
-    // ✅ Trigger welcome email (non-blocking)
-    try {
-      await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/send-welcome-email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, planId }),
-      });
-    } catch (emailErr) {
-      console.error('[finalize-plan] welcome email error', emailErr);
-    }
-
-    // ✅ Clean success
-    return NextResponse.json({ plan: generatedPlan }, { status: 200 });
+    return response;
   } catch (err: any) {
     console.error('[finalize-plan] error', err);
     return NextResponse.json(
-      { error: 'Internal error', details: String(err?.message ?? err) },
+      { ok: false, error: 'Internal error', details: String(err?.message ?? err) },
       { status: 500 }
     );
   }
