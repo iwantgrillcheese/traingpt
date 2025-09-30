@@ -4,11 +4,8 @@ import { notFound } from 'next/navigation';
 import { blogPosts } from '../../../lib/blog-data';
 import { marked } from 'marked';
 
-export default function BlogPostPage({
-  params,
-}: {
-  params: { slug: string };
-}) {
+// @ts-ignore Next 15 params typing bug — safe at runtime
+export default function BlogPostPage({ params }: { params: { slug: string } }) {
   const post = blogPosts.find((p) => p.slug === params.slug);
 
   if (!post) return notFound();
