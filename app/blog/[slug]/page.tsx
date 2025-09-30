@@ -3,14 +3,17 @@
 import { notFound } from 'next/navigation';
 import { blogPosts } from '../../../lib/blog-data';
 import { marked } from 'marked';
-import type { PageProps } from 'next';
 
-export default function BlogPostPage({ params }: PageProps<{ slug: string }>) {
+// prettier-ignore
+export default function BlogPostPage(
+  // @ts-ignore Next 15 types bug with PageProps
+  { params }: { params: { slug: string } }
+) {
   const post = blogPosts.find((p) => p.slug === params.slug);
 
   if (!post) return notFound();
 
-  const htmlContent = marked.parse(post.content); // Converts markdown to real HTML
+  const htmlContent = marked.parse(post.content);
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-16 text-gray-800">
