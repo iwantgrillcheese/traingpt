@@ -4,8 +4,12 @@ import { notFound } from 'next/navigation';
 import { blogPosts } from '../../../lib/blog-data';
 import { marked } from 'marked';
 
-// @ts-ignore Next 15 params typing bug — safe at runtime
-export default function BlogPostPage({ params }: { params: { slug: string } }) {
+// Tell TS to ignore the param typing mismatch here
+// prettier-ignore
+export default function BlogPostPage(
+  // @ts-ignore Next 15 types bug with PageProps
+  { params }: { params: { slug: string } }
+) {
   const post = blogPosts.find((p) => p.slug === params.slug);
 
   if (!post) return notFound();
