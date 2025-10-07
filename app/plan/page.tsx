@@ -73,60 +73,103 @@ export default function PlanPage() {
   };
 
   /* -------------------- Submit Handler -------------------- */
-  const handleFinalize = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+const handleFinalize = async (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+  setLoading(true);
+  setError('');
 
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const access_token = session?.access_token || null;
-      if (!access_token) throw new Error('No Supabase access token found');
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const access_token = session?.access_token || null;
+    if (!access_token) throw new Error('No Supabase access token found');
 
-      const planType = isRunningPlan ? 'running' : 'triathlon';
+    const planType = isRunningPlan ? 'running' : 'triathlon';
+    const userId = session?.user?.id;
 
-      const res = await fetch('/api/finalize-plan', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${access_token}`,
-        },
-        body: JSON.stringify({
-          ...formData,
-          userNote,
-          planType,
-        }),
-      });
-
-      const json = await res.json();
-
-      if (!res.ok) {
-        throw new Error(json.error || 'Something went wrong while starting the plan.');
-      }
-
-      /* ✅ Updated success check */
-      if (json.plan || json.message === 'Plan generation started' || json.ok) {
-        // keep progress bar and spinner visible
-        setLoading(true);
-
-        // optimistic progress bump
-        setProgress(prev => (prev < 20 ? 20 : prev));
-
-        // short delay before redirect to schedule
-        setTimeout(() => {
-          router.push('/schedule');
-        }, 2000);
-      } else {
-        throw new Error(json.error || 'Plan generation failed.');
-      }
-    } catch (err: any) {
-      console.error('❌ Finalize plan error:', err);
-      setError(err.message || 'Something went wrong');
-      setLoading(false); // allow retry
+    // 🧠 Capture existing plan timestamp (for regen detection)
+    let previousCreatedAt: string | null = null;
+    if (userId) {
+      const { data: existingPlan } = await supabase
+        .from('plans')
+        .select('created_at')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      previousCreatedAt = existingPlan?.created_at || null;
     }
-  };
+
+    // 🏗️ Trigger background generation
+    const res = await fetch('/api/finalize-plan', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${access_token}`,
+      },
+      body: JSON.stringify({
+        ...formData,
+        userNote,
+        planType,
+      }),
+    });
+
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'Something went wrong while starting the plan.');
+
+    // ✅ Background job started
+    if (json.plan || json.message === 'Plan generation started' || json.ok) {
+      setProgress(prev => (prev < 20 ? 20 : prev));
+
+      // helper to check if new plan is ready
+      const checkPlanReady = async () => {
+        if (!userId) return false;
+        const { data, error } = await supabase
+          .from('plans')
+          .select('id, created_at')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (error || !data) return false;
+        if (!previousCreatedAt) return true; // first-time plan
+        return new Date(data.created_at) > new Date(previousCreatedAt);
+      };
+
+      let tries = 0;
+      const interval = setInterval(async () => {
+        tries++;
+        if (!document.hasFocus()) {
+          clearInterval(interval);
+          return;
+        }
+
+        const ready = await checkPlanReady();
+        if (ready || tries >= 20) {
+          clearInterval(interval);
+          if (ready) {
+            setProgress(100);
+            // subtle fade before redirect
+            setTimeout(() => {
+              router.push('/schedule');
+            }, 1200);
+          } else {
+            setError('Plan generation timed out. Please retry.');
+            setLoading(false);
+          }
+        }
+      }, 3000);
+    } else {
+      throw new Error(json.error || 'Plan generation failed.');
+    }
+  } catch (err: any) {
+    console.error('❌ Finalize plan error:', err);
+    setError(err.message || 'Something went wrong');
+    setLoading(false);
+  }
+};
 
   /* -------------------- Check for Existing Plan -------------------- */
   useEffect(() => {
