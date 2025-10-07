@@ -4,12 +4,14 @@ import { notFound } from 'next/navigation';
 import { blogPosts } from '../../../lib/blog-data';
 import { marked } from 'marked';
 
-// prettier-ignore
-export default function BlogPostPage(
-  // @ts-ignore Next 15 types bug with PageProps
-  { params }: { params: { slug: string } }
-) {
-  const post = blogPosts.find((p) => p.slug === params.slug);
+// Next 15.5+ treats `params` as a Promise, so we destructure it async.
+type PageProps = {
+  params: Promise<{ slug: string }>;
+};
+
+export default async function BlogPostPage({ params }: PageProps) {
+  const { slug } = await params; // unwrap the Promise
+  const post = blogPosts.find((p) => p.slug === slug);
 
   if (!post) return notFound();
 
