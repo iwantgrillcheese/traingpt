@@ -23,7 +23,7 @@ export default function InlineSessionForm({ date, onClose, onAdded }: Props) {
     setLoading(true);
 
     try {
-      // 🧭 ensure user is logged in
+      // 🧭 Ensure user is logged in
       const {
         data: { user },
         error: userError,
@@ -36,12 +36,12 @@ export default function InlineSessionForm({ date, onClose, onAdded }: Props) {
         return;
       }
 
-      // 🧠 build clean title with emoji
+      // 🧠 Build clean title with emoji
       const emoji = getEmoji(sport);
       const formattedTitle =
         title.trim() !== '' ? `${emoji} ${title.trim()}` : `${emoji} ${sport}`;
 
-      // 🧾 insert new session
+      // 🧾 Insert new session
       const { data, error } = await supabase
         .from('sessions')
         .insert([
@@ -53,16 +53,19 @@ export default function InlineSessionForm({ date, onClose, onAdded }: Props) {
             duration: duration ? Number(duration) : null,
           },
         ])
-        .select()
+        .select('*')
         .single();
 
       if (error) throw error;
 
-      // ✅ notify parent & close
-      onAdded(data);
+      // ✅ Notify parent (CalendarShell) & close
+      onAdded({
+        ...data,
+        id: data.id || Math.random().toString(36).slice(2), // fallback for UI
+      });
       onClose();
     } catch (err: any) {
-      console.error('Failed to add session:', err);
+      console.error('❌ Failed to add session:', err);
       alert('Failed to add session.');
     } finally {
       setLoading(false);
@@ -71,8 +74,8 @@ export default function InlineSessionForm({ date, onClose, onAdded }: Props) {
 
   return (
     <div className="p-3 border rounded-md bg-white shadow-sm mt-2">
-      <form onSubmit={handleSubmit} className="flex items-center gap-2">
-        {/* sport selector */}
+      <form onSubmit={handleSubmit} className="flex flex-wrap items-center gap-2">
+        {/* Sport selector */}
         <select
           value={sport}
           onChange={(e) => setSport(e.target.value)}
@@ -85,7 +88,7 @@ export default function InlineSessionForm({ date, onClose, onAdded }: Props) {
           <option value="rest">😴 Rest</option>
         </select>
 
-        {/* title input */}
+        {/* Title input */}
         <input
           type="text"
           placeholder="Title"
@@ -94,7 +97,7 @@ export default function InlineSessionForm({ date, onClose, onAdded }: Props) {
           className="flex-1 border rounded-md px-2 py-1 text-sm"
         />
 
-        {/* duration input */}
+        {/* Duration input */}
         <input
           type="number"
           placeholder="min"
@@ -103,22 +106,24 @@ export default function InlineSessionForm({ date, onClose, onAdded }: Props) {
           className="w-16 border rounded-md px-2 py-1 text-sm text-center"
         />
 
-        {/* buttons */}
-        <button
-          type="submit"
-          disabled={loading}
-          className="bg-black text-white px-3 py-1 rounded-md text-sm"
-        >
-          {loading ? 'Saving...' : 'Save'}
-        </button>
+        {/* Buttons */}
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            disabled={loading}
+            className="bg-black text-white px-3 py-1 rounded-md text-sm"
+          >
+            {loading ? 'Saving...' : 'Save'}
+          </button>
 
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-gray-400 hover:text-gray-700 text-sm"
-        >
-          Cancel
-        </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-700 text-sm"
+          >
+            Cancel
+          </button>
+        </div>
       </form>
     </div>
   );
