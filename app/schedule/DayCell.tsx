@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { format, isToday } from 'date-fns';
 import clsx from 'clsx';
 import { getSessionColor } from '@/utils/session-utils';
@@ -25,6 +25,7 @@ type Props = {
   onSessionAdded?: (session: any) => void;
 };
 
+/* ---------- helpers ---------- */
 function normalizeSport(title: string): string {
   const lower = title.toLowerCase();
   if (lower.includes('swim')) return 'swim';
@@ -54,7 +55,7 @@ function startsWithEmoji(text: string) {
   return /^(\p{Emoji_Presentation}|\p{Extended_Pictographic})/u.test(text);
 }
 
-/** 🧩 Make each session draggable */
+/* ---------- draggable session ---------- */
 function DraggableSession({
   session,
   children,
@@ -84,6 +85,7 @@ function DraggableSession({
   );
 }
 
+/* ---------- main component ---------- */
 export default function DayCell({
   date,
   sessions,
@@ -96,21 +98,23 @@ export default function DayCell({
   const [showForm, setShowForm] = useState(false);
   const dateStr = format(date, 'yyyy-MM-dd');
 
-  // Make this day droppable
+  // droppable
   const { setNodeRef, isOver } = useDroppable({ id: dateStr });
-
-  const isSessionCompleted = (session: MergedSession) =>
-    completedSessions.some(
-      (c) => c.date === session.date && c.session_title === session.title
-    );
-
   const [justDropped, setJustDropped] = useState(false);
 
-  // Trigger a short visual pulse after a successful drop
-  if (isOver && !justDropped) {
-    setJustDropped(true);
-    setTimeout(() => setJustDropped(false), 600);
-  }
+  // ✅ fix: handle drop highlight via useEffect, not during render
+  useEffect(() => {
+    if (isOver) {
+      setJustDropped(true);
+      const timer = setTimeout(() => setJustDropped(false), 600);
+      return () => clearTimeout(timer);
+    }
+  }, [isOver]);
+
+  const isSessionCompleted = (session: MergedSession) =>
+    completedSessions?.some(
+      (c) => c.date === session.date && c.session_title === session.title
+    );
 
   return (
     <div
@@ -123,7 +127,6 @@ export default function DayCell({
         justDropped && 'animate-pulse bg-blue-100 border-blue-400'
       )}
     >
-
       {/* Date header */}
       <div className="text-xs text-zinc-500 font-medium text-right uppercase tracking-wide">
         {format(date, 'EEE d')}
@@ -131,7 +134,7 @@ export default function DayCell({
 
       {/* Session tiles */}
       <div className="flex flex-col gap-2">
-        {sessions.map((s) => {
+        {sessions?.map((s) => {
           const rawTitle = s.title ?? '';
           const isRest = rawTitle.toLowerCase().includes('rest day');
           const sport = s.sport || normalizeSport(rawTitle);
@@ -218,7 +221,7 @@ export default function DayCell({
         })}
 
         {/* Extra Strava-only activities */}
-        {extraActivities.length > 0 && (
+        {extraActivities?.length > 0 && (
           <div className="flex flex-col gap-1 mt-1">
             {extraActivities.map((a) => {
               const duration = a.moving_time
