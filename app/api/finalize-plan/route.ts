@@ -10,6 +10,7 @@ import {
   differenceInCalendarWeeks,
   startOfWeek,
   formatISO,
+  isLeapYear,
 } from 'date-fns';
 
 import type {
@@ -28,6 +29,18 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 /* ---------- helpers ---------- */
+
+function safeDateISO(date: Date): string {
+  // Patch to prevent 02-29 on non-leap years
+  const y = date.getFullYear();
+  const m = date.getMonth();
+  const d = date.getDate();
+  if (m === 1 && d === 29 && !isLeapYear(date)) {
+    // fallback to Feb 28 if not a leap year
+    date.setDate(28);
+  }
+  return formatISO(date, { representation: 'date' });
+}
 
 function buildPlanMeta(totalWeeks: number, startDateISO: string): WeekMeta[] {
   const weeks: WeekMeta[] = [];
@@ -52,7 +65,7 @@ function buildPlanMeta(totalWeeks: number, startDateISO: string): WeekMeta[] {
     weeks.push({
       label: `Week ${i + 1}`,
       phase,
-      startDate: formatISO(weekStart, { representation: 'date' }),
+      startDate: safeDateISO(weekStart),
       deload,
     });
   }
@@ -123,7 +136,7 @@ export async function POST(req: Request) {
     };
 
     // Build plan meta & generate (chunked)
-    const todayISO = formatISO(new Date(), { representation: 'date' });
+    const todayISO = safeDateISO(new Date());
     const totalWeeks = computeTotalWeeks(todayISO, raceDate);
     const planMeta: WeekMeta[] = buildPlanMeta(totalWeeks, todayISO);
     const planTypeResolved: PlanType = planType ?? 'triathlon';
@@ -144,7 +157,7 @@ export async function POST(req: Request) {
     if (weeks.length > 0) weeks[weeks.length - 1].phase = 'Taper';
 
     // Add race-day session
-    const raceDay = formatISO(parseISO(raceDate), { representation: 'date' });
+    const raceDay = safeDateISO(parseISO(raceDate));
     const lastWeek = weeks[weeks.length - 1];
     if (lastWeek) lastWeek.days[raceDay] = [`🏁 ${raceType} Race Day`];
 
@@ -198,8 +211,18 @@ export async function POST(req: Request) {
           .eq('plan_id', planId);
         if (delErr) console.error('[finalize-plan] sessions delete error', delErr);
 
-        // Insert new sessions
-        const sessionRows = convertPlanToSessions(userId, planId, generatedPlan);
+        // Insert new sessions (deduplicated)
+        let sessionRows = convertPlanToSessions(userId, planId, generatedPlan);
+
+        // Deduplicate by date + sport
+        const seen = new Set<string>();
+        sessionRows = sessionRows.filter((s) => {
+          const key = `${s.date}-${s.sport}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
         if (sessionRows.length > 0) {
           const { error: insErr } = await supabase.from('sessions').insert(sessionRows);
           if (insErr) console.error('[finalize-plan] sessions insert error', insErr);
