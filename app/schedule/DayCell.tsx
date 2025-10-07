@@ -117,165 +117,172 @@ export default function DayCell({
     );
 
   return (
-    <div
-      ref={setNodeRef}
-      className={clsx(
-        'min-h-[220px] p-3 border rounded-xl flex flex-col gap-2 transition-all duration-150 w-full',
-        isOutside ? 'bg-zinc-100 text-zinc-400' : 'bg-white text-black',
-        isToday(date) && 'ring-2 ring-blue-400',
-        isOver && 'bg-blue-50 border-blue-300 shadow-inner',
-        justDropped && 'animate-pulse bg-blue-100 border-blue-400'
-      )}
-    >
-      {/* Date header */}
-      <div className="text-xs text-zinc-500 font-medium text-right uppercase tracking-wide">
-        {format(date, 'EEE d')}
-      </div>
+    <>
+      <div
+        ref={setNodeRef}
+        className={clsx(
+          'min-h-[220px] p-3 border rounded-xl flex flex-col gap-2 transition-all duration-150 w-full',
+          isOutside ? 'bg-zinc-100 text-zinc-400' : 'bg-white text-black',
+          isToday(date) && 'ring-2 ring-blue-400',
+          isOver && 'bg-blue-50 border-blue-300 shadow-inner',
+          justDropped && 'animate-pulse bg-blue-100 border-blue-400'
+        )}
+      >
+        {/* Date header */}
+        <div className="text-xs text-zinc-500 font-medium text-right uppercase tracking-wide">
+          {format(date, 'EEE d')}
+        </div>
 
-      {/* Session tiles */}
-      <div className="flex flex-col gap-2">
-        {sessions?.map((s) => {
-          const rawTitle = s.title ?? '';
-          const isRest = rawTitle.toLowerCase().includes('rest day');
-          const sport = s.sport || normalizeSport(rawTitle);
-          const emoji = sportEmoji(sport);
-          const colorClass = getSessionColor(isRest ? 'rest' : sport);
+        {/* Session tiles */}
+        <div className="flex flex-col gap-2">
+          {sessions?.map((s) => {
+            const rawTitle = s.title ?? '';
+            const isRest = rawTitle.toLowerCase().includes('rest day');
+            const sport = s.sport || normalizeSport(rawTitle);
+            const emoji = sportEmoji(sport);
+            const colorClass = getSessionColor(isRest ? 'rest' : sport);
 
-          const isStravaMatch = !!s.stravaActivity;
-          const isCompleted = isSessionCompleted(s) || isStravaMatch;
+            const isStravaMatch = !!s.stravaActivity;
+            const isCompleted = isSessionCompleted(s) || isStravaMatch;
 
-          const [labelLine, ...rest] = rawTitle.split(':');
-          const titleLine = isRest ? 'Rest Day' : labelLine?.trim() || 'Untitled';
-          const detailLine = rest.join(':').trim();
+            const [labelLine, ...rest] = rawTitle.split(':');
+            const titleLine = isRest ? 'Rest Day' : labelLine?.trim() || 'Untitled';
+            const detailLine = rest.join(':').trim();
 
-          const activity = s.stravaActivity;
-          const duration = activity?.moving_time
-            ? `${Math.floor(activity.moving_time / 3600)}h ${Math.round(
-                (activity.moving_time % 3600) / 60
-              )}m`
-            : null;
-          const distance = activity?.distance
-            ? `${(activity.distance / 1609).toFixed(1)} mi`
-            : null;
-          const hr = activity?.average_heartrate
-            ? `${Math.round(activity.average_heartrate)} bpm`
-            : null;
-          const watts = activity?.average_watts
-            ? `${Math.round(activity.average_watts)}w`
-            : null;
+            const activity = s.stravaActivity;
+            const duration = activity?.moving_time
+              ? `${Math.floor(activity.moving_time / 3600)}h ${Math.round(
+                  (activity.moving_time % 3600) / 60
+                )}m`
+              : null;
+            const distance = activity?.distance
+              ? `${(activity.distance / 1609).toFixed(1)} mi`
+              : null;
+            const hr = activity?.average_heartrate
+              ? `${Math.round(activity.average_heartrate)} bpm`
+              : null;
+            const watts = activity?.average_watts
+              ? `${Math.round(activity.average_watts)}w`
+              : null;
 
-          return (
-            <DraggableSession key={s.id} session={s}>
-              <button
-                onClick={() => !isRest && onSessionClick?.(s)}
-                className={clsx(
-                  'w-full text-left rounded-md px-3 py-2 transition-all border hover:shadow-sm',
-                  isStravaMatch
-                    ? 'bg-blue-50 border-blue-300'
-                    : isCompleted
-                    ? 'bg-green-50 border-green-300'
-                    : 'bg-muted/20 border-muted'
-                )}
-                title={rawTitle}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <div className="font-medium text-sm leading-snug line-clamp-2">
-                    {startsWithEmoji(titleLine) ? (
-                      titleLine
-                    ) : (
-                      <>
-                        <span className="mr-1">{emoji}</span>
-                        {titleLine}
-                      </>
+            return (
+              <DraggableSession key={s.id} session={s}>
+                <button
+                  onClick={() => !isRest && onSessionClick?.(s)}
+                  className={clsx(
+                    'w-full text-left rounded-md px-3 py-2 transition-all border hover:shadow-sm',
+                    isStravaMatch
+                      ? 'bg-blue-50 border-blue-300'
+                      : isCompleted
+                      ? 'bg-green-50 border-green-300'
+                      : 'bg-muted/20 border-muted'
+                  )}
+                  title={rawTitle}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="font-medium text-sm leading-snug line-clamp-2">
+                      {startsWithEmoji(titleLine) ? (
+                        titleLine
+                      ) : (
+                        <>
+                          <span className="mr-1">{emoji}</span>
+                          {titleLine}
+                        </>
+                      )}
+                    </div>
+                    {isStravaMatch && (
+                      <span className="text-xs text-blue-500">(Strava)</span>
+                    )}
+                    {!isStravaMatch && isCompleted && (
+                      <span className="text-sm text-green-600">✓</span>
                     )}
                   </div>
+
+                  {detailLine && (
+                    <div className="text-xs text-muted-foreground line-clamp-2">
+                      {detailLine}
+                    </div>
+                  )}
+
                   {isStravaMatch && (
-                    <span className="text-xs text-blue-500">(Strava)</span>
+                    <div className="mt-1 text-xs text-blue-700 flex flex-col gap-0.5">
+                      <div className="flex justify-between w-full">
+                        <span>{duration}</span>
+                        <span>{distance}</span>
+                      </div>
+                      <div className="flex justify-between w-full">
+                        <span>{hr}</span>
+                        <span>{watts}</span>
+                      </div>
+                    </div>
                   )}
-                  {!isStravaMatch && isCompleted && (
-                    <span className="text-sm text-green-600">✓</span>
-                  )}
-                </div>
+                </button>
+              </DraggableSession>
+            );
+          })}
 
-                {detailLine && (
-                  <div className="text-xs text-muted-foreground line-clamp-2">
-                    {detailLine}
-                  </div>
-                )}
+          {/* Extra Strava-only activities */}
+          {extraActivities?.length > 0 && (
+            <div className="flex flex-col gap-1 mt-1">
+              {extraActivities.map((a) => {
+                const duration = a.moving_time
+                  ? `${Math.floor(a.moving_time / 60)}m`
+                  : '';
+                const distance = a.distance
+                  ? `${(a.distance / 1609).toFixed(1)} mi`
+                  : '';
+                const hr = a.average_heartrate
+                  ? `${Math.round(a.average_heartrate)} bpm`
+                  : '';
+                const watts = a.average_watts
+                  ? `${Math.round(a.average_watts)}w`
+                  : '';
 
-                {isStravaMatch && (
-                  <div className="mt-1 text-xs text-blue-700 flex flex-col gap-0.5">
-                    <div className="flex justify-between w-full">
+                return (
+                  <div
+                    key={a.id}
+                    className="rounded-md bg-blue-50 border border-blue-300 px-3 py-2 text-xs text-blue-800"
+                  >
+                    🚴 {a.name || 'Unplanned Activity'}
+                    <div className="flex justify-between text-[11px]">
                       <span>{duration}</span>
                       <span>{distance}</span>
                     </div>
-                    <div className="flex justify-between w-full">
+                    <div className="flex justify-between text-[11px]">
                       <span>{hr}</span>
                       <span>{watts}</span>
                     </div>
                   </div>
-                )}
-              </button>
-            </DraggableSession>
-          );
-        })}
+                );
+              })}
+            </div>
+          )}
 
-        {/* Extra Strava-only activities */}
-        {extraActivities?.length > 0 && (
-          <div className="flex flex-col gap-1 mt-1">
-            {extraActivities.map((a) => {
-              const duration = a.moving_time
-                ? `${Math.floor(a.moving_time / 60)}m`
-                : '';
-              const distance = a.distance
-                ? `${(a.distance / 1609).toFixed(1)} mi`
-                : '';
-              const hr = a.average_heartrate
-                ? `${Math.round(a.average_heartrate)} bpm`
-                : '';
-              const watts = a.average_watts
-                ? `${Math.round(a.average_watts)}w`
-                : '';
-
-              return (
-                <div
-                  key={a.id}
-                  className="rounded-md bg-blue-50 border border-blue-300 px-3 py-2 text-xs text-blue-800"
-                >
-                  🚴 {a.name || 'Unplanned Activity'}
-                  <div className="flex justify-between text-[11px]">
-                    <span>{duration}</span>
-                    <span>{distance}</span>
-                  </div>
-                  <div className="flex justify-between text-[11px]">
-                    <span>{hr}</span>
-                    <span>{watts}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Add Session Button */}
-        <button
-          onClick={() => setShowForm(true)}
-          className="text-gray-400 hover:text-black text-sm mt-1"
-        >
-          ＋ Add session
-        </button>
-
-        {showForm && (
-          <InlineSessionForm
-            date={format(date, 'yyyy-MM-dd')}
-            onClose={() => setShowForm(false)}
-            onAdded={(newSession: any) => {
-              onSessionAdded?.(newSession);
-              setShowForm(false);
-            }}
-          />
-        )}
+          {/* Add Session Button */}
+          <button
+            onClick={() => setShowForm(true)}
+            className="text-gray-400 hover:text-black text-sm mt-1"
+          >
+            ＋ Add session
+          </button>
+        </div>
       </div>
-    </div>
+
+      {/* ✅ moved outside hooked tree */}
+      {showForm && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white p-4 rounded-xl shadow-xl w-full max-w-md">
+            <InlineSessionForm
+              date={format(date, 'yyyy-MM-dd')}
+              onClose={() => setShowForm(false)}
+              onAdded={(newSession: any) => {
+                onSessionAdded?.(newSession);
+                setShowForm(false);
+              }}
+            />
+          </div>
+        </div>
+      )}
+    </>
   );
 }
