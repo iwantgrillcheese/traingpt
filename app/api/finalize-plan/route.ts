@@ -1,6 +1,5 @@
 // /app/api/finalize-plan/route.ts
-// @ts-expect-error Next.js 15 runtime exports unstable_after
-import { NextResponse, unstable_after as after } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { cookies } from 'next/headers';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import {
