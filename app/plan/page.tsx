@@ -48,7 +48,7 @@ export default function PlanPage() {
   const runningTypes = ['5k', '10k', 'Half Marathon', 'Marathon'];
   const isRunningPlan = runningTypes.includes(formData.raceType);
 
-  // 🔄 Fake loading progress simulation
+  /* -------------------- Loading Animation -------------------- */
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (loading) {
@@ -56,7 +56,7 @@ export default function PlanPage() {
         setStepIndex(prev => (prev + 1) % steps.length);
         setProgress(prev => {
           if (prev >= 95) return prev; // cap at 95% until success
-          return prev + 5; // slower increments
+          return prev + 5;
         });
       }, 1500);
     } else {
@@ -66,11 +66,13 @@ export default function PlanPage() {
     return () => clearInterval(interval);
   }, [loading]);
 
+  /* -------------------- Form Handling -------------------- */
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  /* -------------------- Submit Handler -------------------- */
   const handleFinalize = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
@@ -104,15 +106,18 @@ export default function PlanPage() {
         throw new Error(json.error || 'Something went wrong while starting the plan.');
       }
 
-      // ✅ Success check
-      if (json.plan) {
-        // complete the progress bar before redirect
-        setProgress(100);
+      /* ✅ Updated success check */
+      if (json.plan || json.message === 'Plan generation started' || json.ok) {
+        // keep progress bar and spinner visible
+        setLoading(true);
 
-        // wait a short beat so user sees it finish
+        // optimistic progress bump
+        setProgress(prev => (prev < 20 ? 20 : prev));
+
+        // short delay before redirect to schedule
         setTimeout(() => {
           router.push('/schedule');
-        }, 800);
+        }, 2000);
       } else {
         throw new Error(json.error || 'Plan generation failed.');
       }
@@ -123,7 +128,7 @@ export default function PlanPage() {
     }
   };
 
-  // Check if user already has a plan
+  /* -------------------- Check for Existing Plan -------------------- */
   useEffect(() => {
     const checkSessionAndPlan = async () => {
       const {
@@ -146,6 +151,7 @@ export default function PlanPage() {
     checkSessionAndPlan();
   }, []);
 
+  /* -------------------- Field Configs -------------------- */
   const beginnerFields: FieldConfig[] = [
     {
       id: 'raceType',
@@ -209,6 +215,7 @@ export default function PlanPage() {
         },
       ];
 
+  /* -------------------- UI Render -------------------- */
   if (!sessionChecked) {
     return (
       <div className="min-h-screen flex items-center justify-center text-gray-600">
@@ -219,6 +226,7 @@ export default function PlanPage() {
 
   return (
     <div className="min-h-screen bg-white text-gray-900 relative">
+      {/* 🌀 Loading Overlay */}
       {loading && (
         <div className="fixed inset-0 z-50 bg-white bg-opacity-90 flex flex-col items-center justify-center text-center px-6">
           <div className="w-full max-w-md">
