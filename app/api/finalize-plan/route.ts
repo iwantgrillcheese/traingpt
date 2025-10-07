@@ -104,25 +104,33 @@ export async function POST(req: Request) {
 
     const userId = user.id;
 
-    if (!raceType || !raceDate || !experience || !maxHours || !restDay)
-      return NextResponse.json({ ok: false, error: 'Missing required fields' }, { status: 400 });
+// ✅ Validation (restDay now optional)
+if (!raceType || !raceDate || !experience || !maxHours) {
+  return NextResponse.json({ ok: false, error: 'Missing required fields' }, { status: 400 });
+}
 
-    const raceISO = parseISO(raceDate);
-    if (!isValidDate(raceISO))
-      return NextResponse.json({ ok: false, error: 'Invalid raceDate' }, { status: 400 });
+const raceISO = parseISO(raceDate);
+if (!isValidDate(raceISO)) {
+  return NextResponse.json({ ok: false, error: 'Invalid raceDate' }, { status: 400 });
+}
 
-    const trainingPrefs = extractPrefs(preferencesText);
-    const userParams: UserParams = {
-      raceType,
-      raceDate,
-      experience,
-      maxHours: Number(maxHours),
-      restDay,
-      bikeFtp: bikeFtp ?? undefined,
-      runPace: runPace ?? undefined,
-      swimPace: swimPace ?? undefined,
-      trainingPrefs,
-    };
+// ✅ Default rest day fallback
+const restDayResolved = restDay && restDay.trim() !== '' ? restDay : 'Monday';
+
+const trainingPrefs = extractPrefs(preferencesText);
+
+const userParams: UserParams = {
+  raceType,
+  raceDate,
+  experience,
+  maxHours: Number(maxHours),
+  restDay: restDayResolved,
+  bikeFtp: bikeFtp ?? undefined,
+  runPace: runPace ?? undefined,
+  swimPace: swimPace ?? undefined,
+  trainingPrefs,
+};
+
 
     // Compute meta now (light)
     const todayISO = safeDateISO(new Date());
