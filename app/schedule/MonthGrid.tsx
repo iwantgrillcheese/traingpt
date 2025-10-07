@@ -21,12 +21,13 @@ type CompletedSession = {
   strava_id?: string;
 };
 
-type Props = {
+type MonthGridProps = {
   currentMonth: Date;
   sessionsByDate: Record<string, MergedSession[]>;
   completedSessions: CompletedSession[];
   stravaByDate: Record<string, StravaActivity[]>;
   onSessionClick?: (session: MergedSession) => void;
+  onSessionAdded?: (newSession: any) => void;
 };
 
 function DroppableDay({
@@ -53,7 +54,8 @@ export default function MonthGrid({
   completedSessions,
   stravaByDate,
   onSessionClick,
-}: Props) {
+  onSessionAdded,
+}: MonthGridProps) {
   const weeks = useMemo(() => {
     const start = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 0 });
     const end = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 0 });
@@ -75,27 +77,32 @@ export default function MonthGrid({
 
   return (
     <div className="w-full animate-fade-in space-y-2">
+      {/* Header row */}
       <div className="grid grid-cols-7 text-center font-medium text-sm text-muted-foreground pb-1">
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-          <div key={day} className="tracking-wide">{day}</div>
+          <div key={day} className="tracking-wide">
+            {day}
+          </div>
         ))}
       </div>
 
+      {/* Day cells */}
       <div className="grid grid-cols-7 gap-x-4 gap-y-4">
         {weeks.flatMap((week) =>
-          week.map((date) => {
-            const dateStr = format(date, 'yyyy-MM-dd');
-            const isOutside = !isSameMonth(date, currentMonth);
+          week.map((dateObj) => {
+            const dayKey = format(dateObj, 'yyyy-MM-dd');
+            const isOutside = !isSameMonth(dateObj, currentMonth);
 
             return (
-              <DroppableDay key={dateStr} date={date}>
+              <DroppableDay key={dayKey} date={dateObj}>
                 <DayCell
-                  date={date}
+                  date={dateObj}
+                  sessions={sessionsByDate[dayKey] || []}
                   isOutside={isOutside}
-                  sessions={sessionsByDate[dateStr] || []}
                   completedSessions={completedSessions}
-                  extraActivities={stravaByDate[dateStr] || []}
+                  extraActivities={stravaByDate[dayKey] || []}
                   onSessionClick={onSessionClick}
+                  onSessionAdded={onSessionAdded}
                 />
               </DroppableDay>
             );

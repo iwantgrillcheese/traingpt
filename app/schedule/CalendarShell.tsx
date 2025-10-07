@@ -80,7 +80,12 @@ export default function CalendarShell({
 
   if (!hasMounted) return null;
 
-  // Group sessions and Strava activities
+  // ✅ Handle inline-added session (update UI instantly)
+  const handleSessionAdded = (newSession: any) => {
+    setLocalSessions((prev) => [...prev, newSession]);
+  };
+
+  // 🧩 Group sessions and Strava activities
   const sessionsByDate: Record<string, MergedSession[]> = {};
   localSessions.forEach((s) => {
     if (!s.date) return;
@@ -101,10 +106,10 @@ export default function CalendarShell({
 
   // 🧲 Drag sensors with activation constraints
   const mouseSensor = useSensor(MouseSensor, {
-    activationConstraint: { distance: 8 }, // must move 8px before drag starts
+    activationConstraint: { distance: 8 },
   });
   const touchSensor = useSensor(TouchSensor, {
-    activationConstraint: { delay: 200, tolerance: 8 }, // hold 200ms before drag
+    activationConstraint: { delay: 200, tolerance: 8 },
   });
   const sensors = useSensors(mouseSensor, touchSensor);
 
@@ -116,12 +121,10 @@ export default function CalendarShell({
     const draggedId = active.id;
     const targetDate = over.id;
 
-    // Update local immediately for smooth UI
     setLocalSessions((prev) =>
       prev.map((s) => (s.id === draggedId ? { ...s, date: targetDate } : s))
     );
 
-    // Debounce Supabase write (only after 60s of no more drags)
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       const { error } = await supabase
@@ -159,6 +162,7 @@ export default function CalendarShell({
               completedSessions={completed}
               stravaByDate={stravaByDate}
               onSessionClick={handleSessionClick}
+              onSessionAdded={handleSessionAdded} // ✅ wire up here
             />
           </DndContext>
         </>
