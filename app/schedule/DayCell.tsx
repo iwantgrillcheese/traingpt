@@ -7,7 +7,7 @@ import { getSessionColor } from '@/utils/session-utils';
 import { useDroppable, useDraggable } from '@dnd-kit/core';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
-import InlineSessionForm from './InlineSessionform';
+import InlineSessionForm from './InlineSessionForm';
 
 type CompletedSession = {
   date: string;
