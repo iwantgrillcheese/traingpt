@@ -17,6 +17,22 @@ export function groupSessionsByDate(sessions: Session[]) {
 // session-utils.ts
 // utils/session-utils.ts
 
+// ✅ Returns an emoji for each sport type
+export function getEmoji(sport: string): string {
+  const map: Record<string, string> = {
+    swim: '🏊',
+    bike: '🚴',
+    run: '🏃',
+    strength: '💪',
+    rest: '😴',
+    other: '🔸',
+  };
+
+  const lower = sport?.toLowerCase?.() || '';
+  return map[lower] || '🔸';
+}
+
+
 // utils/session-utils.ts
 
 export function getSessionColor(sport: string | null | undefined): string {

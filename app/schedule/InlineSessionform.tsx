@@ -1,117 +1,125 @@
 'use client';
 
 import { useState } from 'react';
-import { Dialog } from '@headlessui/react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { getEmoji } from '@/utils/session-utils';
 
-export default function InlineSessionForm({
-  date,
-  onClose,
-  onAdded,
-}: {
+type Props = {
   date: string;
   onClose: () => void;
-  onAdded: (session: any) => void;
-}) {
+  onAdded: (newSession: any) => void;
+};
+
+export default function InlineSessionForm({ date, onClose, onAdded }: Props) {
   const [sport, setSport] = useState('bike');
   const [title, setTitle] = useState('');
   const [duration, setDuration] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
+
   const supabase = createClientComponentClient();
 
-  const handleSave = async () => {
-    if (!title.trim()) return;
-    setSaving(true);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
 
-    const { data, error } = await supabase
-      .from('sessions')
-      .insert([
-        {
-          date,
-          title: `${getEmoji(sport)} ${title}`,
-          duration: duration ? Number(duration) : null,
-          sport,
-        },
-      ])
-      .select()
-      .single();
+    try {
+      // 🧭 ensure user is logged in
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-    if (error) {
-      console.error(error);
+      if (userError) throw userError;
+      if (!user) {
+        alert('You must be logged in to add a session.');
+        setLoading(false);
+        return;
+      }
+
+      // 🧠 build clean title with emoji
+      const emoji = getEmoji(sport);
+      const formattedTitle =
+        title.trim() !== '' ? `${emoji} ${title.trim()}` : `${emoji} ${sport}`;
+
+      // 🧾 insert new session
+      const { data, error } = await supabase
+        .from('sessions')
+        .insert([
+          {
+            user_id: user.id,
+            date,
+            sport,
+            title: formattedTitle,
+            duration: duration ? Number(duration) : null,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // ✅ notify parent & close
+      onAdded(data);
+      onClose();
+    } catch (err: any) {
+      console.error('Failed to add session:', err);
       alert('Failed to add session.');
-      setSaving(false);
-      return;
+    } finally {
+      setLoading(false);
     }
-
-    onAdded(data);
-    setSaving(false);
-    onClose();
   };
 
   return (
-    <Dialog open={true} onClose={onClose} className="relative z-50">
-      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" />
-      <div className="fixed inset-0 flex items-center justify-center p-4">
-        <Dialog.Panel className="w-full max-w-md bg-white rounded-lg p-6 shadow-xl space-y-4">
-          <Dialog.Title className="text-lg font-semibold">Add Session</Dialog.Title>
-          <div className="flex flex-col gap-3">
-            <div className="flex gap-2">
-              <select
-                value={sport}
-                onChange={(e) => setSport(e.target.value)}
-                className="border rounded-md px-2 py-1 text-sm"
-              >
-                <option value="swim">🏊 Swim</option>
-                <option value="bike">🚴 Bike</option>
-                <option value="run">🏃 Run</option>
-                <option value="strength">💪 Strength</option>
-                <option value="other">🔸 Other</option>
-              </select>
+    <div className="p-3 border rounded-md bg-white shadow-sm mt-2">
+      <form onSubmit={handleSubmit} className="flex items-center gap-2">
+        {/* sport selector */}
+        <select
+          value={sport}
+          onChange={(e) => setSport(e.target.value)}
+          className="border rounded-md px-2 py-1 text-sm"
+        >
+          <option value="swim">🏊 Swim</option>
+          <option value="bike">🚴 Bike</option>
+          <option value="run">🏃 Run</option>
+          <option value="strength">💪 Strength</option>
+          <option value="rest">😴 Rest</option>
+        </select>
 
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Title"
-                className="flex-1 border rounded-md px-2 py-1 text-sm"
-              />
-              <input
-                value={duration}
-                onChange={(e) => setDuration(e.target.value)}
-                placeholder="min"
-                type="number"
-                className="w-16 border rounded-md px-2 py-1 text-sm"
-              />
-            </div>
-            <div className="flex justify-end gap-3">
-              <button onClick={onClose} className="text-sm text-gray-500">
-                Cancel
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="bg-black text-white text-sm px-4 py-2 rounded-md"
-              >
-                {saving ? 'Saving...' : 'Save'}
-              </button>
-            </div>
-          </div>
-        </Dialog.Panel>
-      </div>
-    </Dialog>
+        {/* title input */}
+        <input
+          type="text"
+          placeholder="Title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className="flex-1 border rounded-md px-2 py-1 text-sm"
+        />
+
+        {/* duration input */}
+        <input
+          type="number"
+          placeholder="min"
+          value={duration}
+          onChange={(e) => setDuration(e.target.value)}
+          className="w-16 border rounded-md px-2 py-1 text-sm text-center"
+        />
+
+        {/* buttons */}
+        <button
+          type="submit"
+          disabled={loading}
+          className="bg-black text-white px-3 py-1 rounded-md text-sm"
+        >
+          {loading ? 'Saving...' : 'Save'}
+        </button>
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-gray-400 hover:text-gray-700 text-sm"
+        >
+          Cancel
+        </button>
+      </form>
+    </div>
   );
-}
-
-function getEmoji(sport: string) {
-  switch (sport) {
-    case 'swim':
-      return '🏊';
-    case 'bike':
-      return '🚴';
-    case 'run':
-      return '🏃';
-    case 'strength':
-      return '💪';
-    default:
-      return '🔸';
-  }
 }

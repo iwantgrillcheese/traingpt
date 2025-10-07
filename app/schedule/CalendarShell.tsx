@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { startOfMonth, subMonths, addMonths, format } from 'date-fns';
 import MonthGrid from './MonthGrid';
 import MobileCalendarView from './MobileCalendarView';
@@ -10,7 +10,13 @@ import type { StravaActivity } from '@/types/strava';
 import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { DndContext, MouseSensor,TouchSensor,useSensor,useSensors,} from '@dnd-kit/core';
+import {
+  DndContext,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
 
 type CompletedSession = {
   date: string;
@@ -62,6 +68,7 @@ export default function CalendarShell({
   const [localSessions, setLocalSessions] = useState<MergedSession[]>(sessions);
 
   const supabase = createClientComponentClient();
+  const saveTimer = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     setHasMounted(true);
@@ -92,15 +99,16 @@ export default function CalendarShell({
   const goToPrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
   const goToNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
 
+  // 🧲 Drag sensors with activation constraints
   const mouseSensor = useSensor(MouseSensor, {
     activationConstraint: { distance: 8 }, // must move 8px before drag starts
   });
   const touchSensor = useSensor(TouchSensor, {
-    activationConstraint: { delay: 200, tolerance: 8 }, // hold for 200ms on touch
+    activationConstraint: { delay: 200, tolerance: 8 }, // hold 200ms before drag
   });
   const sensors = useSensors(mouseSensor, touchSensor);
 
-  // 🔄 Handle drag end (move session between days)
+  // 🧩 Handle drag end (update locally, debounce Supabase write)
   const handleDragEnd = async (event: any) => {
     const { active, over } = event;
     if (!active || !over) return;
@@ -108,19 +116,20 @@ export default function CalendarShell({
     const draggedId = active.id;
     const targetDate = over.id;
 
+    // Update local immediately for smooth UI
     setLocalSessions((prev) =>
-      prev.map((s) =>
-        s.id === draggedId ? { ...s, date: targetDate } : s
-      )
+      prev.map((s) => (s.id === draggedId ? { ...s, date: targetDate } : s))
     );
 
-    // Persist update
-    const { error } = await supabase
-      .from('sessions')
-      .update({ date: targetDate })
-      .eq('id', draggedId);
-
-    if (error) console.error('Error moving session:', error);
+    // Debounce Supabase write (only after 60s of no more drags)
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      const { error } = await supabase
+        .from('sessions')
+        .update({ date: targetDate })
+        .eq('id', draggedId);
+      if (error) console.error('Error persisting session move:', error);
+    }, 60000);
   };
 
   return (
@@ -144,14 +153,14 @@ export default function CalendarShell({
           </div>
 
           <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-  <MonthGrid
-    currentMonth={currentMonth}
-    sessionsByDate={sessionsByDate}
-    completedSessions={completed}
-    stravaByDate={stravaByDate}
-    onSessionClick={handleSessionClick}
-  />
-</DndContext>
+            <MonthGrid
+              currentMonth={currentMonth}
+              sessionsByDate={sessionsByDate}
+              completedSessions={completed}
+              stravaByDate={stravaByDate}
+              onSessionClick={handleSessionClick}
+            />
+          </DndContext>
         </>
       )}
 
