@@ -7,11 +7,9 @@ import MobileCalendarView from './MobileCalendarView';
 import SessionModal from './SessionModal';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
-import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 
 // Align with DB schema: completed sessions store the date in a `date` column.
-// Use `date` so comparisons remain consistent across the app.
 type CompletedSession = {
   date: string;
   session_title: string;
@@ -19,10 +17,10 @@ type CompletedSession = {
 };
 
 type CalendarShellProps = {
-  sessions: MergedSession[];
+  sessionsByDate: Record<string, MergedSession[]>;
   completedSessions: CompletedSession[];
-  stravaActivities: StravaActivity[];
-  extraStravaActivities: StravaActivity[];
+  stravaByDate: Record<string, StravaActivity[]>;
+  unmatchedActivities?: StravaActivity[];
   onCompletedUpdate?: (updated: CompletedSession[]) => void;
   timezone?: string;
 };
@@ -48,10 +46,11 @@ function SupportBanner() {
 }
 
 export default function CalendarShell({
-  sessions,
+  sessionsByDate,
   completedSessions,
-  stravaActivities,
-  extraStravaActivities = [],
+  stravaByDate,
+  unmatchedActivities = [],
+  onCompletedUpdate,
   timezone = 'America/Los_Angeles',
 }: CalendarShellProps) {
   const [isMobile, setIsMobile] = useState(false);
@@ -59,7 +58,9 @@ export default function CalendarShell({
   const [selectedSession, setSelectedSession] = useState<MergedSession | null>(null);
   const [currentMonth, setCurrentMonth] = useState<Date>(startOfMonth(new Date()));
   const [completed, setCompleted] = useState<CompletedSession[]>(completedSessions);
+  const [data, setData] = useState<Record<string, MergedSession[]>>(sessionsByDate);
 
+  // Detect screen size
   useEffect(() => {
     setHasMounted(true);
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -70,25 +71,13 @@ export default function CalendarShell({
 
   if (!hasMounted) return null;
 
-  const sessionsByDate: Record<string, MergedSession[]> = {};
-  sessions.forEach((s) => {
-    if (!s.date) return;
-    if (!sessionsByDate[s.date]) sessionsByDate[s.date] = [];
-    sessionsByDate[s.date].push(s);
-  });
-
-  const normalizedStrava = normalizeStravaActivities(
-    [...stravaActivities, ...extraStravaActivities],
-    timezone
-  );
-
-  const stravaByDate: Record<string, StravaActivity[]> = {};
-  normalizedStrava.forEach((a) => {
-    const dateStr = a.local_date;
-    if (!dateStr) return;
-    if (!stravaByDate[dateStr]) stravaByDate[dateStr] = [];
-    stravaByDate[dateStr].push(a);
-  });
+  // Handle new session addition (from InlineSessionForm)
+  const handleSessionAdded = (session: MergedSession) => {
+    setData((prev) => ({
+      ...prev,
+      [session.date]: [...(prev[session.date] || []), session],
+    }));
+  };
 
   const handleSessionClick = (session: MergedSession) => setSelectedSession(session);
   const goToPrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
@@ -97,7 +86,10 @@ export default function CalendarShell({
   return (
     <main className="min-h-screen bg-background px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20 max-w-[1800px] mx-auto">
       {isMobile ? (
-        <MobileCalendarView sessions={sessions} completedSessions={completed} />
+        <MobileCalendarView
+          sessions={Object.values(data).flat()}
+          completedSessions={completed}
+        />
       ) : (
         <>
           <SupportBanner />
@@ -116,10 +108,14 @@ export default function CalendarShell({
 
           <MonthGrid
             currentMonth={currentMonth}
-            sessionsByDate={sessionsByDate}
+            sessionsByDate={data}
             completedSessions={completed}
             stravaByDate={stravaByDate}
             onSessionClick={handleSessionClick}
+            onSessionAdded={handleSessionAdded}
+            
+            
+            
           />
         </>
       )}
@@ -132,6 +128,7 @@ export default function CalendarShell({
         completedSessions={completed}
         onCompletedUpdate={(updatedList) => {
           setCompleted(updatedList);
+          onCompletedUpdate?.(updatedList);
         }}
       />
     </main>

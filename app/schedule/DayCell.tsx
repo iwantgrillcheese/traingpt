@@ -1,12 +1,14 @@
 'use client';
 
+import { useState } from 'react';
 import { format, isToday } from 'date-fns';
 import clsx from 'clsx';
 import { getSessionColor } from '@/utils/session-utils';
+import { useDroppable } from '@dnd-kit/core'; // 🆕 import
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
+import InlineSessionForm from './InlineSessionform'; // ✅ correct relative path
 
-// CompletedSession uses `date` instead of `session_date` so it matches the DB schema.
 type CompletedSession = {
   date: string;
   session_title: string;
@@ -20,6 +22,7 @@ type Props = {
   onSessionClick?: (session: MergedSession) => void;
   completedSessions: CompletedSession[];
   extraActivities?: StravaActivity[];
+  onSessionAdded?: (session: any) => void;
 };
 
 function normalizeSport(title: string): string {
@@ -53,7 +56,14 @@ export default function DayCell({
   onSessionClick,
   completedSessions,
   extraActivities = [],
+  onSessionAdded,
 }: Props) {
+  const [showForm, setShowForm] = useState(false);
+
+  // 🆕 Make this day droppable target for drag-and-drop
+  const dateStr = format(date, 'yyyy-MM-dd');
+  const { setNodeRef, isOver } = useDroppable({ id: dateStr });
+
   const isSessionCompleted = (session: MergedSession) =>
     completedSessions.some(
       (c) => c.date === session.date && c.session_title === session.title
@@ -61,16 +71,20 @@ export default function DayCell({
 
   return (
     <div
+      ref={setNodeRef} // 🧩 register drop target
       className={clsx(
         'min-h-[220px] p-3 border rounded-xl flex flex-col gap-2 transition-all duration-150 w-full',
         isOutside ? 'bg-zinc-100 text-zinc-400' : 'bg-white text-black',
-        isToday(date) && 'ring-2 ring-blue-400'
+        isToday(date) && 'ring-2 ring-blue-400',
+        isOver && 'bg-blue-50 border-blue-300 shadow-inner' // 🧩 highlight when dragging over
       )}
     >
+      {/* Date header */}
       <div className="text-xs text-zinc-500 font-medium text-right uppercase tracking-wide">
         {format(date, 'EEE d')}
       </div>
 
+      {/* Session tiles */}
       <div className="flex flex-col gap-2">
         {sessions.map((s) => {
           const rawTitle = s.title ?? '';
@@ -88,7 +102,9 @@ export default function DayCell({
 
           const activity = s.stravaActivity;
           const duration = activity?.moving_time
-            ? `${Math.floor(activity.moving_time / 3600)}h ${Math.round((activity.moving_time % 3600) / 60)}m`
+            ? `${Math.floor(activity.moving_time / 3600)}h ${Math.round(
+                (activity.moving_time % 3600) / 60
+              )}m`
             : null;
           const distance = activity?.distance
             ? `${(activity.distance / 1609).toFixed(1)} mi`
@@ -105,7 +121,7 @@ export default function DayCell({
               key={s.id}
               onClick={() => !isRest && onSessionClick?.(s)}
               className={clsx(
-                'w-full text-left rounded-md px-3 py-2 transition-all border hover:shadow-sm',
+                'w-full text-left rounded-md px-3 py-2 transition-all border hover:shadow-sm cursor-grab active:cursor-grabbing',
                 isStravaMatch
                   ? 'bg-blue-50 border-blue-300'
                   : isCompleted
@@ -116,14 +132,27 @@ export default function DayCell({
             >
               <div className="flex items-center justify-between mb-1">
                 <div className="font-medium text-sm leading-snug line-clamp-2">
-                  {startsWithEmoji(titleLine) ? titleLine : <><span className="mr-1">{emoji}</span>{titleLine}</>}
+                  {startsWithEmoji(titleLine) ? (
+                    titleLine
+                  ) : (
+                    <>
+                      <span className="mr-1">{emoji}</span>
+                      {titleLine}
+                    </>
+                  )}
                 </div>
-                {isStravaMatch && <span className="text-xs text-blue-500">(Strava)</span>}
-                {!isStravaMatch && isCompleted && <span className="text-sm text-green-600">✓</span>}
+                {isStravaMatch && (
+                  <span className="text-xs text-blue-500">(Strava)</span>
+                )}
+                {!isStravaMatch && isCompleted && (
+                  <span className="text-sm text-green-600">✓</span>
+                )}
               </div>
 
               {detailLine && (
-                <div className="text-xs text-muted-foreground line-clamp-2">{detailLine}</div>
+                <div className="text-xs text-muted-foreground line-clamp-2">
+                  {detailLine}
+                </div>
               )}
 
               {isStravaMatch && (
@@ -142,13 +171,22 @@ export default function DayCell({
           );
         })}
 
+        {/* Extra Strava-only activities */}
         {extraActivities.length > 0 && (
           <div className="flex flex-col gap-1 mt-1">
             {extraActivities.map((a) => {
-              const duration = a.moving_time ? `${Math.floor(a.moving_time / 60)}m` : '';
-              const distance = a.distance ? `${(a.distance / 1609).toFixed(1)} mi` : '';
-              const hr = a.average_heartrate ? `${Math.round(a.average_heartrate)} bpm` : '';
-              const watts = a.average_watts ? `${Math.round(a.average_watts)}w` : '';
+              const duration = a.moving_time
+                ? `${Math.floor(a.moving_time / 60)}m`
+                : '';
+              const distance = a.distance
+                ? `${(a.distance / 1609).toFixed(1)} mi`
+                : '';
+              const hr = a.average_heartrate
+                ? `${Math.round(a.average_heartrate)} bpm`
+                : '';
+              const watts = a.average_watts
+                ? `${Math.round(a.average_watts)}w`
+                : '';
 
               return (
                 <div
@@ -168,6 +206,25 @@ export default function DayCell({
               );
             })}
           </div>
+        )}
+
+        {/* Inline Add Session */}
+        {showForm ? (
+          <InlineSessionForm
+            date={format(date, 'yyyy-MM-dd')}
+            onClose={() => setShowForm(false)}
+            onAdded={(newSession: any) => {
+              onSessionAdded?.(newSession);
+              setShowForm(false);
+            }}
+          />
+        ) : (
+          <button
+            onClick={() => setShowForm(true)}
+            className="text-gray-400 hover:text-black text-sm mt-1"
+          >
+            ＋ Add session
+          </button>
         )}
       </div>
     </div>

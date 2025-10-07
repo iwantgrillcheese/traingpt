@@ -8,15 +8,14 @@ import { StravaActivity } from '@/types/strava';
 import mergeSessionsWithStrava from '@/utils/mergeSessionWithStrava';
 import Footer from '../components/footer';
 import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
+import { format } from 'date-fns';
 
-// Use date instead of session_date to align with the DB schema. This makes 
-// "mark done" rows persist across refreshes because the API stores the field as `date`.
+// DB-aligned type for completed sessions
 type CompletedSession = {
   date: string;
   session_title: string;
   strava_id?: string;
 };
-
 
 export default function SchedulePage() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -46,22 +45,21 @@ export default function SchedulePage() {
 
       if (sessionData) setSessions(sessionData);
       if (stravaData) setStravaActivities(stravaData);
-if (completedData) {
-  // Normalize completed sessions so downstream components always have a `date`.
-  const normalized = completedData.map((c: any) => ({
-    date: c.date || c.session_date,
-    session_title: c.session_title || c.title,
-    strava_id: c.strava_id,
-  }));
-  setCompletedSessions(normalized);
-}
 
+      if (completedData) {
+        const normalized = completedData.map((c: any) => ({
+          date: c.date || c.session_date,
+          session_title: c.session_title || c.title,
+          strava_id: c.strava_id,
+        }));
+        setCompletedSessions(normalized);
+      }
 
       setLoading(false);
     };
 
     fetchData();
-  }, []);
+  }, [supabase]);
 
   const handleCompletedUpdate = useCallback((updated: CompletedSession[]) => {
     setCompletedSessions(updated);
@@ -76,16 +74,28 @@ if (completedData) {
     stravaActivities
   );
 
+  // 🧩 Group sessions by date for MonthGrid
+  const sessionsByDate: Record<string, Session[]> = {};
+  for (const s of enrichedSessions) {
+    const key = s.date ? format(new Date(s.date), 'yyyy-MM-dd') : '';
+    if (!key) continue;
+    if (!sessionsByDate[key]) sessionsByDate[key] = [];
+    sessionsByDate[key].push(s);
+  }
+
+  // 🧩 Group Strava activities by date
+const stravaByDate: Record<string, StravaActivity[]> = normalizeStravaActivities(stravaActivities);
+
   return (
     <div className="flex flex-col min-h-screen">
       <main className="flex-grow">
-        <CalendarShell
-          sessions={enrichedSessions}
-          completedSessions={completedSessions}
-          stravaActivities={stravaActivities}
-          extraStravaActivities={unmatchedActivities}
-          onCompletedUpdate={handleCompletedUpdate}
-        />
+<CalendarShell
+  sessionsByDate={sessionsByDate}
+  completedSessions={completedSessions}
+  stravaByDate={stravaByDate} // ✅ this must be the grouped object, not the array
+  unmatchedActivities={unmatchedActivities}
+  onCompletedUpdate={handleCompletedUpdate}
+/>
       </main>
       <Footer />
     </div>
