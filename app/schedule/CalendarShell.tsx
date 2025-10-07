@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { startOfMonth, subMonths, addMonths, format } from 'date-fns';
-import { DndContext } from '@dnd-kit/core';
 import MonthGrid from './MonthGrid';
 import MobileCalendarView from './MobileCalendarView';
 import SessionModal from './SessionModal';
@@ -11,6 +10,7 @@ import type { StravaActivity } from '@/types/strava';
 import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { DndContext, MouseSensor,TouchSensor,useSensor,useSensors,} from '@dnd-kit/core';
 
 type CompletedSession = {
   date: string;
@@ -92,6 +92,14 @@ export default function CalendarShell({
   const goToPrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
   const goToNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
 
+  const mouseSensor = useSensor(MouseSensor, {
+    activationConstraint: { distance: 8 }, // must move 8px before drag starts
+  });
+  const touchSensor = useSensor(TouchSensor, {
+    activationConstraint: { delay: 200, tolerance: 8 }, // hold for 200ms on touch
+  });
+  const sensors = useSensors(mouseSensor, touchSensor);
+
   // 🔄 Handle drag end (move session between days)
   const handleDragEnd = async (event: any) => {
     const { active, over } = event;
@@ -135,15 +143,15 @@ export default function CalendarShell({
             </button>
           </div>
 
-          <DndContext onDragEnd={handleDragEnd}>
-            <MonthGrid
-              currentMonth={currentMonth}
-              sessionsByDate={sessionsByDate}
-              completedSessions={completed}
-              stravaByDate={stravaByDate}
-              onSessionClick={handleSessionClick}
-            />
-          </DndContext>
+          <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+  <MonthGrid
+    currentMonth={currentMonth}
+    sessionsByDate={sessionsByDate}
+    completedSessions={completed}
+    stravaByDate={stravaByDate}
+    onSessionClick={handleSessionClick}
+  />
+</DndContext>
         </>
       )}
 
