@@ -2,14 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import { startOfMonth, subMonths, addMonths, format } from 'date-fns';
+import { DndContext } from '@dnd-kit/core';
 import MonthGrid from './MonthGrid';
 import MobileCalendarView from './MobileCalendarView';
 import SessionModal from './SessionModal';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
+import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
-// Align with DB schema: completed sessions store the date in a `date` column.
 type CompletedSession = {
   date: string;
   session_title: string;
@@ -17,10 +19,10 @@ type CompletedSession = {
 };
 
 type CalendarShellProps = {
-  sessionsByDate: Record<string, MergedSession[]>;
+  sessions: MergedSession[];
   completedSessions: CompletedSession[];
-  stravaByDate: Record<string, StravaActivity[]>;
-  unmatchedActivities?: StravaActivity[];
+  stravaActivities: StravaActivity[];
+  extraStravaActivities: StravaActivity[];
   onCompletedUpdate?: (updated: CompletedSession[]) => void;
   timezone?: string;
 };
@@ -46,11 +48,10 @@ function SupportBanner() {
 }
 
 export default function CalendarShell({
-  sessionsByDate,
+  sessions,
   completedSessions,
-  stravaByDate,
-  unmatchedActivities = [],
-  onCompletedUpdate,
+  stravaActivities,
+  extraStravaActivities = [],
   timezone = 'America/Los_Angeles',
 }: CalendarShellProps) {
   const [isMobile, setIsMobile] = useState(false);
@@ -58,9 +59,10 @@ export default function CalendarShell({
   const [selectedSession, setSelectedSession] = useState<MergedSession | null>(null);
   const [currentMonth, setCurrentMonth] = useState<Date>(startOfMonth(new Date()));
   const [completed, setCompleted] = useState<CompletedSession[]>(completedSessions);
-  const [data, setData] = useState<Record<string, MergedSession[]>>(sessionsByDate);
+  const [localSessions, setLocalSessions] = useState<MergedSession[]>(sessions);
 
-  // Detect screen size
+  const supabase = createClientComponentClient();
+
   useEffect(() => {
     setHasMounted(true);
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -71,25 +73,52 @@ export default function CalendarShell({
 
   if (!hasMounted) return null;
 
-  // Handle new session addition (from InlineSessionForm)
-  const handleSessionAdded = (session: MergedSession) => {
-    setData((prev) => ({
-      ...prev,
-      [session.date]: [...(prev[session.date] || []), session],
-    }));
-  };
+  // Group sessions and Strava activities
+  const sessionsByDate: Record<string, MergedSession[]> = {};
+  localSessions.forEach((s) => {
+    if (!s.date) return;
+    if (!sessionsByDate[s.date]) sessionsByDate[s.date] = [];
+    sessionsByDate[s.date].push(s);
+  });
+
+  const normalizedStrava = normalizeStravaActivities(
+    [...stravaActivities, ...extraStravaActivities],
+    timezone
+  );
+
+  const stravaByDate: Record<string, StravaActivity[]> = normalizedStrava;
 
   const handleSessionClick = (session: MergedSession) => setSelectedSession(session);
   const goToPrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
   const goToNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
 
+  // 🔄 Handle drag end (move session between days)
+  const handleDragEnd = async (event: any) => {
+    const { active, over } = event;
+    if (!active || !over) return;
+
+    const draggedId = active.id;
+    const targetDate = over.id;
+
+    setLocalSessions((prev) =>
+      prev.map((s) =>
+        s.id === draggedId ? { ...s, date: targetDate } : s
+      )
+    );
+
+    // Persist update
+    const { error } = await supabase
+      .from('sessions')
+      .update({ date: targetDate })
+      .eq('id', draggedId);
+
+    if (error) console.error('Error moving session:', error);
+  };
+
   return (
     <main className="min-h-screen bg-background px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20 max-w-[1800px] mx-auto">
       {isMobile ? (
-        <MobileCalendarView
-          sessions={Object.values(data).flat()}
-          completedSessions={completed}
-        />
+        <MobileCalendarView sessions={localSessions} completedSessions={completed} />
       ) : (
         <>
           <SupportBanner />
@@ -106,17 +135,15 @@ export default function CalendarShell({
             </button>
           </div>
 
-          <MonthGrid
-            currentMonth={currentMonth}
-            sessionsByDate={data}
-            completedSessions={completed}
-            stravaByDate={stravaByDate}
-            onSessionClick={handleSessionClick}
-            onSessionAdded={handleSessionAdded}
-            
-            
-            
-          />
+          <DndContext onDragEnd={handleDragEnd}>
+            <MonthGrid
+              currentMonth={currentMonth}
+              sessionsByDate={sessionsByDate}
+              completedSessions={completed}
+              stravaByDate={stravaByDate}
+              onSessionClick={handleSessionClick}
+            />
+          </DndContext>
         </>
       )}
 
@@ -126,10 +153,7 @@ export default function CalendarShell({
         open={!!selectedSession}
         onClose={() => setSelectedSession(null)}
         completedSessions={completed}
-        onCompletedUpdate={(updatedList) => {
-          setCompleted(updatedList);
-          onCompletedUpdate?.(updatedList);
-        }}
+        onCompletedUpdate={(updatedList) => setCompleted(updatedList)}
       />
     </main>
   );

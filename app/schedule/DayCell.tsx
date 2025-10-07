@@ -4,10 +4,10 @@ import { useState } from 'react';
 import { format, isToday } from 'date-fns';
 import clsx from 'clsx';
 import { getSessionColor } from '@/utils/session-utils';
-import { useDroppable } from '@dnd-kit/core'; // 🆕 import
+import { useDroppable, useDraggable } from '@dnd-kit/core';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
-import InlineSessionForm from './InlineSessionform'; // ✅ correct relative path
+import InlineSessionForm from './InlineSessionform';
 
 type CompletedSession = {
   date: string;
@@ -37,16 +37,51 @@ function normalizeSport(title: string): string {
 
 function sportEmoji(sport: string): string {
   switch (sport.toLowerCase()) {
-    case 'swim': return '🏊';
-    case 'bike': return '🚴';
-    case 'run': return '🏃';
-    case 'strength': return '💪';
-    default: return '🔸';
+    case 'swim':
+      return '🏊';
+    case 'bike':
+      return '🚴';
+    case 'run':
+      return '🏃';
+    case 'strength':
+      return '💪';
+    default:
+      return '🔸';
   }
 }
 
 function startsWithEmoji(text: string) {
   return /^(\p{Emoji_Presentation}|\p{Extended_Pictographic})/u.test(text);
+}
+
+/** 🧩 Make each session draggable */
+function DraggableSession({
+  session,
+  children,
+}: {
+  session: MergedSession;
+  children: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: session.id,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      style={{
+        transform: transform
+          ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
+          : undefined,
+        opacity: isDragging ? 0.5 : 1,
+      }}
+      className="cursor-grab active:cursor-grabbing"
+    >
+      {children}
+    </div>
+  );
 }
 
 export default function DayCell({
@@ -59,9 +94,9 @@ export default function DayCell({
   onSessionAdded,
 }: Props) {
   const [showForm, setShowForm] = useState(false);
-
-  // 🆕 Make this day droppable target for drag-and-drop
   const dateStr = format(date, 'yyyy-MM-dd');
+
+  // Make this day droppable
   const { setNodeRef, isOver } = useDroppable({ id: dateStr });
 
   const isSessionCompleted = (session: MergedSession) =>
@@ -69,16 +104,26 @@ export default function DayCell({
       (c) => c.date === session.date && c.session_title === session.title
     );
 
+  const [justDropped, setJustDropped] = useState(false);
+
+  // Trigger a short visual pulse after a successful drop
+  if (isOver && !justDropped) {
+    setJustDropped(true);
+    setTimeout(() => setJustDropped(false), 600);
+  }
+
   return (
     <div
-      ref={setNodeRef} // 🧩 register drop target
+      ref={setNodeRef}
       className={clsx(
         'min-h-[220px] p-3 border rounded-xl flex flex-col gap-2 transition-all duration-150 w-full',
         isOutside ? 'bg-zinc-100 text-zinc-400' : 'bg-white text-black',
         isToday(date) && 'ring-2 ring-blue-400',
-        isOver && 'bg-blue-50 border-blue-300 shadow-inner' // 🧩 highlight when dragging over
+        isOver && 'bg-blue-50 border-blue-300 shadow-inner',
+        justDropped && 'animate-pulse bg-blue-100 border-blue-400'
       )}
     >
+
       {/* Date header */}
       <div className="text-xs text-zinc-500 font-medium text-right uppercase tracking-wide">
         {format(date, 'EEE d')}
@@ -117,57 +162,58 @@ export default function DayCell({
             : null;
 
           return (
-            <button
-              key={s.id}
-              onClick={() => !isRest && onSessionClick?.(s)}
-              className={clsx(
-                'w-full text-left rounded-md px-3 py-2 transition-all border hover:shadow-sm cursor-grab active:cursor-grabbing',
-                isStravaMatch
-                  ? 'bg-blue-50 border-blue-300'
-                  : isCompleted
-                  ? 'bg-green-50 border-green-300'
-                  : 'bg-muted/20 border-muted'
-              )}
-              title={rawTitle}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <div className="font-medium text-sm leading-snug line-clamp-2">
-                  {startsWithEmoji(titleLine) ? (
-                    titleLine
-                  ) : (
-                    <>
-                      <span className="mr-1">{emoji}</span>
-                      {titleLine}
-                    </>
+            <DraggableSession key={s.id} session={s}>
+              <button
+                onClick={() => !isRest && onSessionClick?.(s)}
+                className={clsx(
+                  'w-full text-left rounded-md px-3 py-2 transition-all border hover:shadow-sm',
+                  isStravaMatch
+                    ? 'bg-blue-50 border-blue-300'
+                    : isCompleted
+                    ? 'bg-green-50 border-green-300'
+                    : 'bg-muted/20 border-muted'
+                )}
+                title={rawTitle}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <div className="font-medium text-sm leading-snug line-clamp-2">
+                    {startsWithEmoji(titleLine) ? (
+                      titleLine
+                    ) : (
+                      <>
+                        <span className="mr-1">{emoji}</span>
+                        {titleLine}
+                      </>
+                    )}
+                  </div>
+                  {isStravaMatch && (
+                    <span className="text-xs text-blue-500">(Strava)</span>
+                  )}
+                  {!isStravaMatch && isCompleted && (
+                    <span className="text-sm text-green-600">✓</span>
                   )}
                 </div>
+
+                {detailLine && (
+                  <div className="text-xs text-muted-foreground line-clamp-2">
+                    {detailLine}
+                  </div>
+                )}
+
                 {isStravaMatch && (
-                  <span className="text-xs text-blue-500">(Strava)</span>
-                )}
-                {!isStravaMatch && isCompleted && (
-                  <span className="text-sm text-green-600">✓</span>
-                )}
-              </div>
-
-              {detailLine && (
-                <div className="text-xs text-muted-foreground line-clamp-2">
-                  {detailLine}
-                </div>
-              )}
-
-              {isStravaMatch && (
-                <div className="mt-1 text-xs text-blue-700 flex flex-col gap-0.5">
-                  <div className="flex justify-between w-full">
-                    <span>{duration}</span>
-                    <span>{distance}</span>
+                  <div className="mt-1 text-xs text-blue-700 flex flex-col gap-0.5">
+                    <div className="flex justify-between w-full">
+                      <span>{duration}</span>
+                      <span>{distance}</span>
+                    </div>
+                    <div className="flex justify-between w-full">
+                      <span>{hr}</span>
+                      <span>{watts}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between w-full">
-                    <span>{hr}</span>
-                    <span>{watts}</span>
-                  </div>
-                </div>
-              )}
-            </button>
+                )}
+              </button>
+            </DraggableSession>
           );
         })}
 
@@ -208,8 +254,15 @@ export default function DayCell({
           </div>
         )}
 
-        {/* Inline Add Session */}
-        {showForm ? (
+        {/* Add Session Button */}
+        <button
+          onClick={() => setShowForm(true)}
+          className="text-gray-400 hover:text-black text-sm mt-1"
+        >
+          ＋ Add session
+        </button>
+
+        {showForm && (
           <InlineSessionForm
             date={format(date, 'yyyy-MM-dd')}
             onClose={() => setShowForm(false)}
@@ -218,13 +271,6 @@ export default function DayCell({
               setShowForm(false);
             }}
           />
-        ) : (
-          <button
-            onClick={() => setShowForm(true)}
-            className="text-gray-400 hover:text-black text-sm mt-1"
-          >
-            ＋ Add session
-          </button>
         )}
       </div>
     </div>

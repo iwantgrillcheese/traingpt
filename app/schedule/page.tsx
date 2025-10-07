@@ -90,10 +90,10 @@ const stravaByDate: Record<string, StravaActivity[]> = normalizeStravaActivities
     <div className="flex flex-col min-h-screen">
       <main className="flex-grow">
 <CalendarShell
-  sessionsByDate={sessionsByDate}
-  completedSessions={completedSessions}
-  stravaByDate={stravaByDate} // ✅ this must be the grouped object, not the array
-  unmatchedActivities={unmatchedActivities}
+  sessions={enrichedSessions}            // ✅ expects flat array
+  completedSessions={completedSessions}  // ✅ matches CalendarShellProps
+  stravaActivities={stravaActivities}    // ✅ pass all Strava activities
+  extraStravaActivities={unmatchedActivities} // ✅ optional extra data
   onCompletedUpdate={handleCompletedUpdate}
 />
       </main>
