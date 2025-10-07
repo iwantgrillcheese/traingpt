@@ -1,4 +1,4 @@
-import { NextApiRequest, NextApiResponse } from 'next';
+import type { NextApiRequest, NextApiResponse } from 'next/types';
 import { stripe } from '@/utils/stripe';
 import Stripe from 'stripe';
 import { buffer } from 'micro';
