@@ -10,7 +10,6 @@ import {
   format,
 } from 'date-fns';
 import { useMemo } from 'react';
-import { useDroppable } from '@dnd-kit/core';
 import DayCell from './DayCell';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
@@ -29,24 +28,6 @@ type MonthGridProps = {
   onSessionClick?: (session: MergedSession) => void;
   onSessionAdded?: (newSession: any) => void;
 };
-
-function DroppableDay({
-  date,
-  children,
-}: {
-  date: Date;
-  children: React.ReactNode;
-}) {
-  const { setNodeRef } = useDroppable({
-    id: format(date, 'yyyy-MM-dd'),
-  });
-
-  return (
-    <div ref={setNodeRef} className="relative">
-      {children}
-    </div>
-  );
-}
 
 export default function MonthGrid({
   currentMonth,
@@ -71,7 +52,6 @@ export default function MonthGrid({
     for (let i = 0; i < days.length; i += 7) {
       chunks.push(days.slice(i, i + 7));
     }
-
     return chunks;
   }, [currentMonth]);
 
@@ -94,17 +74,16 @@ export default function MonthGrid({
             const isOutside = !isSameMonth(dateObj, currentMonth);
 
             return (
-              <DroppableDay key={dayKey} date={dateObj}>
-                <DayCell
-                  date={dateObj}
-                  sessions={sessionsByDate[dayKey] || []}
-                  isOutside={isOutside}
-                  completedSessions={completedSessions}
-                  extraActivities={stravaByDate[dayKey] || []}
-                  onSessionClick={onSessionClick}
-                  onSessionAdded={onSessionAdded}
-                />
-              </DroppableDay>
+              <DayCell
+                key={dayKey}
+                date={dateObj}
+                sessions={sessionsByDate?.[dayKey] ?? []}
+                isOutside={isOutside}
+                completedSessions={completedSessions}
+                extraActivities={stravaByDate?.[dayKey] ?? []}
+                onSessionClick={onSessionClick}
+                onSessionAdded={onSessionAdded}
+              />
             );
           })
         )}
