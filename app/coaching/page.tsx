@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase } from '@/lib/supabase-client';
 import CoachingDashboard from '../components/CoachingDashboard';
 import { Session } from '@/types/session';
 import { StravaActivity } from '@/types/strava';
@@ -9,8 +9,6 @@ import { useStravaAutoSync } from '../hooks/useStravaAutoSync';
 
 export default function CoachingPage() {
   useStravaAutoSync(); // ✅ Auto-trigger Strava sync on load
-
-  const supabase = createClientComponentClient();
 
   const [userId, setUserId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);

@@ -1,11 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase } from '@/lib/supabase-client';
 import Image from 'next/image';
 
 export default function ProfileAvatar() {
-  const supabase = createClientComponentClient();
   const [userData, setUserData] = useState<{ name: string; email: string; avatar: string } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 

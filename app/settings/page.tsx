@@ -1,10 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase } from '@/lib/supabase-client';
 
 export default function ProfilePage() {
-  const supabase = createClientComponentClient();
   const [profile, setProfile] = useState<any>(null);
   const [optIn, setOptIn] = useState<boolean>(true);
 

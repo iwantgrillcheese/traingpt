@@ -3,7 +3,7 @@
 import React, { useEffect, useState, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import Footer from '../components/footer';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase } from '@/lib/supabase-client';
 
 type FieldConfig = {
   id: string;
@@ -12,8 +12,6 @@ type FieldConfig = {
   options?: string[];
   placeholder?: string;
 };
-
-const supabase = createClientComponentClient();
 
 const steps = [
   'Locking in your race goals and timeline...',

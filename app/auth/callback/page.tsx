@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase } from '@/lib/supabase-client';
 
 export default function AuthCallback() {
-  const supabase = createClientComponentClient();
   const router = useRouter();
   const [status, setStatus] = useState('Validating session...');
 
