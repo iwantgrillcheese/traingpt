@@ -1,77 +1,99 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase-client';
-import { getEmoji } from '@/utils/session-utils';
-console.log('MOUNT', 'InlineSessionForm');
+import { format } from 'date-fns';
 
-
-type Props = {
-  date: string;
-  onClose: () => void;
-  onAdded: (newSession: any) => void;
-};
-
-export default function InlineSessionForm({ date, onClose, onAdded }: Props) {
-  const [sport, setSport] = useState('bike');
+export default function InlineSessionForm({ date, onClose, onAdded }: any) {
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState('');
-  const [duration, setDuration] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // ✅ Always call hooks in the same order
+  useEffect(() => {
+    const loadUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      setUser(data.user);
+      setLoading(false);
+    };
+    loadUser();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    if (!user) return;
 
-    try {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+    setSaving(true);
+    const { data, error } = await supabase
+      .from('sessions')
+      .insert([
+        {
+          user_id: user.id,
+          date: date,
+          title: title || `Session ${format(new Date(date), 'MMM d')}`,
+          created_at: new Date().toISOString(),
+        },
+      ])
+      .select()
+      .single();
 
-      if (userError) throw userError;
-      if (!user) {
-        alert('You must be logged in to add a session.');
-        setLoading(false);
-        return;
-      }
-
-      const emoji = getEmoji(sport);
-      const formattedTitle =
-        title.trim() !== '' ? `${emoji} ${title.trim()}` : `${emoji} ${sport}`;
-
-      const { data, error } = await supabase
-        .from('sessions')
-        .insert([
-          {
-            user_id: user.id,
-            date,
-            sport,
-            title: formattedTitle,
-            duration: duration ? Number(duration) : null,
-          },
-        ])
-        .select('*')
-        .single();
-
-      if (error) throw error;
-
-      onAdded({
-        ...data,
-        id: data.id || Math.random().toString(36).slice(2),
-      });
-      onClose();
-    } catch (err: any) {
-      console.error('❌ Failed to add session:', err);
-      alert('Failed to add session.');
-    } finally {
-      setLoading(false);
+    setSaving(false);
+    if (error) {
+      console.error('Error adding session:', error);
+      return;
     }
+
+    onAdded?.(data);
   };
 
+  // ✅ Conditional rendering, not conditional hooks
+  if (loading) {
+    return (
+      <div className="text-center text-sm text-gray-400 py-4">
+        Loading user…
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="text-center text-sm text-gray-400 py-4">
+        Please sign in to add a session.
+      </div>
+    );
+  }
+
   return (
-    <div className="p-3 border rounded-md bg-white shadow-sm mt-2">
-      {/* form identical to before */}
-      {/* ... unchanged */}
-    </div>
+    <form
+      onSubmit={handleSubmit}
+      className="flex flex-col gap-3 p-2 sm:p-4"
+    >
+      <label className="text-sm font-medium">Session Title</label>
+      <input
+        type="text"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        className="rounded-md border border-gray-300 p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        placeholder="e.g., Long Ride 3hr Z2"
+      />
+
+      <div className="flex gap-2 justify-end mt-2">
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-3 py-1 text-gray-500 hover:text-gray-700 text-sm"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={saving}
+          className="px-3 py-1 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 disabled:opacity-60"
+        >
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+    </form>
   );
 }
