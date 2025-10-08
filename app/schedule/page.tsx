@@ -9,6 +9,8 @@ import mergeSessionsWithStrava from '@/utils/mergeSessionWithStrava';
 import Footer from '../components/footer';
 import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
 import { format } from 'date-fns';
+console.log('MOUNT', 'InlineSessionForm');
+
 
 type CompletedSession = {
   date: string;

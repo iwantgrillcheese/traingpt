@@ -8,6 +8,8 @@ import { useDroppable, useDraggable } from '@dnd-kit/core';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
 import InlineSessionForm from './InlineSessionForm';
+console.log('MOUNT', 'InlineSessionForm');
+
 
 type CompletedSession = {
   date: string;

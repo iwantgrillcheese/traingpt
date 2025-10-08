@@ -13,6 +13,8 @@ import { useMemo } from 'react';
 import DayCell from './DayCell';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
+console.log('MOUNT', 'InlineSessionForm');
+
 
 type CompletedSession = {
   date: string;

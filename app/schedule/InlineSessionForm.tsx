@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase-client';
 import { getEmoji } from '@/utils/session-utils';
+console.log('MOUNT', 'InlineSessionForm');
+
 
 type Props = {
   date: string;
