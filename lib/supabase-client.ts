@@ -1,7 +1,6 @@
-// lib/supabaseClient.ts
-import { createBrowserClient } from '@supabase/ssr'
+'use client';
 
-export const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+
+// ✅ Cookie-aware, single Supabase client shared across app
+export const supabase = createClientComponentClient();
