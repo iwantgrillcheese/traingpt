@@ -55,7 +55,6 @@ function startsWithEmoji(text: string) {
   return /^(\p{Emoji_Presentation}|\p{Extended_Pictographic})/u.test(text);
 }
 
-/* ---------- draggable session ---------- */
 function DraggableSession({
   session,
   children,
@@ -85,7 +84,6 @@ function DraggableSession({
   );
 }
 
-/* ---------- main component ---------- */
 export default function DayCell({
   date,
   sessions,
@@ -98,11 +96,9 @@ export default function DayCell({
   const [showForm, setShowForm] = useState(false);
   const dateStr = format(date, 'yyyy-MM-dd');
 
-  // droppable
   const { setNodeRef, isOver } = useDroppable({ id: dateStr });
   const [justDropped, setJustDropped] = useState(false);
 
-  // ✅ fix: handle drop highlight via useEffect, not during render
   useEffect(() => {
     if (isOver) {
       setJustDropped(true);
@@ -128,19 +124,16 @@ export default function DayCell({
           justDropped && 'animate-pulse bg-blue-100 border-blue-400'
         )}
       >
-        {/* Date header */}
         <div className="text-xs text-zinc-500 font-medium text-right uppercase tracking-wide">
           {format(date, 'EEE d')}
         </div>
 
-        {/* Session tiles */}
         <div className="flex flex-col gap-2">
           {sessions?.map((s) => {
             const rawTitle = s.title ?? '';
             const isRest = rawTitle.toLowerCase().includes('rest day');
             const sport = s.sport || normalizeSport(rawTitle);
             const emoji = sportEmoji(sport);
-            const colorClass = getSessionColor(isRest ? 'rest' : sport);
 
             const isStravaMatch = !!s.stravaActivity;
             const isCompleted = isSessionCompleted(s) || isStravaMatch;
@@ -221,44 +214,27 @@ export default function DayCell({
             );
           })}
 
-          {/* Extra Strava-only activities */}
           {extraActivities?.length > 0 && (
             <div className="flex flex-col gap-1 mt-1">
-              {extraActivities.map((a) => {
-                const duration = a.moving_time
-                  ? `${Math.floor(a.moving_time / 60)}m`
-                  : '';
-                const distance = a.distance
-                  ? `${(a.distance / 1609).toFixed(1)} mi`
-                  : '';
-                const hr = a.average_heartrate
-                  ? `${Math.round(a.average_heartrate)} bpm`
-                  : '';
-                const watts = a.average_watts
-                  ? `${Math.round(a.average_watts)}w`
-                  : '';
-
-                return (
-                  <div
-                    key={a.id}
-                    className="rounded-md bg-blue-50 border border-blue-300 px-3 py-2 text-xs text-blue-800"
-                  >
-                    🚴 {a.name || 'Unplanned Activity'}
-                    <div className="flex justify-between text-[11px]">
-                      <span>{duration}</span>
-                      <span>{distance}</span>
-                    </div>
-                    <div className="flex justify-between text-[11px]">
-                      <span>{hr}</span>
-                      <span>{watts}</span>
-                    </div>
+              {extraActivities.map((a) => (
+                <div
+                  key={a.id}
+                  className="rounded-md bg-blue-50 border border-blue-300 px-3 py-2 text-xs text-blue-800"
+                >
+                  🚴 {a.name || 'Unplanned Activity'}
+                  <div className="flex justify-between text-[11px]">
+                    <span>
+                      {a.moving_time ? `${Math.floor(a.moving_time / 60)}m` : ''}
+                    </span>
+                    <span>
+                      {a.distance ? `${(a.distance / 1609).toFixed(1)} mi` : ''}
+                    </span>
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           )}
 
-          {/* Add Session Button */}
           <button
             onClick={() => setShowForm(true)}
             className="text-gray-400 hover:text-black text-sm mt-1"
@@ -268,7 +244,6 @@ export default function DayCell({
         </div>
       </div>
 
-      {/* ✅ moved outside hooked tree */}
       {showForm && (
         <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white p-4 rounded-xl shadow-xl w-full max-w-md">

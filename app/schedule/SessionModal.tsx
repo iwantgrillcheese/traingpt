@@ -6,9 +6,8 @@ import { format, parseISO } from 'date-fns';
 import clsx from 'clsx';
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase } from '@/lib/supabase-client';
 
-// CompletedSession uses `date` to match the DB schema.
 type CompletedSession = {
   date: string;
   session_title: string;
@@ -35,8 +34,6 @@ export default function SessionModal({
   const [loading, setLoading] = useState(false);
   const [output, setOutput] = useState<string | null>(session?.structured_workout || null);
   const [markingComplete, setMarkingComplete] = useState(false);
-
-  const supabase = createClientComponentClient();
 
   const isCompleted = completedSessions.some(
     (s) => s.date === session?.date && s.session_title === session?.title
@@ -114,7 +111,6 @@ export default function SessionModal({
 
   if (!session) return null;
 
-  // Parse ISO to local midnight (avoids UTC shift)
   const formattedDate = format(parseISO(session.date), 'EEE, MMM d');
 
   return (
