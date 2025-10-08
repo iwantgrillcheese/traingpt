@@ -9,7 +9,7 @@ import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
 import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase } from '@/lib/supabase-client';
 import {
   DndContext,
   MouseSensor,
@@ -67,7 +67,6 @@ export default function CalendarShell({
   const [completed, setCompleted] = useState<CompletedSession[]>(completedSessions);
   const [localSessions, setLocalSessions] = useState<MergedSession[]>(sessions);
 
-  const supabase = createClientComponentClient();
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -80,12 +79,10 @@ export default function CalendarShell({
 
   if (!hasMounted) return null;
 
-  // ✅ Handle inline-added session (update UI instantly)
   const handleSessionAdded = (newSession: any) => {
     setLocalSessions((prev) => [...prev, newSession]);
   };
 
-  // 🧩 Group sessions and Strava activities
   const sessionsByDate: Record<string, MergedSession[]> = {};
   localSessions.forEach((s) => {
     if (!s.date) return;
@@ -104,7 +101,6 @@ export default function CalendarShell({
   const goToPrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
   const goToNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
 
-  // 🧲 Drag sensors with activation constraints
   const mouseSensor = useSensor(MouseSensor, {
     activationConstraint: { distance: 8 },
   });
@@ -113,7 +109,6 @@ export default function CalendarShell({
   });
   const sensors = useSensors(mouseSensor, touchSensor);
 
-  // 🧩 Handle drag end (update locally, debounce Supabase write)
   const handleDragEnd = async (event: any) => {
     const { active, over } = event;
     if (!active || !over) return;
@@ -162,7 +157,7 @@ export default function CalendarShell({
               completedSessions={completed}
               stravaByDate={stravaByDate}
               onSessionClick={handleSessionClick}
-              onSessionAdded={handleSessionAdded} // ✅ wire up here
+              onSessionAdded={handleSessionAdded}
             />
           </DndContext>
         </>

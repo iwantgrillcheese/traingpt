@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import React, { useEffect, useState, useCallback } from 'react';
+import { supabase } from '@/lib/supabase-client';
 import CalendarShell from './CalendarShell';
 import { Session } from '@/types/session';
 import { StravaActivity } from '@/types/strava';
@@ -10,7 +10,6 @@ import Footer from '../components/footer';
 import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
 import { format } from 'date-fns';
 
-// DB-aligned type for completed sessions
 type CompletedSession = {
   date: string;
   session_title: string;
@@ -22,7 +21,6 @@ export default function SchedulePage() {
   const [stravaActivities, setStravaActivities] = useState<StravaActivity[]>([]);
   const [completedSessions, setCompletedSessions] = useState<CompletedSession[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClientComponentClient();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -59,7 +57,7 @@ export default function SchedulePage() {
     };
 
     fetchData();
-  }, [supabase]);
+  }, []);
 
   const handleCompletedUpdate = useCallback((updated: CompletedSession[]) => {
     setCompletedSessions(updated);
@@ -74,7 +72,6 @@ export default function SchedulePage() {
     stravaActivities
   );
 
-  // 🧩 Group sessions by date for MonthGrid
   const sessionsByDate: Record<string, Session[]> = {};
   for (const s of enrichedSessions) {
     const key = s.date ? format(new Date(s.date), 'yyyy-MM-dd') : '';
@@ -83,19 +80,18 @@ export default function SchedulePage() {
     sessionsByDate[key].push(s);
   }
 
-  // 🧩 Group Strava activities by date
-const stravaByDate: Record<string, StravaActivity[]> = normalizeStravaActivities(stravaActivities);
+  const stravaByDate: Record<string, StravaActivity[]> = normalizeStravaActivities(stravaActivities);
 
   return (
     <div className="flex flex-col min-h-screen">
       <main className="flex-grow">
-<CalendarShell
-  sessions={enrichedSessions}            // ✅ expects flat array
-  completedSessions={completedSessions}  // ✅ matches CalendarShellProps
-  stravaActivities={stravaActivities}    // ✅ pass all Strava activities
-  extraStravaActivities={unmatchedActivities} // ✅ optional extra data
-  onCompletedUpdate={handleCompletedUpdate}
-/>
+        <CalendarShell
+          sessions={enrichedSessions}
+          completedSessions={completedSessions}
+          stravaActivities={stravaActivities}
+          extraStravaActivities={unmatchedActivities}
+          onCompletedUpdate={handleCompletedUpdate}
+        />
       </main>
       <Footer />
     </div>

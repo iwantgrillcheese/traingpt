@@ -1,11 +1,7 @@
-// app/utils/supabaseClient.ts
-'use client';
+// lib/supabaseClient.ts
+import { createBrowserClient } from '@supabase/ssr'
 
-import { createBrowserSupabaseClient } from '@supabase/auth-helpers-nextjs';
-import { useState } from 'react';
-import { SupabaseClient } from '@supabase/supabase-js';
-
-export default function useSupabase() {
-  const [supabase] = useState(() => createBrowserSupabaseClient());
-  return supabase;
-}
+export const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
