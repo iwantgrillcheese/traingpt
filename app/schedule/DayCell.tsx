@@ -84,6 +84,7 @@ function DraggableSession({
   );
 }
 
+/* ---------- main component ---------- */
 export default function DayCell({
   date,
   sessions,
@@ -99,12 +100,12 @@ export default function DayCell({
   const { setNodeRef, isOver } = useDroppable({ id: dateStr });
   const [justDropped, setJustDropped] = useState(false);
 
+  // ✅ Always run hook; guard early return inside effect
   useEffect(() => {
-    if (isOver) {
-      setJustDropped(true);
-      const timer = setTimeout(() => setJustDropped(false), 600);
-      return () => clearTimeout(timer);
-    }
+    if (!isOver) return;
+    setJustDropped(true);
+    const timer = setTimeout(() => setJustDropped(false), 600);
+    return () => clearTimeout(timer);
   }, [isOver]);
 
   const isSessionCompleted = (session: MergedSession) =>
@@ -114,6 +115,7 @@ export default function DayCell({
 
   return (
     <>
+      {/* Day cell */}
       <div
         ref={setNodeRef}
         className={clsx(
@@ -124,10 +126,12 @@ export default function DayCell({
           justDropped && 'animate-pulse bg-blue-100 border-blue-400'
         )}
       >
+        {/* Date header */}
         <div className="text-xs text-zinc-500 font-medium text-right uppercase tracking-wide">
           {format(date, 'EEE d')}
         </div>
 
+        {/* Session tiles */}
         <div className="flex flex-col gap-2">
           {sessions?.map((s) => {
             const rawTitle = s.title ?? '';
@@ -214,6 +218,7 @@ export default function DayCell({
             );
           })}
 
+          {/* Strava-only extras */}
           {extraActivities?.length > 0 && (
             <div className="flex flex-col gap-1 mt-1">
               {extraActivities.map((a) => (
@@ -235,6 +240,7 @@ export default function DayCell({
             </div>
           )}
 
+          {/* Add Session Button */}
           <button
             onClick={() => setShowForm(true)}
             className="text-gray-400 hover:text-black text-sm mt-1"
@@ -244,20 +250,26 @@ export default function DayCell({
         </div>
       </div>
 
-      {showForm && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white p-4 rounded-xl shadow-xl w-full max-w-md">
-            <InlineSessionForm
-              date={format(date, 'yyyy-MM-dd')}
-              onClose={() => setShowForm(false)}
-              onAdded={(newSession: any) => {
-                onSessionAdded?.(newSession);
-                setShowForm(false);
-              }}
-            />
-          </div>
+      {/* ✅ Always mounted form modal; toggled via visibility */}
+      <div
+        className={clsx(
+          'fixed inset-0 flex items-center justify-center z-50 transition-opacity duration-200',
+          showForm
+            ? 'opacity-100 visible bg-black/20 backdrop-blur-sm'
+            : 'opacity-0 invisible'
+        )}
+      >
+        <div className="bg-white p-4 rounded-xl shadow-xl w-full max-w-md">
+          <InlineSessionForm
+            date={format(date, 'yyyy-MM-dd')}
+            onClose={() => setShowForm(false)}
+            onAdded={(newSession: any) => {
+              onSessionAdded?.(newSession);
+              setShowForm(false);
+            }}
+          />
         </div>
-      )}
+      </div>
     </>
   );
 }
