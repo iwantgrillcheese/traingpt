@@ -17,7 +17,14 @@ import { OpenAI } from 'openai';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+function getOpenAIClient() {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key || key.trim() === '') {
+    // IMPORTANT: don’t throw at module load time — only throw when handler runs
+    throw new Error('OPENAI_API_KEY is missing');
+  }
+  return new OpenAI({ apiKey: key });
+}
 
 function secondsToPace(sec: number | null | undefined, units: string = 'mile') {
   if (!sec || isNaN(sec)) return 'unknown';
@@ -122,6 +129,8 @@ ${summary}
 `.trim();
 
   try {
+    const openai = getOpenAIClient();
+
     const completion = await openai.chat.completions.create({
       model: 'gpt-4-turbo',
       messages: [
@@ -133,8 +142,17 @@ ${summary}
 
     const coachReply = completion.choices[0]?.message?.content?.trim();
     return NextResponse.json({ message: coachReply ?? 'No response generated' });
-  } catch (err) {
+  } catch (err: any) {
     console.error('❌ GPT error:', err);
+
+    // If key is missing, return a clear error instead of crashing builds
+    if (String(err?.message || '').includes('OPENAI_API_KEY is missing')) {
+      return NextResponse.json(
+        { error: 'Server misconfigured: missing OPENAI_API_KEY' },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({ error: 'GPT failed' }, { status: 500 });
   }
 }
