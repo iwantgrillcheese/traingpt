@@ -29,9 +29,9 @@ export const maxDuration = 60;
 /* ---------- helpers ---------- */
 
 function safeDateISO(date: Date): string {
-  const y = date.getFullYear();
   const m = date.getMonth();
   const d = date.getDate();
+  // Guard against Feb 29 on non-leap years (extra safety)
   if (m === 1 && d === 29 && !isLeapYear(date)) date.setDate(28);
   return formatISO(date, { representation: 'date' });
 }
@@ -39,6 +39,7 @@ function safeDateISO(date: Date): string {
 function buildPlanMeta(totalWeeks: number, startDateISO: string): WeekMeta[] {
   const weeks: WeekMeta[] = [];
   const start = startOfWeek(parseISO(startDateISO), { weekStartsOn: 1 });
+
   const peakWeeks = Math.min(2, Math.max(0, totalWeeks >= 10 ? 2 : totalWeeks >= 8 ? 1 : 0));
   const taperWeeks = Math.min(2, Math.max(1, totalWeeks >= 10 ? 2 : 1));
   const remaining = Math.max(0, totalWeeks - (peakWeeks + taperWeeks));
@@ -55,6 +56,7 @@ function buildPlanMeta(totalWeeks: number, startDateISO: string): WeekMeta[] {
     const weekStart = addWeeks(start, i);
     const phase = phases[i] ?? 'Base';
     const deload = (phase === 'Base' || phase === 'Build') && i > 0 && (i + 1) % 4 === 0;
+
     weeks.push({
       label: `Week ${i + 1}`,
       phase,
@@ -62,6 +64,7 @@ function buildPlanMeta(totalWeeks: number, startDateISO: string): WeekMeta[] {
       deload,
     });
   }
+
   return weeks;
 }
 
@@ -80,6 +83,8 @@ function computeTotalWeeks(todayISO: string, raceDateISO: string): number {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
+
+    // ✅ Accept both bikeFtp (new) and bikeFTP (legacy UI)
     const {
       raceType,
       raceDate,
@@ -87,6 +92,7 @@ export async function POST(req: Request) {
       maxHours,
       restDay,
       bikeFtp,
+      bikeFTP, // <-- FIX
       runPace,
       swimPace,
       planType,
@@ -99,38 +105,45 @@ export async function POST(req: Request) {
       error: userErr,
     } = await supabase.auth.getUser();
 
-    if (userErr || !user)
+    if (userErr || !user) {
       return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+    }
 
     const userId = user.id;
 
-// ✅ Validation (restDay now optional)
-if (!raceType || !raceDate || !experience || !maxHours) {
-  return NextResponse.json({ ok: false, error: 'Missing required fields' }, { status: 400 });
-}
+    // ✅ Validation (restDay now optional)
+    if (!raceType || !raceDate || !experience || !maxHours) {
+      return NextResponse.json({ ok: false, error: 'Missing required fields' }, { status: 400 });
+    }
 
-const raceISO = parseISO(raceDate);
-if (!isValidDate(raceISO)) {
-  return NextResponse.json({ ok: false, error: 'Invalid raceDate' }, { status: 400 });
-}
+    const raceISO = parseISO(raceDate);
+    if (!isValidDate(raceISO)) {
+      return NextResponse.json({ ok: false, error: 'Invalid raceDate' }, { status: 400 });
+    }
 
-// ✅ Default rest day fallback
-const restDayResolved = restDay && restDay.trim() !== '' ? restDay : 'Monday';
+    // ✅ Default rest day fallback
+    const restDayResolved = restDay && restDay.trim() !== '' ? restDay : 'Monday';
 
-const trainingPrefs = extractPrefs(preferencesText);
+    const trainingPrefs = extractPrefs(preferencesText);
 
-const userParams: UserParams = {
-  raceType,
-  raceDate,
-  experience,
-  maxHours: Number(maxHours),
-  restDay: restDayResolved,
-  bikeFtp: bikeFtp ?? undefined,
-  runPace: runPace ?? undefined,
-  swimPace: swimPace ?? undefined,
-  trainingPrefs,
-};
+    // ✅ Normalize FTP to a number if present (avoid strings like "250")
+    const ftpRaw = bikeFtp ?? bikeFTP;
+    const ftpNormalized =
+      ftpRaw === null || ftpRaw === undefined || String(ftpRaw).trim() === ''
+        ? undefined
+        : Number(ftpRaw);
 
+    const userParams: UserParams = {
+      raceType,
+      raceDate,
+      experience,
+      maxHours: Number(maxHours),
+      restDay: restDayResolved,
+      bikeFtp: Number.isFinite(ftpNormalized as number) ? (ftpNormalized as number) : undefined,
+      runPace: runPace ?? undefined,
+      swimPace: swimPace ?? undefined,
+      trainingPrefs,
+    };
 
     // Compute meta now (light)
     const todayISO = safeDateISO(new Date());
@@ -138,15 +151,15 @@ const userParams: UserParams = {
     const planMeta = buildPlanMeta(totalWeeks, todayISO);
     const planTypeResolved: PlanType = planType ?? 'triathlon';
 
-    // 🟢 Return immediately to user to avoid 60s timeout
+    // 🟢 Return immediately to user to avoid 60s timeout (UX)
     const response = NextResponse.json({
       ok: true,
       message: 'Plan generation started',
     });
 
-    // 🧠 Generate plan in background
     after(async () => {
       console.log('[finalize-plan] background generation started');
+
       try {
         const weeks: WeekJson[] = await startPlan({
           planMeta,
@@ -156,6 +169,7 @@ const userParams: UserParams = {
 
         // Force taper + race day
         if (weeks.length > 0) weeks[weeks.length - 1].phase = 'Taper';
+
         const raceDay = safeDateISO(parseISO(raceDate));
         const lastWeek = weeks[weeks.length - 1];
         if (lastWeek) lastWeek.days[raceDay] = [`🏁 ${raceType} Race Day`];
@@ -186,18 +200,22 @@ const userParams: UserParams = {
         if (upsertErr) throw upsertErr;
         const planId = upserted?.id as string;
 
-        // Clear + insert sessions (deduped)
+        // Clear existing sessions for this plan
         const { error: delErr } = await supabase
           .from('sessions')
           .delete()
           .eq('user_id', userId)
           .eq('plan_id', planId);
+
         if (delErr) console.error('[finalize-plan] delete sessions error', delErr);
 
+        // Convert → session rows (now date-safe)
         let sessionRows = convertPlanToSessions(userId, planId, generatedPlan);
+
+        // ✅ Deduplicate without dropping legit doubles
         const seen = new Set<string>();
         sessionRows = sessionRows.filter((s) => {
-          const key = `${s.date}-${s.sport}`;
+          const key = `${s.date}-${s.sport}-${s.title ?? ''}`;
           if (seen.has(key)) return false;
           seen.add(key);
           return true;
@@ -205,7 +223,10 @@ const userParams: UserParams = {
 
         if (sessionRows.length > 0) {
           const { error: insErr } = await supabase.from('sessions').insert(sessionRows);
-          if (insErr) console.error('[finalize-plan] insert sessions error', insErr);
+          if (insErr) {
+            console.error('[finalize-plan] insert sessions error', insErr);
+            console.error('[finalize-plan] insert sessions rows sample', sessionRows.slice(0, 3));
+          }
         }
 
         // Welcome email

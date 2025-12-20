@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, Suspense } from 'react';
+import React, { useEffect, useState, Suspense, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Footer from '../components/footer';
 import { supabase } from '@/lib/supabase-client';
@@ -19,11 +19,12 @@ const steps = [
   'Cooking up a solid base phase...',
   'Dialing in the build block to get you race ready...',
   'Balancing rest days, bricks, and long sessions...',
-  'Polishing the plan for game day...'
+  'Polishing the plan for game day...',
 ];
 
 export default function PlanPage() {
   const router = useRouter();
+
   const [formData, setFormData] = useState({
     raceType: '',
     raceDate: '',
@@ -34,25 +35,31 @@ export default function PlanPage() {
     maxHours: '',
     restDay: '',
   });
+
   const [userNote, setUserNote] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
   const [sessionChecked, setSessionChecked] = useState(false);
   const [hasPlan, setHasPlan] = useState(false);
+
   const [progress, setProgress] = useState(0);
   const [stepIndex, setStepIndex] = useState(0);
+
+  const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const runningTypes = ['5k', '10k', 'Half Marathon', 'Marathon'];
   const isRunningPlan = runningTypes.includes(formData.raceType);
 
   /* -------------------- Loading Animation -------------------- */
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: NodeJS.Timeout | undefined;
     if (loading) {
       interval = setInterval(() => {
-        setStepIndex(prev => (prev + 1) % steps.length);
-        setProgress(prev => {
+        setStepIndex((prev) => (prev + 1) % steps.length);
+        setProgress((prev) => {
           if (prev >= 95) return prev; // cap at 95% until success
           return prev + 5;
         });
@@ -61,113 +68,113 @@ export default function PlanPage() {
       setProgress(0);
       setStepIndex(0);
     }
-    return () => clearInterval(interval);
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, [loading]);
+
+  /* -------------------- Clean up polling on unmount -------------------- */
+  useEffect(() => {
+    return () => {
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    };
+  }, []);
 
   /* -------------------- Form Handling -------------------- */
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   /* -------------------- Submit Handler -------------------- */
-const handleFinalize = async (e: React.FormEvent<HTMLFormElement>) => {
-  e.preventDefault();
-  setLoading(true);
-  setError('');
+  const handleFinalize = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
 
-  try {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const access_token = session?.access_token || null;
-    if (!access_token) throw new Error('No Supabase access token found');
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-    const planType = isRunningPlan ? 'running' : 'triathlon';
-    const userId = session?.user?.id;
+      const access_token = session?.access_token || null;
+      const userId = session?.user?.id || null;
 
-    // 🧠 Capture existing plan timestamp (for regen detection)
-    let previousCreatedAt: string | null = null;
-    if (userId) {
-      const { data: existingPlan } = await supabase
-        .from('plans')
-        .select('created_at')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-      previousCreatedAt = existingPlan?.created_at || null;
-    }
+      if (!access_token) throw new Error('No Supabase access token found');
+      if (!userId) throw new Error('No user found');
 
-    // 🏗️ Trigger background generation
-    const res = await fetch('/api/finalize-plan', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${access_token}`,
-      },
-      body: JSON.stringify({
-        ...formData,
-        userNote,
-        planType,
-      }),
-    });
+      const planType = isRunningPlan ? 'running' : 'triathlon';
 
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || 'Something went wrong while starting the plan.');
+      // Trigger background generation
+      const res = await fetch('/api/finalize-plan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${access_token}`,
+        },
+        body: JSON.stringify({
+          ...formData,
+          userNote,
+          planType,
+        }),
+      });
 
-    // ✅ Background job started
-    if (json.plan || json.message === 'Plan generation started' || json.ok) {
-      setProgress(prev => (prev < 20 ? 20 : prev));
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Something went wrong while starting the plan.');
 
-      // helper to check if new plan is ready
-      const checkPlanReady = async () => {
-        if (!userId) return false;
-        const { data, error } = await supabase
-          .from('plans')
-          .select('id, created_at')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single();
+      // Background job started — poll for sessions
+      if (json.ok || json.message === 'Plan generation started' || json.plan) {
+        setProgress((prev) => (prev < 20 ? 20 : prev));
 
-        if (error || !data) return false;
-        if (!previousCreatedAt) return true; // first-time plan
-        return new Date(data.created_at) > new Date(previousCreatedAt);
-      };
+        const checkSessionsReady = async () => {
+          const { count, error: countErr } = await supabase
+            .from('sessions')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', userId);
 
-      let tries = 0;
-      const interval = setInterval(async () => {
-        tries++;
-        if (!document.hasFocus()) {
-          clearInterval(interval);
-          return;
-        }
+          if (countErr) return false;
+          return (count ?? 0) > 0;
+        };
 
-        const ready = await checkPlanReady();
-        if (ready || tries >= 20) {
-          clearInterval(interval);
+        let tries = 0;
+
+        // Clear any previous poll
+        if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+
+        pollTimerRef.current = setInterval(async () => {
+          tries++;
+
+          const ready = await checkSessionsReady();
+
           if (ready) {
+            if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+
             setProgress(100);
-            // subtle fade before redirect
             setTimeout(() => {
               router.push('/schedule');
-            }, 1200);
-          } else {
+            }, 800);
+            return;
+          }
+
+          // Timeout after ~60s (20 * 3s)
+          if (tries >= 20) {
+            if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+            pollTimerRef.current = null;
+
             setError('Plan generation timed out. Please retry.');
             setLoading(false);
           }
-        }
-      }, 3000);
-    } else {
-      throw new Error(json.error || 'Plan generation failed.');
+        }, 3000);
+      } else {
+        throw new Error(json.error || 'Plan generation failed.');
+      }
+    } catch (err: any) {
+      console.error('❌ Finalize plan error:', err);
+      setError(err.message || 'Something went wrong');
+      setLoading(false);
     }
-  } catch (err: any) {
-    console.error('❌ Finalize plan error:', err);
-    setError(err.message || 'Something went wrong');
-    setLoading(false);
-  }
-};
+  };
 
   /* -------------------- Check for Existing Plan -------------------- */
   useEffect(() => {
@@ -175,10 +182,12 @@ const handleFinalize = async (e: React.FormEvent<HTMLFormElement>) => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
+
       if (!session?.user) {
         setSessionChecked(true);
         return;
       }
+
       const { data: planData } = await supabase
         .from('plans')
         .select('id')
@@ -186,9 +195,11 @@ const handleFinalize = async (e: React.FormEvent<HTMLFormElement>) => {
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
+
       if (planData) setHasPlan(true);
       setSessionChecked(true);
     };
+
     checkSessionAndPlan();
   }, []);
 
@@ -198,16 +209,7 @@ const handleFinalize = async (e: React.FormEvent<HTMLFormElement>) => {
       id: 'raceType',
       label: 'Race Type',
       type: 'select',
-      options: [
-        '5k',
-        '10k',
-        'Half Marathon',
-        'Marathon',
-        'Sprint',
-        'Olympic',
-        'Half Ironman (70.3)',
-        'Ironman (140.6)',
-      ],
+      options: ['5k', '10k', 'Half Marathon', 'Marathon', 'Sprint', 'Olympic', 'Half Ironman (70.3)', 'Ironman (140.6)'],
     },
     { id: 'raceDate', label: 'Race Date', type: 'date' },
     { id: 'maxHours', label: 'Max Weekly Training Hours', type: 'number' },
@@ -221,53 +223,24 @@ const handleFinalize = async (e: React.FormEvent<HTMLFormElement>) => {
 
   const advancedFields: FieldConfig[] = isRunningPlan
     ? [
-        {
-          id: 'runPace',
-          label: 'Run Threshold Pace (min/mi)',
-          type: 'text',
-          placeholder: 'e.g. 7:30',
-        },
-        {
-          id: 'restDay',
-          label: 'Preferred Rest Day',
-          type: 'select',
-          options: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-        },
+        { id: 'runPace', label: 'Run Threshold Pace (min/mi)', type: 'text', placeholder: 'e.g. 7:30' },
+        { id: 'restDay', label: 'Preferred Rest Day', type: 'select', options: ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] },
       ]
     : [
         { id: 'bikeFTP', label: 'Bike FTP (watts)', type: 'number' },
-        {
-          id: 'runPace',
-          label: 'Run Threshold Pace (min/mi)',
-          type: 'text',
-          placeholder: 'e.g. 7:30',
-        },
-        {
-          id: 'swimPace',
-          label: 'Swim Threshold Pace (per 100m)',
-          type: 'text',
-          placeholder: 'e.g. 1:38',
-        },
-        {
-          id: 'restDay',
-          label: 'Preferred Rest Day',
-          type: 'select',
-          options: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-        },
+        { id: 'runPace', label: 'Run Threshold Pace (min/mi)', type: 'text', placeholder: 'e.g. 7:30' },
+        { id: 'swimPace', label: 'Swim Threshold Pace (per 100m)', type: 'text', placeholder: 'e.g. 1:38' },
+        { id: 'restDay', label: 'Preferred Rest Day', type: 'select', options: ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] },
       ];
 
   /* -------------------- UI Render -------------------- */
   if (!sessionChecked) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-gray-600">
-        Checking your session...
-      </div>
-    );
+    return <div className="min-h-screen flex items-center justify-center text-gray-600">Checking your session...</div>;
   }
 
   return (
     <div className="min-h-screen bg-white text-gray-900 relative">
-      {/* 🌀 Loading Overlay */}
+      {/* Loading Overlay */}
       {loading && (
         <div className="fixed inset-0 z-50 bg-white bg-opacity-90 flex flex-col items-center justify-center text-center px-6">
           <div className="w-full max-w-md">
@@ -289,9 +262,7 @@ const handleFinalize = async (e: React.FormEvent<HTMLFormElement>) => {
               {hasPlan ? 'Re-Generate Your Plan' : 'Generate Your Plan'}
             </h1>
             <p className="mt-3 text-gray-500 text-lg">
-              {hasPlan
-                ? 'This will replace your current training plan.'
-                : 'We’ll personalize your training based on your inputs.'}
+              {hasPlan ? 'This will replace your current training plan.' : 'We’ll personalize your training based on your inputs.'}
             </p>
           </div>
 
@@ -304,10 +275,7 @@ const handleFinalize = async (e: React.FormEvent<HTMLFormElement>) => {
             {[...beginnerFields, ...(showAdvanced ? advancedFields : [])].map(
               ({ id, label, type, options, placeholder }) => (
                 <div key={id}>
-                  <label
-                    htmlFor={id}
-                    className="block text-sm font-medium text-gray-700 mb-1"
-                  >
+                  <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">
                     {label}
                   </label>
                   {type === 'select' ? (
@@ -320,7 +288,7 @@ const handleFinalize = async (e: React.FormEvent<HTMLFormElement>) => {
                       required={!['bikeFTP', 'runPace', 'swimPace', 'restDay'].includes(id)}
                     >
                       <option value="">Select...</option>
-                      {options?.map(opt => (
+                      {options?.map((opt) => (
                         <option key={opt} value={opt}>
                           {opt}
                         </option>
@@ -343,10 +311,7 @@ const handleFinalize = async (e: React.FormEvent<HTMLFormElement>) => {
             )}
 
             <div className="md:col-span-2">
-              <label
-                htmlFor="userNote"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
+              <label htmlFor="userNote" className="block text-sm font-medium text-gray-700 mb-1">
                 Customize your plan (optional)
               </label>
               <textarea
@@ -355,7 +320,7 @@ const handleFinalize = async (e: React.FormEvent<HTMLFormElement>) => {
                 rows={3}
                 placeholder="E.g. I’m targeting a 1:45 half marathon and prefer long runs on Sundays..."
                 value={userNote}
-                onChange={e => setUserNote(e.target.value)}
+                onChange={(e) => setUserNote(e.target.value)}
                 className="w-full bg-white border border-gray-300 rounded-md p-2 text-sm"
               />
             </div>
