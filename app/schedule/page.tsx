@@ -1,16 +1,12 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase-client';
 import CalendarShell from './CalendarShell';
 import { Session } from '@/types/session';
 import { StravaActivity } from '@/types/strava';
 import mergeSessionsWithStrava from '@/utils/mergeSessionWithStrava';
 import Footer from '../components/footer';
-import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
-import { format } from 'date-fns';
-console.log('MOUNT', 'InlineSessionForm');
-
 
 type CompletedSession = {
   date: string;
@@ -23,77 +19,119 @@ export default function SchedulePage() {
   const [stravaActivities, setStravaActivities] = useState<StravaActivity[]>([]);
   const [completedSessions, setCompletedSessions] = useState<CompletedSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchData = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      try {
+        setLoading(true);
+        setLoadError(null);
 
-      if (!user) {
-        console.warn('⚠️ No Supabase user session found');
-        setLoading(false);
-        return;
-      }
+        const {
+          data: { user },
+          error: userErr,
+        } = await supabase.auth.getUser();
 
-      const [{ data: sessionData }, { data: stravaData }, { data: completedData }] =
-        await Promise.all([
+        if (userErr) {
+          throw userErr;
+        }
+
+        if (!user) {
+          if (!cancelled) {
+            setLoading(false);
+          }
+          return;
+        }
+
+        const [sessionsRes, stravaRes, completedRes] = await Promise.all([
           supabase.from('sessions').select('*').eq('user_id', user.id),
           supabase.from('strava_activities').select('*').eq('user_id', user.id),
           supabase.from('completed_sessions').select('*').eq('user_id', user.id),
         ]);
 
-      if (sessionData) setSessions(sessionData);
-      if (stravaData) setStravaActivities(stravaData);
+        if (sessionsRes.error) throw sessionsRes.error;
+        if (stravaRes.error) throw stravaRes.error;
+        if (completedRes.error) throw completedRes.error;
 
-      if (completedData) {
-        const normalized = completedData.map((c: any) => ({
+        if (cancelled) return;
+
+        setSessions((sessionsRes.data ?? []) as Session[]);
+        setStravaActivities((stravaRes.data ?? []) as StravaActivity[]);
+
+        const normalizedCompleted: CompletedSession[] = (completedRes.data ?? []).map((c: any) => ({
           date: c.date || c.session_date,
           session_title: c.session_title || c.title,
           strava_id: c.strava_id,
         }));
-        setCompletedSessions(normalized);
-      }
 
-      setLoading(false);
+        setCompletedSessions(normalizedCompleted);
+        setLoading(false);
+      } catch (e: any) {
+        console.error('SchedulePage fetchData error:', e);
+        if (!cancelled) {
+          setLoadError(e?.message ?? 'Failed to load schedule data.');
+          setLoading(false);
+        }
+      }
     };
 
     fetchData();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleCompletedUpdate = useCallback((updated: CompletedSession[]) => {
     setCompletedSessions(updated);
   }, []);
 
+  // Compute merges defensively, and memoize to avoid churn
+  const { enrichedSessions, unmatchedActivities } = useMemo(() => {
+    try {
+      const { merged, unmatched } = mergeSessionsWithStrava(sessions, stravaActivities);
+      return { enrichedSessions: merged, unmatchedActivities: unmatched };
+    } catch (e) {
+      console.error('mergeSessionsWithStrava failed:', e);
+      return { enrichedSessions: sessions as any, unmatchedActivities: [] as StravaActivity[] };
+    }
+  }, [sessions, stravaActivities]);
+
   if (loading) {
     return <div className="text-center py-10 text-zinc-400">Loading your training data...</div>;
   }
 
-  const { merged: enrichedSessions, unmatched: unmatchedActivities } = mergeSessionsWithStrava(
-    sessions,
-    stravaActivities
-  );
-
-  const sessionsByDate: Record<string, Session[]> = {};
-  for (const s of enrichedSessions) {
-    const key = s.date ? format(new Date(s.date), 'yyyy-MM-dd') : '';
-    if (!key) continue;
-    if (!sessionsByDate[key]) sessionsByDate[key] = [];
-    sessionsByDate[key].push(s);
+  if (loadError) {
+    return (
+      <div className="text-center py-10 text-zinc-400">
+        <div className="text-sm">Something went wrong loading your schedule.</div>
+        <div className="mt-2 text-xs text-zinc-500">{loadError}</div>
+      </div>
+    );
   }
 
-  const stravaByDate: Record<string, StravaActivity[]> = normalizeStravaActivities(stravaActivities);
+  // If user is not logged in, getUser() returns null and we’ll land here.
+  // Render a friendly state instead of a blank calendar.
+  const isLoggedOut = enrichedSessions.length === 0 && stravaActivities.length === 0;
 
   return (
     <div className="flex flex-col min-h-screen">
       <main className="flex-grow">
-        <CalendarShell
-          sessions={enrichedSessions}
-          completedSessions={completedSessions}
-          stravaActivities={stravaActivities}
-          extraStravaActivities={unmatchedActivities}
-          onCompletedUpdate={handleCompletedUpdate}
-        />
+        {isLoggedOut ? (
+          <div className="text-center py-10 text-zinc-400">
+            Please sign in to view your schedule.
+          </div>
+        ) : (
+          <CalendarShell
+            sessions={enrichedSessions as any}
+            completedSessions={completedSessions}
+            stravaActivities={stravaActivities}
+            extraStravaActivities={unmatchedActivities}
+            onCompletedUpdate={handleCompletedUpdate}
+          />
+        )}
       </main>
       <Footer />
     </div>

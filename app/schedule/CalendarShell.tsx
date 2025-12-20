@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { startOfMonth, subMonths, addMonths, format } from 'date-fns';
 import MonthGrid from './MonthGrid';
 import MobileCalendarView from './MobileCalendarView';
@@ -67,40 +67,9 @@ export default function CalendarShell({
   const [completed, setCompleted] = useState<CompletedSession[]>(completedSessions);
   const [localSessions, setLocalSessions] = useState<MergedSession[]>(sessions);
 
-  const saveTimer = useRef<NodeJS.Timeout | null>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    setHasMounted(true);
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
-  if (!hasMounted) return null;
-
-  const handleSessionAdded = (newSession: any) => {
-    setLocalSessions((prev) => [...prev, newSession]);
-  };
-
-  const sessionsByDate: Record<string, MergedSession[]> = {};
-  localSessions.forEach((s) => {
-    if (!s.date) return;
-    if (!sessionsByDate[s.date]) sessionsByDate[s.date] = [];
-    sessionsByDate[s.date].push(s);
-  });
-
-  const normalizedStrava = normalizeStravaActivities(
-    [...stravaActivities, ...extraStravaActivities],
-    timezone
-  );
-
-  const stravaByDate: Record<string, StravaActivity[]> = normalizedStrava;
-
-  const handleSessionClick = (session: MergedSession) => setSelectedSession(session);
-  const goToPrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
-  const goToNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
-
+  // ✅ Always call dnd-kit hooks unconditionally (BEFORE any return)
   const mouseSensor = useSensor(MouseSensor, {
     activationConstraint: { distance: 8 },
   });
@@ -108,6 +77,45 @@ export default function CalendarShell({
     activationConstraint: { delay: 200, tolerance: 8 },
   });
   const sensors = useSensors(mouseSensor, touchSensor);
+
+  // Keep local state in sync if parent props change (optional but safer)
+  useEffect(() => setCompleted(completedSessions), [completedSessions]);
+  useEffect(() => setLocalSessions(sessions), [sessions]);
+
+  useEffect(() => {
+    setHasMounted(true);
+
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  const handleSessionAdded = (newSession: any) => {
+    setLocalSessions((prev) => [...prev, newSession]);
+  };
+
+  const sessionsByDate = useMemo(() => {
+    const map: Record<string, MergedSession[]> = {};
+    localSessions.forEach((s) => {
+      if (!s.date) return;
+      if (!map[s.date]) map[s.date] = [];
+      map[s.date].push(s);
+    });
+    return map;
+  }, [localSessions]);
+
+  const stravaByDate: Record<string, StravaActivity[]> = useMemo(() => {
+    return normalizeStravaActivities(
+      [...stravaActivities, ...extraStravaActivities],
+      timezone
+    );
+  }, [stravaActivities, extraStravaActivities, timezone]);
+
+  const handleSessionClick = (session: MergedSession) => setSelectedSession(session);
+  const goToPrevMonth = () => setCurrentMonth((m) => subMonths(m, 1));
+  const goToNextMonth = () => setCurrentMonth((m) => addMonths(m, 1));
 
   const handleDragEnd = async (event: any) => {
     const { active, over } = event;
@@ -121,14 +129,24 @@ export default function CalendarShell({
     );
 
     if (saveTimer.current) clearTimeout(saveTimer.current);
+
+    // If you intended 60 seconds, keep it. But 600ms is usually plenty.
     saveTimer.current = setTimeout(async () => {
       const { error } = await supabase
         .from('sessions')
         .update({ date: targetDate })
         .eq('id', draggedId);
+
       if (error) console.error('Error persisting session move:', error);
-    }, 60000);
+    }, 600);
   };
+
+  // ✅ Safe conditional render after hooks are registered
+  if (!hasMounted) {
+    return (
+      <main className="min-h-screen bg-background px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20 max-w-[1800px] mx-auto" />
+    );
+  }
 
   return (
     <main className="min-h-screen bg-background px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20 max-w-[1800px] mx-auto">
