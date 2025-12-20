@@ -19,11 +19,14 @@ export default function ProfilePage() {
   };
 
   useEffect(() => {
+    let cancelled = false;
+
     const loadProfile = async () => {
       const {
         data: { session },
         error,
       } = await supabase.auth.getSession();
+
       if (error || !session?.user) return;
 
       const { user_metadata, email } = session.user;
@@ -33,24 +36,42 @@ export default function ProfilePage() {
         avatar: user_metadata?.avatar_url || '',
       };
 
-      const { data: userData } = await supabase
+      // ✅ Typed query + safe boolean coercion
+      const { data: userData, error: userErr } = await supabase
         .from('users')
         .select('marketing_opt_in')
         .eq('id', session.user.id)
-        .single();
+        .single()
+        .returns<{ marketing_opt_in: boolean | null }>();
 
-      if (userData?.marketing_opt_in !== undefined) setOptIn(userData.marketing_opt_in);
+      if (userErr) {
+        console.error('Error loading user marketing_opt_in:', userErr);
+      }
 
-      const { data: profileData } = await supabase
+      if (!cancelled) {
+        setOptIn(userData?.marketing_opt_in === true);
+      }
+
+      const { data: profileData, error: profileErr } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', session.user.id)
         .single();
 
-      setProfile({ ...baseProfile, ...profileData });
+      if (profileErr) {
+        console.error('Error loading profile:', profileErr);
+      }
+
+      if (!cancelled) {
+        setProfile({ ...baseProfile, ...(profileData ?? {}) });
+      }
     };
 
     loadProfile();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const toggleOptIn = async () => {
@@ -61,7 +82,17 @@ export default function ProfilePage() {
 
     const newOpt = !optIn;
     setOptIn(newOpt);
-    await supabase.from('users').update({ marketing_opt_in: newOpt }).eq('id', session.user.id);
+
+    const { error } = await supabase
+      .from('users')
+      .update({ marketing_opt_in: newOpt })
+      .eq('id', session.user.id);
+
+    if (error) {
+      console.error('Error updating marketing_opt_in:', error);
+      // Optional: revert optimistic UI on failure
+      setOptIn(!newOpt);
+    }
   };
 
   const handleProfileUpdate = async (field: string, value: any) => {
@@ -71,7 +102,15 @@ export default function ProfilePage() {
     if (!session?.user) return;
 
     setProfile((prev: any) => ({ ...prev, [field]: value }));
-    await supabase.from('profiles').update({ [field]: value }).eq('id', session.user.id);
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ [field]: value })
+      .eq('id', session.user.id);
+
+    if (error) {
+      console.error('Error updating profile field:', field, error);
+    }
   };
 
   const handleDisconnectStrava = async () => {
@@ -80,7 +119,9 @@ export default function ProfilePage() {
   };
 
   const handleDeleteAccount = async () => {
-    const confirmed = confirm('Are you sure you want to delete your account? This cannot be undone.');
+    const confirmed = confirm(
+      'Are you sure you want to delete your account? This cannot be undone.'
+    );
     if (!confirmed) return;
 
     const {
@@ -91,24 +132,27 @@ export default function ProfilePage() {
     await supabase.from('plans').delete().eq('user_id', session.user.id);
     await supabase.from('completed_sessions').delete().eq('user_id', session.user.id);
     await supabase.from('users').delete().eq('id', session.user.id);
+
     await supabase.auth.signOut();
     window.location.href = '/';
   };
 
-const handleManageSubscription = async () => {
-  const res = await fetch('/api/stripe/portal', { method: 'POST' });
+  const handleManageSubscription = async () => {
+    const res = await fetch('/api/stripe/portal', { method: 'POST' });
 
-  if (!res.ok) {
-    console.error('Failed to load Stripe portal');
-    return;
-  }
+    if (!res.ok) {
+      console.error('Failed to load Stripe portal');
+      return;
+    }
 
-  const { url } = await res.json();
-  if (url) window.location.href = url;
-};
-
+    const { url } = await res.json();
+    if (url) window.location.href = url;
+  };
 
   if (!profile) return <div className="text-center py-20 text-gray-500">Loading profile...</div>;
+
+  const stravaClientId = process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID;
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
 
   return (
     <main className="max-w-4xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
@@ -120,12 +164,17 @@ const handleManageSubscription = async () => {
           <h2 className="text-lg font-medium mb-4">Training Zones</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm text-gray-500 mb-1">Swim Threshold (mm:ss / 100m)</label>
+              <label className="block text-sm text-gray-500 mb-1">
+                Swim Threshold (mm:ss / 100m)
+              </label>
               <input
                 type="text"
                 value={secondsToTimeString(profile.swim_threshold_per_100m || 0)}
                 onChange={(e) =>
-                  handleProfileUpdate('swim_threshold_per_100m', timeStringToSeconds(e.target.value))
+                  handleProfileUpdate(
+                    'swim_threshold_per_100m',
+                    timeStringToSeconds(e.target.value)
+                  )
                 }
                 className="w-full border rounded px-3 py-2"
                 placeholder="e.g. 1:45"
@@ -150,7 +199,10 @@ const handleManageSubscription = async () => {
                 type="text"
                 value={secondsToTimeString(profile.run_threshold_per_mile || 0)}
                 onChange={(e) =>
-                  handleProfileUpdate('run_threshold_per_mile', timeStringToSeconds(e.target.value))
+                  handleProfileUpdate(
+                    'run_threshold_per_mile',
+                    timeStringToSeconds(e.target.value)
+                  )
                 }
                 className="w-full border rounded px-3 py-2"
                 placeholder="e.g. 7:30"
@@ -189,13 +241,16 @@ const handleManageSubscription = async () => {
                 {profile?.strava_access_token ? 'Connected' : 'Not connected'}
               </p>
             </div>
+
             {profile?.strava_access_token ? (
               <button onClick={handleDisconnectStrava} className="text-red-500 text-sm underline">
                 Disconnect
               </button>
+            ) : !stravaClientId || !baseUrl ? (
+              <p className="text-sm text-red-500">Strava config missing</p>
             ) : (
               <a
-                href={`https://www.strava.com/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID}&response_type=code&redirect_uri=${process.env.NEXT_PUBLIC_BASE_URL}/api/strava/callback&scope=activity:read_all,profile:read_all`}
+                href={`https://www.strava.com/oauth/authorize?client_id=${stravaClientId}&response_type=code&redirect_uri=${baseUrl}/api/strava/callback&scope=activity:read_all,profile:read_all`}
                 className="text-blue-500 text-sm underline"
               >
                 Connect
@@ -211,20 +266,19 @@ const handleManageSubscription = async () => {
             View your current plan, update payment info, or cancel anytime via Stripe.
           </p>
           <button
-  className="rounded-md bg-blue-600 text-white px-4 py-2 text-sm hover:bg-blue-700 transition"
-  onClick={handleManageSubscription}
->
-  Manage Subscription
-</button>
-
-
+            className="rounded-md bg-blue-600 text-white px-4 py-2 text-sm hover:bg-blue-700 transition"
+            onClick={handleManageSubscription}
+          >
+            Manage Subscription
+          </button>
         </section>
 
         {/* Danger Zone */}
         <section className="bg-red-50 border border-red-200 rounded-xl p-6 shadow-sm">
           <h2 className="text-lg font-medium text-red-700 mb-4">Danger Zone</h2>
           <p className="text-sm text-red-600 mb-4">
-            Deleting your account will erase all your plans, history, and preferences. This action cannot be undone.
+            Deleting your account will erase all your plans, history, and preferences. This action
+            cannot be undone.
           </p>
           <button
             onClick={handleDeleteAccount}
