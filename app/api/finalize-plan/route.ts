@@ -1,4 +1,4 @@
-import { NextResponse, after } from 'next/server';
+import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import {
@@ -11,20 +11,14 @@ import {
   isLeapYear,
 } from 'date-fns';
 
-import type {
-  UserParams,
-  WeekMeta,
-  PlanType,
-  GeneratedPlan,
-  WeekJson,
-} from '@/types/plan';
+import type { UserParams, WeekMeta, PlanType, GeneratedPlan, WeekJson } from '@/types/plan';
 import { extractPrefs } from '@/utils/extractPrefs';
 import { startPlan } from '@/utils/start-plan';
 import { convertPlanToSessions } from '@/utils/convertPlanToSessions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /* ---------- helpers ---------- */
 
@@ -81,6 +75,10 @@ function computeTotalWeeks(todayISO: string, raceDateISO: string): number {
 /* ----------------------------- route ----------------------------- */
 
 export async function POST(req: Request) {
+  const startedAt = Date.now();
+  // keep a little safety buffer under 300s so we don’t get killed mid-write
+  const HARD_BUDGET_MS = 285_000;
+
   try {
     const body = await req.json();
 
@@ -92,7 +90,7 @@ export async function POST(req: Request) {
       maxHours,
       restDay,
       bikeFtp,
-      bikeFTP, // <-- FIX
+      bikeFTP,
       runPace,
       swimPace,
       planType,
@@ -151,102 +149,151 @@ export async function POST(req: Request) {
     const planMeta = buildPlanMeta(totalWeeks, todayISO);
     const planTypeResolved: PlanType = planType ?? 'triathlon';
 
-    // 🟢 Return immediately to user to avoid 60s timeout (UX)
-    const response = NextResponse.json({
-      ok: true,
-      message: 'Plan generation started',
+    console.log('[finalize-plan] generation started', {
+      userId,
+      totalWeeks,
+      planTypeResolved,
+      raceType,
+      raceDate,
     });
 
-    after(async () => {
-      console.log('[finalize-plan] background generation started');
+    // ✅ Generate weeks in-request (reliable). Add timing logs around it.
+    const genStart = Date.now();
+    const weeks: WeekJson[] = [];
 
-      try {
-        const weeks: WeekJson[] = await startPlan({
-          planMeta,
+    for (let i = 0; i < planMeta.length; i++) {
+      const elapsed = Date.now() - startedAt;
+      if (elapsed > HARD_BUDGET_MS) {
+        throw new Error(
+          `Plan generation exceeded time budget (${Math.round(elapsed / 1000)}s).`
+        );
+      }
+
+      const w0 = Date.now();
+      // startPlan() does guardWeek + generateWeek; but we want per-week logs.
+      // If you prefer not to duplicate logic, you can move this loop into startPlan
+      // and keep logs there. For now, inline for visibility.
+      // We'll call startPlan for the remaining in one shot if you prefer later.
+      const singleWeek = await (async () => {
+        const { generateWeek } = await import('@/utils/generate-week');
+        const { guardWeek } = await import('@/utils/planGuard');
+        const raw: WeekJson = await generateWeek({
+          weekMeta: planMeta[i],
           userParams,
           planType: planTypeResolved,
+          index: i,
         });
+        return guardWeek(raw, userParams.trainingPrefs);
+      })();
 
-        // Force taper + race day
-        if (weeks.length > 0) weeks[weeks.length - 1].phase = 'Taper';
+      weeks.push(singleWeek);
 
-        const raceDay = safeDateISO(parseISO(raceDate));
-        const lastWeek = weeks[weeks.length - 1];
-        if (lastWeek) lastWeek.days[raceDay] = [`🏁 ${raceType} Race Day`];
+      const w1 = Date.now();
+      console.log('[finalize-plan] week generated', {
+        weekIndex: i,
+        weekLabel: planMeta[i]?.label,
+        phase: planMeta[i]?.phase,
+        ms: w1 - w0,
+        elapsedSec: Math.round((w1 - startedAt) / 1000),
+      });
+    }
 
-        const generatedPlan: GeneratedPlan = {
-          planType: planTypeResolved,
-          weeks,
-          params: userParams,
-          createdAt: new Date().toISOString(),
-        };
-
-        // Upsert plan
-        const { data: upserted, error: upsertErr } = await supabase
-          .from('plans')
-          .upsert(
-            {
-              user_id: userId,
-              race_date: raceDate,
-              race_type: raceType,
-              plan: generatedPlan,
-              created_at: new Date().toISOString(),
-            },
-            { onConflict: 'user_id' }
-          )
-          .select('id')
-          .single();
-
-        if (upsertErr) throw upsertErr;
-        const planId = upserted?.id as string;
-
-        // Clear existing sessions for this plan
-        const { error: delErr } = await supabase
-          .from('sessions')
-          .delete()
-          .eq('user_id', userId)
-          .eq('plan_id', planId);
-
-        if (delErr) console.error('[finalize-plan] delete sessions error', delErr);
-
-        // Convert → session rows (now date-safe)
-        let sessionRows = convertPlanToSessions(userId, planId, generatedPlan);
-
-        // ✅ Deduplicate without dropping legit doubles
-        const seen = new Set<string>();
-        sessionRows = sessionRows.filter((s) => {
-          const key = `${s.date}-${s.sport}-${s.title ?? ''}`;
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-
-        if (sessionRows.length > 0) {
-          const { error: insErr } = await supabase.from('sessions').insert(sessionRows);
-          if (insErr) {
-            console.error('[finalize-plan] insert sessions error', insErr);
-            console.error('[finalize-plan] insert sessions rows sample', sessionRows.slice(0, 3));
-          }
-        }
-
-        // Welcome email
-        try {
-          await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/send-welcome-email`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId, planId }),
-          });
-        } catch (emailErr) {
-          console.error('[finalize-plan] welcome email error', emailErr);
-        }
-
-        console.log('[finalize-plan] background generation completed');
-      } catch (err) {
-        console.error('[finalize-plan] background generation failed', err);
-      }
+    console.log('[finalize-plan] all weeks generated', {
+      ms: Date.now() - genStart,
+      elapsedSec: Math.round((Date.now() - startedAt) / 1000),
     });
 
-    return response;
+    // Force taper + race day
+    if (weeks.length > 0) weeks[weeks.length - 1].phase = 'Taper';
+
+    const raceDay = safeDateISO(parseISO(raceDate));
+    const lastWeek = weeks[weeks.length - 1];
+    if (lastWeek) lastWeek.days[raceDay] = [`🏁 ${raceType} Race Day`];
+
+    const generatedPlan: GeneratedPlan = {
+      planType: planTypeResolved,
+      weeks,
+      params: userParams,
+      createdAt: new Date().toISOString(),
+    };
+
+    // Upsert plan
+    const { data: upserted, error: upsertErr } = await supabase
+      .from('plans')
+      .upsert(
+        {
+          user_id: userId,
+          race_date: raceDate,
+          race_type: raceType,
+          plan: generatedPlan,
+          created_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id' }
+      )
+      .select('id')
+      .single();
+
+    if (upsertErr) throw upsertErr;
+    const planId = upserted?.id as string;
+
+    // Clear existing sessions for this plan
+    const { error: delErr } = await supabase
+      .from('sessions')
+      .delete()
+      .eq('user_id', userId)
+      .eq('plan_id', planId);
+
+    if (delErr) console.error('[finalize-plan] delete sessions error', delErr);
+
+    // Convert → session rows (date-safe)
+    let sessionRows = convertPlanToSessions(userId, planId, generatedPlan);
+
+    // ✅ Deduplicate without dropping legit doubles
+    const seen = new Set<string>();
+    sessionRows = sessionRows.filter((s) => {
+      const key = `${s.date}-${s.sport}-${s.title ?? ''}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    if (sessionRows.length > 0) {
+      const { error: insErr } = await supabase.from('sessions').insert(sessionRows);
+      if (insErr) {
+        console.error('[finalize-plan] insert sessions error', insErr);
+        console.error('[finalize-plan] insert sessions rows sample', sessionRows.slice(0, 3));
+      }
+    }
+
+    // Welcome email (do not fail request if this fails)
+    try {
+      const url = new URL(req.url);
+      const origin =
+        process.env.NEXT_PUBLIC_BASE_URL?.trim() ||
+        `${req.headers.get('x-forwarded-proto') ?? url.protocol.replace(':', '')}://${
+          req.headers.get('x-forwarded-host') ?? url.host
+        }`;
+
+      await fetch(`${origin}/api/send-welcome-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, planId }),
+      });
+    } catch (emailErr) {
+      console.error('[finalize-plan] welcome email error', emailErr);
+    }
+
+    console.log('[finalize-plan] completed', {
+      userId,
+      planId,
+      elapsedSec: Math.round((Date.now() - startedAt) / 1000),
+    });
+
+    return NextResponse.json({
+      ok: true,
+      planId,
+      plan: generatedPlan,
+    });
   } catch (err: any) {
     console.error('[finalize-plan] error', err);
     return NextResponse.json(
