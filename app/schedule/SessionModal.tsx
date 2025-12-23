@@ -23,6 +23,21 @@ type Props = {
   onCompletedUpdate: (updated: CompletedSession[]) => void;
 };
 
+function toStravaIdString(
+  session: Session | null,
+  stravaActivity?: StravaActivity | null
+): string | undefined {
+  // Prefer the actual Strava activity id if available (numeric in your StravaActivity type)
+  const fromActivity = stravaActivity?.strava_id;
+  if (fromActivity != null) return String(fromActivity);
+
+  // Fall back to whatever is stored on the session row (your Session type currently has string | null)
+  const fromSession = session?.strava_id;
+  if (fromSession != null && String(fromSession).trim() !== '') return String(fromSession);
+
+  return undefined;
+}
+
 export default function SessionModal({
   session,
   stravaActivity,
@@ -47,23 +62,46 @@ export default function SessionModal({
     if (!session) return;
     setLoading(true);
 
-    const res = await fetch('/api/generate-detailed-session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        session_id: session.id,
-        title: session.title,
-        sport: session.sport,
-        date: session.date,
-      }),
-    });
+    try {
+      const res = await fetch('/api/generate-detailed-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: session.id,
+          title: session.title,
+          sport: session.sport,
+          date: session.date,
+        }),
+      });
 
-    const { details } = await res.json();
+      const data = await res.json().catch(() => ({} as any));
+      if (!res.ok) {
+        console.error('Generate detailed failed:', data);
+        alert(data?.error || 'Failed to generate detailed session.');
+        return;
+      }
 
-    await supabase.from('sessions').update({ structured_workout: details }).eq('id', session.id);
+      const details = data?.details as string | undefined;
+      if (!details || typeof details !== 'string') {
+        console.error('Generate detailed returned no details:', data);
+        alert('No workout details returned.');
+        return;
+      }
 
-    setOutput(details);
-    setLoading(false);
+      const { error: updateErr } = await supabase
+        .from('sessions')
+        .update({ structured_workout: details })
+        .eq('id', session.id);
+
+      if (updateErr) {
+        console.error('Failed to save structured_workout:', updateErr);
+        // Still show the output even if save failed
+      }
+
+      setOutput(details);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleMarkAsDone = async () => {
@@ -88,13 +126,14 @@ export default function SessionModal({
         return;
       }
 
-      const newEntry = {
+      // ✅ IMPORTANT: normalize to string to match CompletedSession type
+      const newEntry: CompletedSession = {
         date: session.date,
         session_title: session.title,
-        strava_id: session.strava_id ?? undefined,
+        strava_id: toStravaIdString(session, stravaActivity),
       };
 
-      const newCompletedList = isCompleted
+      const newCompletedList: CompletedSession[] = isCompleted
         ? completedSessions.filter(
             (s) => s.date !== session.date || s.session_title !== session.title
           )
@@ -141,19 +180,25 @@ export default function SessionModal({
 
           {stravaActivity && (
             <div className="grid grid-cols-2 gap-4 rounded-md bg-zinc-100 p-4 text-sm">
-              {stravaActivity.distance && (
-                <Metric label="Distance" value={`${(stravaActivity.distance / 1000).toFixed(1)} km`} />
+              {stravaActivity.distance != null && (
+                <Metric
+                  label="Distance"
+                  value={`${(stravaActivity.distance / 1000).toFixed(1)} km`}
+                />
               )}
-              {stravaActivity.moving_time && stravaActivity.distance && (
+              {stravaActivity.moving_time != null && stravaActivity.distance != null && (
                 <Metric
                   label="Avg Pace"
                   value={`${formatPace(stravaActivity.distance, stravaActivity.moving_time)} /km`}
                 />
               )}
-              {stravaActivity.average_heartrate && (
-                <Metric label="Heart Rate" value={`${Math.round(stravaActivity.average_heartrate)} bpm`} />
+              {stravaActivity.average_heartrate != null && (
+                <Metric
+                  label="Heart Rate"
+                  value={`${Math.round(stravaActivity.average_heartrate)} bpm`}
+                />
               )}
-              {stravaActivity.average_watts && (
+              {stravaActivity.average_watts != null && (
                 <Metric label="Power" value={`${Math.round(stravaActivity.average_watts)} watts`} />
               )}
             </div>
@@ -180,17 +225,10 @@ export default function SessionModal({
                     : 'text-zinc-700 hover:text-black border-zinc-300'
                 )}
               >
-                {markingComplete
-                  ? 'Saving...'
-                  : isCompleted
-                  ? 'Undo Completion'
-                  : '✅ Mark as Done'}
+                {markingComplete ? 'Saving...' : isCompleted ? 'Undo Completion' : '✅ Mark as Done'}
               </button>
 
-              <button
-                onClick={onClose}
-                className="text-sm text-zinc-500 hover:text-black underline"
-              >
+              <button onClick={onClose} className="text-sm text-zinc-500 hover:text-black underline">
                 Close
               </button>
             </div>
