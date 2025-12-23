@@ -7,5 +7,5 @@ export type Session = {
 duration?: number; // if you sometimes expect it
   details: string | null;
   structured_workout: string | null;
-  strava_id: string | null;
+  strava_id: number | null;
 };

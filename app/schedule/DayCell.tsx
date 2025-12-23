@@ -24,6 +24,8 @@ type Props = {
   onSessionAdded?: (session: any) => void;
 };
 
+/* ---------- helpers ---------- */
+
 function normalizeSportFromTitle(title: string): string {
   const lower = title.toLowerCase();
   if (lower.includes('swim')) return 'swim';
@@ -32,6 +34,26 @@ function normalizeSportFromTitle(title: string): string {
   if (lower.includes('rest')) return 'rest';
   if (lower.includes('strength')) return 'strength';
   return 'other';
+}
+
+/**
+ * Normalize sport strings from different sources (Sessions table vs Strava)
+ * into our canonical set used by emoji + UI.
+ */
+function normalizeSport(sport: string): string {
+  const lower = (sport || '').toLowerCase();
+
+  // Strava variants -> canonical
+  if (lower === 'ride' || lower === 'virtualride' || lower === 'ebikeride') return 'bike';
+
+  // Sometimes things come through already canonical
+  if (lower === 'bike') return 'bike';
+  if (lower === 'run') return 'run';
+  if (lower === 'swim') return 'swim';
+  if (lower === 'strength') return 'strength';
+  if (lower === 'rest') return 'rest';
+
+  return lower || 'other';
 }
 
 function sportEmoji(sport: string): string {
@@ -44,6 +66,8 @@ function sportEmoji(sport: string): string {
       return '🏃';
     case 'strength':
       return '💪';
+    case 'rest':
+      return '😴';
     default:
       return '🔸';
   }
@@ -53,8 +77,24 @@ function startsWithEmoji(text: string) {
   return /^(\p{Emoji_Presentation}|\p{Extended_Pictographic})/u.test(text);
 }
 
-function DraggableSession({ session, children }: { session: MergedSession; children: React.ReactNode }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: session.id });
+/**
+ * If older titles were saved starting with a "wrong" emoji (e.g. 🔸 Ride),
+ * strip it so the UI can render the correct emoji from `sport`.
+ */
+function stripLeadingEmoji(text: string) {
+  return text.replace(/^(\p{Emoji_Presentation}|\p{Extended_Pictographic})\s*/u, '');
+}
+
+function DraggableSession({
+  session,
+  children,
+}: {
+  session: MergedSession;
+  children: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: session.id,
+  });
 
   return (
     <div
@@ -71,6 +111,8 @@ function DraggableSession({ session, children }: { session: MergedSession; child
     </div>
   );
 }
+
+/* ---------- main component ---------- */
 
 export default function DayCell({
   date,
@@ -118,19 +160,26 @@ export default function DayCell({
             const rawTitle = s.title ?? '';
             const isRest = rawTitle.toLowerCase().includes('rest day');
 
-            const sport = (s.sport ?? normalizeSportFromTitle(rawTitle)).toLowerCase();
+            const sportRaw = String(s.sport ?? normalizeSportFromTitle(rawTitle));
+            const sport = normalizeSport(sportRaw);
             const emoji = sportEmoji(sport);
 
             const isStravaMatch = !!s.stravaActivity;
             const isCompleted = isSessionCompleted(s) || isStravaMatch;
 
             const [labelLine, ...rest] = rawTitle.split(':');
-            const titleLine = isRest ? 'Rest Day' : labelLine?.trim() || 'Untitled';
+
+            // Strip any leading emoji so we always show the canonical emoji from `sport`.
+            const baseTitle = stripLeadingEmoji(labelLine?.trim() || 'Untitled');
+
+            const titleLine = isRest ? 'Rest Day' : baseTitle || 'Untitled';
             const detailLine = rest.join(':').trim();
 
             const activity = s.stravaActivity;
             const duration = activity?.moving_time
-              ? `${Math.floor(activity.moving_time / 3600)}h ${Math.round((activity.moving_time % 3600) / 60)}m`
+              ? `${Math.floor(activity.moving_time / 3600)}h ${Math.round(
+                  (activity.moving_time % 3600) / 60
+                )}m`
               : null;
             const distance = activity?.distance ? `${(activity.distance / 1609).toFixed(1)} mi` : null;
             const hr = activity?.average_heartrate ? `${Math.round(activity.average_heartrate)} bpm` : null;
@@ -152,21 +201,19 @@ export default function DayCell({
                 >
                   <div className="flex items-center justify-between mb-1">
                     <div className="font-medium text-sm leading-snug line-clamp-2">
-                      {startsWithEmoji(titleLine) ? (
-                        titleLine
-                      ) : (
-                        <>
-                          <span className="mr-1">{emoji}</span>
-                          {titleLine}
-                        </>
-                      )}
+                      {/* Always render emoji based on normalized sport */}
+                      <span className="mr-1">{emoji}</span>
+                      {/* If somehow title was literally emoji-only, fall back */}
+                      {titleLine && !startsWithEmoji(titleLine) ? titleLine : stripLeadingEmoji(titleLine)}
                     </div>
 
                     {isStravaMatch && <span className="text-xs text-blue-500">(Strava)</span>}
                     {!isStravaMatch && isCompleted && <span className="text-sm text-green-600">✓</span>}
                   </div>
 
-                  {detailLine && <div className="text-xs text-muted-foreground line-clamp-2">{detailLine}</div>}
+                  {detailLine && (
+                    <div className="text-xs text-muted-foreground line-clamp-2">{detailLine}</div>
+                  )}
 
                   {isStravaMatch && (
                     <div className="mt-1 text-xs text-blue-700 flex flex-col gap-0.5">
@@ -190,10 +237,15 @@ export default function DayCell({
             <div className="flex flex-col gap-1 mt-1">
               {extraActivities.map((a) => {
                 const sport = (a.sport_type || '').toLowerCase();
-                const emoji =
-                  sport.includes('run') ? '🏃' : sport.includes('swim') ? '🏊' : sport.includes('ride') ? '🚴' : '🔸';
+                const emoji = sport.includes('run')
+                  ? '🏃'
+                  : sport.includes('swim')
+                  ? '🏊'
+                  : sport.includes('ride')
+                  ? '🚴'
+                  : '🔸';
 
-                const key = String(a.strava_id ?? a.id);
+                const key = String((a as any).strava_id ?? a.id);
 
                 return (
                   <div
@@ -211,7 +263,10 @@ export default function DayCell({
             </div>
           )}
 
-          <button onClick={() => setShowForm(true)} className="text-gray-400 hover:text-black text-sm mt-1">
+          <button
+            onClick={() => setShowForm(true)}
+            className="text-gray-400 hover:text-black text-sm mt-1"
+          >
             ＋ Add session
           </button>
         </div>
