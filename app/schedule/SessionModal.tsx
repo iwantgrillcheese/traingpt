@@ -6,7 +6,6 @@ import { format, parseISO } from 'date-fns';
 import clsx from 'clsx';
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
-import { supabase } from '@/lib/supabase-client';
 
 type CompletedSession = {
   date: string;
@@ -27,11 +26,9 @@ function toStravaIdString(
   session: Session | null,
   stravaActivity?: StravaActivity | null
 ): string | undefined {
-  // Prefer the actual Strava activity id if available (numeric in your StravaActivity type)
   const fromActivity = stravaActivity?.strava_id;
   if (fromActivity != null) return String(fromActivity);
 
-  // Fall back to whatever is stored on the session row (your Session type currently has string | null)
   const fromSession = session?.strava_id;
   if (fromSession != null && String(fromSession).trim() !== '') return String(fromSession);
 
@@ -56,7 +53,7 @@ export default function SessionModal({
 
   useEffect(() => {
     setOutput(session?.structured_workout || null);
-  }, [session]);
+  }, [session?.id]);
 
   const handleGenerate = async () => {
     if (!session) return;
@@ -67,38 +64,34 @@ export default function SessionModal({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          session_id: session.id,
+          sessionId: session.id,          // ✅ matches your API
           title: session.title,
           sport: session.sport,
-          date: session.date,
+          date: session.date,             // ✅ API requires date + title
+          details: session.details ?? '',
         }),
       });
 
-      const data = await res.json().catch(() => ({} as any));
+      const data = (await res.json().catch(() => ({}))) as any;
+
       if (!res.ok) {
         console.error('Generate detailed failed:', data);
-        alert(data?.error || 'Failed to generate detailed session.');
+        alert(data?.error || 'Failed to generate detailed workout.');
         return;
       }
 
-      const details = data?.details as string | undefined;
-      if (!details || typeof details !== 'string') {
-        console.error('Generate detailed returned no details:', data);
+      const structured = (data?.structured_workout ?? '').trim();
+      if (!structured) {
+        console.error('Generate detailed returned empty structured_workout:', data);
         alert('No workout details returned.');
         return;
       }
 
-      const { error: updateErr } = await supabase
-        .from('sessions')
-        .update({ structured_workout: details })
-        .eq('id', session.id);
-
-      if (updateErr) {
-        console.error('Failed to save structured_workout:', updateErr);
-        // Still show the output even if save failed
-      }
-
-      setOutput(details);
+      // ✅ NO client-side supabase update. Server already saved it.
+      setOutput(structured);
+    } catch (err) {
+      console.error(err);
+      alert('Unexpected error generating workout.');
     } finally {
       setLoading(false);
     }
@@ -126,7 +119,6 @@ export default function SessionModal({
         return;
       }
 
-      // ✅ IMPORTANT: normalize to string to match CompletedSession type
       const newEntry: CompletedSession = {
         date: session.date,
         session_title: session.title,
