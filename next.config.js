@@ -1,18 +1,28 @@
 const path = require('path');
 
-
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+
+  async redirects() {
+    return [
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'www.traingpt.co' }],
+        destination: 'https://traingpt.co/:path*',
+        permanent: true,
+      },
+    ];
+  },
+
   images: {
-    domains: ['lh3.googleusercontent.com'], // external image domains
+    domains: ['lh3.googleusercontent.com'],
   },
   eslint: {
-    ignoreDuringBuilds: true, // suppress lint errors during Vercel builds
+    ignoreDuringBuilds: true,
   },
   webpack: (config) => {
-    config.resolve.alias['@'] = path.resolve(__dirname); // use '@/components' etc.
+    config.resolve.alias['@'] = path.resolve(__dirname);
     return config;
   },
 };
