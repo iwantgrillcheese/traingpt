@@ -13,8 +13,6 @@ import { useMemo } from 'react';
 import DayCell from './DayCell';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
-console.log('MOUNT', 'InlineSessionForm');
-
 
 type CompletedSession = {
   date: string;
@@ -59,7 +57,6 @@ export default function MonthGrid({
 
   return (
     <div className="w-full animate-fade-in space-y-2">
-      {/* Header row */}
       <div className="grid grid-cols-7 text-center font-medium text-sm text-muted-foreground pb-1">
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
           <div key={day} className="tracking-wide">
@@ -68,7 +65,6 @@ export default function MonthGrid({
         ))}
       </div>
 
-      {/* Day cells */}
       <div className="grid grid-cols-7 gap-x-4 gap-y-4">
         {weeks.flatMap((week) =>
           week.map((dateObj) => {

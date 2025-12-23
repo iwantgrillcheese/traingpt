@@ -3,9 +3,9 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase-client';
 import CalendarShell from './CalendarShell';
-import { Session } from '@/types/session';
-import { StravaActivity } from '@/types/strava';
-import mergeSessionsWithStrava from '@/utils/mergeSessionWithStrava';
+import type { Session } from '@/types/session';
+import type { StravaActivity } from '@/types/strava';
+import mergeSessionsWithStrava, { MergedSession } from '@/utils/mergeSessionWithStrava';
 import Footer from '../components/footer';
 
 type CompletedSession = {
@@ -13,6 +13,8 @@ type CompletedSession = {
   session_title: string;
   strava_id?: string;
 };
+
+const DEFAULT_TIMEZONE = 'America/Los_Angeles';
 
 export default function SchedulePage() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -34,14 +36,10 @@ export default function SchedulePage() {
           error: userErr,
         } = await supabase.auth.getUser();
 
-        if (userErr) {
-          throw userErr;
-        }
+        if (userErr) throw userErr;
 
         if (!user) {
-          if (!cancelled) {
-            setLoading(false);
-          }
+          if (!cancelled) setLoading(false);
           return;
         }
 
@@ -78,7 +76,6 @@ export default function SchedulePage() {
     };
 
     fetchData();
-
     return () => {
       cancelled = true;
     };
@@ -88,14 +85,20 @@ export default function SchedulePage() {
     setCompletedSessions(updated);
   }, []);
 
-  // Compute merges defensively, and memoize to avoid churn
   const { enrichedSessions, unmatchedActivities } = useMemo(() => {
     try {
-      const { merged, unmatched } = mergeSessionsWithStrava(sessions, stravaActivities);
+      const { merged, unmatched } = mergeSessionsWithStrava(
+        sessions,
+        stravaActivities,
+        DEFAULT_TIMEZONE
+      );
       return { enrichedSessions: merged, unmatchedActivities: unmatched };
     } catch (e) {
       console.error('mergeSessionsWithStrava failed:', e);
-      return { enrichedSessions: sessions as any, unmatchedActivities: [] as StravaActivity[] };
+      return {
+        enrichedSessions: sessions as unknown as MergedSession[],
+        unmatchedActivities: [] as StravaActivity[],
+      };
     }
   }, [sessions, stravaActivities]);
 
@@ -112,24 +115,21 @@ export default function SchedulePage() {
     );
   }
 
-  // If user is not logged in, getUser() returns null and we’ll land here.
-  // Render a friendly state instead of a blank calendar.
   const isLoggedOut = enrichedSessions.length === 0 && stravaActivities.length === 0;
 
   return (
     <div className="flex flex-col min-h-screen">
       <main className="flex-grow">
         {isLoggedOut ? (
-          <div className="text-center py-10 text-zinc-400">
-            Please sign in to view your schedule.
-          </div>
+          <div className="text-center py-10 text-zinc-400">Please sign in to view your schedule.</div>
         ) : (
           <CalendarShell
-            sessions={enrichedSessions as any}
+            sessions={enrichedSessions}
             completedSessions={completedSessions}
             stravaActivities={stravaActivities}
             extraStravaActivities={unmatchedActivities}
             onCompletedUpdate={handleCompletedUpdate}
+            timezone={DEFAULT_TIMEZONE}
           />
         )}
       </main>

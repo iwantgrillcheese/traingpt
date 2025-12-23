@@ -10,13 +10,7 @@ import type { StravaActivity } from '@/types/strava';
 import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 import { supabase } from '@/lib/supabase-client';
-import {
-  DndContext,
-  MouseSensor,
-  TouchSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core';
+import { DndContext, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 
 type CompletedSession = {
   date: string;
@@ -27,8 +21,8 @@ type CompletedSession = {
 type CalendarShellProps = {
   sessions: MergedSession[];
   completedSessions: CompletedSession[];
-  stravaActivities: StravaActivity[];
-  extraStravaActivities: StravaActivity[];
+  stravaActivities: StravaActivity[]; // keep for dashboards/analytics if needed
+  extraStravaActivities: StravaActivity[]; // UNMATCHED ONLY
   onCompletedUpdate?: (updated: CompletedSession[]) => void;
   timezone?: string;
 };
@@ -56,8 +50,9 @@ function SupportBanner() {
 export default function CalendarShell({
   sessions,
   completedSessions,
-  stravaActivities,
+  stravaActivities, // intentionally NOT used for day rendering
   extraStravaActivities = [],
+  onCompletedUpdate,
   timezone = 'America/Los_Angeles',
 }: CalendarShellProps) {
   const [isMobile, setIsMobile] = useState(false);
@@ -69,25 +64,24 @@ export default function CalendarShell({
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ✅ Always call dnd-kit hooks unconditionally (BEFORE any return)
-  const mouseSensor = useSensor(MouseSensor, {
-    activationConstraint: { distance: 8 },
-  });
-  const touchSensor = useSensor(TouchSensor, {
-    activationConstraint: { delay: 200, tolerance: 8 },
-  });
+  // dnd-kit sensors
+  const mouseSensor = useSensor(MouseSensor, { activationConstraint: { distance: 8 } });
+  const touchSensor = useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } });
   const sensors = useSensors(mouseSensor, touchSensor);
 
-  // Keep local state in sync if parent props change (optional but safer)
+  // Sync local state with props
   useEffect(() => setCompleted(completedSessions), [completedSessions]);
   useEffect(() => setLocalSessions(sessions), [sessions]);
 
+  // Bubble completion changes up if parent cares
+  useEffect(() => {
+    onCompletedUpdate?.(completed);
+  }, [completed, onCompletedUpdate]);
+
   useEffect(() => {
     setHasMounted(true);
-
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
-
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
@@ -106,12 +100,14 @@ export default function CalendarShell({
     return map;
   }, [localSessions]);
 
+  /**
+   * CRITICAL:
+   * `sessionsByDate` already includes matched Strava (session.stravaActivity).
+   * `stravaByDate` must ONLY include UNMATCHED Strava, otherwise duplicates render.
+   */
   const stravaByDate: Record<string, StravaActivity[]> = useMemo(() => {
-    return normalizeStravaActivities(
-      [...stravaActivities, ...extraStravaActivities],
-      timezone
-    );
-  }, [stravaActivities, extraStravaActivities, timezone]);
+    return normalizeStravaActivities(extraStravaActivities, timezone);
+  }, [extraStravaActivities, timezone]);
 
   const handleSessionClick = (session: MergedSession) => setSelectedSession(session);
   const goToPrevMonth = () => setCurrentMonth((m) => subMonths(m, 1));
@@ -124,24 +120,16 @@ export default function CalendarShell({
     const draggedId = active.id;
     const targetDate = over.id;
 
-    setLocalSessions((prev) =>
-      prev.map((s) => (s.id === draggedId ? { ...s, date: targetDate } : s))
-    );
+    setLocalSessions((prev) => prev.map((s) => (s.id === draggedId ? { ...s, date: targetDate } : s)));
 
     if (saveTimer.current) clearTimeout(saveTimer.current);
 
-    // If you intended 60 seconds, keep it. But 600ms is usually plenty.
     saveTimer.current = setTimeout(async () => {
-      const { error } = await supabase
-        .from('sessions')
-        .update({ date: targetDate })
-        .eq('id', draggedId);
-
+      const { error } = await supabase.from('sessions').update({ date: targetDate }).eq('id', draggedId);
       if (error) console.error('Error persisting session move:', error);
     }, 600);
   };
 
-  // ✅ Safe conditional render after hooks are registered
   if (!hasMounted) {
     return (
       <main className="min-h-screen bg-background px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20 max-w-[1800px] mx-auto" />
@@ -160,9 +148,7 @@ export default function CalendarShell({
             <button onClick={goToPrevMonth} className="text-sm text-gray-500 hover:text-black">
               ←
             </button>
-            <h2 className="text-2xl font-semibold text-center">
-              {format(currentMonth, 'MMMM yyyy')}
-            </h2>
+            <h2 className="text-2xl font-semibold text-center">{format(currentMonth, 'MMMM yyyy')}</h2>
             <button onClick={goToNextMonth} className="text-sm text-gray-500 hover:text-black">
               →
             </button>

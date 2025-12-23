@@ -3,13 +3,10 @@
 import { useState, useEffect } from 'react';
 import { format, isToday } from 'date-fns';
 import clsx from 'clsx';
-import { getSessionColor } from '@/utils/session-utils';
 import { useDroppable, useDraggable } from '@dnd-kit/core';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
 import InlineSessionForm from './InlineSessionForm';
-console.log('MOUNT', 'InlineSessionForm');
-
 
 type CompletedSession = {
   date: string;
@@ -27,11 +24,10 @@ type Props = {
   onSessionAdded?: (session: any) => void;
 };
 
-/* ---------- helpers ---------- */
-function normalizeSport(title: string): string {
+function normalizeSportFromTitle(title: string): string {
   const lower = title.toLowerCase();
   if (lower.includes('swim')) return 'swim';
-  if (lower.includes('bike')) return 'bike';
+  if (lower.includes('bike') || lower.includes('ride')) return 'bike';
   if (lower.includes('run')) return 'run';
   if (lower.includes('rest')) return 'rest';
   if (lower.includes('strength')) return 'strength';
@@ -57,16 +53,8 @@ function startsWithEmoji(text: string) {
   return /^(\p{Emoji_Presentation}|\p{Extended_Pictographic})/u.test(text);
 }
 
-function DraggableSession({
-  session,
-  children,
-}: {
-  session: MergedSession;
-  children: React.ReactNode;
-}) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: session.id,
-  });
+function DraggableSession({ session, children }: { session: MergedSession; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: session.id });
 
   return (
     <div
@@ -74,9 +62,7 @@ function DraggableSession({
       {...listeners}
       {...attributes}
       style={{
-        transform: transform
-          ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
-          : undefined,
+        transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
         opacity: isDragging ? 0.5 : 1,
       }}
       className="cursor-grab active:cursor-grabbing"
@@ -86,7 +72,6 @@ function DraggableSession({
   );
 }
 
-/* ---------- main component ---------- */
 export default function DayCell({
   date,
   sessions,
@@ -102,7 +87,6 @@ export default function DayCell({
   const { setNodeRef, isOver } = useDroppable({ id: dateStr });
   const [justDropped, setJustDropped] = useState(false);
 
-  // ✅ Always run hook; guard early return inside effect
   useEffect(() => {
     if (!isOver) return;
     setJustDropped(true);
@@ -111,13 +95,10 @@ export default function DayCell({
   }, [isOver]);
 
   const isSessionCompleted = (session: MergedSession) =>
-    completedSessions?.some(
-      (c) => c.date === session.date && c.session_title === session.title
-    );
+    completedSessions?.some((c) => c.date === session.date && c.session_title === session.title);
 
   return (
     <>
-      {/* Day cell */}
       <div
         ref={setNodeRef}
         className={clsx(
@@ -128,17 +109,16 @@ export default function DayCell({
           justDropped && 'animate-pulse bg-blue-100 border-blue-400'
         )}
       >
-        {/* Date header */}
         <div className="text-xs text-zinc-500 font-medium text-right uppercase tracking-wide">
           {format(date, 'EEE d')}
         </div>
 
-        {/* Session tiles */}
         <div className="flex flex-col gap-2">
           {sessions?.map((s) => {
             const rawTitle = s.title ?? '';
             const isRest = rawTitle.toLowerCase().includes('rest day');
-            const sport = s.sport || normalizeSport(rawTitle);
+
+            const sport = (s.sport ?? normalizeSportFromTitle(rawTitle)).toLowerCase();
             const emoji = sportEmoji(sport);
 
             const isStravaMatch = !!s.stravaActivity;
@@ -150,19 +130,11 @@ export default function DayCell({
 
             const activity = s.stravaActivity;
             const duration = activity?.moving_time
-              ? `${Math.floor(activity.moving_time / 3600)}h ${Math.round(
-                  (activity.moving_time % 3600) / 60
-                )}m`
+              ? `${Math.floor(activity.moving_time / 3600)}h ${Math.round((activity.moving_time % 3600) / 60)}m`
               : null;
-            const distance = activity?.distance
-              ? `${(activity.distance / 1609).toFixed(1)} mi`
-              : null;
-            const hr = activity?.average_heartrate
-              ? `${Math.round(activity.average_heartrate)} bpm`
-              : null;
-            const watts = activity?.average_watts
-              ? `${Math.round(activity.average_watts)}w`
-              : null;
+            const distance = activity?.distance ? `${(activity.distance / 1609).toFixed(1)} mi` : null;
+            const hr = activity?.average_heartrate ? `${Math.round(activity.average_heartrate)} bpm` : null;
+            const watts = activity?.average_watts ? `${Math.round(activity.average_watts)}w` : null;
 
             return (
               <DraggableSession key={s.id} session={s}>
@@ -189,19 +161,12 @@ export default function DayCell({
                         </>
                       )}
                     </div>
-                    {isStravaMatch && (
-                      <span className="text-xs text-blue-500">(Strava)</span>
-                    )}
-                    {!isStravaMatch && isCompleted && (
-                      <span className="text-sm text-green-600">✓</span>
-                    )}
+
+                    {isStravaMatch && <span className="text-xs text-blue-500">(Strava)</span>}
+                    {!isStravaMatch && isCompleted && <span className="text-sm text-green-600">✓</span>}
                   </div>
 
-                  {detailLine && (
-                    <div className="text-xs text-muted-foreground line-clamp-2">
-                      {detailLine}
-                    </div>
-                  )}
+                  {detailLine && <div className="text-xs text-muted-foreground line-clamp-2">{detailLine}</div>}
 
                   {isStravaMatch && (
                     <div className="mt-1 text-xs text-blue-700 flex flex-col gap-0.5">
@@ -220,45 +185,43 @@ export default function DayCell({
             );
           })}
 
-          {/* Strava-only extras */}
+          {/* Strava-only extras (UNMATCHED ONLY) */}
           {extraActivities?.length > 0 && (
             <div className="flex flex-col gap-1 mt-1">
-              {extraActivities.map((a) => (
-                <div
-                  key={a.id}
-                  className="rounded-md bg-blue-50 border border-blue-300 px-3 py-2 text-xs text-blue-800"
-                >
-                  🚴 {a.name || 'Unplanned Activity'}
-                  <div className="flex justify-between text-[11px]">
-                    <span>
-                      {a.moving_time ? `${Math.floor(a.moving_time / 60)}m` : ''}
-                    </span>
-                    <span>
-                      {a.distance ? `${(a.distance / 1609).toFixed(1)} mi` : ''}
-                    </span>
+              {extraActivities.map((a) => {
+                const sport = (a.sport_type || '').toLowerCase();
+                const emoji =
+                  sport.includes('run') ? '🏃' : sport.includes('swim') ? '🏊' : sport.includes('ride') ? '🚴' : '🔸';
+
+                const key = String(a.strava_id ?? a.id);
+
+                return (
+                  <div
+                    key={key}
+                    className="rounded-md bg-blue-50 border border-blue-300 px-3 py-2 text-xs text-blue-800"
+                  >
+                    {emoji} {a.name || 'Unplanned Activity'}
+                    <div className="flex justify-between text-[11px]">
+                      <span>{a.moving_time ? `${Math.floor(a.moving_time / 60)}m` : ''}</span>
+                      <span>{a.distance ? `${(a.distance / 1609).toFixed(1)} mi` : ''}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
-          {/* Add Session Button */}
-          <button
-            onClick={() => setShowForm(true)}
-            className="text-gray-400 hover:text-black text-sm mt-1"
-          >
+          <button onClick={() => setShowForm(true)} className="text-gray-400 hover:text-black text-sm mt-1">
             ＋ Add session
           </button>
         </div>
       </div>
 
-      {/* ✅ Always mounted form modal; toggled via visibility */}
+      {/* Form modal */}
       <div
         className={clsx(
           'fixed inset-0 flex items-center justify-center z-50 transition-opacity duration-200',
-          showForm
-            ? 'opacity-100 visible bg-black/20 backdrop-blur-sm'
-            : 'opacity-0 invisible'
+          showForm ? 'opacity-100 visible bg-black/20 backdrop-blur-sm' : 'opacity-0 invisible'
         )}
       >
         <div className="bg-white p-4 rounded-xl shadow-xl w-full max-w-md">
