@@ -14,9 +14,12 @@ type CompletedSession = {
   strava_id?: string;
 };
 
-const DEFAULT_TIMEZONE = 'America/Los_Angeles';
-
 export default function SchedulePage() {
+  // ✅ Use the browser timezone so date-bucketing + matching works globally.
+  // Fallback keeps behavior stable if Intl is unavailable for any reason.
+  const userTimezone =
+    Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'America/Los_Angeles';
+
   const [sessions, setSessions] = useState<Session[]>([]);
   const [stravaActivities, setStravaActivities] = useState<StravaActivity[]>([]);
   const [completedSessions, setCompletedSessions] = useState<CompletedSession[]>([]);
@@ -90,7 +93,7 @@ export default function SchedulePage() {
       const { merged, unmatched } = mergeSessionsWithStrava(
         sessions,
         stravaActivities,
-        DEFAULT_TIMEZONE
+        userTimezone
       );
       return { enrichedSessions: merged, unmatchedActivities: unmatched };
     } catch (e) {
@@ -100,7 +103,7 @@ export default function SchedulePage() {
         unmatchedActivities: [] as StravaActivity[],
       };
     }
-  }, [sessions, stravaActivities]);
+  }, [sessions, stravaActivities, userTimezone]);
 
   if (loading) {
     return <div className="text-center py-10 text-zinc-400">Loading your training data...</div>;
@@ -121,7 +124,9 @@ export default function SchedulePage() {
     <div className="flex flex-col min-h-screen">
       <main className="flex-grow">
         {isLoggedOut ? (
-          <div className="text-center py-10 text-zinc-400">Please sign in to view your schedule.</div>
+          <div className="text-center py-10 text-zinc-400">
+            Please sign in to view your schedule.
+          </div>
         ) : (
           <CalendarShell
             sessions={enrichedSessions}
@@ -129,7 +134,7 @@ export default function SchedulePage() {
             stravaActivities={stravaActivities}
             extraStravaActivities={unmatchedActivities}
             onCompletedUpdate={handleCompletedUpdate}
-            timezone={DEFAULT_TIMEZONE}
+            timezone={userTimezone}
           />
         )}
       </main>
