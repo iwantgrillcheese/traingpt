@@ -9,8 +9,6 @@ import {
   formatISO,
   parseISO,
   addDays,
-  isWithinInterval,
-  isBefore,
 } from 'date-fns';
 
 import mergeSessionsWithStrava from '@/utils/mergeSessionWithStrava';
@@ -31,19 +29,27 @@ function secondsToPace(sec: number | null | undefined, units: string = 'mile') {
   return `${m}:${String(s).padStart(2, '0')} per ${units}`;
 }
 
-function getCurrentPlanWeek(plan: any[], today = new Date()) {
-  const week = plan?.find((w: any) => {
-    const start = parseISO(w.startDate);
-    const end = addDays(start, 6);
-    return isWithinInterval(today, { start, end });
-  });
-  if (week) return week;
+function isoDateFromAnyDateLike(value: any): string | null {
+  if (!value) return null;
 
-  const pastWeeks = (plan ?? [])
-    .filter((w: any) => isBefore(parseISO(w.startDate), today))
-    .sort((a: any, b: any) => parseISO(b.startDate).getTime() - parseISO(a.startDate).getTime());
+  // Supabase timestamps usually come back as ISO strings
+  if (typeof value === 'string') {
+    // If it's already YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    // Else parse ISO datetime
+    try {
+      return formatISO(parseISO(value), { representation: 'date' });
+    } catch {
+      return null;
+    }
+  }
 
-  return pastWeeks[0] ?? (plan?.[0] ?? null);
+  // JS Date
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return formatISO(value, { representation: 'date' });
+  }
+
+  return null;
 }
 
 /**
@@ -80,7 +86,20 @@ export async function POST(req: Request) {
 
     const user_id = user.id;
 
-    // Coach memory (durable notes)
+    // --- Date windows (source of truth)
+    const now = new Date();
+    const todayStr = formatISO(now, { representation: 'date' });
+
+    // "Last 4 weeks" = last 28 days ending today (NOT "last 4 plan weeks")
+    const fourWeeksAgo = subWeeks(now, 4);
+    const fourWeeksAgoStr = formatISO(fourWeeksAgo, { representation: 'date' });
+
+    // "This week" = Monday..Sunday window containing today
+    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+    const weekStartStr = formatISO(weekStart, { representation: 'date' });
+    const weekEndStr = formatISO(addDays(weekStart, 6), { representation: 'date' });
+
+    // --- Coach memory (read-only for now; you aren't writing it anywhere yet)
     const { data: coachMemory } = await supabase
       .from('coach_memory')
       .select('summary, preferences, updated_at')
@@ -89,18 +108,22 @@ export async function POST(req: Request) {
 
     const memorySummary =
       coachMemory?.summary?.trim()?.length ? coachMemory.summary.trim() : 'No long-term notes yet.';
+
     const memoryPrefs =
       coachMemory?.preferences && Object.keys(coachMemory.preferences).length > 0
         ? JSON.stringify(coachMemory.preferences, null, 2)
         : '{}';
+
     const memoryUpdatedAt = coachMemory?.updated_at ?? 'unknown';
 
+    // --- Profile (performance)
     const { data: profile } = await supabase
       .from('profiles')
       .select('bike_ftp, run_threshold, swim_css, pace_units')
       .eq('id', user_id)
       .single();
 
+    // --- Plan overview (metadata)
     const { data: planRow } = await supabase
       .from('plans')
       .select('plan, raceType, raceDate, experience, maxHours, restDay')
@@ -109,26 +132,56 @@ export async function POST(req: Request) {
       .limit(1)
       .maybeSingle();
 
-    const fullPlan = planRow?.plan ?? [];
+    // --- Data fetches (THIS is what was broken before)
+    // 1) Sessions in last 28 days (bounded to today — prevents future weeks from leaking in)
+    // 2) Strava activities in last 28 days (bounded; uses local timestamp)
+    // 3) Sessions in this week window (matches schedule page source)
+    const [
+      { data: recentSessions = [], error: recentSessionsErr },
+      { data: recentStrava = [], error: recentStravaErr },
+      { data: thisWeekSessions = [], error: thisWeekErr },
+    ] = await Promise.all([
+      supabase
+        .from('sessions')
+        .select('*')
+        .eq('user_id', user_id)
+        .gte('date', fourWeeksAgoStr)
+        .lte('date', todayStr),
 
-    const now = new Date();
-    const todayStr = formatISO(now, { representation: 'date' });
-    const fourWeeksAgoStr = formatISO(subWeeks(now, 4), { representation: 'date' });
+      supabase
+        .from('strava_activities')
+        .select('*')
+        .eq('user_id', user_id)
+        .gte('start_date_local', fourWeeksAgo)
+        .lte('start_date_local', now),
 
-    const [{ data: sessions = [] }, { data: strava = [] }] = await Promise.all([
-      supabase.from('sessions').select('*').eq('user_id', user_id).gte('date', fourWeeksAgoStr),
-      supabase.from('strava_activities').select('*').eq('user_id', user_id),
+      supabase
+        .from('sessions')
+        .select('*')
+        .eq('user_id', user_id)
+        .gte('date', weekStartStr)
+        .lte('date', weekEndStr)
+        .order('date', { ascending: true }),
     ]);
 
-    const summary = buildTrainingSummaryUsingMerge(sessions ?? [], strava ?? []);
+    if (recentSessionsErr) console.warn('[coach-chat] recent sessions query error:', recentSessionsErr);
+    if (recentStravaErr) console.warn('[coach-chat] recent strava query error:', recentStravaErr);
+    if (thisWeekErr) console.warn('[coach-chat] this week sessions query error:', thisWeekErr);
 
-    const currentWeek = getCurrentPlanWeek(fullPlan) ?? {};
-    const currentWeekLabel = currentWeek?.label ?? 'Unknown';
-    const currentWeekStart = currentWeek?.startDate ?? 'Unknown';
+    const hasAnyRecentData = (recentSessions?.length ?? 0) > 0 || (recentStrava?.length ?? 0) > 0;
 
-    const sessionLines = Object.entries(currentWeek?.days ?? {})
-      .map(([date, list]) => `• ${date}: ${(list as string[]).join(', ')}`)
-      .join('\n');
+    // Build "Last 4 weeks" summary from the bounded window only
+    const summary = hasAnyRecentData
+      ? buildTrainingSummaryUsingMerge(recentSessions ?? [], recentStrava ?? [])
+      : 'No training data found in the last 28 days.';
+
+    // Build "This week" from sessions table (matches schedule page)
+    const thisWeekLines =
+      (thisWeekSessions?.length ?? 0) > 0
+        ? (thisWeekSessions as any[])
+            .map((s) => `• ${s.date}: ${s.title}`)
+            .join('\n')
+        : 'No sessions found';
 
     const systemPrompt = `
 You are a smart, helpful triathlon coach inside TrainGPT. Respond like a real coach: conversational, realistic, and honest. Focus on what matters most. Don’t sugarcoat poor consistency, but be constructive.
@@ -136,6 +189,10 @@ You are a smart, helpful triathlon coach inside TrainGPT. Respond like a real co
 Avoid:
 - repeating training data unless relevant
 - filler phrases / fake hype
+
+Important:
+- "Last 4 weeks" means the last 28 days ending today (not the last 4 plan weeks).
+- If data is missing or syncing looks broken, say so directly and focus on next best actions.
 
 ---
 📅 Today: ${todayStr}
@@ -157,10 +214,10 @@ Avoid:
 • Run threshold: ${secondsToPace(profile?.run_threshold, profile?.pace_units)}
 • Swim CSS: ${secondsToPace(profile?.swim_css, '100m')}
 
-📅 This Week (${currentWeekLabel}, starting ${currentWeekStart})
-${sessionLines || 'No sessions found'}
+📅 This Week (starting ${weekStartStr})
+${thisWeekLines}
 
-📅 Last 4 Weeks (planned vs matched Strava)
+📅 Last 4 Weeks (last 28 days ending ${todayStr}) — planned vs matched Strava
 ${summary}
 `.trim();
 
@@ -182,7 +239,10 @@ ${summary}
     const msg = String(err?.message || '');
 
     if (msg.includes('OPENAI_API_KEY is missing')) {
-      return NextResponse.json({ error: 'Server misconfigured: missing OPENAI_API_KEY' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Server misconfigured: missing OPENAI_API_KEY' },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ error: 'Coach chat failed' }, { status: 500 });
@@ -196,13 +256,21 @@ function buildTrainingSummaryUsingMerge(sessions: any[], strava: any[]): string 
     formatISO(startOfWeek(parseISO(dateStr), { weekStartsOn: 1 }), { representation: 'date' });
 
   for (const s of sessions) {
+    if (!s?.date) continue;
     const week = weekOf(s.date);
     weeks[week] ??= { planned: [], matched: [], bucket: [] };
     weeks[week].planned.push(s);
   }
 
   for (const a of strava) {
-    const week = weekOf(a.start_date);
+    // Prefer local date for bucketing (what athletes expect)
+    const dateISO =
+      isoDateFromAnyDateLike(a.start_date_local) ??
+      isoDateFromAnyDateLike(a.start_date);
+
+    if (!dateISO) continue;
+
+    const week = weekOf(dateISO);
     weeks[week] ??= { planned: [], matched: [], bucket: [] };
     weeks[week].bucket.push(a);
   }
@@ -210,7 +278,7 @@ function buildTrainingSummaryUsingMerge(sessions: any[], strava: any[]): string 
   for (const [week, data] of Object.entries(weeks)) {
     if (!data.planned.length || !data.bucket.length) continue;
     const { merged } = mergeSessionsWithStrava(data.planned, data.bucket);
-    data.matched = merged.filter((m) => !!m.stravaActivity);
+    data.matched = merged.filter((m: any) => !!m.stravaActivity);
   }
 
   return Object.entries(weeks)
@@ -220,8 +288,15 @@ function buildTrainingSummaryUsingMerge(sessions: any[], strava: any[]): string 
       const done = data.matched.length;
       const pct = planned > 0 ? Math.round((done / planned) * 100) : 0;
 
-      const plannedList = data.planned.slice(0, 6).map((s) => s.title).join(', ');
-      const matchedList = data.matched.slice(0, 6).map((m) => `${m.title} ✅`).join(', ');
+      const plannedList = data.planned
+        .slice(0, 6)
+        .map((s: any) => s.title)
+        .join(', ');
+
+      const matchedList = data.matched
+        .slice(0, 6)
+        .map((m: any) => `${m.title} ✅`)
+        .join(', ');
 
       return `- Week of ${week}: ${done}/${planned} completed (${pct}%)
   • Planned: ${plannedList || 'None'}
