@@ -40,7 +40,7 @@ export default function CoachChatModal({ open, onClose }: Props) {
     setMessages(updatedMessages);
 
     try {
-      const res = await fetch('/api/coach-feedback', {
+      const res = await fetch('/app/api/coach-chat/route.ts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // ✅ send history so the coach can “remember” this thread
