@@ -62,19 +62,46 @@ export async function POST(req: Request) {
   if (userErr || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const user_id = user.id;
 
-  const { data: profile } = await supabase
+  // ✅ Coach memory (durable notes)
+  const { data: coachMemory, error: coachMemoryErr } = await supabase
+    .from('coach_memory')
+    .select('summary, preferences, updated_at')
+    .eq('user_id', user_id)
+    .maybeSingle();
+
+  if (coachMemoryErr) {
+    console.error('coach_memory fetch error:', coachMemoryErr);
+  }
+
+  const memorySummary =
+    coachMemory?.summary && coachMemory.summary.trim().length > 0
+      ? coachMemory.summary.trim()
+      : 'No long-term notes yet.';
+
+  const memoryPrefs =
+    coachMemory?.preferences && Object.keys(coachMemory.preferences).length > 0
+      ? JSON.stringify(coachMemory.preferences, null, 2)
+      : '{}';
+
+  const memoryUpdatedAt = coachMemory?.updated_at ?? 'unknown';
+
+  const { data: profile, error: profileErr } = await supabase
     .from('profiles')
     .select('bike_ftp, run_threshold, swim_css, pace_units')
     .eq('id', user_id)
     .single();
 
-  const { data: planRow } = await supabase
+  if (profileErr) console.error('profiles fetch error:', profileErr);
+
+  const { data: planRow, error: planErr } = await supabase
     .from('plans')
     .select('plan, raceType, raceDate, experience, maxHours, restDay')
     .eq('user_id', user_id)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
+
+  if (planErr) console.error('plans fetch error:', planErr);
 
   const planMeta = planRow;
   const fullPlan = planRow?.plan ?? [];
@@ -83,12 +110,16 @@ export async function POST(req: Request) {
   const todayStr = formatISO(now, { representation: 'date' });
   const fourWeeksAgoStr = formatISO(subWeeks(now, 4), { representation: 'date' });
 
-  const [{ data: sessions = [] }, { data: completed = [] }, { data: strava = [] }] =
+  const [{ data: sessions = [], error: sessionsErr }, { data: completed = [], error: compErr }, { data: strava = [], error: stravaErr }] =
     await Promise.all([
       supabase.from('sessions').select('*').eq('user_id', user_id).gte('date', fourWeeksAgoStr),
       supabase.from('completed_sessions').select('*').eq('user_id', user_id),
       supabase.from('strava_activities').select('*').eq('user_id', user_id),
     ]);
+
+  if (sessionsErr) console.error('sessions fetch error:', sessionsErr);
+  if (compErr) console.error('completed_sessions fetch error:', compErr);
+  if (stravaErr) console.error('strava_activities fetch error:', stravaErr);
 
   const summary = buildTrainingSummaryUsingMerge(sessions ?? [], strava ?? []);
 
@@ -110,6 +141,11 @@ Avoid:
 ---
 
 📅 Today’s Date: ${todayStr}
+
+🧠 Coach Memory (durable athlete notes)
+• Last updated: ${memoryUpdatedAt}
+• Summary: ${memorySummary}
+• Preferences (json): ${memoryPrefs}
 
 📌 Plan Overview
 • Race type: ${planMeta?.raceType ?? 'unknown'}
@@ -148,8 +184,12 @@ ${summary}
     console.error('❌ GPT error:', err);
 
     if (String(err?.message || '').includes('OPENAI_API_KEY is missing')) {
-      return NextResponse.json({ error: 'Server misconfigured: missing OPENAI_API_KEY' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Server misconfigured: missing OPENAI_API_KEY' },
+        { status: 500 }
+      );
     }
+
     return NextResponse.json({ error: 'GPT failed' }, { status: 500 });
   }
 }
