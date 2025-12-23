@@ -4,12 +4,9 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Footer from './components/footer';
 import BlogPreview from './components/blog/BlogPreview';
-import { createClient, type Session } from '@supabase/supabase-js';
+import type { Session } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase-client';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 type FieldConfig = {
   id: string;
@@ -89,7 +86,7 @@ export default function Home() {
     return () => {
       listener?.subscription.unsubscribe();
     };
-  }, [router]);
+}, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
