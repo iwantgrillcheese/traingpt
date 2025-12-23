@@ -167,13 +167,13 @@ export default function DayCell({
             const isStravaMatch = !!s.stravaActivity;
             const isCompleted = isSessionCompleted(s) || isStravaMatch;
 
-            const [labelLine, ...rest] = rawTitle.split(':');
+            // ✅ Split only on ": " so we don't break times/paces like 8:30–9:00/mi
+            const [labelLine, ...rest] = rawTitle.split(': ');
+            const detailLine = rest.join(': ').trim();
 
             // Strip any leading emoji so we always show the canonical emoji from `sport`.
             const baseTitle = stripLeadingEmoji(labelLine?.trim() || 'Untitled');
-
             const titleLine = isRest ? 'Rest Day' : baseTitle || 'Untitled';
-            const detailLine = rest.join(':').trim();
 
             const activity = s.stravaActivity;
             const duration = activity?.moving_time
@@ -181,8 +181,12 @@ export default function DayCell({
                   (activity.moving_time % 3600) / 60
                 )}m`
               : null;
-            const distance = activity?.distance ? `${(activity.distance / 1609).toFixed(1)} mi` : null;
-            const hr = activity?.average_heartrate ? `${Math.round(activity.average_heartrate)} bpm` : null;
+            const distance = activity?.distance
+              ? `${(activity.distance / 1609).toFixed(1)} mi`
+              : null;
+            const hr = activity?.average_heartrate
+              ? `${Math.round(activity.average_heartrate)} bpm`
+              : null;
             const watts = activity?.average_watts ? `${Math.round(activity.average_watts)}w` : null;
 
             return (
@@ -201,10 +205,10 @@ export default function DayCell({
                 >
                   <div className="flex items-center justify-between mb-1">
                     <div className="font-medium text-sm leading-snug line-clamp-2">
-                      {/* Always render emoji based on normalized sport */}
                       <span className="mr-1">{emoji}</span>
-                      {/* If somehow title was literally emoji-only, fall back */}
-                      {titleLine && !startsWithEmoji(titleLine) ? titleLine : stripLeadingEmoji(titleLine)}
+                      {titleLine && !startsWithEmoji(titleLine)
+                        ? titleLine
+                        : stripLeadingEmoji(titleLine)}
                     </div>
 
                     {isStravaMatch && <span className="text-xs text-blue-500">(Strava)</span>}
