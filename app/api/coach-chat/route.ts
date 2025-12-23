@@ -2,7 +2,7 @@
 
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import {
   startOfWeek,
   subWeeks,
@@ -11,18 +11,17 @@ import {
   addDays,
   isWithinInterval,
   isBefore,
+  isEqual,
 } from 'date-fns';
 import { OpenAI } from 'openai';
+import mergeSessionsWithStrava from '@/utils/mergeSessionWithStrava';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 function getOpenAIClient() {
   const key = process.env.OPENAI_API_KEY;
-  if (!key || key.trim() === '') {
-    // IMPORTANT: don’t throw at module load time — only throw when handler runs
-    throw new Error('OPENAI_API_KEY is missing');
-  }
+  if (!key || key.trim() === '') throw new Error('OPENAI_API_KEY is missing');
   return new OpenAI({ apiKey: key });
 }
 
@@ -53,14 +52,16 @@ export async function POST(req: Request) {
   const { message: userMessage, history = [] } = await req.json();
   if (!userMessage) return NextResponse.json({ error: 'Missing message' }, { status: 400 });
 
-  const supabase = createServerComponentClient({ cookies });
+  const supabase = createRouteHandlerClient({ cookies });
+
   const {
     data: { user },
+    error: userErr,
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  if (userErr || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const user_id = user.id;
 
-  // Load profile and full plan
   const { data: profile } = await supabase
     .from('profiles')
     .select('bike_ftp, run_threshold, swim_css, pace_units')
@@ -89,11 +90,12 @@ export async function POST(req: Request) {
       supabase.from('strava_activities').select('*').eq('user_id', user_id),
     ]);
 
-  const summary = buildTrainingSummary(sessions ?? [], completed ?? [], strava ?? []);
+  const summary = buildTrainingSummaryUsingMerge(sessions ?? [], strava ?? []);
 
   const currentWeek = getCurrentPlanWeek(fullPlan);
   const currentWeekLabel = currentWeek?.label ?? 'Unknown';
   const currentWeekStart = currentWeek?.startDate ?? 'Unknown';
+
   const sessionLines = Object.entries(currentWeek?.days ?? {})
     .map(([date, list]) => `• ${date}: ${(list as string[]).join(', ')}`)
     .join('\n');
@@ -124,7 +126,7 @@ Avoid:
 📅 This Week's Planned Sessions (${currentWeekLabel}, starting ${currentWeekStart})
 ${sessionLines || 'No sessions found'}
 
-📅 Training History (Last 4 Weeks)
+📅 Training History (Last 4 Weeks — planned vs matched Strava)
 ${summary}
 `.trim();
 
@@ -135,7 +137,7 @@ ${summary}
       model: 'gpt-4-turbo',
       messages: [
         { role: 'system', content: systemPrompt },
-        ...history.slice(-10),
+        ...history.slice(-12),
         { role: 'user', content: userMessage },
       ],
     });
@@ -145,55 +147,62 @@ ${summary}
   } catch (err: any) {
     console.error('❌ GPT error:', err);
 
-    // If key is missing, return a clear error instead of crashing builds
     if (String(err?.message || '').includes('OPENAI_API_KEY is missing')) {
-      return NextResponse.json(
-        { error: 'Server misconfigured: missing OPENAI_API_KEY' },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: 'Server misconfigured: missing OPENAI_API_KEY' }, { status: 500 });
     }
-
     return NextResponse.json({ error: 'GPT failed' }, { status: 500 });
   }
 }
 
-function buildTrainingSummary(sessions: any[], completed: any[], strava: any[]): string {
-  const weeks: Record<string, { planned: string[]; completed: string[]; strava: string[] }> = {};
+/**
+ * IMPORTANT: your old buildTrainingSummary double-counted:
+ * completed_sessions + strava uploads. That makes % nonsense.
+ *
+ * This version uses mergeSessionsWithStrava to count "completed" only when a planned session matched Strava.
+ */
+function buildTrainingSummaryUsingMerge(sessions: any[], strava: any[]): string {
+  const weeks: Record<string, { planned: any[]; matched: any[]; unmatched: any[] }> = {};
 
   const weekOf = (dateStr: string) =>
     formatISO(startOfWeek(parseISO(dateStr), { weekStartsOn: 1 }), { representation: 'date' });
 
   for (const s of sessions) {
     const week = weekOf(s.date);
-    weeks[week] ??= { planned: [], completed: [], strava: [] };
-    weeks[week].planned.push(s.title);
+    weeks[week] ??= { planned: [], matched: [], unmatched: [] };
+    weeks[week].planned.push(s);
   }
 
-  for (const c of completed) {
-    const compDate = (c as any).date || (c as any).session_date;
-    const compTitle = (c as any).session_title || (c as any).title;
-    const week = weekOf(compDate);
-    weeks[week] ??= { planned: [], completed: [], strava: [] };
-    weeks[week].completed.push(compTitle);
-  }
-
+  // group strava into same week buckets
   for (const a of strava) {
     const week = weekOf(a.start_date);
-    const label = `${a.name} (${Math.round(a.moving_time / 60)}min ${a.sport_type})`;
-    weeks[week] ??= { planned: [], completed: [], strava: [] };
-    weeks[week].strava.push(label);
+    weeks[week] ??= { planned: [], matched: [], unmatched: [] };
+    weeks[week].unmatched.push(a);
+  }
+
+  // merge per week (planned vs strava)
+  for (const [week, data] of Object.entries(weeks)) {
+    if (!data.planned.length || !data.unmatched.length) continue;
+    const { merged, unmatched } = mergeSessionsWithStrava(data.planned, data.unmatched);
+    data.matched = merged.filter((m) => !!m.stravaActivity);
+    data.unmatched = unmatched;
   }
 
   return Object.entries(weeks)
     .sort(([a], [b]) => (a < b ? 1 : -1))
     .map(([week, data]) => {
       const planned = data.planned.length;
-      const done = data.completed.length + data.strava.length;
-      const percent = Math.round((done / (planned || 1)) * 100);
-      return `- Week of ${week}: ${done}/${planned} completed (${percent}%)
-  • Planned: ${data.planned.join(', ') || 'None'}
-  • Completed: ${data.completed.join(', ') || 'None'}
-  • Strava: ${data.strava.join(', ') || 'None'}`;
+      const done = data.matched.length;
+      const pct = planned > 0 ? Math.round((done / planned) * 100) : 0;
+
+      const plannedList = data.planned.slice(0, 6).map((s) => s.title).join(', ');
+      const matchedList = data.matched
+        .slice(0, 6)
+        .map((m) => `${m.title} ✅`)
+        .join(', ');
+
+      return `- Week of ${week}: ${done}/${planned} completed (${pct}%)
+  • Planned: ${plannedList || 'None'}
+  • Completed (matched): ${matchedList || 'None'}`;
     })
     .join('\n\n');
 }

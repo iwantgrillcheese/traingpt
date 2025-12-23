@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Dialog } from '@headlessui/react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import clsx from 'clsx';
@@ -29,22 +29,39 @@ export default function CoachChatModal({ open, onClose }: Props) {
   const [animatedResponse, setAnimatedResponse] = useState<string>('');
 
   const askCoach = async (question: string) => {
+    const q = question.trim();
+    if (!q || loading) return;
+
     setLoading(true);
     setInput('');
     setAnimatedResponse('');
 
-    const updatedMessages: Message[] = [...messages, { role: 'user', content: question }];
+    const updatedMessages: Message[] = [...messages, { role: 'user', content: q }];
     setMessages(updatedMessages);
 
     try {
-      const res = await fetch('/api/coach-chat', {
+      const res = await fetch('/api/coach-feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: question }),
+        // ✅ send history so the coach can “remember” this thread
+        body: JSON.stringify({
+          message: q,
+          history: updatedMessages.slice(-12), // keep it bounded
+        }),
       });
 
-      const data = await res.json();
-      const reply = data.message || 'Sorry, I had trouble answering that.';
+      const data = await res.json().catch(() => ({} as any));
+      if (!res.ok) {
+        console.error('Coach chat error:', data);
+        setMessages([
+          ...updatedMessages,
+          { role: 'assistant', content: data?.error || 'Something went wrong. Try again later.' },
+        ]);
+        setLoading(false);
+        return;
+      }
+
+      const reply = (data?.message || 'Sorry, I had trouble answering that.').toString();
 
       // Animate response
       let i = 0;
@@ -57,7 +74,7 @@ export default function CoachChatModal({ open, onClose }: Props) {
           setAnimatedResponse('');
           setLoading(false);
         }
-      }, 15);
+      }, 12);
     } catch (err) {
       console.error('Coach chat failed:', err);
       setMessages([
@@ -66,6 +83,13 @@ export default function CoachChatModal({ open, onClose }: Props) {
       ]);
       setLoading(false);
     }
+  };
+
+  const clearChat = () => {
+    if (loading) return;
+    setMessages([]);
+    setAnimatedResponse('');
+    setInput('');
   };
 
   return (
@@ -77,9 +101,18 @@ export default function CoachChatModal({ open, onClose }: Props) {
             <Dialog.Title className="text-lg font-semibold text-zinc-900">
               💬 Ask Your Coach
             </Dialog.Title>
-            <button onClick={onClose}>
-              <XMarkIcon className="w-5 h-5 text-zinc-400 hover:text-zinc-600" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={clearChat}
+                className="text-xs text-zinc-500 hover:text-zinc-800 underline"
+                disabled={loading}
+              >
+                Clear
+              </button>
+              <button onClick={onClose}>
+                <XMarkIcon className="w-5 h-5 text-zinc-400 hover:text-zinc-600" />
+              </button>
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -87,7 +120,8 @@ export default function CoachChatModal({ open, onClose }: Props) {
               <button
                 key={q}
                 onClick={() => askCoach(q)}
-                className="rounded-full bg-zinc-100 hover:bg-zinc-200 text-sm text-zinc-700 px-4 py-1 transition"
+                disabled={loading}
+                className="rounded-full bg-zinc-100 hover:bg-zinc-200 text-sm text-zinc-700 px-4 py-1 transition disabled:opacity-60"
               >
                 {q}
               </button>
@@ -124,7 +158,7 @@ export default function CoachChatModal({ open, onClose }: Props) {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              if (input.trim()) askCoach(input.trim());
+              if (input.trim()) askCoach(input);
             }}
             className="flex gap-2"
           >
@@ -133,6 +167,7 @@ export default function CoachChatModal({ open, onClose }: Props) {
               onChange={(e) => setInput(e.target.value)}
               placeholder="Type your question..."
               className="flex-1 rounded-full border border-zinc-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={loading}
             />
             <button
               type="submit"
