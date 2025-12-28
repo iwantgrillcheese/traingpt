@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { WalkthroughContext } from '@/types/coachGuides';
 import { shouldShowWalkthrough } from '@/utils/coachGuides/selectors';
 import { dismissWalkthrough, isWalkthroughDismissed } from '@/lib/walkthrough-storage';
@@ -13,26 +13,24 @@ export default function PostPlanWalkthrough({
   context: WalkthroughContext | null;
   forceOpen?: boolean;
 }) {
-  const eligible = useMemo(() => {
-    if (!context) return false;
-    if (!shouldShowWalkthrough(context)) return false;
-    if (isWalkthroughDismissed(context.planId)) return false;
-    return true;
-  }, [context]);
-
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
     if (!context) return;
-    if (forceOpen && shouldShowWalkthrough(context) && !isWalkthroughDismissed(context.planId)) {
-      setOpen(true);
-      return;
-    }
-    if (eligible) setOpen(true);
-  }, [eligible, context, forceOpen]);
+    if (open) return;
 
-  if (!context) return null;
-  if (!open) return null;
+    const ok = shouldShowWalkthrough(context);
+    const dismissed = isWalkthroughDismissed(context.planId);
+
+    if (!ok || dismissed) return;
+
+    // Open if explicitly forced (planReady) OR if simply eligible
+    if (forceOpen || true) {
+      setOpen(true);
+    }
+  }, [context?.planId, forceOpen, open, context]);
+
+  if (!context || !open) return null;
 
   return (
     <CoachWalkthroughModal
