@@ -61,8 +61,9 @@ export default function PlanPage() {
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number | null>(null);
 
-  // Walkthrough state (new)
+  // Walkthrough state (controlled)
   const [walkthroughContext, setWalkthroughContext] = useState<WalkthroughContext | null>(null);
+  const [walkthroughOpen, setWalkthroughOpen] = useState(false);
   const [planReady, setPlanReady] = useState(false);
 
   const runningTypes = useMemo(() => ['5k', '10k', 'Half Marathon', 'Marathon'], []);
@@ -137,6 +138,7 @@ export default function PlanPage() {
     setError('');
     setNotice('');
     setPlanReady(false);
+    setWalkthroughOpen(false);
     setWalkthroughContext(null);
     setStatusLine('Starting generation…');
 
@@ -200,7 +202,8 @@ export default function PlanPage() {
           raceType: (latestPlan as any).race_type ?? null,
           raceDate: (latestPlan as any).race_date ? String((latestPlan as any).race_date) : null,
           experience: (latestPlan as any).experience ?? null,
-          maxHours: (latestPlan as any).max_hours != null ? Number((latestPlan as any).max_hours) : null,
+          maxHours:
+            (latestPlan as any).max_hours != null ? Number((latestPlan as any).max_hours) : null,
           restDay: (latestPlan as any).rest_day ?? null,
         };
       };
@@ -243,8 +246,19 @@ export default function PlanPage() {
               setLoading(false);
               setPlanReady(true);
 
-              const ctx = await fetchLatestPlanContext();
-              if (ctx) setWalkthroughContext(ctx);
+              // Fetch plan context (retry once to avoid tiny race condition)
+              let ctx = await fetchLatestPlanContext();
+              if (!ctx) {
+                await new Promise((r) => setTimeout(r, 500));
+                ctx = await fetchLatestPlanContext();
+              }
+
+              if (ctx) {
+                setWalkthroughContext(ctx);
+
+                // Open walkthrough after a tiny beat (feels intentional)
+                setTimeout(() => setWalkthroughOpen(true), 350);
+              }
 
               resolve();
               return;
@@ -434,8 +448,12 @@ export default function PlanPage() {
 
   return (
     <div className="min-h-screen bg-white text-gray-900 relative">
-      {/* Walkthrough (opens after plan is ready) */}
-      <PostPlanWalkthrough context={walkthroughContext} forceOpen={planReady} />
+      {/* Controlled walkthrough modal */}
+      <PostPlanWalkthrough
+        context={walkthroughContext}
+        open={walkthroughOpen}
+        onClose={() => setWalkthroughOpen(false)}
+      />
 
       {/* Loading Overlay */}
       {loading && (
@@ -468,8 +486,6 @@ export default function PlanPage() {
               <button
                 type="button"
                 onClick={() => {
-                  // UX: allow user to dismiss overlay and keep working
-                  // (generation may still continue server-side)
                   setLoading(false);
                   setNotice(
                     'Plan generation is still running in the background. You can visit Schedule and refresh in a minute.'
@@ -503,6 +519,13 @@ export default function PlanPage() {
                 Review the quick walkthrough, then head to your Schedule.
               </p>
               <div className="mt-4 flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setWalkthroughOpen(true)}
+                  className="text-sm px-4 py-2 rounded-full border border-gray-200 bg-white hover:bg-gray-50 transition"
+                >
+                  View Walkthrough
+                </button>
                 <button
                   type="button"
                   onClick={handleGoToSchedule}

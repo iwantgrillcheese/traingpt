@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import type { WalkthroughContext } from '@/types/coachGuides';
 import { shouldShowWalkthrough } from '@/utils/coachGuides/selectors';
 import { dismissWalkthrough, isWalkthroughDismissed } from '@/lib/walkthrough-storage';
@@ -8,35 +8,28 @@ import CoachWalkthroughModal from './CoachWalkthroughModal';
 
 export default function PostPlanWalkthrough({
   context,
-  forceOpen = false,
+  open,
+  onClose,
 }: {
   context: WalkthroughContext | null;
-  forceOpen?: boolean;
+  open: boolean;
+  onClose: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  if (!context) return null;
+  if (!open) return null;
 
-  useEffect(() => {
-    if (!context) return;
-    if (open) return;
-
-    const ok = shouldShowWalkthrough(context);
-    const dismissed = isWalkthroughDismissed(context.planId);
-
-    if (!ok || dismissed) return;
-
-    // Open if explicitly forced (planReady) OR if simply eligible
-    if (forceOpen || true) {
-      setOpen(true);
-    }
-  }, [context?.planId, forceOpen, open, context]);
-
-  if (!context || !open) return null;
+  // Guardrails (don’t show if not eligible)
+  if (!shouldShowWalkthrough(context)) return null;
+  if (isWalkthroughDismissed(context.planId)) return null;
 
   return (
     <CoachWalkthroughModal
       context={context}
-      onClose={() => setOpen(false)}
-      onDismissForever={() => dismissWalkthrough(context.planId)}
+      onClose={onClose}
+      onDismissForever={() => {
+        dismissWalkthrough(context.planId);
+        onClose();
+      }}
     />
   );
 }
