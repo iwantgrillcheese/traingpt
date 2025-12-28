@@ -4,6 +4,8 @@ import React, { useEffect, useMemo, useRef, useState, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import Footer from '../components/footer';
 import { supabase } from '@/lib/supabase-client';
+import PostPlanWalkthrough from './components/PostPlanWalkthrough';
+import type { WalkthroughContext } from '@/types/coachGuides';
 
 type FieldConfig = {
   id: string;
@@ -58,6 +60,10 @@ export default function PlanPage() {
 
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number | null>(null);
+
+  // Walkthrough state (new)
+  const [walkthroughContext, setWalkthroughContext] = useState<WalkthroughContext | null>(null);
+  const [planReady, setPlanReady] = useState(false);
 
   const runningTypes = useMemo(() => ['5k', '10k', 'Half Marathon', 'Marathon'], []);
   const isRunningPlan = runningTypes.includes(formData.raceType);
@@ -121,6 +127,8 @@ export default function PlanPage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleGoToSchedule = () => router.push('/schedule');
+
   /* -------------------- Submit Handler -------------------- */
   const handleFinalize = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -128,6 +136,8 @@ export default function PlanPage() {
     setLoading(true);
     setError('');
     setNotice('');
+    setPlanReady(false);
+    setWalkthroughContext(null);
     setStatusLine('Starting generation…');
 
     const POLL_INTERVAL_MS = 2500;
@@ -171,6 +181,30 @@ export default function PlanPage() {
         return { ready: (count ?? 0) > 0, count: count ?? 0 };
       };
 
+      // Helper: fetch latest plan row for walkthrough context
+      const fetchLatestPlanContext = async (): Promise<WalkthroughContext | null> => {
+        const { data: latestPlan, error: planErr } = await supabase
+          .from('plans')
+          .select('id, user_id, race_type, race_date, experience, max_hours, rest_day')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (planErr) return null;
+        if (!latestPlan?.id || !latestPlan?.user_id) return null;
+
+        return {
+          planId: String(latestPlan.id),
+          userId: String(latestPlan.user_id),
+          raceType: (latestPlan as any).race_type ?? null,
+          raceDate: (latestPlan as any).race_date ? String((latestPlan as any).race_date) : null,
+          experience: (latestPlan as any).experience ?? null,
+          maxHours: (latestPlan as any).max_hours != null ? Number((latestPlan as any).max_hours) : null,
+          restDay: (latestPlan as any).rest_day ?? null,
+        };
+      };
+
       // Polling loop
       const pollUntilReady = async () => {
         const startedAt = Date.now();
@@ -197,7 +231,7 @@ export default function PlanPage() {
             } else if (!planExists) {
               setStatusLine('Generating your plan…');
             } else if (sessionsStatus.ready) {
-              setStatusLine('Done — sending you to your schedule…');
+              setStatusLine('Done — your plan is ready.');
             }
 
             if (sessionsStatus.ready) {
@@ -205,7 +239,12 @@ export default function PlanPage() {
               pollTimerRef.current = null;
 
               setProgress(100);
-              setTimeout(() => router.push('/schedule'), 700);
+              setStatusLine('Done — your plan is ready.');
+              setLoading(false);
+              setPlanReady(true);
+
+              const ctx = await fetchLatestPlanContext();
+              if (ctx) setWalkthroughContext(ctx);
 
               resolve();
               return;
@@ -269,8 +308,6 @@ export default function PlanPage() {
       setProgress((prev) => (prev < 20 ? 20 : prev));
 
       await pollUntilReady();
-
-      // (If we get here, we navigated to /schedule.)
     } catch (err: any) {
       console.error('❌ Finalize plan error:', err);
 
@@ -395,10 +432,11 @@ export default function PlanPage() {
     ? 'This will replace your current training plan.'
     : 'We’ll personalize your training based on your inputs.';
 
-  const handleGoToSchedule = () => router.push('/schedule');
-
   return (
     <div className="min-h-screen bg-white text-gray-900 relative">
+      {/* Walkthrough (opens after plan is ready) */}
+      <PostPlanWalkthrough context={walkthroughContext} forceOpen={planReady} />
+
       {/* Loading Overlay */}
       {loading && (
         <div className="fixed inset-0 z-50 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center text-center px-6">
@@ -456,6 +494,32 @@ export default function PlanPage() {
             <h1 className="text-4xl font-semibold tracking-tight">{title}</h1>
             <p className="mt-3 text-gray-500 text-lg">{subtitle}</p>
           </div>
+
+          {/* Plan Ready Notice */}
+          {planReady && (
+            <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 px-5 py-4 text-center">
+              <p className="text-gray-900 font-medium">Your plan is ready.</p>
+              <p className="text-gray-500 text-sm mt-1">
+                Review the quick walkthrough, then head to your Schedule.
+              </p>
+              <div className="mt-4 flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleGoToSchedule}
+                  className="bg-black text-white px-5 py-2 rounded-full text-sm hover:bg-gray-800 transition"
+                >
+                  Open Schedule
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPlanReady(false)}
+                  className="text-sm px-4 py-2 rounded-full border border-gray-200 bg-white hover:bg-gray-50 transition"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Notice (non-blocking) */}
           {notice && (
