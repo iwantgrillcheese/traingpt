@@ -1,15 +1,8 @@
-'use client';
-
 import './globals.css';
-import { useState } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { SessionContextProvider } from '@supabase/auth-helpers-react';
-import Layout from './components/Layout';
+import Providers from './providers';
 import { Analytics } from '@vercel/analytics/react';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const [supabaseClient] = useState(() => createClientComponentClient());
-
   return (
     <html lang="en">
       <head>
@@ -31,9 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
 
       <body className="font-sans">
-        <SessionContextProvider supabaseClient={supabaseClient}>
-          <Layout>{children}</Layout>
-        </SessionContextProvider>
+        <Providers>{children}</Providers>
         <Analytics />
       </body>
     </html>
