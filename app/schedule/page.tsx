@@ -8,6 +8,10 @@ import type { StravaActivity } from '@/types/strava';
 import mergeSessionsWithStrava, { MergedSession } from '@/utils/mergeSessionWithStrava';
 import Footer from '../components/footer';
 
+// Walkthrough
+import PostPlanWalkthrough from '../plan/components/PostPlanWalkthrough';
+import type { WalkthroughContext } from '@/types/coachGuides';
+
 type CompletedSession = {
   date: string;
   session_title: string;
@@ -17,14 +21,18 @@ type CompletedSession = {
 export default function SchedulePage() {
   // ✅ Use the browser timezone so date-bucketing + matching works globally.
   // Fallback keeps behavior stable if Intl is unavailable for any reason.
-  const userTimezone =
-    Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'America/Los_Angeles';
+  const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'America/Los_Angeles';
 
   const [sessions, setSessions] = useState<Session[]>([]);
   const [stravaActivities, setStravaActivities] = useState<StravaActivity[]>([]);
   const [completedSessions, setCompletedSessions] = useState<CompletedSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Walkthrough state
+  const [walkthroughContext, setWalkthroughContext] = useState<WalkthroughContext | null>(null);
+  const [walkthroughOpen, setWalkthroughOpen] = useState(false);
+  const [walkthroughLoading, setWalkthroughLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -90,11 +98,7 @@ export default function SchedulePage() {
 
   const { enrichedSessions, unmatchedActivities } = useMemo(() => {
     try {
-      const { merged, unmatched } = mergeSessionsWithStrava(
-        sessions,
-        stravaActivities,
-        userTimezone
-      );
+      const { merged, unmatched } = mergeSessionsWithStrava(sessions, stravaActivities, userTimezone);
       return { enrichedSessions: merged, unmatchedActivities: unmatched };
     } catch (e) {
       console.error('mergeSessionsWithStrava failed:', e);
@@ -104,6 +108,65 @@ export default function SchedulePage() {
       };
     }
   }, [sessions, stravaActivities, userTimezone]);
+
+  const isLoggedOut = enrichedSessions.length === 0 && stravaActivities.length === 0;
+
+  // Fetch latest plan context (for Walkthrough)
+  const fetchLatestPlanContext = useCallback(async (): Promise<WalkthroughContext | null> => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user?.id) return null;
+
+    const { data: latestPlan, error: planErr } = await supabase
+      .from('plans')
+      .select('id, user_id, race_type, race_date, experience, max_hours, rest_day')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (planErr) return null;
+    if (!latestPlan?.id || !latestPlan?.user_id) return null;
+
+    return {
+      planId: String(latestPlan.id),
+      userId: String(latestPlan.user_id),
+      raceType: (latestPlan as any).race_type ?? null,
+      raceDate: (latestPlan as any).race_date ? String((latestPlan as any).race_date) : null,
+      experience: (latestPlan as any).experience ?? null,
+      maxHours: (latestPlan as any).max_hours != null ? Number((latestPlan as any).max_hours) : null,
+      restDay: (latestPlan as any).rest_day ?? null,
+      mode: 'manual',
+    };
+  }, []);
+
+  const openWalkthrough = useCallback(async () => {
+    try {
+      setWalkthroughLoading(true);
+
+      // Reuse existing context if we already fetched it
+      if (walkthroughContext?.planId) {
+        setWalkthroughContext({ ...walkthroughContext, mode: 'manual' });
+        setWalkthroughOpen(true);
+        return;
+      }
+
+      const ctx = await fetchLatestPlanContext();
+
+      if (!ctx) {
+        // No plan found — don’t hard error, just avoid opening
+        console.warn('[Walkthrough] No plan context found for user.');
+        return;
+      }
+
+      setWalkthroughContext(ctx);
+      setWalkthroughOpen(true);
+    } finally {
+      setWalkthroughLoading(false);
+    }
+  }, [fetchLatestPlanContext, walkthroughContext]);
 
   if (loading) {
     return <div className="text-center py-10 text-zinc-400">Loading your training data...</div>;
@@ -118,26 +181,44 @@ export default function SchedulePage() {
     );
   }
 
-  const isLoggedOut = enrichedSessions.length === 0 && stravaActivities.length === 0;
-
   return (
     <div className="flex flex-col min-h-screen">
+      {/* Walkthrough modal (manual mode, always allowed) */}
+      <PostPlanWalkthrough
+        context={walkthroughContext}
+        open={walkthroughOpen}
+        onClose={() => setWalkthroughOpen(false)}
+      />
+
       <main className="flex-grow">
         {isLoggedOut ? (
-          <div className="text-center py-10 text-zinc-400">
-            Please sign in to view your schedule.
-          </div>
+          <div className="text-center py-10 text-zinc-400">Please sign in to view your schedule.</div>
         ) : (
-          <CalendarShell
-            sessions={enrichedSessions}
-            completedSessions={completedSessions}
-            stravaActivities={stravaActivities}
-            extraStravaActivities={unmatchedActivities}
-            onCompletedUpdate={handleCompletedUpdate}
-            timezone={userTimezone}
-          />
+          <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 pt-4">
+            {/* Header row: subtle Walkthrough entry point */}
+            <div className="flex items-center justify-end pb-3">
+              <button
+                type="button"
+                onClick={openWalkthrough}
+                disabled={walkthroughLoading}
+                className="text-sm px-4 py-2 rounded-full border border-gray-200 bg-white hover:bg-gray-50 transition disabled:opacity-50"
+              >
+                {walkthroughLoading ? 'Opening…' : 'Walkthrough'}
+              </button>
+            </div>
+
+            <CalendarShell
+              sessions={enrichedSessions}
+              completedSessions={completedSessions}
+              stravaActivities={stravaActivities}
+              extraStravaActivities={unmatchedActivities}
+              onCompletedUpdate={handleCompletedUpdate}
+              timezone={userTimezone}
+            />
+          </div>
         )}
       </main>
+
       <Footer />
     </div>
   );
