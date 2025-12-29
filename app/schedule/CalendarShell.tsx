@@ -12,7 +12,6 @@ import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 import { supabase } from '@/lib/supabase-client';
 import { DndContext, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 
-
 type CompletedSession = {
   date: string;
   session_title: string;
@@ -41,7 +40,9 @@ function SupportBanner() {
       className="mx-auto mb-6 flex w-fit items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 shadow-sm hover:bg-gray-50 transition"
     >
       <ChatBubbleLeftRightIcon className="h-4 w-4 text-gray-400" />
-      <span className="text-gray-600 underline hover:text-gray-800">Support the project ($5/month)</span>
+      <span className="text-gray-600 underline hover:text-gray-800">
+        Support the project ($5/month)
+      </span>
     </button>
   );
 }
@@ -111,7 +112,9 @@ export default function CalendarShell({
     const draggedId = active.id;
     const targetDate = over.id;
 
-    setLocalSessions((prev) => prev.map((s) => (s.id === draggedId ? { ...s, date: targetDate } : s)));
+    setLocalSessions((prev) =>
+      prev.map((s) => (s.id === draggedId ? { ...s, date: targetDate } : s))
+    );
 
     if (saveTimer.current) clearTimeout(saveTimer.current);
 
@@ -122,22 +125,25 @@ export default function CalendarShell({
   };
 
   if (!hasMounted) {
-    return (
-      <main className="min-h-[100dvh] bg-background" />
-    );
+    return <main className="min-h-[100dvh] bg-background" />;
   }
 
-return (
-  <main
-    className={
-      `min-h-[100dvh] bg-background pb-[env(safe-area-inset-bottom)] ` +
-      (isMobile
-        ? 'px-0'
-        : 'px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20 max-w-[1800px] mx-auto')
-    }
-  >
+  return (
+    <main
+      className={
+        `min-h-[100dvh] bg-background pb-[env(safe-area-inset-bottom)] ` +
+        (isMobile
+          ? 'px-0'
+          : 'px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20 max-w-[1800px] mx-auto')
+      }
+    >
       {isMobile ? (
-        <MobileCalendarView sessions={localSessions} completedSessions={completed} />
+        <MobileCalendarView
+          sessions={localSessions as any}
+          completedSessions={completed}
+          // ✅ IMPORTANT: pass a stable prop so MobileCalendarView doesn't default to [] each render
+          stravaActivities={extraStravaActivities}
+        />
       ) : (
         <>
           <SupportBanner />

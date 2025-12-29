@@ -66,10 +66,13 @@ function sportBadge(sport: ReturnType<typeof inferSport>) {
   }
 }
 
+// IMPORTANT: stable default to avoid re-render loops when prop is omitted
+const EMPTY_STRAVA: StravaActivity[] = [];
+
 export default function MobileCalendarView({
   sessions,
   completedSessions: initialCompleted,
-  stravaActivities = [],
+  stravaActivities = EMPTY_STRAVA,
 }: MobileCalendarViewProps) {
   const [selectedSession, setSelectedSession] = useState<EnrichedSession | null>(null);
   const [sessionsState, setSessionsState] = useState<EnrichedSession[]>(sessions);
@@ -77,7 +80,14 @@ export default function MobileCalendarView({
   const [collapsedWeeks, setCollapsedWeeks] = useState<Record<string, boolean>>({});
   const weekRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
+  // Ensure the auto-scroll doesn't repeatedly fight the user
+  const didAutoScroll = useRef(false);
+
   const today = new Date();
+
+  // Keep internal state in sync if props change
+  useEffect(() => setSessionsState(sessions), [sessions]);
+  useEffect(() => setCompletedSessions(initialCompleted), [initialCompleted]);
 
   const sortedSessions = useMemo(() => {
     return [...sessionsState].filter((s) => !!s.date).sort((a, b) => a.date.localeCompare(b.date));
@@ -121,7 +131,12 @@ export default function MobileCalendarView({
 
       if (!weekMap[weekLabel]) {
         const wkStart = startOfWeek(date, { weekStartsOn: 1 });
-        weekMap[weekLabel] = { sessions: [], extras: [], start: wkStart, end: endOfWeek(date, { weekStartsOn: 1 }) };
+        weekMap[weekLabel] = {
+          sessions: [],
+          extras: [],
+          start: wkStart,
+          end: endOfWeek(date, { weekStartsOn: 1 }),
+        };
       }
 
       sortedSessions
@@ -134,7 +149,7 @@ export default function MobileCalendarView({
     return weekMap;
   }, [sortedSessions, extraStravaMap]);
 
-  // Default-collapse past weeks (feels premium + keeps "now" at top)
+  // Default-collapse past weeks (keeps "now" near the top)
   useEffect(() => {
     const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
     const initial: Record<string, boolean> = {};
@@ -142,22 +157,25 @@ export default function MobileCalendarView({
       if (isBefore(start, currentWeekStart)) initial[label] = true; // collapsed
     });
     setCollapsedWeeks((prev) => ({ ...initial, ...prev }));
-  }, [groupedByWeek]);
+  }, [groupedByWeek, today]);
 
-  // Scroll current week into view (with scroll margin so sticky header doesn't cover it)
+  // Scroll current week into view ONCE (avoids iOS phantom scrolling)
   useEffect(() => {
+    if (didAutoScroll.current) return;
+
     const currentWeekEntry = Object.entries(groupedByWeek).find(([_, val]) => {
-      const wkStart = val.start;
-      const wkEnd = val.end;
-      return isWithinInterval(today, { start: wkStart, end: wkEnd });
+      return isWithinInterval(today, { start: val.start, end: val.end });
     });
 
-    if (currentWeekEntry) {
-      const weekLabel = currentWeekEntry[0];
-      const el = weekRefs.current[weekLabel];
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, [groupedByWeek]);
+    if (!currentWeekEntry) return;
+
+    const weekLabel = currentWeekEntry[0];
+    const el = weekRefs.current[weekLabel];
+    if (!el) return;
+
+    didAutoScroll.current = true;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [groupedByWeek, today]);
 
   if (sortedSessions.length === 0 && stravaActivities.length === 0) {
     return <div className="text-center text-zinc-400 pt-12">No sessions to display.</div>;
@@ -174,7 +192,6 @@ export default function MobileCalendarView({
             <div className="text-[20px] font-semibold tracking-tight text-zinc-900">This Plan</div>
           </div>
 
-          {/* You can swap this for a real menu later */}
           <div className="h-9 w-9 rounded-full bg-zinc-900 text-white flex items-center justify-center text-sm">
             C
           </div>
@@ -246,9 +263,7 @@ export default function MobileCalendarView({
 
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
-                              <div className="text-[14px] font-medium text-zinc-900 truncate">
-                                {title}
-                              </div>
+                              <div className="text-[14px] font-medium text-zinc-900 truncate">{title}</div>
                               {isCompleted && (
                                 <span className="shrink-0 text-[12px] text-emerald-600 font-medium">✓</span>
                               )}
