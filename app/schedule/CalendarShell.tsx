@@ -10,7 +10,15 @@ import type { StravaActivity } from '@/types/strava';
 import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 import { supabase } from '@/lib/supabase-client';
-import { DndContext, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
+import {
+  DndContext,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type SensorDescriptor,
+  type SensorOptions,
+} from '@dnd-kit/core';
 
 type CompletedSession = {
   date: string;
@@ -47,6 +55,15 @@ function SupportBanner() {
   );
 }
 
+/**
+ * A sensor that never activates. Used to avoid mounting TouchSensor on mobile,
+ * which can swallow taps / interfere with navigation.
+ */
+class NoopSensor {
+  static activators: any[] = [];
+  constructor() {}
+}
+
 export default function CalendarShell({
   sessions,
   completedSessions,
@@ -64,10 +81,6 @@ export default function CalendarShell({
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const mouseSensor = useSensor(MouseSensor, { activationConstraint: { distance: 8 } });
-  const touchSensor = useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } });
-  const sensors = useSensors(mouseSensor, touchSensor);
-
   useEffect(() => setCompleted(completedSessions), [completedSessions]);
   useEffect(() => setLocalSessions(sessions), [sessions]);
 
@@ -82,6 +95,17 @@ export default function CalendarShell({
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // ✅ IMPORTANT: only mount real DnD sensors on desktop
+  // Mobile uses NoopSensor to avoid TouchSensor swallowing taps.
+  const sensors = useSensors(
+    useSensor(isMobile ? (NoopSensor as any) : MouseSensor, {
+      activationConstraint: { distance: 8 },
+    } as SensorOptions),
+    useSensor(isMobile ? (NoopSensor as any) : TouchSensor, {
+      activationConstraint: { delay: 200, tolerance: 8 },
+    } as SensorOptions)
+  );
 
   const handleSessionAdded = (newSession: any) => {
     setLocalSessions((prev) => [...prev, newSession]);
@@ -119,7 +143,10 @@ export default function CalendarShell({
     if (saveTimer.current) clearTimeout(saveTimer.current);
 
     saveTimer.current = setTimeout(async () => {
-      const { error } = await supabase.from('sessions').update({ date: targetDate }).eq('id', draggedId);
+      const { error } = await supabase
+        .from('sessions')
+        .update({ date: targetDate })
+        .eq('id', draggedId);
       if (error) console.error('Error persisting session move:', error);
     }, 600);
   };
@@ -141,7 +168,6 @@ export default function CalendarShell({
         <MobileCalendarView
           sessions={localSessions as any}
           completedSessions={completed}
-          // ✅ IMPORTANT: pass a stable prop so MobileCalendarView doesn't default to [] each render
           stravaActivities={extraStravaActivities}
         />
       ) : (
@@ -152,7 +178,9 @@ export default function CalendarShell({
             <button onClick={goToPrevMonth} className="text-sm text-gray-500 hover:text-black">
               ←
             </button>
-            <h2 className="text-2xl font-semibold text-center">{format(currentMonth, 'MMMM yyyy')}</h2>
+            <h2 className="text-2xl font-semibold text-center">
+              {format(currentMonth, 'MMMM yyyy')}
+            </h2>
             <button onClick={goToNextMonth} className="text-sm text-gray-500 hover:text-black">
               →
             </button>
