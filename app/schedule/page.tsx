@@ -19,9 +19,8 @@ type CompletedSession = {
 };
 
 export default function SchedulePage() {
-  // ✅ Use the browser timezone so date-bucketing + matching works globally.
-  // Fallback keeps behavior stable if Intl is unavailable for any reason.
-  const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'America/Los_Angeles';
+  const userTimezone =
+    Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'America/Los_Angeles';
 
   const [sessions, setSessions] = useState<Session[]>([]);
   const [stravaActivities, setStravaActivities] = useState<StravaActivity[]>([]);
@@ -111,7 +110,6 @@ export default function SchedulePage() {
 
   const isLoggedOut = enrichedSessions.length === 0 && stravaActivities.length === 0;
 
-  // Fetch latest plan context (for Walkthrough)
   const fetchLatestPlanContext = useCallback(async (): Promise<WalkthroughContext | null> => {
     const {
       data: { user },
@@ -138,7 +136,8 @@ export default function SchedulePage() {
       experience: (latestPlan as any).experience ?? null,
       maxHours: (latestPlan as any).max_hours != null ? Number((latestPlan as any).max_hours) : null,
       restDay: (latestPlan as any).rest_day ?? null,
-      mode: 'manual',
+      // keep whatever your WalkthroughContext expects
+      mode: 'manual' as any,
     };
   }, []);
 
@@ -146,9 +145,8 @@ export default function SchedulePage() {
     try {
       setWalkthroughLoading(true);
 
-      // Reuse existing context if we already fetched it
       if (walkthroughContext?.planId) {
-        setWalkthroughContext({ ...walkthroughContext, mode: 'manual' });
+        setWalkthroughContext({ ...walkthroughContext, mode: 'manual' as any });
         setWalkthroughOpen(true);
         return;
       }
@@ -156,7 +154,6 @@ export default function SchedulePage() {
       const ctx = await fetchLatestPlanContext();
 
       if (!ctx) {
-        // No plan found — don’t hard error, just avoid opening
         console.warn('[Walkthrough] No plan context found for user.');
         return;
       }
@@ -183,19 +180,20 @@ export default function SchedulePage() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      {/* Walkthrough modal (manual mode, always allowed) */}
-      <PostPlanWalkthrough
-        context={walkthroughContext}
-        open={walkthroughOpen}
-        onClose={() => setWalkthroughOpen(false)}
-      />
+      {/* ✅ IMPORTANT: only mount the walkthrough when open so it cannot intercept taps */}
+      {walkthroughOpen && (
+        <PostPlanWalkthrough
+          context={walkthroughContext}
+          open={walkthroughOpen}
+          onClose={() => setWalkthroughOpen(false)}
+        />
+      )}
 
       <main className="flex-grow">
         {isLoggedOut ? (
           <div className="text-center py-10 text-zinc-400">Please sign in to view your schedule.</div>
         ) : (
           <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 pt-4">
-            {/* Header row: subtle Walkthrough entry point */}
             <div className="flex items-center justify-end pb-3">
               <button
                 type="button"
