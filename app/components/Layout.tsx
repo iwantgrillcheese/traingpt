@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import clsx from 'clsx';
 import ProfileAvatar from './profile avatar';
 
@@ -21,6 +21,7 @@ const NAV: NavItem[] = [
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
 
   // Close drawer on route change
   useEffect(() => {
@@ -36,32 +37,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // iOS-safe scroll lock: fix the body, preserve scroll position
-  useEffect(() => {
-    if (!sidebarOpen) return;
-
-    const scrollY = window.scrollY;
-    const prevPosition = document.body.style.position;
-    const prevTop = document.body.style.top;
-    const prevLeft = document.body.style.left;
-    const prevRight = document.body.style.right;
-    const prevWidth = document.body.style.width;
-
-    document.body.style.position = 'fixed';
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.left = '0';
-    document.body.style.right = '0';
-    document.body.style.width = '100%';
-
-    return () => {
-      document.body.style.position = prevPosition;
-      document.body.style.top = prevTop;
-      document.body.style.left = prevLeft;
-      document.body.style.right = prevRight;
-      document.body.style.width = prevWidth;
-      window.scrollTo(0, scrollY);
-    };
-  }, [sidebarOpen]);
+  const navigate = useCallback(
+    (href: string) => {
+      // Close immediately for UI responsiveness
+      setSidebarOpen(false);
+      // Force navigation via router (bypasses any Link propagation weirdness)
+      router.push(href);
+    },
+    [router]
+  );
 
   const navItemClass = (href: string) =>
     clsx(
@@ -115,7 +99,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Drawer */}
       <aside
         className={clsx(
-          'fixed inset-y-0 left-0 z-40 bg-white shadow-xl transition-transform duration-200 will-change-transform',
+          'fixed inset-y-0 left-0 z-40 bg-white shadow-xl transition-transform duration-200 will-change-transform pointer-events-auto',
           'w-[82vw] max-w-[320px]',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
@@ -142,15 +126,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <nav className="flex h-full flex-col px-3 py-3 text-sm overflow-y-auto">
           <div className="flex flex-col gap-1 pt-1">
             {NAV.map((item) => (
-              <Link
+              <button
                 key={item.href}
-                href={item.href}
+                type="button"
                 className={navItemClass(item.href)}
-                // close immediately, but let Link handle navigation
-                onClick={() => setSidebarOpen(false)}
+                onClick={() => navigate(item.href)}
               >
                 {item.label}
-              </Link>
+              </button>
             ))}
           </div>
 
@@ -160,6 +143,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </nav>
       </aside>
 
+      {/* Main content */}
       <main className="mx-auto max-w-7xl px-4 py-6">{children}</main>
     </div>
   );
