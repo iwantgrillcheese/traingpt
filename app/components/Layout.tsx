@@ -1,83 +1,115 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import ProfileAvatar from './profile avatar';
 import clsx from 'clsx';
+import ProfileAvatar from './profile avatar';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // Close drawer on route change / resize to desktop, etc. (basic safety)
+  useEffect(() => {
+    const onResize = () => {
+      if (window.innerWidth >= 768) setSidebarOpen(false);
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   return (
-    <div className="h-[100dvh] flex flex-col bg-white text-gray-900 font-sans overflow-hidden">
-      {/* Top Nav (sticky, not fixed — iOS likes this more) */}
-      <nav className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100 shadow-sm">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="text-xl font-bold tracking-tight">
-            TrainGPT
-          </Link>
+    <div className="min-h-[100dvh] bg-white text-gray-900">
+      {/* Header: sticky (not fixed) so the page scroll behaves normally on iOS */}
+      <header className="sticky top-0 z-40 border-b border-gray-100 bg-white/90 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-3">
+            <Link href="/" className="text-xl font-bold tracking-tight">
+              TrainGPT
+            </Link>
 
-          <button
-            onClick={() => setSidebarOpen((v) => !v)}
-            aria-label="Toggle sidebar"
-            className={clsx(
-              'relative w-10 h-5 rounded-full transition-colors duration-300 ease-in-out',
-              sidebarOpen ? 'bg-indigo-500' : 'bg-gray-300'
-            )}
-          >
-            <span
+            <button
+              type="button"
+              onClick={() => setSidebarOpen((v) => !v)}
+              aria-label="Toggle sidebar"
               className={clsx(
-                'absolute top-[2px] left-[2px] h-4 w-4 rounded-full bg-white shadow transition-transform duration-300 ease-in-out',
-                sidebarOpen ? 'translate-x-5' : 'translate-x-0'
+                'relative h-6 w-11 rounded-full transition-colors duration-200',
+                sidebarOpen ? 'bg-black' : 'bg-gray-200'
               )}
-            />
-          </button>
-        </div>
+            >
+              <span
+                className={clsx(
+                  'absolute top-[3px] left-[3px] h-4 w-4 rounded-full bg-white shadow transition-transform duration-200',
+                  sidebarOpen ? 'translate-x-5' : 'translate-x-0'
+                )}
+              />
+            </button>
 
-        <div className="ml-auto">
+            {/* Optional: a “Walkthrough” button could live here later */}
+          </div>
+
           <ProfileAvatar />
         </div>
-      </nav>
+      </header>
 
-      {/* Sidebar overlay (only interactive when open) */}
+      {/* Drawer backdrop */}
+      <div
+        className={clsx(
+          'fixed inset-0 z-30 bg-black/20 transition-opacity',
+          sidebarOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
+        )}
+        onClick={() => setSidebarOpen(false)}
+      />
+
+      {/* Drawer */}
       <aside
         className={clsx(
-          'fixed top-0 left-0 z-50 h-[100dvh] bg-white border-r border-gray-100 transition-[width,padding] duration-300 ease-in-out overflow-hidden',
-          sidebarOpen ? 'w-56 px-6 pt-20' : 'w-0 px-0 pt-20'
+          'fixed inset-y-0 left-0 z-40 w-72 bg-white shadow-xl transition-transform duration-200',
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
-        style={{ pointerEvents: sidebarOpen ? 'auto' : 'none' }}
+        style={{
+          // iOS safe area support
+          paddingTop: 'calc(env(safe-area-inset-top) + 12px)',
+        }}
       >
-        <nav className="flex flex-col gap-6 text-sm">
-          <Link href="/" className="block hover:font-medium" onClick={() => setSidebarOpen(false)}>
+        <nav className="flex h-full flex-col gap-2 px-5 pb-6 pt-2 text-sm">
+          <Link
+            href="/"
+            onClick={() => setSidebarOpen(false)}
+            className="rounded-xl px-3 py-2 hover:bg-gray-50"
+          >
             Plan Generator
           </Link>
-          <Link href="/schedule" className="block hover:font-medium" onClick={() => setSidebarOpen(false)}>
+          <Link
+            href="/schedule"
+            onClick={() => setSidebarOpen(false)}
+            className="rounded-xl px-3 py-2 hover:bg-gray-50"
+          >
             My Schedule
           </Link>
-          <Link href="/coaching" className="block hover:font-medium" onClick={() => setSidebarOpen(false)}>
+          <Link
+            href="/coaching"
+            onClick={() => setSidebarOpen(false)}
+            className="rounded-xl px-3 py-2 hover:bg-gray-50"
+          >
             Coaching
           </Link>
-          <Link href="/settings" className="block hover:font-medium" onClick={() => setSidebarOpen(false)}>
+          <Link
+            href="/settings"
+            onClick={() => setSidebarOpen(false)}
+            className="rounded-xl px-3 py-2 hover:bg-gray-50"
+          >
             Settings
           </Link>
+
+          <div className="mt-auto pt-4 text-xs text-gray-400">
+            Built for real training.
+          </div>
         </nav>
       </aside>
 
-      {/* Click-away backdrop when sidebar open */}
-      {sidebarOpen && (
-        <button
-          aria-label="Close sidebar"
-          className="fixed inset-0 z-40 bg-black/10"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      {/* Main scroll container (THIS is what fixes iOS) */}
-      <main
-        className="flex-1 min-h-0 overflow-y-auto overscroll-contain"
-        style={{ WebkitOverflowScrolling: 'touch' as any }}
-      >
-        <div className="px-4 max-w-7xl mx-auto py-8">{children}</div>
+      {/* Main content: normal document flow scroll */}
+      <main className="mx-auto max-w-7xl px-4 py-6">
+        {children}
       </main>
     </div>
   );
