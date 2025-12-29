@@ -25,7 +25,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   // Close drawer on route change
   useEffect(() => {
     setSidebarOpen(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
   // Close drawer on resize to desktop
@@ -92,11 +91,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      {/* Backdrop */}
+      {/* Backdrop (✅ pointer-events only when open) */}
       <div
         className={clsx(
           'fixed inset-0 z-30 bg-black/30 transition-opacity',
-          sidebarOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
+          sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         )}
         onClick={() => setSidebarOpen(false)}
         aria-hidden="true"
@@ -106,7 +105,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <aside
         className={clsx(
           'fixed inset-y-0 left-0 z-40 bg-white shadow-xl transition-transform duration-200 will-change-transform',
-          // nicer mobile sizing
           'w-[82vw] max-w-[320px]',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
@@ -131,8 +129,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <div className="mt-1 text-xs text-gray-500">Navigate your training</div>
         </div>
 
-        <nav className="flex h-full flex-col px-3 py-3 text-sm">
-          <div className="flex flex-col gap-1">
+        {/* ✅ overflow-y-auto for better mobile feel */}
+        <nav className="flex h-full flex-col px-3 py-3 text-sm overflow-y-auto">
+          <div className="flex flex-col gap-1 pt-1">
             {NAV.map((item) => {
               const active = pathname === item.href;
               return (
@@ -142,9 +141,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   onClick={() => navigate(item.href)}
                   className={clsx(
                     'w-full rounded-xl px-3 py-2 text-left transition',
-                    active
-                      ? 'bg-gray-100 text-gray-900'
-                      : 'text-gray-700 hover:bg-gray-50'
+                    active ? 'bg-gray-100 text-gray-900' : 'text-gray-700 hover:bg-gray-50'
                   )}
                 >
                   {item.label}
