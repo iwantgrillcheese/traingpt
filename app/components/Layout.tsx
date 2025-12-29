@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
 import ProfileAvatar from './profile avatar';
 
@@ -19,7 +20,6 @@ const NAV: NavItem[] = [
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const router = useRouter();
   const pathname = usePathname();
 
   // Close drawer on route change
@@ -36,22 +36,38 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // Lock body scroll while drawer is open (prevents iOS weirdness + feels premium)
+  // iOS-safe scroll lock: fix the body, preserve scroll position
   useEffect(() => {
     if (!sidebarOpen) return;
 
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    const scrollY = window.scrollY;
+    const prevPosition = document.body.style.position;
+    const prevTop = document.body.style.top;
+    const prevLeft = document.body.style.left;
+    const prevRight = document.body.style.right;
+    const prevWidth = document.body.style.width;
+
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    document.body.style.width = '100%';
 
     return () => {
-      document.body.style.overflow = prevOverflow;
+      document.body.style.position = prevPosition;
+      document.body.style.top = prevTop;
+      document.body.style.left = prevLeft;
+      document.body.style.right = prevRight;
+      document.body.style.width = prevWidth;
+      window.scrollTo(0, scrollY);
     };
   }, [sidebarOpen]);
 
-  const navigate = (href: string) => {
-    setSidebarOpen(false);
-    router.push(href);
-  };
+  const navItemClass = (href: string) =>
+    clsx(
+      'block w-full rounded-xl px-3 py-2 text-left transition',
+      pathname === href ? 'bg-gray-100 text-gray-900' : 'text-gray-700 hover:bg-gray-50'
+    );
 
   return (
     <div className="min-h-[100dvh] bg-white text-gray-900">
@@ -59,14 +75,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-40 border-b border-gray-100 bg-white/90 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => navigate('/')}
-              className="text-xl font-bold tracking-tight"
-              aria-label="Go to home"
-            >
+            <Link href="/" className="text-xl font-bold tracking-tight">
               TrainGPT
-            </button>
+            </Link>
 
             {/* Toggle */}
             <button
@@ -91,7 +102,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      {/* Backdrop (✅ pointer-events only when open) */}
+      {/* Backdrop */}
       <div
         className={clsx(
           'fixed inset-0 z-30 bg-black/30 transition-opacity',
@@ -113,7 +124,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           paddingBottom: 'env(safe-area-inset-bottom)',
         }}
       >
-        {/* Drawer header */}
         <div className="px-5 pt-4 pb-3 border-b border-gray-100">
           <div className="flex items-center justify-between">
             <div className="text-sm font-semibold text-gray-900">Menu</div>
@@ -129,25 +139,19 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <div className="mt-1 text-xs text-gray-500">Navigate your training</div>
         </div>
 
-        {/* ✅ overflow-y-auto for better mobile feel */}
         <nav className="flex h-full flex-col px-3 py-3 text-sm overflow-y-auto">
           <div className="flex flex-col gap-1 pt-1">
-            {NAV.map((item) => {
-              const active = pathname === item.href;
-              return (
-                <button
-                  key={item.href}
-                  type="button"
-                  onClick={() => navigate(item.href)}
-                  className={clsx(
-                    'w-full rounded-xl px-3 py-2 text-left transition',
-                    active ? 'bg-gray-100 text-gray-900' : 'text-gray-700 hover:bg-gray-50'
-                  )}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
+            {NAV.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={navItemClass(item.href)}
+                // close immediately, but let Link handle navigation
+                onClick={() => setSidebarOpen(false)}
+              >
+                {item.label}
+              </Link>
+            ))}
           </div>
 
           <div className="mt-auto px-2 pt-6 text-xs text-gray-400">
@@ -156,7 +160,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </nav>
       </aside>
 
-      {/* Main content */}
       <main className="mx-auto max-w-7xl px-4 py-6">{children}</main>
     </div>
   );
