@@ -20,18 +20,26 @@ export default function CoachWalkthroughModal({
   const [index, setIndex] = useState(0);
 
   const guide = guides[index];
-
   const raceLabel = context.raceType ?? 'your race';
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose} />
 
-      <div className="relative w-full max-w-2xl rounded-3xl border border-gray-200 bg-white shadow-xl overflow-hidden">
-        <div className="px-6 pt-6 pb-4 border-b border-gray-100">
+      <div
+        className="
+          relative w-full max-w-2xl
+          max-h-[85vh] md:max-h-[80vh]
+          rounded-3xl border border-gray-200 bg-white shadow-xl
+          overflow-hidden
+          flex flex-col
+        "
+      >
+        {/* Header (fixed) */}
+        <div className="px-6 pt-6 pb-4 border-b border-gray-100 shrink-0">
           <div className="text-xs font-medium text-gray-500">Coach Walkthrough</div>
           <div className="mt-1 text-xl font-semibold tracking-tight text-gray-900">
-            Quick start for {raceLabel}
+            Walkthrough for {raceLabel}
           </div>
           <div className="mt-2 text-sm text-gray-600">
             This is a 3–5 minute walkthrough to make sure you feel confident before week 1.
@@ -66,7 +74,11 @@ export default function CoachWalkthroughModal({
           </div>
         </div>
 
-        <div className="px-6 py-6">
+        {/* Body (scrollable on mobile) */}
+        <div
+          className="px-6 py-6 overflow-y-auto overscroll-contain"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
           {guide ? (
             <CoachGuideCard
               guide={guide}
