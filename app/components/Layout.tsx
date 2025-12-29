@@ -39,9 +39,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const navigate = useCallback(
     (href: string) => {
-      // Close immediately for UI responsiveness
       setSidebarOpen(false);
-      // Force navigation via router (bypasses any Link propagation weirdness)
       router.push(href);
     },
     [router]
@@ -86,20 +84,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      {/* Backdrop */}
+      {/* Backdrop — put it ABOVE everything in the page */}
       <div
         className={clsx(
-          'fixed inset-0 z-30 bg-black/30 transition-opacity',
+          'fixed inset-0 z-[90] bg-black/30 transition-opacity',
           sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         )}
         onClick={() => setSidebarOpen(false)}
         aria-hidden="true"
       />
 
-      {/* Drawer */}
+      {/* Drawer — topmost layer */}
       <aside
         className={clsx(
-          'fixed inset-y-0 left-0 z-40 bg-white shadow-xl transition-transform duration-200 will-change-transform pointer-events-auto',
+          'fixed inset-y-0 left-0 z-[100] bg-white shadow-xl transition-transform duration-200 will-change-transform pointer-events-auto',
           'w-[82vw] max-w-[320px]',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
@@ -107,6 +105,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           paddingTop: 'env(safe-area-inset-top)',
           paddingBottom: 'env(safe-area-inset-bottom)',
         }}
+        // prevents clicks inside drawer from bubbling to anything weird behind it
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
       >
         <div className="px-5 pt-4 pb-3 border-b border-gray-100">
           <div className="flex items-center justify-between">
@@ -137,9 +138,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             ))}
           </div>
 
-          <div className="mt-auto px-2 pt-6 text-xs text-gray-400">
-            Built for real training.
-          </div>
+          <div className="mt-auto px-2 pt-6 text-xs text-gray-400">Built for real training.</div>
         </nav>
       </aside>
 
