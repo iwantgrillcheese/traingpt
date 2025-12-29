@@ -9,9 +9,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-[100dvh] bg-white text-gray-900 font-sans">
-      {/* Top Nav (fixed) */}
-      <nav className="fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100 shadow-sm">
+    <div className="h-[100dvh] flex flex-col bg-white text-gray-900 font-sans overflow-hidden">
+      {/* Top Nav (sticky, not fixed — iOS likes this more) */}
+      <nav className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100 shadow-sm">
         <div className="flex items-center gap-3">
           <Link href="/" className="text-xl font-bold tracking-tight">
             TrainGPT
@@ -39,13 +39,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </nav>
 
-      {/* Sidebar */}
+      {/* Sidebar overlay (only interactive when open) */}
       <aside
         className={clsx(
-          'fixed top-0 left-0 z-30 h-[100dvh] bg-white border-r border-gray-100 transition-[width,padding] duration-300 ease-in-out overflow-hidden',
-          sidebarOpen ? 'w-48 px-6 pt-20' : 'w-0 px-0 pt-20'
+          'fixed top-0 left-0 z-50 h-[100dvh] bg-white border-r border-gray-100 transition-[width,padding] duration-300 ease-in-out overflow-hidden',
+          sidebarOpen ? 'w-56 px-6 pt-20' : 'w-0 px-0 pt-20'
         )}
-        aria-hidden={!sidebarOpen}
+        style={{ pointerEvents: sidebarOpen ? 'auto' : 'none' }}
       >
         <nav className="flex flex-col gap-6 text-sm">
           <Link href="/" className="block hover:font-medium" onClick={() => setSidebarOpen(false)}>
@@ -63,21 +63,22 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </nav>
       </aside>
 
-      {/* Main scroll area (THIS is the only scroller) */}
-      <div className="pt-16">
-        <main className="h-[calc(100dvh-64px)] overflow-y-auto overscroll-contain px-4">
-          <div className="max-w-7xl mx-auto py-8">{children}</div>
-        </main>
-      </div>
-
-      {/* Optional: click-away overlay when sidebar is open */}
+      {/* Click-away backdrop when sidebar open */}
       {sidebarOpen && (
         <button
           aria-label="Close sidebar"
-          className="fixed inset-0 z-20 bg-black/10"
+          className="fixed inset-0 z-40 bg-black/10"
           onClick={() => setSidebarOpen(false)}
         />
       )}
+
+      {/* Main scroll container (THIS is what fixes iOS) */}
+      <main
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain"
+        style={{ WebkitOverflowScrolling: 'touch' as any }}
+      >
+        <div className="px-4 max-w-7xl mx-auto py-8">{children}</div>
+      </main>
     </div>
   );
 }
