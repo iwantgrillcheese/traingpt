@@ -8,17 +8,16 @@ import {
   differenceInCalendarWeeks,
   isWithinInterval,
   isBefore,
+  endOfWeek,
 } from 'date-fns';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronRightIcon } from '@heroicons/react/20/solid';
 import SessionModal from './SessionModal';
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
-import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 
 type EnrichedSession = Session & { stravaActivity?: StravaActivity };
 
-// CompletedSession uses `date` instead of `session_date` to match the DB schema.
 type CompletedSession = {
   date: string;
   session_title: string;
@@ -43,6 +42,30 @@ function normalizeDate(date: Date): string {
   return date.toISOString().split('T')[0];
 }
 
+function inferSport(title: string): 'run' | 'bike' | 'swim' | 'strength' | 'other' {
+  const t = (title || '').toLowerCase();
+  if (t.includes('swim')) return 'swim';
+  if (t.includes('bike') || t.includes('ride') || t.includes('cycling')) return 'bike';
+  if (t.includes('run')) return 'run';
+  if (t.includes('strength') || t.includes('lift') || t.includes('gym')) return 'strength';
+  return 'other';
+}
+
+function sportBadge(sport: ReturnType<typeof inferSport>) {
+  switch (sport) {
+    case 'swim':
+      return { label: 'Swim', cls: 'bg-sky-50 text-sky-700 ring-sky-100' };
+    case 'bike':
+      return { label: 'Bike', cls: 'bg-amber-50 text-amber-700 ring-amber-100' };
+    case 'run':
+      return { label: 'Run', cls: 'bg-rose-50 text-rose-700 ring-rose-100' };
+    case 'strength':
+      return { label: 'Strength', cls: 'bg-violet-50 text-violet-700 ring-violet-100' };
+    default:
+      return { label: 'Session', cls: 'bg-zinc-50 text-zinc-700 ring-zinc-100' };
+  }
+}
+
 export default function MobileCalendarView({
   sessions,
   completedSessions: initialCompleted,
@@ -57,9 +80,7 @@ export default function MobileCalendarView({
   const today = new Date();
 
   const sortedSessions = useMemo(() => {
-    return [...sessionsState]
-      .filter((s) => !!s.date)
-      .sort((a, b) => a.date.localeCompare(b.date));
+    return [...sessionsState].filter((s) => !!s.date).sort((a, b) => a.date.localeCompare(b.date));
   }, [sessionsState]);
 
   const sessionDates = useMemo(
@@ -84,18 +105,23 @@ export default function MobileCalendarView({
     Object.keys(extraStravaMap).forEach((d) => allDates.add(d));
 
     const allDateArray = [...allDates].sort();
-
     if (allDateArray.length === 0) return {};
 
     const start = startOfWeek(safeParseDate(allDateArray[0]), { weekStartsOn: 1 });
-    const weekMap: Record<string, { sessions: EnrichedSession[]; extras: StravaActivity[]; start: Date }> = {};
+
+    const weekMap: Record<
+      string,
+      { sessions: EnrichedSession[]; extras: StravaActivity[]; start: Date; end: Date }
+    > = {};
 
     allDateArray.forEach((dateStr) => {
       const date = safeParseDate(dateStr);
       const weekIndex = differenceInCalendarWeeks(date, start, { weekStartsOn: 1 });
       const weekLabel = `Week ${weekIndex + 1}`;
+
       if (!weekMap[weekLabel]) {
-        weekMap[weekLabel] = { sessions: [], extras: [], start: startOfWeek(date, { weekStartsOn: 1 }) };
+        const wkStart = startOfWeek(date, { weekStartsOn: 1 });
+        weekMap[weekLabel] = { sessions: [], extras: [], start: wkStart, end: endOfWeek(date, { weekStartsOn: 1 }) };
       }
 
       sortedSessions
@@ -108,16 +134,23 @@ export default function MobileCalendarView({
     return weekMap;
   }, [sortedSessions, extraStravaMap]);
 
+  // Default-collapse past weeks (feels premium + keeps "now" at top)
   useEffect(() => {
-    const currentWeekEntry = Object.entries(groupedByWeek).find(([_, val]) =>
-      [...val.sessions, ...val.extras].some((s: any) => {
-        const date = safeParseDate(s.date || s.start_date_local);
-        return isWithinInterval(today, {
-          start: startOfWeek(date, { weekStartsOn: 1 }),
-          end: new Date(startOfWeek(date, { weekStartsOn: 1 }).getTime() + 6 * 86400000),
-        });
-      })
-    );
+    const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
+    const initial: Record<string, boolean> = {};
+    Object.entries(groupedByWeek).forEach(([label, { start }]) => {
+      if (isBefore(start, currentWeekStart)) initial[label] = true; // collapsed
+    });
+    setCollapsedWeeks((prev) => ({ ...initial, ...prev }));
+  }, [groupedByWeek]);
+
+  // Scroll current week into view (with scroll margin so sticky header doesn't cover it)
+  useEffect(() => {
+    const currentWeekEntry = Object.entries(groupedByWeek).find(([_, val]) => {
+      const wkStart = val.start;
+      const wkEnd = val.end;
+      return isWithinInterval(today, { start: wkStart, end: wkEnd });
+    });
 
     if (currentWeekEntry) {
       const weekLabel = currentWeekEntry[0];
@@ -126,155 +159,145 @@ export default function MobileCalendarView({
     }
   }, [groupedByWeek]);
 
-  const handleUpdateSession = (updated: EnrichedSession, action: 'mark' | 'undo') => {
-    setSessionsState((prev) =>
-      prev.map((s) => (s.id === updated.id ? updated : s))
-    );
-    setSelectedSession(updated);
-
-    setCompletedSessions((prev) => {
-      const exists = prev.some(
-        (c) => c.date === updated.date && c.session_title === updated.title
-      );
-
-      if (action === 'mark' && !exists) {
-        return [...prev, { date: updated.date, session_title: updated.title }];
-      }
-
-      if (action === 'undo' && exists) {
-        return prev.filter(
-          (c) => !(c.date === updated.date && c.session_title === updated.title)
-        );
-      }
-
-      return prev;
-    });
-  };
-
-  async function handleSupportClick() {
-    const res = await fetch('/api/stripe/checkout', { method: 'POST' });
-    const { url } = await res.json();
-    if (url) window.location.href = url;
-  }
-
   if (sortedSessions.length === 0 && stravaActivities.length === 0) {
     return <div className="text-center text-zinc-400 pt-12">No sessions to display.</div>;
   }
 
   return (
-    <div className="px-4 pb-32">
-      <div className="sticky top-0 z-10 bg-white pt-4 pb-2">
-        <button
-          onClick={handleSupportClick}
-          className="mx-auto mb-6 flex w-fit items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 shadow-sm hover:bg-gray-50 transition"
-        >
-          <ChatBubbleLeftRightIcon className="h-4 w-4 text-gray-400" />
-          <span className="text-gray-600 underline hover:text-gray-800">
-            Support the project ($5/month)
-          </span>
-        </button>
+    <div className="bg-[#fafafa] min-h-[100dvh]">
+      {/* Sticky app-like top bar */}
+      <div className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-gray-100">
+        <div className="pt-[env(safe-area-inset-top)]" />
+        <div className="px-4 py-3 flex items-center justify-between">
+          <div>
+            <div className="text-[13px] text-zinc-500">Schedule</div>
+            <div className="text-[20px] font-semibold tracking-tight text-zinc-900">This Plan</div>
+          </div>
+
+          {/* You can swap this for a real menu later */}
+          <div className="h-9 w-9 rounded-full bg-zinc-900 text-white flex items-center justify-center text-sm">
+            C
+          </div>
+        </div>
       </div>
 
-      {Object.entries(groupedByWeek).map(([weekLabel, { sessions, extras, start }]) => {
-        const isPast = isBefore(start, startOfWeek(today, { weekStartsOn: 1 }));
-        const isCollapsed = collapsedWeeks[weekLabel];
+      {/* Content */}
+      <div className="px-4 pb-28 pt-4">
+        {Object.entries(groupedByWeek).map(([weekLabel, { sessions, extras, start, end }]) => {
+          const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
+          const isPast = isBefore(start, currentWeekStart);
+          const isCollapsed = collapsedWeeks[weekLabel];
 
-        return (
-          <div
-            key={weekLabel}
-            ref={(el) => {
-              weekRefs.current[weekLabel] = el;
-            }}
-            className="mb-8"
-          >
-            <div className="flex justify-between items-center mb-2">
-              <h2 className="text-lg font-semibold text-zinc-600">{weekLabel}</h2>
-              {isPast && (
-                <button
-                  onClick={() =>
-                    setCollapsedWeeks((prev) => ({
-                      ...prev,
-                      [weekLabel]: !prev[weekLabel],
-                    }))
-                  }
-                  className="text-sm text-zinc-400 underline"
-                >
-                  {isCollapsed ? 'Show Previous Week' : 'Hide Previous Week'}
-                </button>
+          const rangeLabel = `${format(start, 'MMM d')} – ${format(end, 'MMM d')}`;
+
+          return (
+            <div
+              key={weekLabel}
+              ref={(el) => {
+                weekRefs.current[weekLabel] = el;
+              }}
+              className="mb-6 scroll-mt-24"
+            >
+              <div className="flex items-end justify-between mb-2">
+                <div>
+                  <div className="text-[13px] text-zinc-500">{rangeLabel}</div>
+                  <h2 className="text-[16px] font-semibold text-zinc-900">{weekLabel}</h2>
+                </div>
+
+                {isPast && (
+                  <button
+                    onClick={() =>
+                      setCollapsedWeeks((prev) => ({
+                        ...prev,
+                        [weekLabel]: !prev[weekLabel],
+                      }))
+                    }
+                    className="text-[13px] text-zinc-500 underline underline-offset-2"
+                  >
+                    {isCollapsed ? 'Show' : 'Hide'}
+                  </button>
+                )}
+              </div>
+
+              {!isCollapsed && (
+                <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+                  <div className="divide-y divide-gray-100">
+                    {sessions.map((session) => {
+                      const title = session.title || session.stravaActivity?.name || 'Unnamed Session';
+                      const date = safeParseDate(session.date);
+                      const isCompleted = completedSessions.some(
+                        (c) => c.date === session.date && c.session_title === session.title
+                      );
+
+                      const sport = inferSport(title);
+                      const badge = sportBadge(sport);
+
+                      return (
+                        <button
+                          key={session.id}
+                          onClick={() => setSelectedSession(session)}
+                          className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-zinc-50 active:bg-zinc-100 transition"
+                        >
+                          <span
+                            className={`shrink-0 inline-flex items-center rounded-full px-2 py-1 text-[11px] font-medium ring-1 ${badge.cls}`}
+                          >
+                            {badge.label}
+                          </span>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <div className="text-[14px] font-medium text-zinc-900 truncate">
+                                {title}
+                              </div>
+                              {isCompleted && (
+                                <span className="shrink-0 text-[12px] text-emerald-600 font-medium">✓</span>
+                              )}
+                            </div>
+
+                            <div className="text-[12px] text-zinc-500 truncate">
+                              {format(date, 'EEE, MMM d')}
+                            </div>
+                          </div>
+
+                          <ChevronRightIcon className="w-4 h-4 text-zinc-400 shrink-0" />
+                        </button>
+                      );
+                    })}
+
+                    {extras.map((a) => {
+                      const date = safeParseDate(a.start_date_local);
+                      const distance = a.distance ? `${(a.distance / 1609).toFixed(1)} mi` : '';
+                      const hr = a.average_heartrate ? `${Math.round(a.average_heartrate)} bpm` : '';
+
+                      return (
+                        <div key={a.id} className="px-4 py-3 bg-blue-50/60">
+                          <div className="text-[13px] font-medium text-blue-900 truncate">
+                            Strava • {a.name || 'Unplanned Activity'}
+                          </div>
+                          <div className="text-[12px] text-blue-800 truncate">
+                            {format(date, 'EEE, MMM d')}
+                            {distance ? ` • ${distance}` : ''}
+                            {hr ? ` • ${hr}` : ''}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
             </div>
+          );
+        })}
 
-            {!isCollapsed && (
-              <div className="space-y-3">
-                {sessions.map((session) => {
-                  const title = session.title || session.stravaActivity?.name || 'Unnamed Session';
-                  const date = safeParseDate(session.date);
-
-                  const isCompleted = completedSessions.some(
-                    (c) => c.date === session.date && c.session_title === session.title
-                  );
-
-                  return (
-                    <div
-                      key={session.id}
-                      onClick={() => setSelectedSession(session)}
-                      className={`rounded-xl p-4 border flex items-center justify-between cursor-pointer transition shadow-sm ${
-                        isCompleted
-                          ? 'bg-green-50 border-green-300'
-                          : 'bg-white hover:bg-zinc-50'
-                      }`}
-                    >
-                      <div>
-                        <div className="text-sm font-medium text-zinc-900">
-                          {title}
-                          {isCompleted && <span className="ml-2 text-green-600">✓</span>}
-                        </div>
-                        <div className="text-xs text-zinc-500">
-                          {format(date, 'EEEE, MMM d')}
-                        </div>
-                      </div>
-                      <ChevronRightIcon className="w-4 h-4 text-zinc-400" />
-                    </div>
-                  );
-                })}
-
-                {extras.map((a) => {
-                  const date = safeParseDate(a.start_date_local);
-                  const distance = a.distance ? `${(a.distance / 1609).toFixed(1)} mi` : '';
-                  const pace =
-                    a.moving_time && a.distance
-                      ? `${Math.round((a.moving_time / (a.distance / 1000)) / 60)} min/km`
-                      : '';
-                  const hr = a.average_heartrate ? `${Math.round(a.average_heartrate)} bpm` : '';
-
-                  return (
-                    <div
-                      key={a.id}
-                      className="rounded-xl p-4 border flex flex-col bg-blue-50 border-blue-300"
-                    >
-                      <div className="text-sm font-medium text-blue-800 mb-1">
-                        🚴 {a.name || 'Unplanned Activity'}
-                      </div>
-                      <div className="text-xs text-blue-700">
-                        {format(date, 'EEEE, MMM d')} • {distance} {hr && `• ${hr}`} {pace && `• ${pace}`}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        );
-      })}
-
-      <SessionModal
-        session={selectedSession}
-        stravaActivity={selectedSession?.stravaActivity}
-        open={!!selectedSession}
-        onClose={() => setSelectedSession(null)}
-        completedSessions={completedSessions}
-        onCompletedUpdate={(updatedList) => setCompletedSessions(updatedList)}
-      />
+        <SessionModal
+          session={selectedSession}
+          stravaActivity={selectedSession?.stravaActivity}
+          open={!!selectedSession}
+          onClose={() => setSelectedSession(null)}
+          completedSessions={completedSessions}
+          onCompletedUpdate={(updatedList) => setCompletedSessions(updatedList)}
+        />
+      </div>
     </div>
   );
 }

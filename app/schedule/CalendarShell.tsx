@@ -12,6 +12,7 @@ import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 import { supabase } from '@/lib/supabase-client';
 import { DndContext, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 
+
 type CompletedSession = {
   date: string;
   session_title: string;
@@ -21,8 +22,8 @@ type CompletedSession = {
 type CalendarShellProps = {
   sessions: MergedSession[];
   completedSessions: CompletedSession[];
-  stravaActivities: StravaActivity[]; // keep for dashboards/analytics if needed
-  extraStravaActivities: StravaActivity[]; // UNMATCHED ONLY
+  stravaActivities: StravaActivity[];
+  extraStravaActivities: StravaActivity[];
   onCompletedUpdate?: (updated: CompletedSession[]) => void;
   timezone?: string;
 };
@@ -40,9 +41,7 @@ function SupportBanner() {
       className="mx-auto mb-6 flex w-fit items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 shadow-sm hover:bg-gray-50 transition"
     >
       <ChatBubbleLeftRightIcon className="h-4 w-4 text-gray-400" />
-      <span className="text-gray-600 underline hover:text-gray-800">
-        Support the project ($5/month)
-      </span>
+      <span className="text-gray-600 underline hover:text-gray-800">Support the project ($5/month)</span>
     </button>
   );
 }
@@ -64,16 +63,13 @@ export default function CalendarShell({
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // dnd-kit sensors
   const mouseSensor = useSensor(MouseSensor, { activationConstraint: { distance: 8 } });
   const touchSensor = useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } });
   const sensors = useSensors(mouseSensor, touchSensor);
 
-  // Sync local state with props
   useEffect(() => setCompleted(completedSessions), [completedSessions]);
   useEffect(() => setLocalSessions(sessions), [sessions]);
 
-  // Bubble completion changes up if parent cares
   useEffect(() => {
     onCompletedUpdate?.(completed);
   }, [completed, onCompletedUpdate]);
@@ -100,11 +96,6 @@ export default function CalendarShell({
     return map;
   }, [localSessions]);
 
-  /**
-   * CRITICAL:
-   * `sessionsByDate` already includes matched Strava (session.stravaActivity).
-   * `stravaByDate` must ONLY include UNMATCHED Strava, otherwise duplicates render.
-   */
   const stravaByDate: Record<string, StravaActivity[]> = useMemo(() => {
     return normalizeStravaActivities(extraStravaActivities, timezone);
   }, [extraStravaActivities, timezone]);
@@ -132,12 +123,19 @@ export default function CalendarShell({
 
   if (!hasMounted) {
     return (
-      <main className="min-h-screen bg-background px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20 max-w-[1800px] mx-auto" />
+      <main className="min-h-[100dvh] bg-background" />
     );
   }
 
-  return (
-    <main className="min-h-screen bg-background px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20 max-w-[1800px] mx-auto">
+return (
+  <main
+    className={
+      `min-h-[100dvh] bg-background pb-[env(safe-area-inset-bottom)] ` +
+      (isMobile
+        ? 'px-0'
+        : 'px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20 max-w-[1800px] mx-auto')
+    }
+  >
       {isMobile ? (
         <MobileCalendarView sessions={localSessions} completedSessions={completed} />
       ) : (
