@@ -1,5 +1,7 @@
 export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced';
 
+export type WalkthroughMode = 'auto' | 'manual';
+
 export type WalkthroughContext = {
   planId: string;
   userId: string;
@@ -8,6 +10,13 @@ export type WalkthroughContext = {
   experience?: string | null;
   maxHours?: number | null;
   restDay?: string | null;
+
+  /**
+   * Determines guardrails:
+   * - auto: show only for beginners + respects dismissal
+   * - manual: user explicitly opened; ignore beginner/dismiss restrictions
+   */
+  mode?: WalkthroughMode;
 };
 
 export type CoachResourceKind = 'budget' | 'safe' | 'convenient';

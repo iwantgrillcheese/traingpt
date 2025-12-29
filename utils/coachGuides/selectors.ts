@@ -1,7 +1,9 @@
 import type { CoachGuide, WalkthroughContext } from '@/types/coachGuides';
 import { COACH_GUIDES } from './guides';
 
-function normalizeExperience(exp?: string | null): 'beginner' | 'intermediate' | 'advanced' | 'unknown' {
+function normalizeExperience(
+  exp?: string | null
+): 'beginner' | 'intermediate' | 'advanced' | 'unknown' {
   if (!exp) return 'unknown';
   const v = exp.trim().toLowerCase();
   if (v.startsWith('beg')) return 'beginner';
@@ -18,12 +20,16 @@ export function shouldShowWalkthrough(ctx: WalkthroughContext): boolean {
 export function getGuidesForContext(ctx: WalkthroughContext): CoachGuide[] {
   const exp = normalizeExperience(ctx.experience);
   const raceType = ctx.raceType ?? undefined;
+  const isManual = ctx.mode === 'manual';
 
   const filtered = COACH_GUIDES.filter((g) => {
     const app = g.applicableTo;
     if (!app) return true;
 
-    if (app.experience && exp !== 'unknown') {
+    // Experience filtering:
+    // - auto mode: enforce experience applicability
+    // - manual mode: user explicitly opened; do NOT filter out based on experience
+    if (!isManual && app.experience && exp !== 'unknown') {
       const okExp = app.experience.includes(exp) || app.experience.includes('any');
       if (!okExp) return false;
     }

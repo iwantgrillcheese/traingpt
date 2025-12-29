@@ -18,16 +18,26 @@ export default function PostPlanWalkthrough({
   if (!context) return null;
   if (!open) return null;
 
-  // Guardrails (don’t show if not eligible)
-  if (!shouldShowWalkthrough(context)) return null;
-  if (isWalkthroughDismissed(context.planId)) return null;
+  const isManual = context.mode === 'manual';
+
+  // Guardrails:
+  // - auto: beginners only + respects dismissal
+  // - manual: user explicitly opened; ignore beginner/dismiss restrictions
+  if (!isManual) {
+    if (!shouldShowWalkthrough(context)) return null;
+    if (isWalkthroughDismissed(context.planId)) return null;
+  }
 
   return (
     <CoachWalkthroughModal
       context={context}
       onClose={onClose}
       onDismissForever={() => {
-        dismissWalkthrough(context.planId);
+        // Only persist dismissal for auto mode.
+        // If user manually opens, "Skip" should just close it, not permanently hide.
+        if (!isManual) {
+          dismissWalkthrough(context.planId);
+        }
         onClose();
       }}
     />

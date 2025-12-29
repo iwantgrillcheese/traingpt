@@ -254,11 +254,12 @@ export default function PlanPage() {
               }
 
               if (ctx) {
-                setWalkthroughContext(ctx);
+  setWalkthroughContext({ ...ctx, mode: 'auto' });
 
-                // Open walkthrough after a tiny beat (feels intentional)
-                setTimeout(() => setWalkthroughOpen(true), 350);
-              }
+  // Open walkthrough after a tiny beat (feels intentional)
+  setTimeout(() => setWalkthroughOpen(true), 350);
+}
+
 
               resolve();
               return;
@@ -519,13 +520,18 @@ export default function PlanPage() {
                 Review the quick walkthrough, then head to your Schedule.
               </p>
               <div className="mt-4 flex items-center justify-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setWalkthroughOpen(true)}
-                  className="text-sm px-4 py-2 rounded-full border border-gray-200 bg-white hover:bg-gray-50 transition"
-                >
-                  View Walkthrough
-                </button>
+               <button
+  type="button"
+  onClick={() => {
+    if (!walkthroughContext) return;
+    setWalkthroughContext({ ...walkthroughContext, mode: 'manual' });
+    setWalkthroughOpen(true);
+  }}
+  className="text-sm px-4 py-2 rounded-full border border-gray-200 bg-white hover:bg-gray-50 transition"
+>
+  View Walkthrough
+</button>
+
                 <button
                   type="button"
                   onClick={handleGoToSchedule}
