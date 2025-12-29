@@ -37,12 +37,38 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
+  /**
+   * Navigate using Next router, but if the URL doesn't change immediately
+   * (some page-level code is blocking client navigation), fall back to a hard nav.
+   */
   const navigate = useCallback(
     (href: string) => {
+      if (!href || href === pathname) {
+        setSidebarOpen(false);
+        return;
+      }
+
       setSidebarOpen(false);
-      router.push(href);
+
+      const before = window.location.pathname;
+
+      try {
+        router.push(href);
+      } catch {
+        window.location.assign(href);
+        return;
+      }
+
+      // If Next navigation gets stuck (your /schedule case), force it.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (window.location.pathname === before) {
+            window.location.assign(href);
+          }
+        });
+      });
     },
-    [router]
+    [router, pathname]
   );
 
   const navItemClass = (href: string) =>
@@ -84,20 +110,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      {/* Backdrop — put it ABOVE everything in the page */}
+      {/* Backdrop */}
       <div
         className={clsx(
-          'fixed inset-0 z-[90] bg-black/30 transition-opacity',
+          'fixed inset-0 z-30 bg-black/30 transition-opacity',
           sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         )}
         onClick={() => setSidebarOpen(false)}
         aria-hidden="true"
       />
 
-      {/* Drawer — topmost layer */}
+      {/* Drawer */}
       <aside
         className={clsx(
-          'fixed inset-y-0 left-0 z-[100] bg-white shadow-xl transition-transform duration-200 will-change-transform pointer-events-auto',
+          'fixed inset-y-0 left-0 z-40 bg-white shadow-xl transition-transform duration-200 will-change-transform pointer-events-auto',
           'w-[82vw] max-w-[320px]',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         )}
@@ -105,7 +131,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           paddingTop: 'env(safe-area-inset-top)',
           paddingBottom: 'env(safe-area-inset-bottom)',
         }}
-        // prevents clicks inside drawer from bubbling to anything weird behind it
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
       >
@@ -138,7 +163,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             ))}
           </div>
 
-          <div className="mt-auto px-2 pt-6 text-xs text-gray-400">Built for real training.</div>
+          <div className="mt-auto px-2 pt-6 text-xs text-gray-400">
+            Built for real training.
+          </div>
         </nav>
       </aside>
 
