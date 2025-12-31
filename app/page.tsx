@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import Footer from './components/footer';
 import BlogPreview from './components/blog/BlogPreview';
@@ -13,20 +14,15 @@ type FieldConfig = {
   type: 'text' | 'number' | 'select' | 'date';
   options?: string[];
   placeholder?: string;
-  helper?: string;
 };
 
 export default function Home() {
   const router = useRouter();
 
-  // Auth state
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(false);
-
-  // Plan state
   const [hasPlan, setHasPlan] = useState<boolean>(false);
 
-  // Form state
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [userNote, setUserNote] = useState('');
   const [formData, setFormData] = useState({
@@ -46,41 +42,26 @@ export default function Home() {
       label: 'Race Type',
       type: 'select',
       options: ['Half Ironman (70.3)', 'Ironman (140.6)', 'Olympic', 'Sprint'],
-      helper: 'Pick your target event distance.',
     },
-    { id: 'raceDate', label: 'Race Date', type: 'date', helper: 'We build backwards from this date.' },
-    { id: 'maxHours', label: 'Max Weekly Training Hours', type: 'number', helper: 'Your weekly cap on training time.' },
+    { id: 'raceDate', label: 'Race Date', type: 'date' },
+    { id: 'maxHours', label: 'Max Weekly Training Hours', type: 'number' },
     {
       id: 'experience',
       label: 'Experience Level',
       type: 'select',
       options: ['Beginner', 'Intermediate', 'Advanced'],
-      helper: 'Used to match volume and intensity safely.',
     },
   ];
 
   const advancedFields: FieldConfig[] = [
-    { id: 'bikeFTP', label: 'Bike FTP (watts)', type: 'number', helper: 'Optional. Helps with intensity targets.' },
-    {
-      id: 'runPace',
-      label: 'Run Threshold Pace',
-      type: 'text',
-      placeholder: 'e.g. 7:30 / mile',
-      helper: 'Optional. Used for pacing guidance.',
-    },
-    {
-      id: 'swimPace',
-      label: 'Swim Threshold Pace',
-      type: 'text',
-      placeholder: 'e.g. 1:38 / 100m',
-      helper: 'Optional. Used for set pacing.',
-    },
+    { id: 'bikeFTP', label: 'Bike FTP (watts)', type: 'number' },
+    { id: 'runPace', label: 'Run Threshold Pace', type: 'text', placeholder: 'e.g. 7:30 / mile' },
+    { id: 'swimPace', label: 'Swim Threshold Pace', type: 'text', placeholder: 'e.g. 1:38 / 100m' },
     {
       id: 'restDay',
       label: 'Preferred Rest Day',
       type: 'select',
       options: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-      helper: 'Optional. We will bias rest toward this day.',
     },
   ];
 
@@ -110,8 +91,8 @@ export default function Home() {
     const syncSession = async () => {
       try {
         const { data, error } = await supabase.auth.getSession();
-
         if (!alive) return;
+
         if (error) console.warn('[home] getSession error', error);
 
         const nextSession = data.session ?? null;
@@ -129,10 +110,8 @@ export default function Home() {
       }
     };
 
-    // Initial session sync
     syncSession();
 
-    // Auth changes
     const { data: listener } = supabase.auth.onAuthStateChange((_event, s) => {
       if (!alive) return;
       setSession(s ?? null);
@@ -142,11 +121,9 @@ export default function Home() {
       else setHasPlan(false);
     });
 
-    // Resync on focus
     const onFocus = () => syncSession();
     window.addEventListener('focus', onFocus);
 
-    // Safety net
     const timeout = window.setTimeout(() => {
       if (!alive) return;
       setAuthReady(true);
@@ -184,10 +161,10 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-white text-gray-900">
-      {/* Premium background */}
+      {/* Hero */}
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute -top-28 left-1/2 -translate-x-1/2 h-[520px] w-[920px] rounded-full bg-gray-100 blur-3xl opacity-70" />
+          <div className="absolute -top-28 left-1/2 -translate-x-1/2 h-[520px] w-[980px] rounded-full bg-gray-100 blur-3xl opacity-70" />
           <div className="absolute top-24 right-[-140px] h-[320px] w-[320px] rounded-full bg-gray-100 blur-3xl opacity-60" />
           <div className="absolute top-56 left-[-160px] h-[320px] w-[320px] rounded-full bg-gray-100 blur-3xl opacity-60" />
         </div>
@@ -205,11 +182,11 @@ export default function Home() {
                   Your plan is already created.
                 </h1>
                 <p className="mt-3 text-gray-600 text-lg">
-                  Head to your schedule to start checking off sessions. You can also re-generate if your goals changed.
+                  View your schedule, or re-generate if your goals changed.
                 </p>
               </div>
 
-              <div className="mt-10 bg-white border border-gray-200 shadow-sm rounded-2xl p-6 md:p-8">
+              <div className="mt-8 bg-white border border-gray-200 shadow-sm rounded-2xl p-6 md:p-8">
                 <div className="flex flex-col md:flex-row gap-3 md:gap-4 justify-center">
                   <button
                     className="bg-black text-white px-6 py-3 rounded-full text-sm font-medium hover:bg-gray-800"
@@ -224,26 +201,11 @@ export default function Home() {
                     Re-generate plan
                   </button>
                 </div>
-
-                <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-gray-600">
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-                    <div className="font-medium text-gray-900">Track compliance</div>
-                    <div className="mt-1">Stay consistent with what gets done.</div>
-                  </div>
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-                    <div className="font-medium text-gray-900">Strava sync</div>
-                    <div className="mt-1">Auto-capture completed workouts.</div>
-                  </div>
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-                    <div className="font-medium text-gray-900">Feedback on demand</div>
-                    <div className="mt-1">Get clarity before and after sessions.</div>
-                  </div>
-                </div>
               </div>
             </section>
           ) : (
             <section className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
-              {/* Left: Value prop */}
+              {/* Left */}
               <div className="lg:col-span-5">
                 <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-gray-600 shadow-sm">
                   <span className="h-1.5 w-1.5 rounded-full bg-gray-900" />
@@ -255,75 +217,64 @@ export default function Home() {
                 </h1>
 
                 <p className="mt-4 text-gray-600 text-lg leading-relaxed">
-                  Tell us your race and weekly hours. We build a complete schedule you can follow on desktop or mobile.
-                  Sync Strava, track compliance, and get feedback as you train.
+                  Pick your race, your date, and your weekly hours. Get a full schedule you can follow, track, and
+                  adjust over time.
                 </p>
 
-                <div className="mt-7 grid grid-cols-1 gap-3">
-                  <div className="flex items-start gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
-                    <div className="mt-1 h-2.5 w-2.5 rounded-full bg-gray-900" />
-                    <div>
-                      <div className="font-medium">A complete plan, instantly</div>
-                      <div className="mt-1 text-sm text-gray-600">
-                        A full schedule built around your date and constraints.
-                      </div>
-                    </div>
+                <div className="mt-7 grid grid-cols-1 gap-3 text-sm">
+                  <div className="rounded-2xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
+                    <div className="font-medium">Instant plan</div>
+                    <div className="mt-1 text-gray-600">A full schedule built around your race date.</div>
                   </div>
-
-                  <div className="flex items-start gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
-                    <div className="mt-1 h-2.5 w-2.5 rounded-full bg-gray-900" />
-                    <div>
-                      <div className="font-medium">Track what you actually did</div>
-                      <div className="mt-1 text-sm text-gray-600">
-                        Check off sessions and compare planned versus completed.
-                      </div>
-                    </div>
+                  <div className="rounded-2xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
+                    <div className="font-medium">Calendar tracking</div>
+                    <div className="mt-1 text-gray-600">Check off sessions and stay consistent week to week.</div>
                   </div>
-
-                  <div className="flex items-start gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
-                    <div className="mt-1 h-2.5 w-2.5 rounded-full bg-gray-900" />
-                    <div>
-                      <div className="font-medium">Strava sync and feedback</div>
-                      <div className="mt-1 text-sm text-gray-600">
-                        Pull in workouts and ask questions any time.
-                      </div>
-                    </div>
+                  <div className="rounded-2xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
+                    <div className="font-medium">Strava sync and feedback</div>
+                    <div className="mt-1 text-gray-600">Pull in workouts and get guidance as you train.</div>
                   </div>
                 </div>
 
-                <div className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-500">
+                <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-500">
                   <span className="inline-flex items-center gap-2">
                     <span className="h-1 w-1 rounded-full bg-gray-400" />
                     Takes about a minute
                   </span>
                   <span className="inline-flex items-center gap-2">
                     <span className="h-1 w-1 rounded-full bg-gray-400" />
-                    Built for triathlon and endurance
-                  </span>
-                  <span className="inline-flex items-center gap-2">
-                    <span className="h-1 w-1 rounded-full bg-gray-400" />
                     Works great on mobile
                   </span>
                 </div>
-
-                {/* Premium testimonial style proof card */}
-                <div className="mt-8 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                  <div className="text-xs text-gray-500">What you get right away</div>
-                  <div className="mt-2 text-sm text-gray-800 leading-relaxed">
-                    A week by week training schedule you can view, track, and adjust. No spreadsheets. No templates.
-                    Just a plan that matches your race and your available time.
-                  </div>
-                </div>
               </div>
 
-              {/* Right: Form */}
-              <div className="lg:col-span-7">
-                <div className="bg-white border border-gray-200 shadow-sm rounded-2xl p-6 md:p-8">
+              {/* Right */}
+              <div className="lg:col-span-7 space-y-4">
+                {/* Screenshot proof */}
+                <div className="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+                  <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+                    <div className="text-sm font-medium">Preview</div>
+                    <div className="text-xs text-gray-500">Schedule view</div>
+                  </div>
+                  <div className="relative w-full aspect-[16/10] bg-gray-50">
+                    {/* Put a real screenshot at /public/landing/schedule.png */}
+                    <Image
+                      src="/landing/schedule.png"
+                      alt="Schedule calendar screenshot"
+                      fill
+                      className="object-cover"
+                      priority
+                    />
+                  </div>
+                </div>
+
+                {/* Form */}
+                <div className="bg-white border border-gray-200 shadow-sm rounded-3xl p-6 md:p-8">
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <h2 className="text-xl font-semibold tracking-tight">Create your plan</h2>
                       <p className="mt-1 text-sm text-gray-600">
-                        Start with the essentials. Add advanced data for more precise guidance.
+                        Start simple. Add advanced details if you want.
                       </p>
                     </div>
 
@@ -348,7 +299,7 @@ export default function Home() {
 
                   <form className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-5">
                     {[...beginnerFields, ...(showAdvanced ? advancedFields : [])].map(
-                      ({ id, label, type, options, placeholder, helper }) => (
+                      ({ id, label, type, options, placeholder }) => (
                         <div key={id}>
                           <label className="block text-sm font-medium text-gray-800 mb-1">{label}</label>
                           {type === 'select' ? (
@@ -377,7 +328,6 @@ export default function Home() {
                               className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-gray-200"
                             />
                           )}
-                          {helper ? <p className="mt-1 text-xs text-gray-500">{helper}</p> : null}
                         </div>
                       )
                     )}
@@ -392,12 +342,9 @@ export default function Home() {
                         rows={3}
                         value={userNote}
                         onChange={(e) => setUserNote(e.target.value)}
-                        placeholder="E.g. prefer long ride Saturday, need swim focus, returning from a minor injury..."
+                        placeholder="E.g. prefer long ride Saturday, want swim focus, returning from a minor injury"
                         className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-gray-200"
                       />
-                      <p className="mt-2 text-xs text-gray-500">
-                        You can refine later. This helps shape the first draft.
-                      </p>
                     </div>
 
                     <div className="md:col-span-2 mt-2">
@@ -423,52 +370,11 @@ export default function Home() {
                         </span>
                         <span className="inline-flex items-center gap-2">
                           <span className="h-1 w-1 rounded-full bg-gray-400" />
-                          You can connect Strava later
+                          Strava optional
                         </span>
                       </div>
                     </div>
                   </form>
-                </div>
-
-                {/* Premium feature strip */}
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="rounded-2xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
-                    <div className="text-sm font-medium">Calendar view</div>
-                    <div className="mt-1 text-xs text-gray-600">A clean schedule you will actually follow.</div>
-                  </div>
-                  <div className="rounded-2xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
-                    <div className="text-sm font-medium">Completion tracking</div>
-                    <div className="mt-1 text-xs text-gray-600">Know where you are consistent week to week.</div>
-                  </div>
-                  <div className="rounded-2xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
-                    <div className="text-sm font-medium">On demand feedback</div>
-                    <div className="mt-1 text-xs text-gray-600">Get clarity before and after sessions.</div>
-                  </div>
-                </div>
-
-                {/* Mini FAQ for premium polish */}
-                <div className="mt-6 rounded-2xl border border-gray-200 bg-gray-50 p-5">
-                  <div className="text-sm font-medium text-gray-900">Common questions</div>
-                  <div className="mt-3 space-y-3">
-                    <div>
-                      <div className="text-sm text-gray-900 font-medium">Is it really free to start?</div>
-                      <div className="mt-1 text-sm text-gray-600">
-                        Yes. You can generate your first plan and use the schedule without a credit card.
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-900 font-medium">Do I need Strava connected?</div>
-                      <div className="mt-1 text-sm text-gray-600">
-                        No. You can connect Strava any time to automatically pull completed workouts.
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-900 font-medium">How long does it take?</div>
-                      <div className="mt-1 text-sm text-gray-600">
-                        Most plans generate in about a minute depending on plan length.
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </div>
             </section>
@@ -476,12 +382,54 @@ export default function Home() {
         </main>
       </div>
 
-      {/* Divider */}
-      <div className="max-w-6xl mx-auto px-6">
+      {/* Product sections with screenshots */}
+      <div className="max-w-6xl mx-auto px-6 pb-14">
         <div className="border-t border-gray-200" />
+
+        <div className="pt-12 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+          <div>
+            <h2 className="text-2xl font-semibold tracking-tight">A plan you can follow.</h2>
+            <p className="mt-3 text-gray-600">
+              Your schedule lives in a clean calendar view. Stay consistent by checking off sessions.
+            </p>
+          </div>
+          <div className="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+            <div className="relative w-full aspect-[16/10] bg-gray-50">
+              <Image src="/landing/calendar.png" alt="Calendar screenshot" fill className="object-cover" />
+            </div>
+          </div>
+        </div>
+
+        <div className="pt-12 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+          <div className="order-2 md:order-1 rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+            <div className="relative w-full aspect-[16/10] bg-gray-50">
+              <Image src="/landing/coaching.png" alt="Coaching screenshot" fill className="object-cover" />
+            </div>
+          </div>
+          <div className="order-1 md:order-2">
+            <h2 className="text-2xl font-semibold tracking-tight">Feedback when you need it.</h2>
+            <p className="mt-3 text-gray-600">
+              Ask questions about pacing, fatigue, workouts, or race strategy. Get answers tied to your plan.
+            </p>
+          </div>
+        </div>
+
+        <div className="pt-12 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+          <div>
+            <h2 className="text-2xl font-semibold tracking-tight">Sync with Strava.</h2>
+            <p className="mt-3 text-gray-600">
+              Pull in completed workouts automatically. Compare planned and completed training over time.
+            </p>
+          </div>
+          <div className="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+            <div className="relative w-full aspect-[16/10] bg-gray-50">
+              <Image src="/landing/strava.png" alt="Strava sync screenshot" fill className="object-cover" />
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-6 py-10">
+      <div className="max-w-6xl mx-auto px-6 pb-10">
         <BlogPreview />
       </div>
 
