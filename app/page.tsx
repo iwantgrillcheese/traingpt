@@ -7,12 +7,6 @@ import { supabase } from '@/lib/supabase-client';
 import Footer from './components/footer';
 import BlogPreview from './components/blog/BlogPreview';
 
-/**
- * A calm, premium landing page that avoids brittle product screenshots.
- * Hero shows the "generation box" (the compelling entry point) with a
- * clear CTA that routes based on auth + plan existence.
- */
-
 function Field({
   label,
   value,
@@ -59,9 +53,7 @@ function GeneratorCard({
               A structured triathlon plan built around your race and weekly time.
             </div>
           </div>
-          <div className="hidden sm:inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs text-gray-600">
-            Free to start
-          </div>
+          {/* removed "Free to start" badge */}
         </div>
       </div>
 
@@ -100,7 +92,7 @@ function GeneratorCard({
           </span>
           <span className="inline-flex items-center gap-2">
             <span className="h-1 w-1 rounded-full bg-gray-400" />
-            Generate detailed workouts on demand
+            Detailed workouts on demand
           </span>
         </div>
       </div>
@@ -120,6 +112,42 @@ function FeatureCard({
       <div className="text-base font-semibold text-gray-900">{title}</div>
       <p className="mt-2 text-sm text-gray-600 leading-relaxed">{desc}</p>
     </div>
+  );
+}
+
+function MarketingHeader({
+  authed,
+  onLogin,
+  onSchedule,
+}: {
+  authed: boolean;
+  onLogin: () => void;
+  onSchedule: () => void;
+}) {
+  return (
+    <header className="sticky top-0 z-20 bg-white/80 backdrop-blur border-b border-gray-100">
+      <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+        <div className="text-sm font-semibold tracking-tight text-gray-900">TrainGPT</div>
+
+        <div className="flex items-center gap-2">
+          {authed ? (
+            <button
+              onClick={onSchedule}
+              className="text-sm px-3 py-1.5 rounded-full border border-gray-200 bg-white hover:bg-gray-50"
+            >
+              Schedule
+            </button>
+          ) : (
+            <button
+              onClick={onLogin}
+              className="text-sm px-3 py-1.5 rounded-full border border-gray-200 bg-white hover:bg-gray-50"
+            >
+              Log in
+            </button>
+          )}
+        </div>
+      </div>
+    </header>
   );
 }
 
@@ -221,9 +249,17 @@ export default function Home() {
     );
   }
 
+  const authed = !!session;
+
   return (
     <div className="min-h-screen bg-white text-gray-900">
-      {/* Subtle background wash */}
+      {/* ✅ Use a marketing header (no app nav) */}
+      <MarketingHeader
+        authed={authed}
+        onLogin={() => router.push('/login')}
+        onSchedule={() => router.push('/schedule')}
+      />
+
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute -top-40 left-1/2 -translate-x-1/2 h-[560px] w-[980px] rounded-full bg-gray-100 blur-3xl opacity-70" />
@@ -231,13 +267,12 @@ export default function Home() {
           <div className="absolute top-64 left-[-180px] h-[360px] w-[360px] rounded-full bg-gray-100 blur-3xl opacity-60" />
         </div>
 
-        <main className="relative max-w-6xl mx-auto px-6 pt-16 pb-10">
-          {/* HERO */}
+        <main className="relative max-w-6xl mx-auto px-6 pt-14 pb-10">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
             <div className="lg:col-span-6">
-              <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-gray-600 shadow-sm">
-                <span className="h-1.5 w-1.5 rounded-full bg-gray-900" />
-                Free to start. No credit card required.
+              {/* ✅ Remove "free to start" language entirely */}
+              <div className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-gray-600 shadow-sm">
+                Built for triathletes
               </div>
 
               <h1 className="mt-5 text-4xl md:text-5xl font-semibold tracking-tight leading-[1.05]">
@@ -248,8 +283,6 @@ export default function Home() {
                 Pick your race, your date, and your weekly hours. Get a complete plan you can follow on mobile — and
                 generate detailed workouts when you want more structure.
               </p>
-
-              {/* ✅ Removed hero CTA buttons entirely (GeneratorCard is the CTA) */}
 
               <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-500">
                 <span className="inline-flex items-center gap-2">
@@ -267,7 +300,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* HERO: Generation box (single CTA surface) */}
             <div className="lg:col-span-6">
               <GeneratorCard
                 onPrimary={() => router.push(primaryCta.href)}
@@ -281,12 +313,10 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Minimal divider */}
           <div className="mt-14 border-t border-gray-200" />
         </main>
       </div>
 
-      {/* HOW IT WORKS */}
       <div id="how-it-works" className="max-w-6xl mx-auto px-6">
         <section className="py-14">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
@@ -326,22 +356,16 @@ export default function Home() {
 
         <div className="border-t border-gray-200" />
 
-        {/* Final CTA (✅ single button only) */}
+        {/* Final CTA: keep it simple, no “free” language */}
         <section className="py-14">
           <div className="rounded-3xl border border-gray-200 bg-gray-50 p-8 md:p-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
             <div>
-              <h3 className="text-2xl font-semibold tracking-tight text-gray-900">Get your plan in seconds.</h3>
+              <h3 className="text-2xl font-semibold tracking-tight text-gray-900">
+                Get your plan — then refine it as you go.
+              </h3>
               <p className="mt-2 text-gray-600">
-                Free to start. Generate a plan you can follow — then add detail only when you want it.
+                Start with structure. Add detail only when you want it.
               </p>
-
-              {/* optional: a subtle text link instead of a button */}
-              <button
-                onClick={() => router.push(session ? '/schedule' : '/login')}
-                className="mt-3 text-sm text-gray-600 underline underline-offset-4 hover:text-gray-900"
-              >
-                Explore the calendar
-              </button>
             </div>
 
             <div className="w-full md:w-auto">
@@ -356,7 +380,6 @@ export default function Home() {
         </section>
       </div>
 
-      {/* Blog preview stays below CTA */}
       <div className="max-w-6xl mx-auto px-6 pb-10">
         <BlogPreview />
       </div>
