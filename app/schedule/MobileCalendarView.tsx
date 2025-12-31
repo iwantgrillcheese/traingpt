@@ -11,7 +11,6 @@ import {
   endOfWeek,
 } from 'date-fns';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronRightIcon } from '@heroicons/react/20/solid';
 import SessionModal from './SessionModal';
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
@@ -51,30 +50,27 @@ function inferSport(title: string): 'run' | 'bike' | 'swim' | 'strength' | 'othe
   return 'other';
 }
 
-// Monochrome sport glyph (light performance = calm, no pastel identity noise)
 function sportGlyph(sport: ReturnType<typeof inferSport>) {
+  // Keep monochrome + minimal. No “cute” identity.
   switch (sport) {
     case 'swim':
-      return '🏊';
+      return 'Sw';
     case 'bike':
-      return '🚴';
+      return 'Bk';
     case 'run':
-      return '🏃';
+      return 'Rn';
     case 'strength':
-      return '💪';
+      return 'St';
     default:
       return '•';
   }
 }
 
-// Try to extract a useful “detail” line (optional, but helps premium feel)
 function deriveDetail(title: string) {
   const t = title || '';
-  // If title includes parentheses, treat that as detail, e.g. "Bike 45min easy (145-168w endurance)"
   const match = t.match(/\(([^)]+)\)/);
   if (match?.[1]) return match[1].trim();
 
-  // Basic heuristics
   const lower = t.toLowerCase();
   if (lower.includes('threshold')) return 'Threshold';
   if (lower.includes('tempo')) return 'Tempo';
@@ -86,8 +82,21 @@ function deriveDetail(title: string) {
   return '';
 }
 
-// IMPORTANT: stable default to avoid re-render loops when prop is omitted
 const EMPTY_STRAVA: StravaActivity[] = [];
+
+function ChevronIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" {...props}>
+      <path
+        d="M9 6l6 6-6 6"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 export default function MobileCalendarView({
   sessions,
@@ -99,13 +108,10 @@ export default function MobileCalendarView({
   const [completedSessions, setCompletedSessions] = useState<CompletedSession[]>(initialCompleted);
   const [collapsedWeeks, setCollapsedWeeks] = useState<Record<string, boolean>>({});
   const weekRefs = useRef<Record<string, HTMLDivElement | null>>({});
-
-  // Ensure the auto-scroll doesn't repeatedly fight the user
   const didAutoScroll = useRef(false);
 
   const today = new Date();
 
-  // Keep internal state in sync if props change
   useEffect(() => setSessionsState(sessions), [sessions]);
   useEffect(() => setCompletedSessions(initialCompleted), [initialCompleted]);
 
@@ -118,7 +124,6 @@ export default function MobileCalendarView({
     [sortedSessions]
   );
 
-  // Strava activities that do NOT match a planned session date
   const extraStravaMap = useMemo(() => {
     const map: Record<string, StravaActivity[]> = {};
     stravaActivities.forEach((a) => {
@@ -170,7 +175,6 @@ export default function MobileCalendarView({
     return weekMap;
   }, [sortedSessions, extraStravaMap]);
 
-  // Default-collapse past weeks
   useEffect(() => {
     const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
     const initial: Record<string, boolean> = {};
@@ -180,13 +184,12 @@ export default function MobileCalendarView({
     setCollapsedWeeks((prev) => ({ ...initial, ...prev }));
   }, [groupedByWeek, today]);
 
-  // Scroll current week into view ONCE
   useEffect(() => {
     if (didAutoScroll.current) return;
 
-    const currentWeekEntry = Object.entries(groupedByWeek).find(([_, val]) => {
-      return isWithinInterval(today, { start: val.start, end: val.end });
-    });
+    const currentWeekEntry = Object.entries(groupedByWeek).find(([_, val]) =>
+      isWithinInterval(today, { start: val.start, end: val.end })
+    );
 
     if (!currentWeekEntry) return;
 
@@ -199,36 +202,33 @@ export default function MobileCalendarView({
   }, [groupedByWeek, today]);
 
   if (sortedSessions.length === 0 && stravaActivities.length === 0) {
-    return <div className="text-center text-zinc-400 pt-12">No sessions to display.</div>;
+    return <div className="text-center text-zinc-500 pt-12">No sessions to display.</div>;
   }
 
   return (
     <div className="bg-[#f6f6f4] min-h-[100dvh]">
-      {/* Sticky app-like top bar */}
+      {/* Sticky top bar */}
       <div className="sticky top-0 z-20 bg-[#f6f6f4]/90 backdrop-blur border-b border-black/5">
         <div className="pt-[env(safe-area-inset-top)]" />
         <div className="px-4 py-3 flex items-center justify-between">
           <div>
-            <div className="text-[13px] text-zinc-500">Schedule</div>
-            <div className="text-[20px] font-semibold tracking-tight text-zinc-900">
+            <div className="text-[12px] tracking-wide text-zinc-500 uppercase">Schedule</div>
+            <div className="text-[20px] font-semibold tracking-tight text-zinc-950">
               This Plan
             </div>
           </div>
 
-          {/* Keep avatar calm + monochrome */}
-          <div className="h-9 w-9 rounded-full bg-zinc-900 text-white flex items-center justify-center text-sm">
+          <div className="h-9 w-9 rounded-full bg-zinc-950 text-white flex items-center justify-center text-sm font-semibold">
             C
           </div>
         </div>
       </div>
 
-      {/* Content */}
       <div className="px-4 pb-28 pt-4">
         {Object.entries(groupedByWeek).map(([weekLabel, { sessions, extras, start, end }]) => {
           const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
           const isPast = isBefore(start, currentWeekStart);
           const isCollapsed = collapsedWeeks[weekLabel];
-
           const rangeLabel = `${format(start, 'MMM d')} – ${format(end, 'MMM d')}`;
 
           return (
@@ -241,19 +241,16 @@ export default function MobileCalendarView({
             >
               <div className="flex items-end justify-between mb-2">
                 <div>
-                  <div className="text-[13px] text-zinc-500">{rangeLabel}</div>
-                  <h2 className="text-[18px] font-semibold text-zinc-900">{weekLabel}</h2>
+                  <div className="text-[13px] text-zinc-600">{rangeLabel}</div>
+                  <h2 className="text-[18px] font-semibold text-zinc-950">{weekLabel}</h2>
                 </div>
 
                 {isPast && (
                   <button
                     onClick={() =>
-                      setCollapsedWeeks((prev) => ({
-                        ...prev,
-                        [weekLabel]: !prev[weekLabel],
-                      }))
+                      setCollapsedWeeks((prev) => ({ ...prev, [weekLabel]: !prev[weekLabel] }))
                     }
-                    className="text-[13px] text-zinc-500 underline underline-offset-2"
+                    className="text-[13px] text-zinc-600 underline underline-offset-2"
                   >
                     {isCollapsed ? 'Show' : 'Hide'}
                   </button>
@@ -275,52 +272,42 @@ export default function MobileCalendarView({
                       const glyph = sportGlyph(sport);
                       const detail = deriveDetail(title);
 
-                      // Optional: highlight long ride / key session with accent border (matches mock vibe)
-                      const lower = title.toLowerCase();
-                      const isKey =
-                        lower.includes('long ride') || lower.includes('long run') || lower.includes('threshold');
-
                       return (
                         <button
                           key={session.id}
                           onClick={() => setSelectedSession(session)}
                           className="w-full text-left px-4 py-4 flex items-center gap-3 active:bg-black/[0.03] transition"
                         >
-                          {/* Mono icon pill */}
-                          <div className="shrink-0 h-9 w-9 rounded-full bg-black/[0.04] flex items-center justify-center text-[14px] text-zinc-700">
-                            <span className="opacity-80">{glyph}</span>
+                          {/* Minimal sport marker */}
+                          <div className="shrink-0 h-9 w-9 rounded-full bg-black/[0.04] flex items-center justify-center">
+                            <span className="text-[12px] font-semibold text-zinc-700">{glyph}</span>
                           </div>
 
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
-                              <div className="text-[15px] font-semibold text-zinc-900 truncate">
+                              <div className="text-[15px] font-semibold text-zinc-950 truncate">
                                 {title}
                               </div>
 
                               {isCompleted && (
-                                <span className="shrink-0 text-[12px] text-emerald-600 font-semibold">
+                                <span className="shrink-0 text-[12px] font-semibold text-zinc-700">
                                   ✓
                                 </span>
                               )}
                             </div>
 
-                            <div className="text-[13px] text-zinc-500 truncate">
+                            <div className="text-[13px] text-zinc-600 truncate">
                               {format(date, 'EEE, MMM d')}
                               {detail ? `  •  ${detail}` : ''}
                             </div>
                           </div>
 
-                          {/* Accent hint (like the mock’s orange chevron) */}
-                          <ChevronRightIcon
-                            className={`w-4 h-4 shrink-0 ${
-                              isKey ? 'text-orange-600' : 'text-zinc-300'
-                            }`}
-                          />
+                          {/* Very subtle affordance */}
+                          <ChevronIcon className="w-4 h-4 shrink-0 text-zinc-300" />
                         </button>
                       );
                     })}
 
-                    {/* Strava-only extras: keep neutral, not “blue blocks” */}
                     {extras.map((a) => {
                       const date = safeParseDate(a.start_date_local);
                       const distance = a.distance ? `${(a.distance / 1609).toFixed(1)} mi` : '';
@@ -328,19 +315,19 @@ export default function MobileCalendarView({
 
                       return (
                         <div key={a.id} className="px-4 py-4 flex items-center gap-3">
-                          <div className="shrink-0 h-9 w-9 rounded-full bg-black/[0.04] flex items-center justify-center text-[14px] text-zinc-700">
-                            <span className="opacity-70">⬆︎</span>
+                          <div className="shrink-0 h-9 w-9 rounded-full bg-black/[0.04] flex items-center justify-center">
+                            <span className="text-[12px] font-semibold text-zinc-700">Up</span>
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
-                              <div className="text-[14px] font-semibold text-zinc-900 truncate">
+                              <div className="text-[14px] font-semibold text-zinc-950 truncate">
                                 {a.name || 'Unplanned Activity'}
                               </div>
                               <span className="text-[11px] px-2 py-0.5 rounded-full bg-black/[0.04] text-zinc-600">
                                 Imported
                               </span>
                             </div>
-                            <div className="text-[13px] text-zinc-500 truncate">
+                            <div className="text-[13px] text-zinc-600 truncate">
                               {format(date, 'EEE, MMM d')}
                               {distance ? `  •  ${distance}` : ''}
                               {hr ? `  •  ${hr}` : ''}

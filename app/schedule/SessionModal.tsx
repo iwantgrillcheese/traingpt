@@ -49,6 +49,93 @@ function toStravaIdString(
   return undefined;
 }
 
+/**
+ * Turn "ChatGPT-shaped" structured_workout into a strict UI schema.
+ * Supports either:
+ *  - Section headings like "Warmup:" / "Main Set:" / "Cooldown:"
+ *  - Markdown-ish "**Warmup:**"
+ *  - Bullets "- " or "• "
+ */
+function parseWorkout(raw: string | null): Array<{ title: string; items: string[] }> {
+  const text = (raw ?? '').trim();
+  if (!text) return [];
+
+  const lines = text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const sections: Array<{ title: string; items: string[] }> = [];
+  let current: { title: string; items: string[] } | null = null;
+
+  const cleanHeading = (s: string) =>
+    s
+      .replace(/^\*\*/g, '')
+      .replace(/\*\*$/g, '')
+      .replace(/[:：]\s*$/g, '')
+      .trim();
+
+  const isHeading = (l: string) => {
+    // Examples:
+    // "Warmup:" , "**Warmup:**", "Main Set:", "Cooldown:", "Notes:"
+    const t = l.replace(/\*\*/g, '').trim().toLowerCase();
+    if (t.endsWith(':') || t.endsWith('：')) {
+      const base = t.replace(/[:：]$/g, '');
+      return ['warmup', 'main set', 'cooldown', 'notes', 'optional', 'recovery', 'drills'].includes(
+        base
+      );
+    }
+    return false;
+  };
+
+  const normalizeBullet = (l: string) => l.replace(/^[-•]\s*/, '').trim();
+
+  for (const line of lines) {
+    if (isHeading(line)) {
+      const title = cleanHeading(line);
+      current = { title, items: [] };
+      sections.push(current);
+      continue;
+    }
+
+    const isBullet = /^[-•]\s+/.test(line);
+    if (!current) {
+      // Create a default section if the model didn't provide headings.
+      current = { title: 'Workout', items: [] };
+      sections.push(current);
+    }
+
+    if (isBullet) {
+      current.items.push(normalizeBullet(line));
+    } else {
+      // Treat non-bullets as a bullet item to enforce consistent UI.
+      current.items.push(line.replace(/\*\*/g, '').trim());
+    }
+  }
+
+  // Strip "Workout Title:" lines into the header (don’t show inside body)
+  const filtered = sections.map((s) => ({
+    ...s,
+    items: s.items.filter((it) => !/^workout title/i.test(it)),
+  }));
+
+  // Remove empty sections
+  return filtered.filter((s) => s.items.length > 0);
+}
+
+function XIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" {...props}>
+      <path
+        d="M7 7l10 10M17 7L7 17"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 export default function SessionModal({
   session,
   stravaActivity,
@@ -74,6 +161,8 @@ export default function SessionModal({
   useEffect(() => {
     setOutput(session?.structured_workout || null);
   }, [session?.id]);
+
+  const parsedWorkout = useMemo(() => parseWorkout(output), [output]);
 
   const handleGenerate = async () => {
     if (!session) return;
@@ -163,16 +252,13 @@ export default function SessionModal({
 
   const formattedDate = format(parseISO(session.date), 'EEE, MMM d');
 
-  // Panel variants:
-  // - Desktop: centered modal
-  // - Mobile: bottom sheet at ~70% height
   const panelClass = isMobile
     ? 'w-full max-w-none rounded-t-3xl bg-white shadow-2xl'
     : 'w-full max-w-2xl rounded-2xl bg-white shadow-2xl';
 
   return (
     <Dialog open={open} onClose={onClose} className="relative z-50">
-      <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" aria-hidden="true" />
+      <div className="fixed inset-0 bg-black/35 backdrop-blur-sm" aria-hidden="true" />
 
       <div
         className={clsx(
@@ -184,60 +270,110 @@ export default function SessionModal({
           className={panelClass}
           style={
             isMobile
-              ? {
-                  height: '70vh',
-                  paddingBottom: 'env(safe-area-inset-bottom)',
-                }
+              ? { height: '72vh', paddingBottom: 'env(safe-area-inset-bottom)' }
               : undefined
           }
         >
-          {/* Sheet handle (mobile) */}
           {isMobile && (
             <div className="pt-3 pb-2 flex justify-center">
               <div className="h-1 w-10 rounded-full bg-black/10" />
             </div>
           )}
 
-          <div className={clsx(isMobile ? 'px-5 pb-5' : 'p-6', 'h-full flex flex-col')}>
+          <div className={clsx(isMobile ? 'px-5 pb-5' : 'p-7', 'h-full flex flex-col')}>
             {/* Header */}
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <Dialog.Title className="text-[18px] font-semibold tracking-tight text-zinc-900 truncate">
+                <Dialog.Title className="text-[20px] font-semibold tracking-tight text-zinc-950">
                   {session.title}
                 </Dialog.Title>
-                <p className="text-[13px] text-zinc-500 mt-1">
-                  {formattedDate} • {session.sport}
-                  {isCompleted ? ' • Completed' : ''}
-                </p>
+
+                <div className="mt-1 flex items-center gap-2 text-[13px] text-zinc-600">
+                  <span>{formattedDate}</span>
+                  <span className="text-zinc-400">•</span>
+                  <span className="capitalize">{session.sport}</span>
+
+                  {isCompleted && (
+                    <>
+                      <span className="text-zinc-400">•</span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-black/[0.04] px-2 py-0.5 text-[12px] font-semibold text-zinc-800">
+                        ✓ Completed
+                      </span>
+                    </>
+                  )}
+                </div>
               </div>
 
               <button
                 onClick={onClose}
-                className="shrink-0 text-[13px] text-zinc-500 hover:text-zinc-900"
+                className="shrink-0 rounded-full p-2 text-zinc-500 hover:text-zinc-900 active:bg-black/[0.04]"
+                aria-label="Close"
               >
-                Close
+                <XIcon className="h-5 w-5" />
               </button>
             </div>
 
-            {/* Content */}
-            <div className="mt-5 space-y-4 overflow-auto pr-1">
-              {/* Detailed workout */}
-              <div className="rounded-2xl border border-black/5 bg-[#f6f6f4] p-4">
-                <div className="text-[12px] font-semibold text-zinc-700 mb-2">
-                  Detailed workout
+            {/* Body */}
+            <div className="mt-5 flex-1 overflow-auto pr-1">
+              {/* Workout */}
+              <div className="rounded-2xl border border-black/5 bg-white">
+                <div className="px-4 pt-4 pb-3 border-b border-black/5">
+                  <div className="text-[12px] font-semibold tracking-wide text-zinc-500 uppercase">
+                    Workout
+                  </div>
                 </div>
-                <div className="text-[13px] leading-relaxed text-zinc-900 whitespace-pre-wrap min-h-[80px]">
-                  {loading ? 'Generating…' : output || 'No details generated yet.'}
+
+                <div className="px-4 py-4">
+                  {loading ? (
+                    <div className="space-y-3">
+                      <div className="h-4 w-40 rounded bg-black/[0.06]" />
+                      <div className="h-3 w-full rounded bg-black/[0.05]" />
+                      <div className="h-3 w-5/6 rounded bg-black/[0.05]" />
+                      <div className="h-3 w-2/3 rounded bg-black/[0.05]" />
+                    </div>
+                  ) : parsedWorkout.length ? (
+                    <div className="space-y-6">
+                      {parsedWorkout.map((sec) => (
+                        <div key={sec.title}>
+                          <div className="text-[14px] font-semibold text-zinc-950">
+                            {sec.title}
+                          </div>
+                          <ul className="mt-2 space-y-2">
+                            {sec.items.map((it, idx) => (
+                              <li key={idx} className="flex gap-2">
+                                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-400" />
+                                <span className="text-[14px] leading-relaxed text-zinc-800">
+                                  {it}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl bg-black/[0.03] p-4">
+                      <div className="text-[14px] font-semibold text-zinc-900">
+                        No detailed workout yet
+                      </div>
+                      <div className="mt-1 text-[13px] text-zinc-600">
+                        Generate a structured version you can execute today.
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* Metrics */}
               {stravaActivity && (
-                <div className="rounded-2xl border border-black/5 bg-white p-4">
-                  <div className="text-[12px] font-semibold text-zinc-700 mb-3">
-                    Completed metrics
+                <div className="mt-4 rounded-2xl border border-black/5 bg-white">
+                  <div className="px-4 pt-4 pb-3 border-b border-black/5">
+                    <div className="text-[12px] font-semibold tracking-wide text-zinc-500 uppercase">
+                      Completed
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+
+                  <div className="px-4 py-4 grid grid-cols-2 gap-4">
                     {stravaActivity.distance != null && (
                       <Metric
                         label="Distance"
@@ -251,7 +387,10 @@ export default function SessionModal({
                       />
                     )}
                     {stravaActivity.average_heartrate != null && (
-                      <Metric label="Heart rate" value={`${Math.round(stravaActivity.average_heartrate)} bpm`} />
+                      <Metric
+                        label="Heart rate"
+                        value={`${Math.round(stravaActivity.average_heartrate)} bpm`}
+                      />
                     )}
                     {stravaActivity.average_watts != null && (
                       <Metric label="Power" value={`${Math.round(stravaActivity.average_watts)} w`} />
@@ -261,35 +400,29 @@ export default function SessionModal({
               )}
             </div>
 
-            {/* Footer actions (mobile: stacked, desktop: inline) */}
-            <div className={clsx('mt-5 pt-4 border-t border-black/5', isMobile ? '' : '')}>
-              <div className={clsx(isMobile ? 'grid gap-3' : 'flex items-center justify-between gap-3')}>
-                <div className="text-[11px] text-zinc-400">
-                  Generated using TrainGPT
-                </div>
+            {/* Footer */}
+            <div className="mt-5 pt-4 border-t border-black/5">
+              <div className={clsx(isMobile ? 'grid gap-3' : 'flex items-center gap-3')}>
+                <button
+                  onClick={handleGenerate}
+                  disabled={loading}
+                  className="w-full rounded-xl bg-zinc-950 text-white text-[14px] font-semibold px-4 py-3 disabled:opacity-50 active:translate-y-[0.5px]"
+                >
+                  {loading ? 'Generating…' : parsedWorkout.length ? 'Regenerate workout' : 'Generate workout'}
+                </button>
 
-                <div className={clsx(isMobile ? 'grid gap-3' : 'flex gap-3')}>
-                  <button
-                    onClick={handleGenerate}
-                    disabled={loading}
-                    className="w-full rounded-xl bg-zinc-900 text-white text-[13px] font-semibold px-4 py-3 disabled:opacity-50"
-                  >
-                    {loading ? 'Generating…' : 'Generate detailed workout'}
-                  </button>
-
-                  <button
-                    onClick={handleMarkAsDone}
-                    disabled={markingComplete}
-                    className={clsx(
-                      'w-full rounded-xl border text-[13px] font-semibold px-4 py-3',
-                      isCompleted
-                        ? 'border-emerald-200 text-emerald-700 bg-emerald-50'
-                        : 'border-black/10 text-zinc-800 bg-white'
-                    )}
-                  >
-                    {markingComplete ? 'Saving…' : isCompleted ? 'Undo completion' : 'Mark as done'}
-                  </button>
-                </div>
+                <button
+                  onClick={handleMarkAsDone}
+                  disabled={markingComplete}
+                  className={clsx(
+                    'w-full rounded-xl border text-[14px] font-semibold px-4 py-3 active:translate-y-[0.5px]',
+                    isCompleted
+                      ? 'border-black/10 bg-black/[0.03] text-zinc-900'
+                      : 'border-black/10 bg-white text-zinc-900'
+                  )}
+                >
+                  {markingComplete ? 'Saving…' : isCompleted ? 'Undo completion' : 'Mark as done'}
+                </button>
               </div>
             </div>
           </div>
@@ -302,8 +435,8 @@ export default function SessionModal({
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-[11px] text-zinc-500 mb-1">{label}</p>
-      <p className="text-[14px] font-semibold text-zinc-900">{value}</p>
+      <p className="text-[11px] tracking-wide text-zinc-500 uppercase mb-1">{label}</p>
+      <p className="text-[16px] font-semibold text-zinc-950">{value}</p>
     </div>
   );
 }
