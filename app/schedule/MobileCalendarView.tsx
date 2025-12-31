@@ -390,10 +390,21 @@ export default function MobileCalendarView({
                             />
                           )}
 
-                          {/* Sport icon container */}
-                          <div className="shrink-0 h-10 w-10 rounded-full bg-zinc-50 border border-black/5 flex items-center justify-center">
-                            <SportIcon sport={sport} className="h-5 w-5 text-zinc-800" />
-                          </div>
+                        {/* Sport marker */}
+          <div className="shrink-0 h-9 w-9 rounded-full bg-zinc-50 border border-black/5 flex items-center justify-center">
+                    <span className="text-[13px] font-semibold text-zinc-700 tracking-wide">
+               {sport === 'bike'
+      ? 'B'
+      : sport === 'run'
+      ? 'R'
+      : sport === 'swim'
+      ? 'S'
+      : sport === 'strength'
+      ? 'T'
+      : ''}
+  </span>
+</div>
+
 
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
