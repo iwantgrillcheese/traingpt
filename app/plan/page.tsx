@@ -25,6 +25,137 @@ const STEPS = [
   'Still working — longer plans can take 2–4 minutes. Keep this tab open.',
 ];
 
+/* -------------------------------- UI bits -------------------------------- */
+
+function PillLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-gray-600 shadow-sm">
+      {children}
+    </div>
+  );
+}
+
+function Row({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="py-3 flex items-start justify-between gap-4">
+      <div className="min-w-0 pr-2">
+        <div className="text-sm font-medium text-gray-900">{label}</div>
+        {hint ? <div className="mt-0.5 text-xs text-gray-500">{hint}</div> : null}
+      </div>
+      <div className="shrink-0 w-[220px] max-w-[55%] sm:w-[260px]">{children}</div>
+    </div>
+  );
+}
+
+function InputBase(props: React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <input
+      {...props}
+      className={[
+        'w-full rounded-full border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 shadow-sm outline-none',
+        'focus:border-gray-300 focus:ring-2 focus:ring-gray-100',
+        'placeholder:text-gray-400',
+        props.className ?? '',
+      ].join(' ')}
+    />
+  );
+}
+
+function SelectBase(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <select
+      {...props}
+      className={[
+        'w-full rounded-full border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 shadow-sm outline-none',
+        'focus:border-gray-300 focus:ring-2 focus:ring-gray-100',
+        props.className ?? '',
+      ].join(' ')}
+    />
+  );
+}
+
+function TextareaBase(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return (
+    <textarea
+      {...props}
+      className={[
+        'w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm outline-none',
+        'focus:border-gray-300 focus:ring-2 focus:ring-gray-100',
+        'placeholder:text-gray-400',
+        props.className ?? '',
+      ].join(' ')}
+    />
+  );
+}
+
+function NoticeCard({
+  tone = 'neutral',
+  title,
+  desc,
+  primaryLabel,
+  onPrimary,
+  secondaryLabel,
+  onSecondary,
+}: {
+  tone?: 'neutral' | 'danger';
+  title: string;
+  desc?: string;
+  primaryLabel: string;
+  onPrimary: () => void;
+  secondaryLabel?: string;
+  onSecondary?: () => void;
+}) {
+  const tones =
+    tone === 'danger'
+      ? {
+          wrap: 'border-red-200 bg-red-50',
+          title: 'text-red-800',
+          desc: 'text-red-700/80',
+          secondary: 'border-red-200 hover:bg-red-100/60',
+        }
+      : {
+          wrap: 'border-gray-200 bg-gray-50',
+          title: 'text-gray-900',
+          desc: 'text-gray-600',
+          secondary: 'border-gray-200 hover:bg-gray-50',
+        };
+
+  return (
+    <div className={`mb-6 rounded-2xl border ${tones.wrap} px-5 py-4`}>
+      <div className={`font-medium ${tones.title}`}>{title}</div>
+      {desc ? <div className={`mt-1 text-sm ${tones.desc}`}>{desc}</div> : null}
+      <div className="mt-4 flex flex-col sm:flex-row gap-3">
+        <button
+          type="button"
+          onClick={onPrimary}
+          className="bg-black text-white px-5 py-2.5 rounded-full text-sm font-medium hover:bg-gray-800 transition w-full sm:w-auto"
+        >
+          {primaryLabel}
+        </button>
+        {secondaryLabel && onSecondary ? (
+          <button
+            type="button"
+            onClick={onSecondary}
+            className={`px-5 py-2.5 rounded-full text-sm font-medium border bg-white transition w-full sm:w-auto ${tones.secondary}`}
+          >
+            {secondaryLabel}
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------- Page -------------------------------- */
+
 export default function PlanPage() {
   const router = useRouter();
 
@@ -43,11 +174,7 @@ export default function PlanPage() {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [loading, setLoading] = useState(false);
-
-  // “error” is used for truly blocking errors.
   const [error, setError] = useState<string>('');
-
-  // “notice” is used for “still generating / keep waiting” type messaging.
   const [notice, setNotice] = useState<string>('');
 
   const [sessionChecked, setSessionChecked] = useState(false);
@@ -77,7 +204,7 @@ export default function PlanPage() {
     };
   }, []);
 
-  /* -------------------- Loading Animation (real slowdown) -------------------- */
+  /* -------------------- Loading Animation -------------------- */
   useEffect(() => {
     if (!loading) {
       setProgress(0);
@@ -89,7 +216,6 @@ export default function PlanPage() {
     }
 
     startTimeRef.current = Date.now();
-
     let cancelled = false;
 
     const tick = () => {
@@ -100,9 +226,7 @@ export default function PlanPage() {
       const elapsedS = Math.floor(elapsed / 1000);
       setElapsedSec(elapsedS);
 
-      // Step cadence slows after 45s (feels more believable)
       const delay = elapsed > 45_000 ? 3500 : 1500;
-
       setStepIndex((prev) => (prev + 1) % STEPS.length);
 
       setProgress((prev) => {
@@ -158,7 +282,6 @@ export default function PlanPage() {
 
       const planType = isRunningPlan ? 'running' : 'triathlon';
 
-      // Helper: check if plan row exists (useful for better messaging)
       const checkPlanExists = async () => {
         const { data, error: planErr } = await supabase
           .from('plans')
@@ -172,7 +295,6 @@ export default function PlanPage() {
         return { exists: !!data?.id, id: (data?.id as string) ?? null };
       };
 
-      // Helper: check if sessions exist (signals schedule ready)
       const checkSessionsReady = async () => {
         const { count, error: countErr } = await supabase
           .from('sessions')
@@ -183,7 +305,6 @@ export default function PlanPage() {
         return { ready: (count ?? 0) > 0, count: count ?? 0 };
       };
 
-      // Helper: fetch latest plan row for walkthrough context
       const fetchLatestPlanContext = async (): Promise<WalkthroughContext | null> => {
         const { data: latestPlan, error: planErr } = await supabase
           .from('plans')
@@ -208,22 +329,18 @@ export default function PlanPage() {
         };
       };
 
-      // Polling loop
       const pollUntilReady = async () => {
         const startedAt = Date.now();
 
-        // Clear any previous poll
         if (pollTimerRef.current) clearInterval(pollTimerRef.current);
 
         return await new Promise<void>((resolve, reject) => {
           pollTimerRef.current = setInterval(async () => {
             const elapsed = Date.now() - startedAt;
 
-            // Progress “anchors” (functional updates; no stale closure bugs)
             if (elapsed > 60_000) setProgress((p) => Math.max(p, 85));
             if (elapsed > 120_000) setProgress((p) => Math.max(p, 92));
 
-            // Upgrade messaging as we learn more
             const [{ exists: planExists }, sessionsStatus] = await Promise.all([
               checkPlanExists(),
               checkSessionsReady(),
@@ -246,7 +363,6 @@ export default function PlanPage() {
               setLoading(false);
               setPlanReady(true);
 
-              // Fetch plan context (retry once to avoid tiny race condition)
               let ctx = await fetchLatestPlanContext();
               if (!ctx) {
                 await new Promise((r) => setTimeout(r, 500));
@@ -254,12 +370,9 @@ export default function PlanPage() {
               }
 
               if (ctx) {
-  setWalkthroughContext({ ...ctx, mode: 'auto' });
-
-  // Open walkthrough after a tiny beat (feels intentional)
-  setTimeout(() => setWalkthroughOpen(true), 350);
-}
-
+                setWalkthroughContext({ ...(ctx as any), mode: 'auto' });
+                setTimeout(() => setWalkthroughOpen(true), 350);
+              }
 
               resolve();
               return;
@@ -271,7 +384,7 @@ export default function PlanPage() {
 
               reject(
                 new Error(
-                  'Your plan is still generating in the background. This can happen on longer plans. Keep this tab open, or open Schedule and refresh in a minute.'
+                  'Your plan is still generating in the background. This can happen on longer plans. Open Schedule and refresh in a minute.'
                 )
               );
             }
@@ -279,7 +392,6 @@ export default function PlanPage() {
         });
       };
 
-      // Kick off plan generation request (but DO NOT assume JSON response)
       setStatusLine('Submitting your inputs…');
 
       let res: Response | null = null;
@@ -300,25 +412,21 @@ export default function PlanPage() {
           }),
         });
 
-        // Read as text first (handles HTML timeouts gracefully)
         resText = await res.text();
         try {
           resJson = JSON.parse(resText);
         } catch {
-          resJson = null; // likely HTML (e.g. 524) or empty
+          resJson = null;
         }
       } catch {
         res = null;
         resJson = null;
       }
 
-      // If API returned a real JSON error, surface it.
-      // Otherwise treat as “started / still running” and poll.
       if (res && !res.ok && resJson?.error) {
         throw new Error(resJson.error);
       }
 
-      // Start polling no matter what (key fallback behavior)
       setStatusLine('Generating your plan…');
       setProgress((prev) => (prev < 20 ? 20 : prev));
 
@@ -326,10 +434,8 @@ export default function PlanPage() {
     } catch (err: any) {
       console.error('❌ Finalize plan error:', err);
 
-      const msg =
-        err?.message || 'Something went wrong while generating your plan. Please try again.';
+      const msg = err?.message || 'Something went wrong while generating your plan. Please try again.';
 
-      // “still generating” should be a calm notice, not a red error
       if (/still generating/i.test(msg)) {
         setNotice(msg);
         setError('');
@@ -373,7 +479,7 @@ export default function PlanPage() {
   const beginnerFields: FieldConfig[] = [
     {
       id: 'raceType',
-      label: 'Race Type',
+      label: 'Race',
       type: 'select',
       options: [
         '5k',
@@ -386,11 +492,11 @@ export default function PlanPage() {
         'Ironman (140.6)',
       ],
     },
-    { id: 'raceDate', label: 'Race Date', type: 'date' },
-    { id: 'maxHours', label: 'Max Weekly Training Hours', type: 'number' },
+    { id: 'raceDate', label: 'Race date', type: 'date' },
+    { id: 'maxHours', label: 'Weekly time', type: 'number' },
     {
       id: 'experience',
-      label: 'Experience Level',
+      label: 'Experience',
       type: 'select',
       options: ['Beginner', 'Intermediate', 'Advanced'],
     },
@@ -400,34 +506,34 @@ export default function PlanPage() {
     ? [
         {
           id: 'runPace',
-          label: 'Run Threshold Pace (min/mi)',
+          label: 'Run threshold pace',
           type: 'text',
-          placeholder: 'e.g. 7:30',
+          placeholder: 'e.g. 7:30 / mi',
         },
         {
           id: 'restDay',
-          label: 'Preferred Rest Day',
+          label: 'Preferred rest day',
           type: 'select',
           options: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
         },
       ]
     : [
-        { id: 'bikeFTP', label: 'Bike FTP (watts)', type: 'number' },
+        { id: 'bikeFTP', label: 'Bike FTP', type: 'number', placeholder: 'watts' },
         {
           id: 'runPace',
-          label: 'Run Threshold Pace (min/mi)',
+          label: 'Run threshold pace',
           type: 'text',
-          placeholder: 'e.g. 7:30',
+          placeholder: 'e.g. 7:30 / mi',
         },
         {
           id: 'swimPace',
-          label: 'Swim Threshold Pace (per 100m)',
+          label: 'Swim threshold pace',
           type: 'text',
-          placeholder: 'e.g. 1:38',
+          placeholder: 'e.g. 1:38 / 100m',
         },
         {
           id: 'restDay',
-          label: 'Preferred Rest Day',
+          label: 'Preferred rest day',
           type: 'select',
           options: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
         },
@@ -435,17 +541,11 @@ export default function PlanPage() {
 
   /* -------------------- UI Render -------------------- */
   if (!sessionChecked) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-gray-600">
-        Checking your session…
-      </div>
-    );
+    return <div className="min-h-screen flex items-center justify-center text-gray-600">Checking your session…</div>;
   }
 
-  const title = hasPlan ? 'Re-Generate Your Plan' : 'Generate Your Plan';
-  const subtitle = hasPlan
-    ? 'This will replace your current training plan.'
-    : 'We’ll personalize your training based on your inputs.';
+  const title = hasPlan ? 'Re-generate your plan' : 'Generate your plan';
+  const subtitle = hasPlan ? 'This will replace your current training plan.' : 'We’ll personalize your training based on your inputs.';
 
   return (
     <div className="min-h-screen bg-white text-gray-900 relative">
@@ -476,25 +576,14 @@ export default function PlanPage() {
 
             <p className="text-gray-700 text-sm mb-2">{STEPS[stepIndex]}</p>
 
-            <div className="mt-6 flex items-center justify-center gap-3">
+            {/* ONE CTA ONLY */}
+            <div className="mt-6 flex items-center justify-center">
               <button
                 type="button"
                 onClick={handleGoToSchedule}
-                className="text-sm px-4 py-2 rounded-full border border-gray-200 bg-white hover:bg-gray-50 transition"
+                className="text-sm px-5 py-2.5 rounded-full border border-gray-200 bg-white hover:bg-gray-50 transition"
               >
-                Go to Schedule
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setLoading(false);
-                  setNotice(
-                    'Plan generation is still running in the background. You can visit Schedule and refresh in a minute.'
-                  );
-                }}
-                className="text-sm px-4 py-2 rounded-full border border-transparent text-gray-600 hover:text-gray-900 transition"
-              >
-                Hide
+                Open Schedule
               </button>
             </div>
 
@@ -506,192 +595,251 @@ export default function PlanPage() {
       )}
 
       <Suspense fallback={<div className="py-32 text-center text-gray-400">Loading…</div>}>
-        <main className="max-w-4xl mx-auto px-6 py-16">
-          <div className="text-center mb-12">
-            <h1 className="text-4xl font-semibold tracking-tight">{title}</h1>
-            <p className="mt-3 text-gray-500 text-lg">{subtitle}</p>
+        {/* Subtle background wash (matches landing) */}
+        <div className="relative overflow-hidden">
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute -top-40 left-1/2 -translate-x-1/2 h-[560px] w-[980px] rounded-full bg-gray-100 blur-3xl opacity-70" />
+            <div className="absolute top-24 right-[-160px] h-[360px] w-[360px] rounded-full bg-gray-100 blur-3xl opacity-60" />
+            <div className="absolute top-64 left-[-180px] h-[360px] w-[360px] rounded-full bg-gray-100 blur-3xl opacity-60" />
           </div>
 
-          {/* Plan Ready Notice */}
-          {planReady && (
-            <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 px-5 py-4 text-center">
-              <p className="text-gray-900 font-medium">Your plan is ready.</p>
-              <p className="text-gray-500 text-sm mt-1">
-                Review the quick walkthrough, then head to your Schedule.
-              </p>
-              <div className="mt-4 flex items-center justify-center gap-3">
-               <button
-  type="button"
-  onClick={() => {
-    if (!walkthroughContext) return;
-    setWalkthroughContext({ ...walkthroughContext, mode: 'manual' });
-    setWalkthroughOpen(true);
-  }}
-  className="text-sm px-4 py-2 rounded-full border border-gray-200 bg-white hover:bg-gray-50 transition"
->
-  View Walkthrough
-</button>
-
-                <button
-                  type="button"
-                  onClick={handleGoToSchedule}
-                  className="bg-black text-white px-5 py-2 rounded-full text-sm hover:bg-gray-800 transition"
-                >
-                  Open Schedule
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPlanReady(false)}
-                  className="text-sm px-4 py-2 rounded-full border border-gray-200 bg-white hover:bg-gray-50 transition"
-                >
-                  Dismiss
-                </button>
-              </div>
+          <main className="relative max-w-4xl mx-auto px-6 py-16">
+            <div className="text-center mb-10">
+              <PillLabel>{hasPlan ? 'Plan management' : 'Plan generator'}</PillLabel>
+              <h1 className="mt-4 text-4xl font-semibold tracking-tight">{title}</h1>
+              <p className="mt-3 text-gray-500 text-lg">{subtitle}</p>
             </div>
-          )}
 
-          {/* Notice (non-blocking) */}
-          {notice && (
-            <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 px-5 py-4 text-center">
-              <p className="text-gray-800 font-medium">{notice}</p>
-              <p className="text-gray-500 text-sm mt-2">
-                If you just submitted, your plan may have saved successfully. Head to{' '}
-                <a className="underline" href="/schedule">
-                  Schedule
-                </a>{' '}
-                and refresh.
-              </p>
-              <div className="mt-4 flex items-center justify-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleGoToSchedule}
-                  className="bg-black text-white px-5 py-2 rounded-full text-sm hover:bg-gray-800 transition"
-                >
-                  Open Schedule
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setNotice('')}
-                  className="text-sm px-4 py-2 rounded-full border border-gray-200 bg-white hover:bg-gray-50 transition"
-                >
-                  Dismiss
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Error (blocking) */}
-          {error && (
-            <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-center">
-              <p className="text-red-700 font-medium">{error}</p>
-              <p className="text-red-600/80 text-sm mt-2">
-                Try again — and if you just submitted, check Schedule first in case it already saved.
-              </p>
-              <div className="mt-4 flex items-center justify-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleGoToSchedule}
-                  className="text-sm px-4 py-2 rounded-full border border-red-200 bg-white hover:bg-red-50 transition"
-                >
-                  Check Schedule
-                </button>
-              </div>
-            </div>
-          )}
-
-          <form
-            onSubmit={handleFinalize}
-            className="bg-gray-50 border border-gray-200 shadow-sm rounded-xl p-8 grid grid-cols-1 md:grid-cols-2 gap-6 mb-6"
-          >
-            {[...beginnerFields, ...(showAdvanced ? advancedFields : [])].map(
-              ({ id, label, type, options, placeholder }) => (
-                <div key={id}>
-                  <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">
-                    {label}
-                  </label>
-                  {type === 'select' ? (
-                    <select
-                      id={id}
-                      name={id}
-                      value={formData[id as keyof typeof formData]}
-                      onChange={handleChange}
-                      className="w-full bg-white border border-gray-300 rounded-md p-2 text-sm"
-                      required={!['bikeFTP', 'runPace', 'swimPace', 'restDay'].includes(id)}
-                    >
-                      <option value="">Select…</option>
-                      {options?.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type={type}
-                      id={id}
-                      name={id}
-                      placeholder={placeholder}
-                      value={formData[id as keyof typeof formData]}
-                      onChange={handleChange}
-                      className="w-full bg-white border border-gray-300 rounded-md p-2 text-sm"
-                      required={!['bikeFTP', 'runPace', 'swimPace', 'restDay'].includes(id)}
-                    />
-                  )}
-                </div>
-              )
+            {/* Plan Ready (reduce CTAs: 1 primary + optional secondary) */}
+            {planReady && (
+              <NoticeCard
+                title="Your plan is ready."
+                desc="A quick walkthrough is available, then head to your Schedule."
+                primaryLabel="Open Schedule"
+                onPrimary={handleGoToSchedule}
+                secondaryLabel={walkthroughContext ? 'View walkthrough' : undefined}
+                onSecondary={() => {
+                  if (!walkthroughContext) return;
+                  setWalkthroughContext({ ...(walkthroughContext as any), mode: 'manual' });
+                  setWalkthroughOpen(true);
+                }}
+              />
             )}
 
-            <div className="md:col-span-2">
-              <label htmlFor="userNote" className="block text-sm font-medium text-gray-700 mb-1">
-                Customize your plan (optional)
-              </label>
-              <textarea
-                id="userNote"
-                name="userNote"
-                rows={3}
-                placeholder="E.g. I’m targeting a 1:45 half marathon and prefer long runs on Sundays…"
-                value={userNote}
-                onChange={(e) => setUserNote(e.target.value)}
-                className="w-full bg-white border border-gray-300 rounded-md p-2 text-sm"
+            {/* Notice (non-blocking) */}
+            {notice && (
+              <NoticeCard
+                title={notice}
+                desc="If you just submitted, your plan may have saved successfully. Open Schedule and refresh."
+                primaryLabel="Open Schedule"
+                onPrimary={handleGoToSchedule}
+                secondaryLabel="Dismiss"
+                onSecondary={() => setNotice('')}
               />
-              <p className="text-xs text-gray-500 mt-2">
-                The more specific you are, the more “coach-like” the plan will feel.
-              </p>
-            </div>
+            )}
 
-            <div className="md:col-span-2 flex items-center justify-center space-x-3 mt-2">
-              <span className="text-sm text-gray-600">Advanced Options</span>
+            {/* Error (blocking) */}
+            {error && (
+              <NoticeCard
+                tone="danger"
+                title={error}
+                desc="Try again — and if you just submitted, check Schedule first in case it already saved."
+                primaryLabel="Open Schedule"
+                onPrimary={handleGoToSchedule}
+                secondaryLabel="Dismiss"
+                onSecondary={() => setError('')}
+              />
+            )}
+
+            {/* Generator-style card (matches landing) */}
+            <form
+              onSubmit={handleFinalize}
+              className="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden"
+            >
+              <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-gray-900">
+                    {hasPlan ? 'Update your inputs' : 'Create your training plan'}
+                  </div>
+                  <div className="mt-1 text-xs text-gray-500">
+                    Built around your race and weekly time. Adjust anytime.
+                  </div>
+                </div>
+
+                {/* no extra CTA here; just a subtle badge */}
+                <div className="hidden sm:inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs text-gray-600">
+                  Free to start
+                </div>
+              </div>
+
+              <div className="px-6 py-4">
+                <div className="divide-y divide-gray-100">
+                  {beginnerFields.map(({ id, label, type, options, placeholder }) => {
+                    const required = !['bikeFTP', 'runPace', 'swimPace', 'restDay'].includes(id);
+                    const value = formData[id as keyof typeof formData];
+
+                    const hint =
+                      id === 'raceType'
+                        ? 'Sprint, Olympic, 70.3, Ironman or running events'
+                        : id === 'raceDate'
+                        ? 'Your goal day'
+                        : id === 'maxHours'
+                        ? 'Max available training time'
+                        : id === 'experience'
+                        ? 'How long you’ve trained'
+                        : undefined;
+
+                    return (
+                      <Row key={id} label={label} hint={hint}>
+                        {type === 'select' ? (
+                          <SelectBase
+                            id={id}
+                            name={id}
+                            value={value}
+                            onChange={handleChange}
+                            required={required}
+                          >
+                            <option value="">Select…</option>
+                            {options?.map((opt) => (
+                              <option key={opt} value={opt}>
+                                {opt}
+                              </option>
+                            ))}
+                          </SelectBase>
+                        ) : (
+                          <InputBase
+                            type={type}
+                            id={id}
+                            name={id}
+                            placeholder={placeholder}
+                            value={value}
+                            onChange={handleChange}
+                            required={required}
+                          />
+                        )}
+                      </Row>
+                    );
+                  })}
+                </div>
+
+                {/* Optional note */}
+                <div className="mt-4">
+                  <div className="text-sm font-medium text-gray-900">Customize your plan (optional)</div>
+                  <div className="mt-2">
+                    <TextareaBase
+                      id="userNote"
+                      name="userNote"
+                      rows={3}
+                      placeholder="E.g. I prefer long rides on Saturdays and long runs on Sundays. I’m targeting sub-5 at Santa Cruz."
+                      value={userNote}
+                      onChange={(e) => setUserNote(e.target.value)}
+                    />
+                  </div>
+                  <div className="mt-2 text-xs text-gray-500">
+                    The more specific you are, the more “coach-like” the plan will feel.
+                  </div>
+                </div>
+
+                {/* Advanced toggle */}
+                <div className="mt-5 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">Advanced options</div>
+                      <div className="text-xs text-gray-500 mt-0.5">
+                        Add thresholds + preferences for a more personalized plan.
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowAdvanced((v) => !v)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        showAdvanced ? 'bg-black' : 'bg-gray-300'
+                      }`}
+                      aria-label="Toggle advanced options"
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          showAdvanced ? 'translate-x-5' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {showAdvanced ? (
+                    <div className="mt-3 divide-y divide-gray-200/70">
+                      {advancedFields.map(({ id, label, type, options, placeholder }) => {
+                        const value = formData[id as keyof typeof formData];
+                        // advanced fields are optional
+                        const hint =
+                          id === 'bikeFTP'
+                            ? 'Used for bike effort guidance'
+                            : id === 'runPace'
+                            ? 'Used for run effort guidance'
+                            : id === 'swimPace'
+                            ? 'Used for swim effort guidance'
+                            : id === 'restDay'
+                            ? 'We’ll anchor recovery here'
+                            : undefined;
+
+                        return (
+                          <Row key={id} label={label} hint={hint}>
+                            {type === 'select' ? (
+                              <SelectBase id={id} name={id} value={value} onChange={handleChange}>
+                                <option value="">Select…</option>
+                                {options?.map((opt) => (
+                                  <option key={opt} value={opt}>
+                                    {opt}
+                                  </option>
+                                ))}
+                              </SelectBase>
+                            ) : (
+                              <InputBase
+                                type={type}
+                                id={id}
+                                name={id}
+                                placeholder={placeholder}
+                                value={value}
+                                onChange={handleChange}
+                              />
+                            )}
+                          </Row>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Primary submit only (remove extra CTAs) */}
+                <div className="mt-6 flex flex-col items-center text-center">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="bg-black text-white px-8 py-3 rounded-full font-medium hover:bg-gray-800 disabled:opacity-50 w-full sm:w-auto"
+                  >
+                    {loading ? 'Generating…' : hasPlan ? 'Re-generate plan' : 'Generate plan'}
+                  </button>
+
+                  <div className="mt-3 text-xs text-gray-500">
+                    Plans usually take 20–60 seconds. Full-distance or far-out races can take longer.
+                  </div>
+                </div>
+              </div>
+            </form>
+
+            {/* One quiet “back” link only (not a CTA button) */}
+            <div className="mt-6 text-center text-sm text-gray-500">
+              Prefer to manage training from your calendar?{' '}
               <button
                 type="button"
-                onClick={() => setShowAdvanced(!showAdvanced)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  showAdvanced ? 'bg-black' : 'bg-gray-300'
-                }`}
-                aria-label="Toggle advanced options"
+                onClick={handleGoToSchedule}
+                className="underline underline-offset-4 hover:text-gray-900"
               >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    showAdvanced ? 'translate-x-5' : 'translate-x-1'
-                  }`}
-                />
+                Go to Schedule
               </button>
             </div>
-
-            <div className="md:col-span-2 text-center mt-4">
-              <button
-                type="submit"
-                disabled={loading}
-                className="bg-black text-white px-8 py-3 rounded-full font-medium hover:bg-gray-800 disabled:opacity-50"
-              >
-                {loading ? 'Generating…' : hasPlan ? 'Re-Generate Plan' : 'Generate Plan'}
-              </button>
-
-              <div className="mt-3 text-xs text-gray-500">
-                Plans usually take 20–60 seconds. Full-distance or far-out races can take longer.
-              </div>
-            </div>
-          </form>
-        </main>
+          </main>
+        </div>
       </Suspense>
 
       <Footer />
