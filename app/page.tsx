@@ -1,78 +1,125 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase-client';
 import Footer from './components/footer';
 import BlogPreview from './components/blog/BlogPreview';
 
-function ScreenshotCard({
-  src,
-  alt,
+/**
+ * A calm, premium landing page that avoids brittle product screenshots.
+ * Hero shows the "generation box" (the compelling entry point) with a
+ * clear CTA that routes based on auth + plan existence.
+ */
+
+function Field({
   label,
+  value,
+  hint,
 }: {
-  src: string;
-  alt: string;
-  label?: string;
+  label: string;
+  value: string;
+  hint?: string;
 }) {
   return (
-    <div className="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-      {label ? (
-        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-          <div className="text-sm font-medium text-gray-900">{label}</div>
-          <div className="text-xs text-gray-500">Live product</div>
+    <div className="flex items-center justify-between gap-4 py-3">
+      <div className="min-w-0">
+        <div className="text-sm font-medium text-gray-900">{label}</div>
+        {hint ? <div className="mt-0.5 text-xs text-gray-500">{hint}</div> : null}
+      </div>
+      <div className="shrink-0">
+        <div className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-700 shadow-sm">
+          {value}
+          <span className="ml-2 text-gray-400">▾</span>
         </div>
-      ) : null}
-      <div className="relative w-full aspect-[9/16] bg-gray-50">
-        <Image
-          src={src}
-          alt={alt}
-          fill
-          className="object-cover"
-          priority
-        />
       </div>
     </div>
   );
 }
 
-function Section({
-  kicker,
-  title,
-  desc,
-  children,
-  flip = false,
+function GeneratorCard({
+  onPrimary,
+  primaryLabel,
+  onSecondary,
+  secondaryLabel,
 }: {
-  kicker?: string;
-  title: string;
-  desc: string;
-  children: React.ReactNode;
-  flip?: boolean;
+  onPrimary: () => void;
+  primaryLabel: string;
+  onSecondary: () => void;
+  secondaryLabel: string;
 }) {
   return (
-    <section className="py-14">
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
-        <div className={flip ? 'lg:col-span-6 lg:order-2' : 'lg:col-span-6'}>
-          {kicker ? (
-            <div className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-gray-600 shadow-sm">
-              {kicker}
+    <div className="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+      <div className="px-6 py-5 border-b border-gray-100">
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-gray-900">Create your training plan</div>
+            <div className="mt-1 text-xs text-gray-500">
+              A structured triathlon plan built around your race and weekly time.
             </div>
-          ) : null}
-          <h2 className="mt-4 text-3xl md:text-4xl font-semibold tracking-tight text-gray-900 leading-tight">
-            {title}
-          </h2>
-          <p className="mt-3 text-lg text-gray-600 leading-relaxed">
-            {desc}
-          </p>
-        </div>
-
-        <div className={flip ? 'lg:col-span-6 lg:order-1' : 'lg:col-span-6'}>
-          {children}
+          </div>
+          <div className="hidden sm:inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs text-gray-600">
+            Free to start
+          </div>
         </div>
       </div>
-    </section>
+
+      <div className="px-6 py-4">
+        <div className="divide-y divide-gray-100">
+          <Field label="Race" value="70.3" hint="Sprint, Olympic, 70.3, Ironman" />
+          <Field label="Race date" value="Sep 21, 2025" hint="Your goal day" />
+          <Field label="Weekly time" value="8 hours" hint="Max available training time" />
+          <Field label="Experience" value="Intermediate" hint="How long you've trained" />
+        </div>
+
+        <div className="mt-5 flex flex-col sm:flex-row gap-3">
+          <button
+            onClick={onPrimary}
+            className="w-full sm:w-auto bg-black text-white px-5 py-3 rounded-full text-sm font-medium hover:bg-gray-800"
+          >
+            {primaryLabel}
+          </button>
+
+          <button
+            onClick={onSecondary}
+            className="w-full sm:w-auto bg-white text-gray-900 px-5 py-3 rounded-full text-sm font-medium hover:bg-gray-50 border border-gray-200"
+          >
+            {secondaryLabel}
+          </button>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-500">
+          <span className="inline-flex items-center gap-2">
+            <span className="h-1 w-1 rounded-full bg-gray-400" />
+            Calendar view + checkoffs
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <span className="h-1 w-1 rounded-full bg-gray-400" />
+            Strava sync supported
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <span className="h-1 w-1 rounded-full bg-gray-400" />
+            Generate detailed workouts on demand
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FeatureCard({
+  title,
+  desc,
+}: {
+  title: string;
+  desc: string;
+}) {
+  return (
+    <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="text-base font-semibold text-gray-900">{title}</div>
+      <p className="mt-2 text-sm text-gray-600 leading-relaxed">{desc}</p>
+    </div>
   );
 }
 
@@ -181,15 +228,15 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-white text-gray-900">
-      {/* Background */}
+      {/* Subtle background wash */}
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute -top-32 left-1/2 -translate-x-1/2 h-[520px] w-[980px] rounded-full bg-gray-100 blur-3xl opacity-70" />
-          <div className="absolute top-24 right-[-140px] h-[320px] w-[320px] rounded-full bg-gray-100 blur-3xl opacity-60" />
-          <div className="absolute top-56 left-[-160px] h-[320px] w-[320px] rounded-full bg-gray-100 blur-3xl opacity-60" />
+          <div className="absolute -top-40 left-1/2 -translate-x-1/2 h-[560px] w-[980px] rounded-full bg-gray-100 blur-3xl opacity-70" />
+          <div className="absolute top-24 right-[-160px] h-[360px] w-[360px] rounded-full bg-gray-100 blur-3xl opacity-60" />
+          <div className="absolute top-64 left-[-180px] h-[360px] w-[360px] rounded-full bg-gray-100 blur-3xl opacity-60" />
         </div>
 
-        <main className="relative max-w-6xl mx-auto px-6 pt-16 pb-8">
+        <main className="relative max-w-6xl mx-auto px-6 pt-16 pb-10">
           {/* HERO */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
             <div className="lg:col-span-6">
@@ -203,7 +250,8 @@ export default function Home() {
               </h1>
 
               <p className="mt-4 text-lg text-gray-600 leading-relaxed">
-                Pick your race, your date, and your weekly hours. Get a complete plan you can follow on mobile, and generate detailed workouts when you want them.
+                Pick your race, your date, and your weekly hours. Get a complete plan you can follow on mobile — and
+                generate detailed workouts when you want more structure.
               </p>
 
               <div className="mt-7 flex flex-col sm:flex-row gap-3">
@@ -215,7 +263,15 @@ export default function Home() {
                 </button>
 
                 <button
-                  onClick={() => router.push(secondaryCta.href)}
+                  onClick={() => {
+                    // allow hash scroll for unauth users (and even for authed users if you want)
+                    if (secondaryCta.href.startsWith('#')) {
+                      const el = document.querySelector(secondaryCta.href);
+                      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      return;
+                    }
+                    router.push(secondaryCta.href);
+                  }}
                   className="bg-white text-gray-900 px-6 py-3 rounded-full text-sm font-medium hover:bg-gray-50 border border-gray-200"
                 >
                   {secondaryCta.label}
@@ -238,12 +294,16 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Hero screenshot: mobile week list */}
+            {/* HERO: Generation box (instead of screenshots) */}
             <div className="lg:col-span-6">
-              <ScreenshotCard
-                src="/landing/mobile-week.png"
-                alt="Mobile weekly schedule screenshot"
-                label="Your plan, week by week"
+              <GeneratorCard
+                onPrimary={() => router.push(primaryCta.href)}
+                primaryLabel={primaryCta.label}
+                onSecondary={() => {
+                  const el = document.querySelector('#how-it-works');
+                  el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+                secondaryLabel="See how it works"
               />
             </div>
           </div>
@@ -255,41 +315,41 @@ export default function Home() {
 
       {/* HOW IT WORKS */}
       <div id="how-it-works" className="max-w-6xl mx-auto px-6">
-        <Section
-          kicker="Magic moment"
-          title="Turn any session into a detailed workout instantly."
-          desc="Start with a high-level plan. When you want more precision, generate a complete workout with one tap."
-          flip
-        >
-          <ScreenshotCard
-            src="/landing/mobile-workout.png"
-            alt="Detailed workout modal screenshot"
-            label="Detailed workout generation"
-          />
-        </Section>
-
-        <div className="border-t border-gray-200" />
-
-        <Section
-          kicker="Progress tracking"
-          title="Sync with Strava and track what you actually did."
-          desc="Pull in completed workouts and compare planned versus completed training over time."
-        >
-          <div className="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-              <div className="text-sm font-medium text-gray-900">Progress dashboard</div>
-              <div className="text-xs text-gray-500">Strava connected</div>
+        <section className="py-14">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+            <div className="lg:col-span-5">
+              <div className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-gray-600 shadow-sm">
+                How it works
+              </div>
+              <h2 className="mt-4 text-3xl md:text-4xl font-semibold tracking-tight text-gray-900 leading-tight">
+                A plan you can follow — and adapt.
+              </h2>
+              <p className="mt-3 text-lg text-gray-600 leading-relaxed">
+                Start with a high-level weekly structure. When you want more precision, generate a detailed workout for
+                any session — and track what you actually did with Strava.
+              </p>
             </div>
-            <div className="relative w-full aspect-[16/10] bg-gray-50">
-              <Image
-                src="/landing/dashboard.png"
-                alt="Coaching dashboard screenshot"
-                fill
-                className="object-cover"
+
+            <div className="lg:col-span-7 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FeatureCard
+                title="Week-by-week structure"
+                desc="A realistic weekly plan built around your race date, experience, and available training time."
+              />
+              <FeatureCard
+                title="Detailed workouts on demand"
+                desc="Tap any session to generate warmup, main set, and cooldown — short, structured, and specific."
+              />
+              <FeatureCard
+                title="Calendar-first UX"
+                desc="See everything at a glance, check off sessions, and keep your next workout at the top."
+              />
+              <FeatureCard
+                title="Strava sync"
+                desc="Bring in completed workouts and compare planned vs completed over time."
               />
             </div>
           </div>
-        </Section>
+        </section>
 
         <div className="border-t border-gray-200" />
 
@@ -301,7 +361,7 @@ export default function Home() {
                 Get your plan in seconds.
               </h3>
               <p className="mt-2 text-gray-600">
-                Free to start. Generate your plan, then add detailed workouts when you want more structure.
+                Free to start. Generate a plan you can follow — then add detail only when you want it.
               </p>
             </div>
 
@@ -313,7 +373,7 @@ export default function Home() {
                 {primaryCta.label}
               </button>
               <button
-                onClick={() => router.push('/schedule')}
+                onClick={() => router.push(session ? '/schedule' : '/login')}
                 className="bg-white text-gray-900 px-6 py-3 rounded-full text-sm font-medium hover:bg-gray-50 border border-gray-200 w-full md:w-auto"
               >
                 Explore the calendar
@@ -323,7 +383,7 @@ export default function Home() {
         </section>
       </div>
 
-      {/* Optional: keep blog preview, but it is below the CTA */}
+      {/* Blog preview stays below CTA */}
       <div className="max-w-6xl mx-auto px-6 pb-10">
         <BlogPreview />
       </div>
