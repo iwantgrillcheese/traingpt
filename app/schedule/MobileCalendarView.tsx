@@ -51,19 +51,39 @@ function inferSport(title: string): 'run' | 'bike' | 'swim' | 'strength' | 'othe
   return 'other';
 }
 
-function sportBadge(sport: ReturnType<typeof inferSport>) {
+// Monochrome sport glyph (light performance = calm, no pastel identity noise)
+function sportGlyph(sport: ReturnType<typeof inferSport>) {
   switch (sport) {
     case 'swim':
-      return { label: 'Swim', cls: 'bg-sky-50 text-sky-700 ring-sky-100' };
+      return '🏊';
     case 'bike':
-      return { label: 'Bike', cls: 'bg-amber-50 text-amber-700 ring-amber-100' };
+      return '🚴';
     case 'run':
-      return { label: 'Run', cls: 'bg-rose-50 text-rose-700 ring-rose-100' };
+      return '🏃';
     case 'strength':
-      return { label: 'Strength', cls: 'bg-violet-50 text-violet-700 ring-violet-100' };
+      return '💪';
     default:
-      return { label: 'Session', cls: 'bg-zinc-50 text-zinc-700 ring-zinc-100' };
+      return '•';
   }
+}
+
+// Try to extract a useful “detail” line (optional, but helps premium feel)
+function deriveDetail(title: string) {
+  const t = title || '';
+  // If title includes parentheses, treat that as detail, e.g. "Bike 45min easy (145-168w endurance)"
+  const match = t.match(/\(([^)]+)\)/);
+  if (match?.[1]) return match[1].trim();
+
+  // Basic heuristics
+  const lower = t.toLowerCase();
+  if (lower.includes('threshold')) return 'Threshold';
+  if (lower.includes('tempo')) return 'Tempo';
+  if (lower.includes('endurance')) return 'Endurance';
+  if (lower.includes('easy')) return 'Easy';
+  if (lower.includes('long')) return 'Long';
+  if (lower.includes('drill')) return 'Drills';
+  if (lower.includes('brick')) return 'Brick';
+  return '';
 }
 
 // IMPORTANT: stable default to avoid re-render loops when prop is omitted
@@ -98,6 +118,7 @@ export default function MobileCalendarView({
     [sortedSessions]
   );
 
+  // Strava activities that do NOT match a planned session date
   const extraStravaMap = useMemo(() => {
     const map: Record<string, StravaActivity[]> = {};
     stravaActivities.forEach((a) => {
@@ -149,17 +170,17 @@ export default function MobileCalendarView({
     return weekMap;
   }, [sortedSessions, extraStravaMap]);
 
-  // Default-collapse past weeks (keeps "now" near the top)
+  // Default-collapse past weeks
   useEffect(() => {
     const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
     const initial: Record<string, boolean> = {};
     Object.entries(groupedByWeek).forEach(([label, { start }]) => {
-      if (isBefore(start, currentWeekStart)) initial[label] = true; // collapsed
+      if (isBefore(start, currentWeekStart)) initial[label] = true;
     });
     setCollapsedWeeks((prev) => ({ ...initial, ...prev }));
   }, [groupedByWeek, today]);
 
-  // Scroll current week into view ONCE (avoids iOS phantom scrolling)
+  // Scroll current week into view ONCE
   useEffect(() => {
     if (didAutoScroll.current) return;
 
@@ -182,16 +203,19 @@ export default function MobileCalendarView({
   }
 
   return (
-    <div className="bg-[#fafafa] min-h-[100dvh]">
+    <div className="bg-[#f6f6f4] min-h-[100dvh]">
       {/* Sticky app-like top bar */}
-      <div className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-gray-100">
+      <div className="sticky top-0 z-20 bg-[#f6f6f4]/90 backdrop-blur border-b border-black/5">
         <div className="pt-[env(safe-area-inset-top)]" />
         <div className="px-4 py-3 flex items-center justify-between">
           <div>
             <div className="text-[13px] text-zinc-500">Schedule</div>
-            <div className="text-[20px] font-semibold tracking-tight text-zinc-900">This Plan</div>
+            <div className="text-[20px] font-semibold tracking-tight text-zinc-900">
+              This Plan
+            </div>
           </div>
 
+          {/* Keep avatar calm + monochrome */}
           <div className="h-9 w-9 rounded-full bg-zinc-900 text-white flex items-center justify-center text-sm">
             C
           </div>
@@ -218,7 +242,7 @@ export default function MobileCalendarView({
               <div className="flex items-end justify-between mb-2">
                 <div>
                   <div className="text-[13px] text-zinc-500">{rangeLabel}</div>
-                  <h2 className="text-[16px] font-semibold text-zinc-900">{weekLabel}</h2>
+                  <h2 className="text-[18px] font-semibold text-zinc-900">{weekLabel}</h2>
                 </div>
 
                 {isPast && (
@@ -237,62 +261,90 @@ export default function MobileCalendarView({
               </div>
 
               {!isCollapsed && (
-                <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
-                  <div className="divide-y divide-gray-100">
+                <div className="rounded-2xl border border-black/5 bg-white shadow-[0_1px_0_rgba(0,0,0,0.04)] overflow-hidden">
+                  <div className="divide-y divide-black/5">
                     {sessions.map((session) => {
                       const title = session.title || session.stravaActivity?.name || 'Unnamed Session';
                       const date = safeParseDate(session.date);
+
                       const isCompleted = completedSessions.some(
                         (c) => c.date === session.date && c.session_title === session.title
                       );
 
                       const sport = inferSport(title);
-                      const badge = sportBadge(sport);
+                      const glyph = sportGlyph(sport);
+                      const detail = deriveDetail(title);
+
+                      // Optional: highlight long ride / key session with accent border (matches mock vibe)
+                      const lower = title.toLowerCase();
+                      const isKey =
+                        lower.includes('long ride') || lower.includes('long run') || lower.includes('threshold');
 
                       return (
                         <button
                           key={session.id}
                           onClick={() => setSelectedSession(session)}
-                          className="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-zinc-50 active:bg-zinc-100 transition"
+                          className="w-full text-left px-4 py-4 flex items-center gap-3 active:bg-black/[0.03] transition"
                         >
-                          <span
-                            className={`shrink-0 inline-flex items-center rounded-full px-2 py-1 text-[11px] font-medium ring-1 ${badge.cls}`}
-                          >
-                            {badge.label}
-                          </span>
+                          {/* Mono icon pill */}
+                          <div className="shrink-0 h-9 w-9 rounded-full bg-black/[0.04] flex items-center justify-center text-[14px] text-zinc-700">
+                            <span className="opacity-80">{glyph}</span>
+                          </div>
 
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
-                              <div className="text-[14px] font-medium text-zinc-900 truncate">{title}</div>
+                              <div className="text-[15px] font-semibold text-zinc-900 truncate">
+                                {title}
+                              </div>
+
                               {isCompleted && (
-                                <span className="shrink-0 text-[12px] text-emerald-600 font-medium">✓</span>
+                                <span className="shrink-0 text-[12px] text-emerald-600 font-semibold">
+                                  ✓
+                                </span>
                               )}
                             </div>
 
-                            <div className="text-[12px] text-zinc-500 truncate">
+                            <div className="text-[13px] text-zinc-500 truncate">
                               {format(date, 'EEE, MMM d')}
+                              {detail ? `  •  ${detail}` : ''}
                             </div>
                           </div>
 
-                          <ChevronRightIcon className="w-4 h-4 text-zinc-400 shrink-0" />
+                          {/* Accent hint (like the mock’s orange chevron) */}
+                          <ChevronRightIcon
+                            className={`w-4 h-4 shrink-0 ${
+                              isKey ? 'text-orange-600' : 'text-zinc-300'
+                            }`}
+                          />
                         </button>
                       );
                     })}
 
+                    {/* Strava-only extras: keep neutral, not “blue blocks” */}
                     {extras.map((a) => {
                       const date = safeParseDate(a.start_date_local);
                       const distance = a.distance ? `${(a.distance / 1609).toFixed(1)} mi` : '';
                       const hr = a.average_heartrate ? `${Math.round(a.average_heartrate)} bpm` : '';
 
                       return (
-                        <div key={a.id} className="px-4 py-3 bg-blue-50/60">
-                          <div className="text-[13px] font-medium text-blue-900 truncate">
-                            Strava • {a.name || 'Unplanned Activity'}
+                        <div key={a.id} className="px-4 py-4 flex items-center gap-3">
+                          <div className="shrink-0 h-9 w-9 rounded-full bg-black/[0.04] flex items-center justify-center text-[14px] text-zinc-700">
+                            <span className="opacity-70">⬆︎</span>
                           </div>
-                          <div className="text-[12px] text-blue-800 truncate">
-                            {format(date, 'EEE, MMM d')}
-                            {distance ? ` • ${distance}` : ''}
-                            {hr ? ` • ${hr}` : ''}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <div className="text-[14px] font-semibold text-zinc-900 truncate">
+                                {a.name || 'Unplanned Activity'}
+                              </div>
+                              <span className="text-[11px] px-2 py-0.5 rounded-full bg-black/[0.04] text-zinc-600">
+                                Imported
+                              </span>
+                            </div>
+                            <div className="text-[13px] text-zinc-500 truncate">
+                              {format(date, 'EEE, MMM d')}
+                              {distance ? `  •  ${distance}` : ''}
+                              {hr ? `  •  ${hr}` : ''}
+                            </div>
                           </div>
                         </div>
                       );
