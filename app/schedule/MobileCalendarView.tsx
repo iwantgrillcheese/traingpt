@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import {
   format,
   parseISO,
@@ -50,22 +51,6 @@ function inferSport(title: string): 'run' | 'bike' | 'swim' | 'strength' | 'othe
   return 'other';
 }
 
-function sportGlyph(sport: ReturnType<typeof inferSport>) {
-  // Keep monochrome + minimal. No “cute” identity.
-  switch (sport) {
-    case 'swim':
-      return 'Sw';
-    case 'bike':
-      return 'Bk';
-    case 'run':
-      return 'Rn';
-    case 'strength':
-      return 'St';
-    default:
-      return '•';
-  }
-}
-
 function deriveDetail(title: string) {
   const t = title || '';
   const match = t.match(/\(([^)]+)\)/);
@@ -82,11 +67,122 @@ function deriveDetail(title: string) {
   return '';
 }
 
+function isKeySession(title: string) {
+  const t = (title || '').toLowerCase();
+  return (
+    t.includes('long ride') ||
+    t.includes('long run') ||
+    t.includes('threshold') ||
+    t.includes('tempo') ||
+    t.includes('brick')
+  );
+}
+
 const EMPTY_STRAVA: StravaActivity[] = [];
+
+/**
+ * Premium monochrome sport icons (inline SVGs).
+ * - All icons use currentColor.
+ * - We keep them subtle + consistent to avoid pastel identity noise.
+ */
+function SportIcon({
+  sport,
+  className,
+}: {
+  sport: ReturnType<typeof inferSport>;
+  className?: string;
+}) {
+  switch (sport) {
+    case 'bike':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+          <path
+            d="M5.5 18.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Zm13 0a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z"
+            stroke="currentColor"
+            strokeWidth="1.8"
+          />
+          <path
+            d="M8.3 15.2 10.8 8h3.2l2.4 7.2M10.2 8 8 8m8 0h-2"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
+    case 'run':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+          <path
+            d="M14.3 6.2a1.8 1.8 0 1 0-3.6 0 1.8 1.8 0 0 0 3.6 0Z"
+            stroke="currentColor"
+            strokeWidth="1.8"
+          />
+          <path
+            d="M11.3 21.2l2.2-4.3m-1.1-5.8 2.2 2.2 3.4.7M8.6 20.7l1.9-4.1-1.6-3.1 2.2-4.1 3.1 1.2"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
+    case 'swim':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+          <path
+            d="M8 9.2c1.7-1.6 3.6-2.2 5.8-1.8l2.2.4"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+          />
+          <path
+            d="M3.5 16.6c1.7 0 1.7-1.2 3.4-1.2s1.7 1.2 3.4 1.2 1.7-1.2 3.4-1.2 1.7 1.2 3.4 1.2 1.7-1.2 3.4-1.2"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+          />
+          <path
+            d="M13.9 6.2a1.4 1.4 0 1 0-2.8 0 1.4 1.4 0 0 0 2.8 0Z"
+            stroke="currentColor"
+            strokeWidth="1.8"
+          />
+        </svg>
+      );
+    case 'strength':
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+          <path
+            d="M7 10v4m10-4v4M9 9h6M9 15h6"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+          />
+          <path
+            d="M5.5 9.8V14.2M18.5 9.8V14.2"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+          />
+        </svg>
+      );
+    default:
+      return (
+        <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+          <path
+            d="M12 12h.01"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeLinecap="round"
+          />
+        </svg>
+      );
+  }
+}
 
 function ChevronIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" {...props}>
+    <svg viewBox="0 0 24 24" fill="none" {...props} aria-hidden="true">
       <path
         d="M9 6l6 6-6 6"
         stroke="currentColor"
@@ -206,19 +302,18 @@ export default function MobileCalendarView({
   }
 
   return (
-    <div className="bg-[#f6f6f4] min-h-[100dvh]">
+    // Dark, premium base surface (keeps your structure identical, just elevates styling)
+    <div className="bg-[#0b0c0f] min-h-[100dvh] text-zinc-100">
       {/* Sticky top bar */}
-      <div className="sticky top-0 z-20 bg-[#f6f6f4]/90 backdrop-blur border-b border-black/5">
+      <div className="sticky top-0 z-20 bg-[#0b0c0f]/85 backdrop-blur border-b border-white/10">
         <div className="pt-[env(safe-area-inset-top)]" />
         <div className="px-4 py-3 flex items-center justify-between">
           <div>
-            <div className="text-[12px] tracking-wide text-zinc-500 uppercase">Schedule</div>
-            <div className="text-[20px] font-semibold tracking-tight text-zinc-950">
-              This Plan
-            </div>
+            <div className="text-[12px] tracking-wide text-zinc-400 uppercase">Schedule</div>
+            <div className="text-[20px] font-semibold tracking-tight text-zinc-50">This Plan</div>
           </div>
 
-          <div className="h-9 w-9 rounded-full bg-zinc-950 text-white flex items-center justify-center text-sm font-semibold">
+          <div className="h-9 w-9 rounded-full bg-white/10 border border-white/10 text-zinc-100 flex items-center justify-center text-sm font-semibold">
             C
           </div>
         </div>
@@ -241,8 +336,8 @@ export default function MobileCalendarView({
             >
               <div className="flex items-end justify-between mb-2">
                 <div>
-                  <div className="text-[13px] text-zinc-600">{rangeLabel}</div>
-                  <h2 className="text-[18px] font-semibold text-zinc-950">{weekLabel}</h2>
+                  <div className="text-[13px] text-zinc-400">{rangeLabel}</div>
+                  <h2 className="text-[18px] font-semibold text-zinc-50">{weekLabel}</h2>
                 </div>
 
                 {isPast && (
@@ -250,7 +345,7 @@ export default function MobileCalendarView({
                     onClick={() =>
                       setCollapsedWeeks((prev) => ({ ...prev, [weekLabel]: !prev[weekLabel] }))
                     }
-                    className="text-[13px] text-zinc-600 underline underline-offset-2"
+                    className="text-[13px] text-zinc-400 hover:text-zinc-200 underline underline-offset-2"
                   >
                     {isCollapsed ? 'Show' : 'Hide'}
                   </button>
@@ -258,79 +353,138 @@ export default function MobileCalendarView({
               </div>
 
               {!isCollapsed && (
-                <div className="rounded-2xl border border-black/5 bg-white shadow-[0_1px_0_rgba(0,0,0,0.04)] overflow-hidden">
-                  <div className="divide-y divide-black/5">
+                <div className="rounded-2xl overflow-hidden border border-white/10 bg-white/[0.03] shadow-[0_12px_30px_rgba(0,0,0,0.35)]">
+                  <div className="divide-y divide-white/10">
                     {sessions.map((session) => {
                       const title = session.title || session.stravaActivity?.name || 'Unnamed Session';
                       const date = safeParseDate(session.date);
 
-                      const isCompleted = completedSessions.some(
+                      const completed = completedSessions.some(
                         (c) => c.date === session.date && c.session_title === session.title
                       );
 
                       const sport = inferSport(title);
-                      const glyph = sportGlyph(sport);
                       const detail = deriveDetail(title);
+                      const key = isKeySession(title);
+
+                      // Tiny parsing to make titles less truncation-heavy:
+                      // If it starts with "Bike " / "Run " / "Swim " etc, split the label out.
+                      const lower = title.toLowerCase();
+                      const sportLabel =
+                        sport === 'bike'
+                          ? 'Bike'
+                          : sport === 'run'
+                          ? 'Run'
+                          : sport === 'swim'
+                          ? 'Swim'
+                          : sport === 'strength'
+                          ? 'Strength'
+                          : 'Session';
+
+                      // If title already includes the sport word, keep it; otherwise show label in meta.
+                      const displayTitle = title;
 
                       return (
                         <button
                           key={session.id}
                           onClick={() => setSelectedSession(session)}
-                          className="w-full text-left px-4 py-4 flex items-center gap-3 active:bg-black/[0.03] transition"
+                          className={[
+                            'relative w-full text-left px-4 py-4 flex items-center gap-3 transition',
+                            'active:bg-white/[0.04]',
+                            completed ? 'opacity-60' : 'opacity-100',
+                          ].join(' ')}
                         >
-                          {/* Minimal sport marker */}
-                          <div className="shrink-0 h-9 w-9 rounded-full bg-black/[0.04] flex items-center justify-center">
-                            <span className="text-[12px] font-semibold text-zinc-700">{glyph}</span>
+                          {/* Key-session accent bar */}
+                          {key && (
+                            <span
+                              className="absolute left-0 top-0 bottom-0 w-[2px] bg-orange-500/90"
+                              aria-hidden="true"
+                            />
+                          )}
+
+                          {/* Sport icon container */}
+                          <div className="shrink-0 h-10 w-10 rounded-full bg-white/[0.06] border border-white/10 flex items-center justify-center">
+                            <SportIcon sport={sport} className="h-5 w-5 text-zinc-200" />
                           </div>
 
                           <div className="min-w-0 flex-1">
+                            {/* Title row */}
                             <div className="flex items-center gap-2">
-                              <div className="text-[15px] font-semibold text-zinc-950 truncate">
-                                {title}
+                              <div className="text-[15px] font-semibold text-zinc-50 truncate">
+                                {displayTitle}
                               </div>
 
-                              {isCompleted && (
-                                <span className="shrink-0 text-[12px] font-semibold text-zinc-700">
+                              {completed && (
+                                <span className="shrink-0 text-[12px] font-semibold text-zinc-300">
                                   ✓
                                 </span>
                               )}
                             </div>
 
-                            <div className="text-[13px] text-zinc-600 truncate">
-                              {format(date, 'EEE, MMM d')}
-                              {detail ? `  •  ${detail}` : ''}
+                            {/* Meta row: sport + date + detail (clean, quiet) */}
+                            <div className="mt-0.5 text-[13px] text-zinc-400 truncate">
+                              <span className="text-zinc-300">{sportLabel}</span>
+                              <span className="text-zinc-500">{'  •  '}</span>
+                              <span>{format(date, 'EEE, MMM d')}</span>
+                              {detail ? (
+                                <>
+                                  <span className="text-zinc-500">{'  •  '}</span>
+                                  <span className="text-zinc-300">{detail}</span>
+                                </>
+                              ) : null}
                             </div>
                           </div>
 
-                          {/* Very subtle affordance */}
-                          <ChevronIcon className="w-4 h-4 shrink-0 text-zinc-300" />
+                          {/* Subtle affordance */}
+                          <ChevronIcon className="w-4 h-4 shrink-0 text-white/20" />
                         </button>
                       );
                     })}
 
+                    {/* Strava-only extras */}
                     {extras.map((a) => {
                       const date = safeParseDate(a.start_date_local);
                       const distance = a.distance ? `${(a.distance / 1609).toFixed(1)} mi` : '';
                       const hr = a.average_heartrate ? `${Math.round(a.average_heartrate)} bpm` : '';
 
                       return (
-                        <div key={a.id} className="px-4 py-4 flex items-center gap-3">
-                          <div className="shrink-0 h-9 w-9 rounded-full bg-black/[0.04] flex items-center justify-center">
-                            <span className="text-[12px] font-semibold text-zinc-700">Up</span>
+                        <div
+                          key={a.id}
+                          className="px-4 py-4 flex items-center gap-3 bg-white/[0.015]"
+                        >
+                          <div className="shrink-0 h-10 w-10 rounded-full bg-white/[0.06] border border-white/10 flex items-center justify-center">
+                            <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5 text-zinc-200">
+                              <path
+                                d="M12 4v12m0 0 4-4m-4 4-4-4"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                              <path
+                                d="M5 20h14"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                              />
+                            </svg>
                           </div>
+
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
-                              <div className="text-[14px] font-semibold text-zinc-950 truncate">
+                              <div className="text-[14px] font-semibold text-zinc-50 truncate">
                                 {a.name || 'Unplanned Activity'}
                               </div>
-                              <span className="text-[11px] px-2 py-0.5 rounded-full bg-black/[0.04] text-zinc-600">
+                              <span className="text-[11px] px-2 py-0.5 rounded-full bg-white/[0.06] border border-white/10 text-zinc-300">
                                 Imported
                               </span>
                             </div>
-                            <div className="text-[13px] text-zinc-600 truncate">
+                            <div className="mt-0.5 text-[13px] text-zinc-400 truncate">
                               {format(date, 'EEE, MMM d')}
-                              {distance ? `  •  ${distance}` : ''}
-                              {hr ? `  •  ${hr}` : ''}
+                              {distance ? <span className="text-zinc-500">{`  •  `}</span> : null}
+                              {distance ? <span className="text-zinc-300">{distance}</span> : null}
+                              {hr ? <span className="text-zinc-500">{`  •  `}</span> : null}
+                              {hr ? <span className="text-zinc-300">{hr}</span> : null}
                             </div>
                           </div>
                         </div>
