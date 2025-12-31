@@ -125,29 +125,36 @@ function MarketingHeader({
   onSchedule: () => void;
 }) {
   return (
-    <header className="sticky top-0 z-20 bg-white/80 backdrop-blur border-b border-gray-100">
-      <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
-        <div className="text-sm font-semibold tracking-tight text-gray-900">TrainGPT</div>
-
-        <div className="flex items-center gap-2">
-          {authed ? (
-            <button
-              onClick={onSchedule}
-              className="text-sm px-3 py-1.5 rounded-full border border-gray-200 bg-white hover:bg-gray-50"
-            >
-              Schedule
-            </button>
-          ) : (
-            <button
-              onClick={onLogin}
-              className="text-sm px-3 py-1.5 rounded-full border border-gray-200 bg-white hover:bg-gray-50"
-            >
-              Log in
-            </button>
-          )}
-        </div>
+<header className="sticky top-0 z-20 bg-white/80 backdrop-blur border-b border-gray-100">
+  <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+    <div className="flex items-center gap-2">
+      <div className="h-6 w-6 rounded-md bg-gray-900 flex items-center justify-center text-white text-[11px] font-semibold">
+        T
       </div>
-    </header>
+      <span className="text-[15px] font-semibold tracking-tight text-gray-900">
+        TrainGPT
+      </span>
+    </div>
+
+    <div className="flex items-center gap-2">
+      {authed ? (
+        <button
+          onClick={onSchedule}
+          className="text-sm px-3 py-1.5 rounded-full border border-gray-200 bg-white hover:bg-gray-50"
+        >
+          Schedule
+        </button>
+      ) : (
+        <button
+          onClick={onLogin}
+          className="text-sm px-3 py-1.5 rounded-full border border-gray-200 bg-white hover:bg-gray-50"
+        >
+          Log in
+        </button>
+      )}
+    </div>
+  </div>
+</header>
   );
 }
 
