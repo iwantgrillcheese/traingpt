@@ -79,7 +79,7 @@ function GeneratorCard({
           >
             {secondaryLabel}
           </button>
-        </div>
+        </div>      
 
         <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-500">
           <span className="inline-flex items-center gap-2">
