@@ -209,11 +209,6 @@ export default function Home() {
     return { label: 'Sign in to generate your plan', href: '/login' };
   }, [session, hasPlan]);
 
-  const secondaryCta = useMemo(() => {
-    if (session && hasPlan) return { label: 'Re-generate plan', href: '/plan' };
-    return { label: 'See how it works', href: '#how-it-works' };
-  }, [session, hasPlan]);
-
   if (!authReady) {
     return (
       <div className="min-h-screen flex flex-col justify-center items-center bg-white text-gray-500">
@@ -254,29 +249,7 @@ export default function Home() {
                 generate detailed workouts when you want more structure.
               </p>
 
-              <div className="mt-7 flex flex-col sm:flex-row gap-3">
-                <button
-                  onClick={() => router.push(primaryCta.href)}
-                  className="bg-black text-white px-6 py-3 rounded-full text-sm font-medium hover:bg-gray-800"
-                >
-                  {primaryCta.label}
-                </button>
-
-                <button
-                  onClick={() => {
-                    // allow hash scroll for unauth users (and even for authed users if you want)
-                    if (secondaryCta.href.startsWith('#')) {
-                      const el = document.querySelector(secondaryCta.href);
-                      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                      return;
-                    }
-                    router.push(secondaryCta.href);
-                  }}
-                  className="bg-white text-gray-900 px-6 py-3 rounded-full text-sm font-medium hover:bg-gray-50 border border-gray-200"
-                >
-                  {secondaryCta.label}
-                </button>
-              </div>
+              {/* ✅ Removed hero CTA buttons entirely (GeneratorCard is the CTA) */}
 
               <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-500">
                 <span className="inline-flex items-center gap-2">
@@ -294,7 +267,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* HERO: Generation box (instead of screenshots) */}
+            {/* HERO: Generation box (single CTA surface) */}
             <div className="lg:col-span-6">
               <GeneratorCard
                 onPrimary={() => router.push(primaryCta.href)}
@@ -353,30 +326,30 @@ export default function Home() {
 
         <div className="border-t border-gray-200" />
 
-        {/* Final CTA */}
+        {/* Final CTA (✅ single button only) */}
         <section className="py-14">
           <div className="rounded-3xl border border-gray-200 bg-gray-50 p-8 md:p-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
             <div>
-              <h3 className="text-2xl font-semibold tracking-tight text-gray-900">
-                Get your plan in seconds.
-              </h3>
+              <h3 className="text-2xl font-semibold tracking-tight text-gray-900">Get your plan in seconds.</h3>
               <p className="mt-2 text-gray-600">
                 Free to start. Generate a plan you can follow — then add detail only when you want it.
               </p>
+
+              {/* optional: a subtle text link instead of a button */}
+              <button
+                onClick={() => router.push(session ? '/schedule' : '/login')}
+                className="mt-3 text-sm text-gray-600 underline underline-offset-4 hover:text-gray-900"
+              >
+                Explore the calendar
+              </button>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+            <div className="w-full md:w-auto">
               <button
                 onClick={() => router.push(primaryCta.href)}
                 className="bg-black text-white px-6 py-3 rounded-full text-sm font-medium hover:bg-gray-800 w-full md:w-auto"
               >
                 {primaryCta.label}
-              </button>
-              <button
-                onClick={() => router.push(session ? '/schedule' : '/login')}
-                className="bg-white text-gray-900 px-6 py-3 rounded-full text-sm font-medium hover:bg-gray-50 border border-gray-200 w-full md:w-auto"
-              >
-                Explore the calendar
               </button>
             </div>
           </div>
