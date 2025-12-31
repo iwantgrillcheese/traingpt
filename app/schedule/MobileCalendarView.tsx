@@ -83,7 +83,7 @@ const EMPTY_STRAVA: StravaActivity[] = [];
 /**
  * Premium monochrome sport icons (inline SVGs).
  * - All icons use currentColor.
- * - We keep them subtle + consistent to avoid pastel identity noise.
+ * - Subtle + consistent to avoid pastel identity noise.
  */
 function SportIcon({
   sport,
@@ -169,12 +169,7 @@ function SportIcon({
     default:
       return (
         <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
-          <path
-            d="M12 12h.01"
-            stroke="currentColor"
-            strokeWidth="3"
-            strokeLinecap="round"
-          />
+          <path d="M12 12h.01" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
         </svg>
       );
   }
@@ -302,18 +297,17 @@ export default function MobileCalendarView({
   }
 
   return (
-    // Dark, premium base surface (keeps your structure identical, just elevates styling)
-    <div className="bg-[#0b0c0f] min-h-[100dvh] text-zinc-100">
+    <div className="bg-[#f7f7f8] min-h-[100dvh] text-zinc-950">
       {/* Sticky top bar */}
-      <div className="sticky top-0 z-20 bg-[#0b0c0f]/85 backdrop-blur border-b border-white/10">
+      <div className="sticky top-0 z-20 bg-[#f7f7f8]/85 backdrop-blur border-b border-black/5">
         <div className="pt-[env(safe-area-inset-top)]" />
         <div className="px-4 py-3 flex items-center justify-between">
           <div>
-            <div className="text-[12px] tracking-wide text-zinc-400 uppercase">Schedule</div>
-            <div className="text-[20px] font-semibold tracking-tight text-zinc-50">This Plan</div>
+            <div className="text-[12px] tracking-wide text-zinc-500 uppercase">Schedule</div>
+            <div className="text-[20px] font-semibold tracking-tight text-zinc-950">This Plan</div>
           </div>
 
-          <div className="h-9 w-9 rounded-full bg-white/10 border border-white/10 text-zinc-100 flex items-center justify-center text-sm font-semibold">
+          <div className="h-9 w-9 rounded-full bg-white border border-black/10 text-zinc-900 flex items-center justify-center text-sm font-semibold shadow-sm">
             C
           </div>
         </div>
@@ -336,8 +330,8 @@ export default function MobileCalendarView({
             >
               <div className="flex items-end justify-between mb-2">
                 <div>
-                  <div className="text-[13px] text-zinc-400">{rangeLabel}</div>
-                  <h2 className="text-[18px] font-semibold text-zinc-50">{weekLabel}</h2>
+                  <div className="text-[13px] text-zinc-600">{rangeLabel}</div>
+                  <h2 className="text-[18px] font-semibold text-zinc-950">{weekLabel}</h2>
                 </div>
 
                 {isPast && (
@@ -345,7 +339,7 @@ export default function MobileCalendarView({
                     onClick={() =>
                       setCollapsedWeeks((prev) => ({ ...prev, [weekLabel]: !prev[weekLabel] }))
                     }
-                    className="text-[13px] text-zinc-400 hover:text-zinc-200 underline underline-offset-2"
+                    className="text-[13px] text-zinc-600 hover:text-zinc-900 underline underline-offset-2"
                   >
                     {isCollapsed ? 'Show' : 'Hide'}
                   </button>
@@ -353,8 +347,8 @@ export default function MobileCalendarView({
               </div>
 
               {!isCollapsed && (
-                <div className="rounded-2xl overflow-hidden border border-white/10 bg-white/[0.03] shadow-[0_12px_30px_rgba(0,0,0,0.35)]">
-                  <div className="divide-y divide-white/10">
+                <div className="rounded-2xl overflow-hidden border border-black/5 bg-white shadow-[0_14px_35px_rgba(0,0,0,0.08)]">
+                  <div className="divide-y divide-black/5">
                     {sessions.map((session) => {
                       const title = session.title || session.stravaActivity?.name || 'Unnamed Session';
                       const date = safeParseDate(session.date);
@@ -367,9 +361,6 @@ export default function MobileCalendarView({
                       const detail = deriveDetail(title);
                       const key = isKeySession(title);
 
-                      // Tiny parsing to make titles less truncation-heavy:
-                      // If it starts with "Bike " / "Run " / "Swim " etc, split the label out.
-                      const lower = title.toLowerCase();
                       const sportLabel =
                         sport === 'bike'
                           ? 'Bike'
@@ -381,62 +372,56 @@ export default function MobileCalendarView({
                           ? 'Strength'
                           : 'Session';
 
-                      // If title already includes the sport word, keep it; otherwise show label in meta.
-                      const displayTitle = title;
-
                       return (
                         <button
                           key={session.id}
                           onClick={() => setSelectedSession(session)}
                           className={[
                             'relative w-full text-left px-4 py-4 flex items-center gap-3 transition',
-                            'active:bg-white/[0.04]',
-                            completed ? 'opacity-60' : 'opacity-100',
+                            'active:bg-black/[0.03]',
+                            completed ? 'opacity-70' : 'opacity-100',
                           ].join(' ')}
                         >
                           {/* Key-session accent bar */}
                           {key && (
                             <span
-                              className="absolute left-0 top-0 bottom-0 w-[2px] bg-orange-500/90"
+                              className="absolute left-0 top-0 bottom-0 w-[2px] bg-orange-500"
                               aria-hidden="true"
                             />
                           )}
 
                           {/* Sport icon container */}
-                          <div className="shrink-0 h-10 w-10 rounded-full bg-white/[0.06] border border-white/10 flex items-center justify-center">
-                            <SportIcon sport={sport} className="h-5 w-5 text-zinc-200" />
+                          <div className="shrink-0 h-10 w-10 rounded-full bg-zinc-50 border border-black/5 flex items-center justify-center">
+                            <SportIcon sport={sport} className="h-5 w-5 text-zinc-800" />
                           </div>
 
                           <div className="min-w-0 flex-1">
-                            {/* Title row */}
                             <div className="flex items-center gap-2">
-                              <div className="text-[15px] font-semibold text-zinc-50 truncate">
-                                {displayTitle}
+                              <div className="text-[15px] font-semibold text-zinc-950 truncate">
+                                {title}
                               </div>
 
                               {completed && (
-                                <span className="shrink-0 text-[12px] font-semibold text-zinc-300">
-                                  ✓
+                                <span className="shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-700">
+                                  Done
                                 </span>
                               )}
                             </div>
 
-                            {/* Meta row: sport + date + detail (clean, quiet) */}
-                            <div className="mt-0.5 text-[13px] text-zinc-400 truncate">
-                              <span className="text-zinc-300">{sportLabel}</span>
-                              <span className="text-zinc-500">{'  •  '}</span>
+                            <div className="mt-0.5 text-[13px] text-zinc-600 truncate">
+                              <span className="text-zinc-700">{sportLabel}</span>
+                              <span className="text-zinc-400">{'  •  '}</span>
                               <span>{format(date, 'EEE, MMM d')}</span>
                               {detail ? (
                                 <>
-                                  <span className="text-zinc-500">{'  •  '}</span>
-                                  <span className="text-zinc-300">{detail}</span>
+                                  <span className="text-zinc-400">{'  •  '}</span>
+                                  <span className="text-zinc-800">{detail}</span>
                                 </>
                               ) : null}
                             </div>
                           </div>
 
-                          {/* Subtle affordance */}
-                          <ChevronIcon className="w-4 h-4 shrink-0 text-white/20" />
+                          <ChevronIcon className="w-4 h-4 shrink-0 text-black/25" />
                         </button>
                       );
                     })}
@@ -448,12 +433,9 @@ export default function MobileCalendarView({
                       const hr = a.average_heartrate ? `${Math.round(a.average_heartrate)} bpm` : '';
 
                       return (
-                        <div
-                          key={a.id}
-                          className="px-4 py-4 flex items-center gap-3 bg-white/[0.015]"
-                        >
-                          <div className="shrink-0 h-10 w-10 rounded-full bg-white/[0.06] border border-white/10 flex items-center justify-center">
-                            <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5 text-zinc-200">
+                        <div key={a.id} className="px-4 py-4 flex items-center gap-3 bg-zinc-50">
+                          <div className="shrink-0 h-10 w-10 rounded-full bg-white border border-black/5 flex items-center justify-center">
+                            <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5 text-zinc-800">
                               <path
                                 d="M12 4v12m0 0 4-4m-4 4-4-4"
                                 stroke="currentColor"
@@ -472,19 +454,19 @@ export default function MobileCalendarView({
 
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
-                              <div className="text-[14px] font-semibold text-zinc-50 truncate">
+                              <div className="text-[14px] font-semibold text-zinc-950 truncate">
                                 {a.name || 'Unplanned Activity'}
                               </div>
-                              <span className="text-[11px] px-2 py-0.5 rounded-full bg-white/[0.06] border border-white/10 text-zinc-300">
+                              <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black/5 text-zinc-600">
                                 Imported
                               </span>
                             </div>
-                            <div className="mt-0.5 text-[13px] text-zinc-400 truncate">
+                            <div className="mt-0.5 text-[13px] text-zinc-600 truncate">
                               {format(date, 'EEE, MMM d')}
-                              {distance ? <span className="text-zinc-500">{`  •  `}</span> : null}
-                              {distance ? <span className="text-zinc-300">{distance}</span> : null}
-                              {hr ? <span className="text-zinc-500">{`  •  `}</span> : null}
-                              {hr ? <span className="text-zinc-300">{hr}</span> : null}
+                              {distance ? <span className="text-zinc-400">{`  •  `}</span> : null}
+                              {distance ? <span className="text-zinc-800">{distance}</span> : null}
+                              {hr ? <span className="text-zinc-400">{`  •  `}</span> : null}
+                              {hr ? <span className="text-zinc-800">{hr}</span> : null}
                             </div>
                           </div>
                         </div>
