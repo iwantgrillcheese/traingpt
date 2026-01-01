@@ -45,12 +45,21 @@ function Row({
   children: React.ReactNode;
 }) {
   return (
-    <div className="py-3 flex items-start justify-between gap-4">
+    <div className="py-3 flex items-start justify-between gap-3 sm:gap-4">
       <div className="min-w-0 pr-2">
         <div className="text-sm font-medium text-gray-900">{label}</div>
-        {hint ? <div className="mt-0.5 text-xs text-gray-500">{hint}</div> : null}
+        {hint ? (
+          <div className="mt-0.5 text-xs text-gray-500 break-words">{hint}</div>
+        ) : null}
       </div>
-      <div className="shrink-0 w-[220px] max-w-[55%] sm:w-[260px]">{children}</div>
+
+      {/* CRITICAL MOBILE FIX:
+          - allow this flex child to shrink (min-w-0)
+          - on mobile, don't force a hard pixel width (use w-full + max-w)
+          - on sm+, use a stable width */}
+      <div className="min-w-0 flex-1 max-w-[58%] sm:flex-none sm:w-[260px] sm:max-w-none">
+        {children}
+      </div>
     </div>
   );
 }
@@ -60,7 +69,7 @@ function InputBase(props: React.InputHTMLAttributes<HTMLInputElement>) {
     <input
       {...props}
       className={[
-        'w-full rounded-full border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 shadow-sm outline-none',
+        'w-full max-w-full min-w-0 rounded-full border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 shadow-sm outline-none',
         'focus:border-gray-300 focus:ring-2 focus:ring-gray-100',
         'placeholder:text-gray-400',
         props.className ?? '',
@@ -74,8 +83,9 @@ function SelectBase(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
     <select
       {...props}
       className={[
-        'w-full rounded-full border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 shadow-sm outline-none',
+        'w-full max-w-full min-w-0 rounded-full border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 shadow-sm outline-none',
         'focus:border-gray-300 focus:ring-2 focus:ring-gray-100',
+        'appearance-none',
         props.className ?? '',
       ].join(' ')}
     />
@@ -87,7 +97,7 @@ function TextareaBase(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) 
     <textarea
       {...props}
       className={[
-        'w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm outline-none',
+        'w-full max-w-full min-w-0 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm outline-none',
         'focus:border-gray-300 focus:ring-2 focus:ring-gray-100',
         'placeholder:text-gray-400',
         props.className ?? '',
@@ -541,14 +551,20 @@ export default function PlanPage() {
 
   /* -------------------- UI Render -------------------- */
   if (!sessionChecked) {
-    return <div className="min-h-screen flex items-center justify-center text-gray-600">Checking your session…</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center text-gray-600">
+        Checking your session…
+      </div>
+    );
   }
 
   const title = hasPlan ? 'Re-generate your plan' : 'Generate your plan';
-  const subtitle = hasPlan ? 'This will replace your current training plan.' : 'We’ll personalize your training based on your inputs.';
+  const subtitle = hasPlan
+    ? 'This will replace your current training plan.'
+    : 'We’ll personalize your training based on your inputs.';
 
   return (
-    <div className="min-h-screen bg-white text-gray-900 relative">
+    <div className="min-h-screen bg-white text-gray-900 relative overflow-x-hidden">
       {/* Controlled walkthrough modal */}
       <PostPlanWalkthrough
         context={walkthroughContext}
@@ -603,7 +619,7 @@ export default function PlanPage() {
             <div className="absolute top-64 left-[-180px] h-[360px] w-[360px] rounded-full bg-gray-100 blur-3xl opacity-60" />
           </div>
 
-          <main className="relative max-w-4xl mx-auto px-6 py-16">
+          <main className="relative max-w-4xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
             <div className="text-center mb-10">
               <PillLabel>{hasPlan ? 'Plan management' : 'Plan generator'}</PillLabel>
               <h1 className="mt-4 text-4xl font-semibold tracking-tight">{title}</h1>
@@ -654,9 +670,9 @@ export default function PlanPage() {
             {/* Generator-style card (matches landing) */}
             <form
               onSubmit={handleFinalize}
-              className="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden"
+              className="w-full max-w-full rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden"
             >
-              <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-4">
+              <div className="px-5 sm:px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-gray-900">
                     {hasPlan ? 'Update your inputs' : 'Create your training plan'}
@@ -666,13 +682,10 @@ export default function PlanPage() {
                   </div>
                 </div>
 
-                {/* no extra CTA here; just a subtle badge */}
-                <div className="hidden sm:inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs text-gray-600">
-                  Free to start
-                </div>
+                {/* removed "Free to start" badge */}
               </div>
 
-              <div className="px-6 py-4">
+              <div className="px-5 sm:px-6 py-4">
                 <div className="divide-y divide-gray-100">
                   {beginnerFields.map(({ id, label, type, options, placeholder }) => {
                     const required = !['bikeFTP', 'runPace', 'swimPace', 'restDay'].includes(id);
@@ -724,7 +737,9 @@ export default function PlanPage() {
 
                 {/* Optional note */}
                 <div className="mt-4">
-                  <div className="text-sm font-medium text-gray-900">Customize your plan (optional)</div>
+                  <div className="text-sm font-medium text-gray-900">
+                    Customize your plan (optional)
+                  </div>
                   <div className="mt-2">
                     <TextareaBase
                       id="userNote"
@@ -741,9 +756,9 @@ export default function PlanPage() {
                 </div>
 
                 {/* Advanced toggle */}
-                <div className="mt-5 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3">
+                <div className="mt-5 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 overflow-hidden">
                   <div className="flex items-center justify-between gap-4">
-                    <div>
+                    <div className="min-w-0">
                       <div className="text-sm font-medium text-gray-900">Advanced options</div>
                       <div className="text-xs text-gray-500 mt-0.5">
                         Add thresholds + preferences for a more personalized plan.
@@ -753,7 +768,7 @@ export default function PlanPage() {
                     <button
                       type="button"
                       onClick={() => setShowAdvanced((v) => !v)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      className={`shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                         showAdvanced ? 'bg-black' : 'bg-gray-300'
                       }`}
                       aria-label="Toggle advanced options"
@@ -770,7 +785,7 @@ export default function PlanPage() {
                     <div className="mt-3 divide-y divide-gray-200/70">
                       {advancedFields.map(({ id, label, type, options, placeholder }) => {
                         const value = formData[id as keyof typeof formData];
-                        // advanced fields are optional
+
                         const hint =
                           id === 'bikeFTP'
                             ? 'Used for bike effort guidance'
@@ -810,12 +825,12 @@ export default function PlanPage() {
                   ) : null}
                 </div>
 
-                {/* Primary submit only (remove extra CTAs) */}
+                {/* Primary submit only */}
                 <div className="mt-6 flex flex-col items-center text-center">
                   <button
                     type="submit"
                     disabled={loading}
-                    className="bg-black text-white px-8 py-3 rounded-full font-medium hover:bg-gray-800 disabled:opacity-50 w-full sm:w-auto"
+                    className="bg-black text-white px-8 py-3 rounded-full font-medium hover:bg-gray-800 disabled:opacity-50 w-full sm:w-auto max-w-full"
                   >
                     {loading ? 'Generating…' : hasPlan ? 'Re-generate plan' : 'Generate plan'}
                   </button>
@@ -827,7 +842,7 @@ export default function PlanPage() {
               </div>
             </form>
 
-            {/* One quiet “back” link only (not a CTA button) */}
+            {/* One quiet “back” link only */}
             <div className="mt-6 text-center text-sm text-gray-500">
               Prefer to manage training from your calendar?{' '}
               <button

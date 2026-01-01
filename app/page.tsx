@@ -37,11 +37,15 @@ function GeneratorCard({
   primaryLabel,
   onSecondary,
   secondaryLabel,
+  onTertiary,
+  tertiaryLabel,
 }: {
   onPrimary: () => void;
   primaryLabel: string;
   onSecondary: () => void;
   secondaryLabel: string;
+  onTertiary?: () => void;
+  tertiaryLabel?: string;
 }) {
   return (
     <div className="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden">
@@ -79,7 +83,18 @@ function GeneratorCard({
           >
             {secondaryLabel}
           </button>
-        </div>      
+        </div>
+
+        {onTertiary && tertiaryLabel ? (
+          <div className="mt-3 text-sm">
+            <button
+              onClick={onTertiary}
+              className="text-gray-500 underline underline-offset-4 hover:text-gray-900"
+            >
+              {tertiaryLabel}
+            </button>
+          </div>
+        ) : null}
 
         <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-500">
           <span className="inline-flex items-center gap-2">
@@ -100,13 +115,7 @@ function GeneratorCard({
   );
 }
 
-function FeatureCard({
-  title,
-  desc,
-}: {
-  title: string;
-  desc: string;
-}) {
+function FeatureCard({ title, desc }: { title: string; desc: string }) {
   return (
     <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
       <div className="text-base font-semibold text-gray-900">{title}</div>
@@ -125,36 +134,36 @@ function MarketingHeader({
   onSchedule: () => void;
 }) {
   return (
-<header className="sticky top-0 z-20 bg-white/80 backdrop-blur border-b border-gray-100">
-  <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
-    <div className="flex items-center gap-2">
-      <div className="h-6 w-6 rounded-md bg-gray-900 flex items-center justify-center text-white text-[11px] font-semibold">
-        T
-      </div>
-      <span className="text-[15px] font-semibold tracking-tight text-gray-900">
-        TrainGPT
-      </span>
-    </div>
+    <header className="sticky top-0 z-20 bg-white/80 backdrop-blur border-b border-gray-100">
+      <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="h-6 w-6 rounded-md bg-gray-900 flex items-center justify-center text-white text-[11px] font-semibold">
+            T
+          </div>
+          <span className="text-[15px] font-semibold tracking-tight text-gray-900">
+            TrainGPT
+          </span>
+        </div>
 
-    <div className="flex items-center gap-2">
-      {authed ? (
-        <button
-          onClick={onSchedule}
-          className="text-sm px-3 py-1.5 rounded-full border border-gray-200 bg-white hover:bg-gray-50"
-        >
-          Schedule
-        </button>
-      ) : (
-        <button
-          onClick={onLogin}
-          className="text-sm px-3 py-1.5 rounded-full border border-gray-200 bg-white hover:bg-gray-50"
-        >
-          Log in
-        </button>
-      )}
-    </div>
-  </div>
-</header>
+        <div className="flex items-center gap-2">
+          {authed ? (
+            <button
+              onClick={onSchedule}
+              className="text-sm px-3 py-1.5 rounded-full border border-gray-200 bg-white hover:bg-gray-50"
+            >
+              Schedule
+            </button>
+          ) : (
+            <button
+              onClick={onLogin}
+              className="text-sm px-3 py-1.5 rounded-full border border-gray-200 bg-white hover:bg-gray-50"
+            >
+              Log in
+            </button>
+          )}
+        </div>
+      </div>
+    </header>
   );
 }
 
@@ -238,10 +247,27 @@ export default function Home() {
     };
   }, []);
 
-  const primaryCta = useMemo(() => {
-    if (session && hasPlan) return { label: 'View my schedule', href: '/schedule' };
-    if (session) return { label: 'Generate my plan', href: '/plan' };
-    return { label: 'Sign in to generate your plan', href: '/login' };
+  // --- NEW: compute the two-button behavior cleanly ---
+  const ctas = useMemo(() => {
+    if (session && hasPlan) {
+      return {
+        primary: { label: 'View my schedule', href: '/schedule' },
+        secondary: { label: 'Re-generate my plan', href: '/plan?mode=regen' },
+        tertiary: { label: 'See how it works', kind: 'scroll' as const },
+      };
+    }
+
+    if (session) {
+      return {
+        primary: { label: 'Generate my plan', href: '/plan' },
+        secondary: { label: 'See how it works', kind: 'scroll' as const },
+      };
+    }
+
+    return {
+      primary: { label: 'Sign in to generate your plan', href: '/login' },
+      secondary: { label: 'See how it works', kind: 'scroll' as const },
+    };
   }, [session, hasPlan]);
 
   if (!authReady) {
@@ -257,6 +283,21 @@ export default function Home() {
   }
 
   const authed = !!session;
+
+  const scrollHowItWorks = () => {
+    const el = document.querySelector('#how-it-works');
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const handlePrimary = () => {
+    if ('href' in ctas.primary) router.push(ctas.primary.href);
+  };
+
+  const handleSecondary = () => {
+    // if user has a plan, this is regen; otherwise scroll or whatever
+    if ('href' in ctas.secondary) router.push((ctas.secondary as any).href);
+    else scrollHowItWorks();
+  };
 
   return (
     <div className="min-h-screen bg-white text-gray-900">
@@ -277,7 +318,6 @@ export default function Home() {
         <main className="relative max-w-6xl mx-auto px-6 pt-14 pb-10">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
             <div className="lg:col-span-6">
-              {/* ✅ Remove "free to start" language entirely */}
               <div className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-gray-600 shadow-sm">
                 Built for triathletes
               </div>
@@ -287,8 +327,8 @@ export default function Home() {
               </h1>
 
               <p className="mt-4 text-lg text-gray-600 leading-relaxed">
-                Pick your race, your date, and your weekly hours. Get a complete plan you can follow on mobile — and
-                generate detailed workouts when you want more structure.
+                Pick your race, your date, and your weekly hours. Get a complete plan you can follow on
+                mobile — and generate detailed workouts when you want more structure.
               </p>
 
               <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-500">
@@ -309,13 +349,12 @@ export default function Home() {
 
             <div className="lg:col-span-6">
               <GeneratorCard
-                onPrimary={() => router.push(primaryCta.href)}
-                primaryLabel={primaryCta.label}
-                onSecondary={() => {
-                  const el = document.querySelector('#how-it-works');
-                  el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }}
-                secondaryLabel="See how it works"
+                onPrimary={handlePrimary}
+                primaryLabel={ctas.primary.label}
+                onSecondary={handleSecondary}
+                secondaryLabel={ctas.secondary.label}
+                onTertiary={ctas.tertiary?.kind === 'scroll' ? scrollHowItWorks : undefined}
+                tertiaryLabel={ctas.tertiary?.label}
               />
             </div>
           </div>
@@ -335,8 +374,8 @@ export default function Home() {
                 A plan you can follow — and adapt.
               </h2>
               <p className="mt-3 text-lg text-gray-600 leading-relaxed">
-                Start with a high-level weekly structure. When you want more precision, generate a detailed workout for
-                any session — and track what you actually did with Strava.
+                Start with a high-level weekly structure. When you want more precision, generate a
+                detailed workout for any session — and track what you actually did with Strava.
               </p>
             </div>
 
@@ -363,24 +402,21 @@ export default function Home() {
 
         <div className="border-t border-gray-200" />
 
-        {/* Final CTA: keep it simple, no “free” language */}
         <section className="py-14">
           <div className="rounded-3xl border border-gray-200 bg-gray-50 p-8 md:p-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
             <div>
               <h3 className="text-2xl font-semibold tracking-tight text-gray-900">
                 Get your plan — then refine it as you go.
               </h3>
-              <p className="mt-2 text-gray-600">
-                Start with structure. Add detail only when you want it.
-              </p>
+              <p className="mt-2 text-gray-600">Start with structure. Add detail only when you want it.</p>
             </div>
 
             <div className="w-full md:w-auto">
               <button
-                onClick={() => router.push(primaryCta.href)}
+                onClick={handlePrimary}
                 className="bg-black text-white px-6 py-3 rounded-full text-sm font-medium hover:bg-gray-800 w-full md:w-auto"
               >
-                {primaryCta.label}
+                {ctas.primary.label}
               </button>
             </div>
           </div>
