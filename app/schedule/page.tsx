@@ -136,7 +136,6 @@ export default function SchedulePage() {
       experience: (latestPlan as any).experience ?? null,
       maxHours: (latestPlan as any).max_hours != null ? Number((latestPlan as any).max_hours) : null,
       restDay: (latestPlan as any).rest_day ?? null,
-      // keep whatever your WalkthroughContext expects
       mode: 'manual' as any,
     };
   }, []);
@@ -180,7 +179,7 @@ export default function SchedulePage() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      {/* ✅ IMPORTANT: only mount the walkthrough when open so it cannot intercept taps */}
+      {/* Only mount walkthrough when open so it cannot intercept taps */}
       {walkthroughOpen && (
         <PostPlanWalkthrough
           context={walkthroughContext}
@@ -189,34 +188,22 @@ export default function SchedulePage() {
         />
       )}
 
-      <main className="flex-grow">
+      <main className="flex-grow w-full">
         {isLoggedOut ? (
           <div className="text-center py-10 text-zinc-400">Please sign in to view your schedule.</div>
         ) : (
           <div className="w-full">
-  {/* Top-right actions row (full width, but padded) */}
-  <div className="w-full px-4 sm:px-6 lg:px-8 pt-4 pb-3 flex items-center justify-end">
-    <button
-      type="button"
-      onClick={openWalkthrough}
-      disabled={walkthroughLoading}
-      className="text-sm px-4 py-2 rounded-full border border-gray-200 bg-white hover:bg-gray-50 transition disabled:opacity-50"
-    >
-      {walkthroughLoading ? 'Opening…' : 'Walkthrough'}
-    </button>
-  </div>
-
-  {/* Calendar is full-bleed; it manages its own padding */}
-  <CalendarShell
-    sessions={enrichedSessions}
-    completedSessions={completedSessions}
-    stravaActivities={stravaActivities}
-    extraStravaActivities={unmatchedActivities}
-    onCompletedUpdate={handleCompletedUpdate}
-    timezone={userTimezone}
-  />
-</div>
-
+            <CalendarShell
+              sessions={enrichedSessions}
+              completedSessions={completedSessions}
+              stravaActivities={stravaActivities}
+              extraStravaActivities={unmatchedActivities}
+              onCompletedUpdate={handleCompletedUpdate}
+              timezone={userTimezone}
+              onOpenWalkthrough={openWalkthrough}
+              walkthroughLoading={walkthroughLoading}
+            />
+          </div>
         )}
       </main>
 

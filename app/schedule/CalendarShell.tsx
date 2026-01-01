@@ -31,12 +31,12 @@ type CalendarShellProps = {
   extraStravaActivities: StravaActivity[];
   onCompletedUpdate?: (updated: CompletedSession[]) => void;
   timezone?: string;
+
+  // toolbar actions
+  onOpenWalkthrough?: () => void;
+  walkthroughLoading?: boolean;
 };
 
-/**
- * A sensor that never activates. Used to avoid mounting TouchSensor on mobile,
- * which can swallow taps / interfere with navigation.
- */
 class NoopSensor {
   static activators: any[] = [];
   constructor() {}
@@ -46,14 +46,17 @@ function Toolbar({
   currentMonth,
   onPrev,
   onNext,
+  onOpenWalkthrough,
+  walkthroughLoading,
 }: {
   currentMonth: Date;
   onPrev: () => void;
   onNext: () => void;
+  onOpenWalkthrough?: () => void;
+  walkthroughLoading?: boolean;
 }) {
   return (
     <div className="sticky top-0 z-20 border-b border-gray-200 bg-white/90 backdrop-blur">
-      {/* FULL-WIDTH app bar (no max-w) */}
       <div className="w-full px-4 sm:px-6 lg:px-8">
         <div className="flex h-14 items-center justify-between">
           <div className="flex items-center gap-3">
@@ -64,6 +67,7 @@ function Toolbar({
             >
               ←
             </button>
+
             <button
               onClick={onNext}
               className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 text-sm text-gray-700 hover:bg-gray-50"
@@ -76,7 +80,7 @@ function Toolbar({
               <div className="text-sm font-semibold text-gray-900">
                 {format(currentMonth, 'MMMM yyyy')}
               </div>
-              <div className="text-xs text-gray-500">Drag & drop to reschedule</div>
+              <div className="text-xs text-gray-500">Drag &amp; drop to reschedule</div>
             </div>
           </div>
 
@@ -84,6 +88,17 @@ function Toolbar({
             <button className="hidden sm:inline-flex h-9 items-center rounded-md border border-gray-200 px-3 text-sm text-gray-700 hover:bg-gray-50">
               Options
             </button>
+
+            {onOpenWalkthrough ? (
+              <button
+                type="button"
+                onClick={onOpenWalkthrough}
+                disabled={walkthroughLoading}
+                className="h-9 rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
+              >
+                {walkthroughLoading ? 'Opening…' : 'Walkthrough'}
+              </button>
+            ) : null}
           </div>
         </div>
       </div>
@@ -94,9 +109,12 @@ function Toolbar({
 export default function CalendarShell({
   sessions,
   completedSessions,
+  stravaActivities, // kept for prop compatibility
   extraStravaActivities = [],
   onCompletedUpdate,
   timezone = 'America/Los_Angeles',
+  onOpenWalkthrough,
+  walkthroughLoading,
 }: CalendarShellProps) {
   const [isMobile, setIsMobile] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
@@ -124,8 +142,7 @@ export default function CalendarShell({
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // ✅ IMPORTANT: only mount real DnD sensors on desktop
-  // Mobile uses NoopSensor to avoid TouchSensor swallowing taps.
+  // Only mount real sensors on desktop
   const sensors = useSensors(
     useSensor(isMobile ? (NoopSensor as any) : MouseSensor, {
       activationConstraint: { distance: 8 },
@@ -137,19 +154,18 @@ export default function CalendarShell({
 
   const sessionsByDate = useMemo(() => {
     const map: Record<string, MergedSession[]> = {};
+
     localSessions.forEach((s) => {
       if (!s.date) return;
       if (!map[s.date]) map[s.date] = [];
       map[s.date].push(s);
     });
 
-    // Deterministic order within a day
+    // deterministic order within a day
     Object.keys(map).forEach((k) => {
-      map[k] = map[k].slice().sort((a, b) => {
-        const as = (a.sport || '').toString();
-        const bs = (b.sport || '').toString();
-        return as.localeCompare(bs);
-      });
+      map[k] = map[k]
+        .slice()
+        .sort((a, b) => String(a.sport ?? '').localeCompare(String(b.sport ?? '')));
     });
 
     return map;
@@ -175,10 +191,12 @@ export default function CalendarShell({
     const draggedId = active.id;
     const targetDate = over.id;
 
+    // optimistic local update
     setLocalSessions((prev) =>
       prev.map((s) => (s.id === draggedId ? { ...s, date: targetDate } : s))
     );
 
+    // debounce persist
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       const { error } = await supabase
@@ -190,15 +208,12 @@ export default function CalendarShell({
     }, 450);
   };
 
-  // ✅ Correct, non-broken mounted gate
   if (!hasMounted) {
     return <main className="min-h-[100dvh] w-full bg-white" />;
   }
 
   return (
-    <main
-      className={clsxMain(isMobile)}
-    >
+    <main className="min-h-[100dvh] w-full bg-white pb-[env(safe-area-inset-bottom)]">
       {isMobile ? (
         <div className="px-0">
           <MobileCalendarView
@@ -209,9 +224,15 @@ export default function CalendarShell({
         </div>
       ) : (
         <>
-          <Toolbar currentMonth={currentMonth} onPrev={goToPrevMonth} onNext={goToNextMonth} />
+          <Toolbar
+            currentMonth={currentMonth}
+            onPrev={goToPrevMonth}
+            onNext={goToNextMonth}
+            onOpenWalkthrough={onOpenWalkthrough}
+            walkthroughLoading={walkthroughLoading}
+          />
 
-          {/* FULL-WIDTH desktop canvas (no max-w / no mx-auto cap) */}
+          {/* Full-width desktop canvas */}
           <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
             <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
               <MonthGrid
@@ -236,16 +257,5 @@ export default function CalendarShell({
         onCompletedUpdate={(updatedList) => setCompleted(updatedList)}
       />
     </main>
-  );
-}
-
-/**
- * Keep this tiny helper in-file so we don't reintroduce max-width caps.
- * Desktop should feel like a full-screen app.
- */
-function clsxMain(isMobile: boolean) {
-  return (
-    'min-h-[100dvh] w-full bg-white pb-[env(safe-area-inset-bottom)] ' +
-    (isMobile ? 'px-0' : 'px-0')
   );
 }

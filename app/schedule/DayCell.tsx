@@ -27,7 +27,7 @@ type Props = {
 /* ---------- helpers ---------- */
 
 function normalizeSportFromTitle(title: string): string {
-  const lower = (title || '').toLowerCase();
+  const lower = title.toLowerCase();
   if (lower.includes('swim')) return 'swim';
   if (lower.includes('bike') || lower.includes('ride')) return 'bike';
   if (lower.includes('run')) return 'run';
@@ -43,110 +43,44 @@ function normalizeSport(sport: string): string {
   return lower || 'other';
 }
 
-function stripLeadingEmoji(text: string) {
-  return (text || '').replace(/^(\p{Emoji_Presentation}|\p{Extended_Pictographic})\s*/u, '');
-}
-
-// Your “B.” “R.” “S.” “L.” system — treat it as a compact badge, not the title.
-function parseCompactPrefix(labelLine: string) {
-  const s = (labelLine || '').trim();
-
-  // Accept: "B.", "R.", "S.", "L.", "O.", "ST."
-  // Return prefix and the remaining label content (if any).
-  const match = s.match(/^([A-Za-z]{1,2}\.)\s*(.*)$/);
-  if (!match) return { prefix: null as string | null, rest: s };
-
-  const prefix = match[1];
-  const rest = (match[2] || '').trim();
-  return { prefix, rest };
-}
-
-function fallbackTitleFromSport(sport: string) {
-  switch (sport) {
-    case 'swim':
-      return 'Swim';
-    case 'bike':
-      return 'Bike';
-    case 'run':
-      return 'Run';
-    case 'strength':
-      return 'Strength';
-    case 'rest':
-      return 'Rest';
-    default:
-      return 'Session';
-  }
-}
-
-// This is the key: ensure we always surface “the workout”, not the prefix.
-function getReadableTitle({
-  rawTitle,
-  sport,
-}: {
-  rawTitle: string;
-  sport: string;
-}): { badge: string | null; title: string; detail: string } {
-  const cleaned = stripLeadingEmoji(rawTitle || '').trim();
-
-  // Split only on ": " to preserve times like 7:15/mi.
-  const [labelLineRaw, ...restParts] = cleaned.split(': ');
-  const labelLine = (labelLineRaw || '').trim();
-  const detailLine = restParts.join(': ').trim();
-
-  const { prefix: badge, rest } = parseCompactPrefix(labelLine);
-
-  // If labelLine is just "B." and detail exists, treat detail as the title.
-  // If labelLine has content after the badge ("B. Tempo Run"), use it as title.
-  // Otherwise fall back to sport name.
-  let title = rest || labelLine;
-
-  // title could still be "B." or empty
-  if (!title || title === badge) {
-    title = detailLine || fallbackTitleFromSport(sport);
-  }
-
-  // If we used detailLine as title, we don’t want to repeat it as detail.
-  const detail =
-    title === detailLine
-      ? ''
-      : detailLine;
-
-  return { badge, title, detail };
-}
-
 function sportAccentClass(sport: string) {
+  // subtle, premium
   switch (sport) {
     case 'swim':
-      return 'bg-sky-200';
+      return 'bg-sky-300';
     case 'bike':
-      return 'bg-indigo-200';
+      return 'bg-indigo-300';
     case 'run':
-      return 'bg-emerald-200';
+      return 'bg-emerald-300';
     case 'strength':
-      return 'bg-amber-200';
+      return 'bg-amber-300';
     case 'rest':
-      return 'bg-gray-200';
+      return 'bg-gray-300';
     default:
-      return 'bg-gray-200';
+      return 'bg-gray-300';
   }
 }
 
-function badgeToneClass(sport: string) {
-  // subtle chip styling keyed to sport
+function sportBadge(sport: string) {
   switch (sport) {
     case 'swim':
-      return 'border-sky-200 bg-sky-50 text-sky-800';
+      return 'S';
     case 'bike':
-      return 'border-indigo-200 bg-indigo-50 text-indigo-800';
+      return 'B';
     case 'run':
-      return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+      return 'R';
     case 'strength':
-      return 'border-amber-200 bg-amber-50 text-amber-800';
+      return 'ST';
     case 'rest':
-      return 'border-gray-200 bg-gray-50 text-gray-700';
+      return 'OFF';
     default:
-      return 'border-gray-200 bg-gray-50 text-gray-700';
+      return '•';
   }
+}
+
+// Strip leading emoji if old titles were saved like "🚴 Bike..."
+function stripLeadingEmoji(text: string) {
+  return text.replace(/^(\p{Emoji_Presentation}|\p{Extended_Pictographic})\s*/u, '');
 }
 
 function DraggableSession({
@@ -167,13 +101,26 @@ function DraggableSession({
       {...attributes}
       style={{
         transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-        opacity: isDragging ? 0.6 : 1,
+        opacity: isDragging ? 0.65 : 1,
       }}
       className="cursor-grab active:cursor-grabbing"
     >
       {children}
     </div>
   );
+}
+
+function formatDuration(seconds?: number | null) {
+  if (!seconds || seconds <= 0) return null;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.round((seconds % 3600) / 60);
+  if (h <= 0) return `${m}m`;
+  return `${h}h ${m}m`;
+}
+
+function formatMiles(meters?: number | null) {
+  if (!meters || meters <= 0) return null;
+  return `${(meters / 1609.34).toFixed(1)} mi`;
 }
 
 /* ---------- main component ---------- */
@@ -214,46 +161,32 @@ export default function DayCell({
       <div
         ref={setNodeRef}
         className={clsx(
-          'group min-h-[210px] w-full rounded-2xl border p-3 flex flex-col gap-2 transition-all',
-          'bg-white border-gray-200 shadow-[0_1px_0_rgba(0,0,0,0.03)]',
-          isOutside && 'bg-gray-50 text-gray-400 border-gray-200',
-          isToday(date) && 'ring-1 ring-gray-900/10 border-gray-300',
-          isOver && 'bg-gray-50 border-gray-300',
+          // IMPORTANT: DayCell is NOT a "card". MonthGrid owns borders/shape.
+          'h-full w-full px-2 py-2 flex flex-col gap-2',
+          isOutside ? 'text-gray-400' : 'text-gray-900',
+          isOver && 'bg-gray-50',
           justDropped && 'animate-pulse'
         )}
       >
         {/* Day header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between px-1">
           <div className="flex items-baseline gap-2">
-            <div className={clsx('text-sm font-semibold', isOutside ? 'text-gray-400' : 'text-gray-900')}>
+            <div className={clsx('text-xs font-semibold', isOutside ? 'text-gray-400' : 'text-gray-900')}>
               {header.dayNum}
             </div>
-            <div className="text-[11px] font-medium uppercase tracking-wide text-gray-500">
+            <div className="text-[10px] font-medium uppercase tracking-wide text-gray-500">
               {header.dayWk}
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {isToday(date) ? (
-              <div className="text-[11px] font-medium text-gray-700 rounded-full border border-gray-200 bg-white px-2 py-0.5">
-                Today
-              </div>
-            ) : null}
-
-            {/* Desktop: hover-only add button */}
-            <button
-              onClick={() => setShowForm(true)}
-              className={clsx(
-                'hidden md:inline-flex items-center rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-600',
-                'opacity-0 group-hover:opacity-100 transition hover:bg-gray-50'
-              )}
-            >
-              + Add
-            </button>
-          </div>
+          {isToday(date) ? (
+            <div className="text-[10px] font-medium text-gray-700 rounded-full border border-gray-200 bg-white px-2 py-0.5">
+              Today
+            </div>
+          ) : null}
         </div>
 
-        {/* Sessions */}
+        {/* Sessions stack */}
         <div className="flex flex-col gap-2">
           {sessions?.map((s) => {
             const rawTitle = s.title ?? '';
@@ -262,136 +195,125 @@ export default function DayCell({
             const sportRaw = String(s.sport ?? normalizeSportFromTitle(rawTitle));
             const sport = normalizeSport(sportRaw);
             const accent = sportAccentClass(sport);
+            const badge = sportBadge(sport);
 
             const isStravaMatch = !!s.stravaActivity;
             const isCompleted = isSessionCompleted(s) || isStravaMatch;
 
-            const { badge, title, detail } = getReadableTitle({ rawTitle, sport });
+            // Split only on ": " so we don't break times/paces
+            const [labelLine, ...rest] = rawTitle.split(': ');
+            const detailLine = rest.join(': ').trim();
+
+            const baseTitle = stripLeadingEmoji(labelLine?.trim() || 'Untitled');
+            const titleLine = isRest ? 'Rest Day' : baseTitle || 'Untitled';
 
             const activity = s.stravaActivity;
-            const duration =
-              activity?.moving_time != null
-                ? `${Math.floor(activity.moving_time / 3600)}h ${Math.round((activity.moving_time % 3600) / 60)}m`
-                : null;
-            const distance =
-              activity?.distance != null ? `${(activity.distance / 1609).toFixed(1)} mi` : null;
-            const hr =
-              activity?.average_heartrate != null ? `${Math.round(activity.average_heartrate)} bpm` : null;
-            const watts =
-              activity?.average_watts != null ? `${Math.round(activity.average_watts)}w` : null;
+            const duration = formatDuration(activity?.moving_time);
+            const distance = formatMiles(activity?.distance);
+            const hr = activity?.average_heartrate ? `${Math.round(activity.average_heartrate)} bpm` : null;
+            const watts = activity?.average_watts ? `${Math.round(activity.average_watts)} w` : null;
 
             return (
               <DraggableSession key={s.id} session={s}>
                 <button
                   onClick={() => !isRest && onSessionClick?.(s)}
                   className={clsx(
-                    'w-full text-left rounded-xl border px-3 py-2 transition',
-                    'hover:bg-gray-50 hover:border-gray-300',
+                    'w-full rounded-lg border px-2 py-2 text-left transition',
+                    'bg-white hover:bg-gray-50',
                     isStravaMatch
-                      ? 'bg-indigo-50 border-indigo-200'
+                      ? 'border-indigo-200 bg-indigo-50'
                       : isCompleted
-                      ? 'bg-emerald-50 border-emerald-200'
-                      : 'bg-white border-gray-200'
+                      ? 'border-emerald-200 bg-emerald-50'
+                      : 'border-gray-200'
                   )}
                   title={rawTitle}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-start gap-2.5">
-                        {/* Left accent bar */}
-                        <span className={clsx('mt-1.5 h-4 w-1.5 rounded-full', accent)} />
+                  <div className="flex items-start gap-2">
+                    {/* accent */}
+                    <span className={clsx('mt-0.5 h-4 w-1 rounded-full', accent)} />
 
-                        {/* Badge (B./R./S./L.) */}
-                        {badge ? (
-                          <span
-                            className={clsx(
-                              'shrink-0 inline-flex h-6 items-center rounded-md border px-2 text-[11px] font-semibold',
-                              badgeToneClass(sport)
-                            )}
-                          >
-                            {badge}
-                          </span>
-                        ) : null}
-
-                        {/* Text */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          {/* IMPORTANT: no truncate. Use clamp so it’s readable like Intervals. */}
-                          <div className="text-sm font-semibold text-gray-900 leading-snug line-clamp-2">
-                            {isRest ? 'Rest Day' : title}
+                          <div className="text-xs font-semibold text-gray-900 line-clamp-2">
+                            {titleLine}
                           </div>
 
-                          {detail ? (
-                            <div className="mt-0.5 text-xs text-gray-600 leading-snug line-clamp-2">
-                              {detail}
+                          {detailLine ? (
+                            <div className="mt-0.5 text-[11px] text-gray-500 line-clamp-2">
+                              {detailLine}
                             </div>
                           ) : null}
                         </div>
+
+                        <div className="shrink-0 flex items-center gap-2">
+                          <span className="inline-flex h-5 items-center justify-center rounded-md border border-gray-200 bg-white px-1.5 text-[10px] font-semibold text-gray-700">
+                            {badge}
+                          </span>
+
+                          {isStravaMatch ? (
+                            <span className="text-[10px] font-medium text-indigo-700 rounded-full border border-indigo-200 bg-white px-2 py-0.5">
+                              Strava
+                            </span>
+                          ) : null}
+
+                          {!isStravaMatch && isCompleted ? (
+                            <span className="text-[10px] font-semibold text-emerald-700">✓</span>
+                          ) : null}
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="shrink-0 flex items-center gap-2">
                       {isStravaMatch ? (
-                        <span className="text-[11px] font-medium text-indigo-700 rounded-full border border-indigo-200 bg-white px-2 py-0.5">
-                          Strava
-                        </span>
-                      ) : null}
-
-                      {!isStravaMatch && isCompleted ? (
-                        <span className="text-[11px] font-semibold text-emerald-700">✓</span>
+                        <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] text-indigo-900/80">
+                          <div className="flex justify-between gap-2">
+                            <span className="text-indigo-900/60">Time</span>
+                            <span className="font-medium">{duration ?? '—'}</span>
+                          </div>
+                          <div className="flex justify-between gap-2">
+                            <span className="text-indigo-900/60">Dist</span>
+                            <span className="font-medium">{distance ?? '—'}</span>
+                          </div>
+                          <div className="flex justify-between gap-2">
+                            <span className="text-indigo-900/60">HR</span>
+                            <span className="font-medium">{hr ?? '—'}</span>
+                          </div>
+                          <div className="flex justify-between gap-2">
+                            <span className="text-indigo-900/60">Power</span>
+                            <span className="font-medium">{watts ?? '—'}</span>
+                          </div>
+                        </div>
                       ) : null}
                     </div>
                   </div>
-
-                  {isStravaMatch ? (
-                    <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-indigo-900/80">
-                      <div className="flex justify-between gap-2">
-                        <span className="text-indigo-900/60">Time</span>
-                        <span className="font-medium">{duration ?? '—'}</span>
-                      </div>
-                      <div className="flex justify-between gap-2">
-                        <span className="text-indigo-900/60">Dist</span>
-                        <span className="font-medium">{distance ?? '—'}</span>
-                      </div>
-                      <div className="flex justify-between gap-2">
-                        <span className="text-indigo-900/60">HR</span>
-                        <span className="font-medium">{hr ?? '—'}</span>
-                      </div>
-                      <div className="flex justify-between gap-2">
-                        <span className="text-indigo-900/60">Power</span>
-                        <span className="font-medium">{watts ?? '—'}</span>
-                      </div>
-                    </div>
-                  ) : null}
                 </button>
               </DraggableSession>
             );
           })}
 
-          {/* Strava-only extras (UNMATCHED ONLY) */}
+          {/* Strava-only extras (unmatched only) */}
           {extraActivities?.length > 0 ? (
             <div className="flex flex-col gap-2">
               {extraActivities.map((a) => {
                 const key = String((a as any).strava_id ?? a.id);
+                const duration = formatDuration(a.moving_time);
+                const distance = formatMiles(a.distance);
 
                 return (
                   <div
                     key={key}
-                    className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-900"
+                    className="rounded-lg border border-indigo-200 bg-indigo-50 px-2 py-2 text-[11px] text-indigo-900"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="font-medium truncate">
-                          {a.name || 'Unplanned Activity'}
-                        </div>
-                        <div className="mt-0.5 flex justify-between text-[11px] text-indigo-900/70">
-                          <span>{a.moving_time ? `${Math.floor(a.moving_time / 60)}m` : '—'}</span>
-                          <span>{a.distance ? `${(a.distance / 1609).toFixed(1)} mi` : '—'}</span>
-                        </div>
+                      <div className="truncate font-medium">
+                        {a.name || 'Unplanned activity'}
                       </div>
-
-                      <span className="shrink-0 text-[11px] font-medium text-indigo-700 rounded-full border border-indigo-200 bg-white px-2 py-0.5">
+                      <span className="text-[10px] font-medium text-indigo-700 rounded-full border border-indigo-200 bg-white px-2 py-0.5">
                         Strava-only
                       </span>
+                    </div>
+                    <div className="mt-1 flex justify-between text-[10px] text-indigo-900/70">
+                      <span>{duration ?? '—'}</span>
+                      <span>{distance ?? '—'}</span>
                     </div>
                   </div>
                 );
@@ -399,13 +321,13 @@ export default function DayCell({
             </div>
           ) : null}
 
-          {/* Mobile add session (visible). Desktop uses hover in header */}
+          {/* Add session */}
           <button
             onClick={() => setShowForm(true)}
             className={clsx(
-              'mt-1 inline-flex items-center justify-center rounded-xl border border-dashed',
-              'border-gray-200 bg-white px-3 py-2 text-sm text-gray-500 hover:text-gray-900',
-              'hover:bg-gray-50 transition md:hidden'
+              'mt-1 inline-flex items-center justify-center rounded-lg border border-dashed',
+              'border-gray-200 bg-white px-3 py-2 text-xs text-gray-500 hover:text-gray-900',
+              'hover:bg-gray-50 transition'
             )}
           >
             + Add session
