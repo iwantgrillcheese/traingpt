@@ -30,12 +30,23 @@ function detectSport(text: string): Sport {
 
 function parseStringItem(str: string) {
   // Strip leading emoji(s)
-  const emojiMatch = str.match(/^\p{Extended_Pictographic}[\u200d\ufe0f\p{Extended_Pictographic}]*/u);
+  const emojiMatch = str.match(
+    /^\p{Extended_Pictographic}[\u200d\ufe0f\p{Extended_Pictographic}]*/u
+  );
   const emoji = emojiMatch ? emojiMatch[0] : '';
   const withoutEmoji = str.slice(emoji.length).trim();
 
-  // Split on em dash / hyphen dash
-  let parts = withoutEmoji.split(/\s*[—-]\s*/g);
+  /**
+   * IMPORTANT:
+   * We only split on em dash/en dash separators used by the plan format (— or –),
+   * NOT hyphen-minus (-), because ranges like "145-185 watts" must be preserved.
+   *
+   * We also prefer "space dash space" semantics, but allow optional spaces to be tolerant.
+   */
+  let parts = withoutEmoji
+    .split(/\s*[—–]\s*/g) // ✅ only em/en dash separators
+    .map((p) => p.trim())
+    .filter(Boolean);
 
   // Drop trailing "Details" placeholder
   if (parts.length && /^details$/i.test(parts[parts.length - 1].trim())) {
@@ -44,8 +55,18 @@ function parseStringItem(str: string) {
 
   const sport = (emoji && EmojiSportMap[emoji]) || detectSport(withoutEmoji);
 
-  const title = parts.join(' ').trim() || withoutEmoji;
-  const details = parts.slice(2).join(' — ').trim() || null;
+  /**
+   * Title & details logic:
+   * Common formats:
+   *  1) "Bike — 45min easy (145-185 watts) — Details"
+   *  2) "Run — 40min Z2"
+   *
+   * We store:
+   *  - title: everything except trailing details segment (if present)
+   *  - details: third segment and beyond (rare), joined with " — "
+   */
+  const title = parts.join(' — ').trim() || withoutEmoji;
+  const details = parts.length >= 3 ? parts.slice(2).join(' — ').trim() : null;
 
   return { sport, title, details, raw: str };
 }
