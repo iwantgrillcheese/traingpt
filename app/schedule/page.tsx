@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase-client';
 import CalendarShell from './CalendarShell';
 import type { Session } from '@/types/session';
@@ -21,7 +21,6 @@ type CompletedSession = {
 
 export default function SchedulePage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const userTimezone =
     Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'America/Los_Angeles';
@@ -39,8 +38,19 @@ export default function SchedulePage() {
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
   const [walkthroughLoading, setWalkthroughLoading] = useState(false);
 
-  // Prevent double auto-open
+  // Auto-open control (one-shot)
   const [autoWalkthroughFired, setAutoWalkthroughFired] = useState(false);
+  const [shouldAutoOpenWalkthrough, setShouldAutoOpenWalkthrough] = useState(false);
+
+  // Read query param WITHOUT useSearchParams (Next 15 build-safe)
+  useEffect(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      setShouldAutoOpenWalkthrough(sp.get('walkthrough') === '1');
+    } catch {
+      setShouldAutoOpenWalkthrough(false);
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,7 +62,7 @@ export default function SchedulePage() {
         setLoading(true);
         setLoadError(null);
 
-        // Get session first (more stable during hydration).
+        // 1) Get session first (more stable during hydration).
         const {
           data: { session },
           error: sessionErr,
@@ -69,7 +79,7 @@ export default function SchedulePage() {
           return;
         }
 
-        // Now fetch user (can throw transient "Auth session missing" right after redirect on mobile).
+        // 2) Now fetch user (can throw transient "Auth session missing" right after redirect on mobile).
         const {
           data: { user },
           error: userErr,
@@ -199,45 +209,39 @@ export default function SchedulePage() {
   const openWalkthrough = useCallback(async () => {
     try {
       setWalkthroughLoading(true);
-
-      if (walkthroughContext?.planId) {
-        setWalkthroughContext({ ...walkthroughContext, mode: 'manual' as any });
-        setWalkthroughOpen(true);
-        return;
-      }
-
       const ctx = await fetchLatestPlanContext();
       if (!ctx) return;
-
       setWalkthroughContext(ctx);
       setWalkthroughOpen(true);
     } finally {
       setWalkthroughLoading(false);
     }
-  }, [fetchLatestPlanContext, walkthroughContext]);
+  }, [fetchLatestPlanContext]);
 
-  // Auto-open walkthrough when redirected from plan generation
+  // Auto-open walkthrough if ?walkthrough=1 (one-time), then clean URL
   useEffect(() => {
-    const shouldOpen = searchParams?.get('walkthrough') === '1';
-    if (!shouldOpen) return;
+    if (!shouldAutoOpenWalkthrough) return;
     if (autoWalkthroughFired) return;
 
-    // Wait for auth + initial load
     if (loading) return;
     if (!authedUserId) return;
 
     setAutoWalkthroughFired(true);
 
-    // Prefer "auto" mode if your walkthrough supports it
     (async () => {
       const ctx = await fetchLatestPlanContext();
       if (ctx) setWalkthroughContext({ ...(ctx as any), mode: 'auto' });
       setWalkthroughOpen(true);
-      // Clean URL so refresh doesn't re-open
-      router.replace('/schedule');
+
+      // Clean URL without triggering Next searchParams
+      try {
+        window.history.replaceState({}, '', '/schedule');
+      } catch {
+        router.replace('/schedule');
+      }
     })();
   }, [
-    searchParams,
+    shouldAutoOpenWalkthrough,
     autoWalkthroughFired,
     loading,
     authedUserId,
