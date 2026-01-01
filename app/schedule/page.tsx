@@ -112,6 +112,19 @@ export default function SchedulePage() {
 
         setAuthedUserId(user.id);
 
+        // ✅ Ensure profile row exists (safe to call after any login)
+        const { error: upsertError } = await supabase.from('profiles').upsert({
+          id: user.id,
+          email: user.email,
+          full_name: user.user_metadata?.full_name ?? null,
+          avatar_url: user.user_metadata?.avatar_url ?? null,
+        });
+
+        if (upsertError) {
+          console.error('Failed to upsert profile:', upsertError);
+          // Don't block schedule load
+        }
+
         const [sessionsRes, stravaRes, completedRes] = await Promise.all([
           supabase.from('sessions').select('*').eq('user_id', user.id),
           supabase.from('strava_activities').select('*').eq('user_id', user.id),
