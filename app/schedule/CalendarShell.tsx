@@ -33,6 +33,10 @@ type CalendarShellProps = {
   timezone?: string;
 };
 
+/**
+ * A sensor that never activates. Used to avoid mounting TouchSensor on mobile,
+ * which can swallow taps / interfere with navigation.
+ */
 class NoopSensor {
   static activators: any[] = [];
   constructor() {}
@@ -49,7 +53,8 @@ function Toolbar({
 }) {
   return (
     <div className="sticky top-0 z-20 border-b border-gray-200 bg-white/90 backdrop-blur">
-      <div className="mx-auto w-full px-4 sm:px-6 lg:px-8">
+      {/* FULL-WIDTH app bar (no max-w) */}
+      <div className="w-full px-4 sm:px-6 lg:px-8">
         <div className="flex h-14 items-center justify-between">
           <div className="flex items-center gap-3">
             <button
@@ -76,7 +81,6 @@ function Toolbar({
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Placeholders for future: week/month toggle, filters, etc. */}
             <button className="hidden sm:inline-flex h-9 items-center rounded-md border border-gray-200 px-3 text-sm text-gray-700 hover:bg-gray-50">
               Options
             </button>
@@ -120,6 +124,8 @@ export default function CalendarShell({
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // ✅ IMPORTANT: only mount real DnD sensors on desktop
+  // Mobile uses NoopSensor to avoid TouchSensor swallowing taps.
   const sensors = useSensors(
     useSensor(isMobile ? (NoopSensor as any) : MouseSensor, {
       activationConstraint: { distance: 8 },
@@ -137,7 +143,7 @@ export default function CalendarShell({
       map[s.date].push(s);
     });
 
-    // Make session order deterministic within a day
+    // Deterministic order within a day
     Object.keys(map).forEach((k) => {
       map[k] = map[k].slice().sort((a, b) => {
         const as = (a.sport || '').toString();
@@ -175,15 +181,24 @@ export default function CalendarShell({
 
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
-      const { error } = await supabase.from('sessions').update({ date: targetDate }).eq('id', draggedId);
+      const { error } = await supabase
+        .from('sessions')
+        .update({ date: targetDate })
+        .eq('id', draggedId);
+
       if (error) console.error('Error persisting session move:', error);
     }, 450);
   };
 
-  if (!hasMounted) return <main className="min-h-[100dvh] bg-white" />;
+  // ✅ Correct, non-broken mounted gate
+  if (!hasMounted) {
+    return <main className="min-h-[100dvh] w-full bg-white" />;
+  }
 
   return (
-    <main className="min-h-[100dvh] w-full bg-white">
+    <main
+      className={clsxMain(isMobile)}
+    >
       {isMobile ? (
         <div className="px-0">
           <MobileCalendarView
@@ -196,8 +211,8 @@ export default function CalendarShell({
         <>
           <Toolbar currentMonth={currentMonth} onPrev={goToPrevMonth} onNext={goToNextMonth} />
 
-          {/* Full-width desktop canvas */}
-          <div className="mx-auto w-full px-4 sm:px-6 lg:px-8 py-4">
+          {/* FULL-WIDTH desktop canvas (no max-w / no mx-auto cap) */}
+          <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
             <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
               <MonthGrid
                 currentMonth={currentMonth}
@@ -221,5 +236,16 @@ export default function CalendarShell({
         onCompletedUpdate={(updatedList) => setCompleted(updatedList)}
       />
     </main>
+  );
+}
+
+/**
+ * Keep this tiny helper in-file so we don't reintroduce max-width caps.
+ * Desktop should feel like a full-screen app.
+ */
+function clsxMain(isMobile: boolean) {
+  return (
+    'min-h-[100dvh] w-full bg-white pb-[env(safe-area-inset-bottom)] ' +
+    (isMobile ? 'px-0' : 'px-0')
   );
 }

@@ -193,27 +193,30 @@ export default function SchedulePage() {
         {isLoggedOut ? (
           <div className="text-center py-10 text-zinc-400">Please sign in to view your schedule.</div>
         ) : (
-          <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 pt-4">
-            <div className="flex items-center justify-end pb-3">
-              <button
-                type="button"
-                onClick={openWalkthrough}
-                disabled={walkthroughLoading}
-                className="text-sm px-4 py-2 rounded-full border border-gray-200 bg-white hover:bg-gray-50 transition disabled:opacity-50"
-              >
-                {walkthroughLoading ? 'Opening…' : 'Walkthrough'}
-              </button>
-            </div>
+          <div className="w-full">
+  {/* Top-right actions row (full width, but padded) */}
+  <div className="w-full px-4 sm:px-6 lg:px-8 pt-4 pb-3 flex items-center justify-end">
+    <button
+      type="button"
+      onClick={openWalkthrough}
+      disabled={walkthroughLoading}
+      className="text-sm px-4 py-2 rounded-full border border-gray-200 bg-white hover:bg-gray-50 transition disabled:opacity-50"
+    >
+      {walkthroughLoading ? 'Opening…' : 'Walkthrough'}
+    </button>
+  </div>
 
-            <CalendarShell
-              sessions={enrichedSessions}
-              completedSessions={completedSessions}
-              stravaActivities={stravaActivities}
-              extraStravaActivities={unmatchedActivities}
-              onCompletedUpdate={handleCompletedUpdate}
-              timezone={userTimezone}
-            />
-          </div>
+  {/* Calendar is full-bleed; it manages its own padding */}
+  <CalendarShell
+    sessions={enrichedSessions}
+    completedSessions={completedSessions}
+    stravaActivities={stravaActivities}
+    extraStravaActivities={unmatchedActivities}
+    onCompletedUpdate={handleCompletedUpdate}
+    timezone={userTimezone}
+  />
+</div>
+
         )}
       </main>
 
