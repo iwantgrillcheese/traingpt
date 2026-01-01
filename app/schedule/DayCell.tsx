@@ -217,7 +217,7 @@ export default function DayCell({
                 <button
                   onClick={() => !isRest && onSessionClick?.(s)}
                   className={clsx(
-                    'w-full text-left rounded-xl border px-3 py-2 transition',
+                    'w-full text-left rounded-xl border px-3 py-2.5 transition',
                     'hover:bg-gray-50 hover:border-gray-300',
                     isStravaMatch
                       ? 'bg-indigo-50/60 border-indigo-200'
@@ -228,19 +228,24 @@ export default function DayCell({
                   title={rawTitle}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={clsx('h-4 w-1.5 rounded-full', accent)} />
-                        <span className="inline-flex h-5 min-w-[28px] items-center justify-center rounded-full border border-gray-200 bg-white text-[11px] font-semibold text-gray-700">
+                    {/* Left: accent + badge + text */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start gap-2">
+                        <span className={clsx('mt-1 h-4 w-1.5 rounded-full', accent)} />
+
+                        <span className="mt-0.5 inline-flex h-5 min-w-[24px] items-center justify-center rounded-full border border-gray-200 bg-white text-[10px] font-semibold text-gray-700">
                           {badge}
                         </span>
 
-                        <div className="min-w-0">
-                          <div className="text-sm font-medium text-gray-900 leading-snug truncate">
+                        <div className="min-w-0 flex-1">
+                          {/* ✅ Title: 2-line clamp (no truncate) */}
+                          <div className="text-[13px] font-semibold text-gray-900 leading-5 line-clamp-2">
                             {titleLine}
                           </div>
+
+                          {/* Detail: keep as 1 line for less vertical noise */}
                           {detailLine ? (
-                            <div className="mt-0.5 text-xs text-gray-500 line-clamp-2">
+                            <div className="mt-0.5 text-xs text-gray-500 leading-4 line-clamp-1">
                               {detailLine}
                             </div>
                           ) : null}
@@ -248,6 +253,7 @@ export default function DayCell({
                       </div>
                     </div>
 
+                    {/* Right: badges */}
                     <div className="shrink-0 flex items-center gap-2">
                       {isStravaMatch ? (
                         <span className="text-[11px] font-medium text-indigo-700 rounded-full border border-indigo-200 bg-white px-2 py-0.5">
@@ -291,24 +297,24 @@ export default function DayCell({
                     type="button"
                     onClick={() => onStravaActivityClick?.(a)}
                     className={clsx(
-                      'w-full text-left rounded-xl border px-3 py-2 transition',
+                      'w-full text-left rounded-xl border px-3 py-2.5 transition',
                       'hover:bg-gray-50 hover:border-gray-300',
                       'bg-indigo-50/50 border-indigo-200'
                     )}
                     title={a.name || 'Strava activity'}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className={clsx('h-4 w-1.5 rounded-full', accent)} />
-                          <span className="inline-flex h-5 min-w-[28px] items-center justify-center rounded-full border border-gray-200 bg-white text-[11px] font-semibold text-gray-700">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start gap-2">
+                          <span className={clsx('mt-1 h-4 w-1.5 rounded-full', accent)} />
+                          <span className="mt-0.5 inline-flex h-5 min-w-[24px] items-center justify-center rounded-full border border-gray-200 bg-white text-[10px] font-semibold text-gray-700">
                             {badge}
                           </span>
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium text-gray-900 truncate">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[13px] font-semibold text-gray-900 leading-5 line-clamp-2">
                               {a.name || 'Unplanned Activity'}
                             </div>
-                            <div className="mt-0.5 text-xs text-indigo-900/60">
+                            <div className="mt-0.5 text-xs text-indigo-900/60 line-clamp-1">
                               Strava activity (not in plan)
                             </div>
                           </div>
