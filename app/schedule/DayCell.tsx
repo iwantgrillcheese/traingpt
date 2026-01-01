@@ -27,7 +27,7 @@ type Props = {
 /* ---------- helpers ---------- */
 
 function normalizeSportFromTitle(title: string): string {
-  const lower = title.toLowerCase();
+  const lower = (title || '').toLowerCase();
   if (lower.includes('swim')) return 'swim';
   if (lower.includes('bike') || lower.includes('ride')) return 'bike';
   if (lower.includes('run')) return 'run';
@@ -43,29 +43,110 @@ function normalizeSport(sport: string): string {
   return lower || 'other';
 }
 
-function sportEmoji(sport: string): string {
-  switch (sport.toLowerCase()) {
+function stripLeadingEmoji(text: string) {
+  return (text || '').replace(/^(\p{Emoji_Presentation}|\p{Extended_Pictographic})\s*/u, '');
+}
+
+// Your “B.” “R.” “S.” “L.” system — treat it as a compact badge, not the title.
+function parseCompactPrefix(labelLine: string) {
+  const s = (labelLine || '').trim();
+
+  // Accept: "B.", "R.", "S.", "L.", "O.", "ST."
+  // Return prefix and the remaining label content (if any).
+  const match = s.match(/^([A-Za-z]{1,2}\.)\s*(.*)$/);
+  if (!match) return { prefix: null as string | null, rest: s };
+
+  const prefix = match[1];
+  const rest = (match[2] || '').trim();
+  return { prefix, rest };
+}
+
+function fallbackTitleFromSport(sport: string) {
+  switch (sport) {
     case 'swim':
-      return '🏊';
+      return 'Swim';
     case 'bike':
-      return '🚴';
+      return 'Bike';
     case 'run':
-      return '🏃';
+      return 'Run';
     case 'strength':
-      return '💪';
+      return 'Strength';
     case 'rest':
-      return '😴';
+      return 'Rest';
     default:
-      return '•';
+      return 'Session';
   }
 }
 
-function startsWithEmoji(text: string) {
-  return /^(\p{Emoji_Presentation}|\p{Extended_Pictographic})/u.test(text);
+// This is the key: ensure we always surface “the workout”, not the prefix.
+function getReadableTitle({
+  rawTitle,
+  sport,
+}: {
+  rawTitle: string;
+  sport: string;
+}): { badge: string | null; title: string; detail: string } {
+  const cleaned = stripLeadingEmoji(rawTitle || '').trim();
+
+  // Split only on ": " to preserve times like 7:15/mi.
+  const [labelLineRaw, ...restParts] = cleaned.split(': ');
+  const labelLine = (labelLineRaw || '').trim();
+  const detailLine = restParts.join(': ').trim();
+
+  const { prefix: badge, rest } = parseCompactPrefix(labelLine);
+
+  // If labelLine is just "B." and detail exists, treat detail as the title.
+  // If labelLine has content after the badge ("B. Tempo Run"), use it as title.
+  // Otherwise fall back to sport name.
+  let title = rest || labelLine;
+
+  // title could still be "B." or empty
+  if (!title || title === badge) {
+    title = detailLine || fallbackTitleFromSport(sport);
+  }
+
+  // If we used detailLine as title, we don’t want to repeat it as detail.
+  const detail =
+    title === detailLine
+      ? ''
+      : detailLine;
+
+  return { badge, title, detail };
 }
 
-function stripLeadingEmoji(text: string) {
-  return text.replace(/^(\p{Emoji_Presentation}|\p{Extended_Pictographic})\s*/u, '');
+function sportAccentClass(sport: string) {
+  switch (sport) {
+    case 'swim':
+      return 'bg-sky-200';
+    case 'bike':
+      return 'bg-indigo-200';
+    case 'run':
+      return 'bg-emerald-200';
+    case 'strength':
+      return 'bg-amber-200';
+    case 'rest':
+      return 'bg-gray-200';
+    default:
+      return 'bg-gray-200';
+  }
+}
+
+function badgeToneClass(sport: string) {
+  // subtle chip styling keyed to sport
+  switch (sport) {
+    case 'swim':
+      return 'border-sky-200 bg-sky-50 text-sky-800';
+    case 'bike':
+      return 'border-indigo-200 bg-indigo-50 text-indigo-800';
+    case 'run':
+      return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+    case 'strength':
+      return 'border-amber-200 bg-amber-50 text-amber-800';
+    case 'rest':
+      return 'border-gray-200 bg-gray-50 text-gray-700';
+    default:
+      return 'border-gray-200 bg-gray-50 text-gray-700';
+  }
 }
 
 function DraggableSession({
@@ -93,24 +174,6 @@ function DraggableSession({
       {children}
     </div>
   );
-}
-
-function sportAccentClass(sport: string) {
-  // Subtle + premium. Not loud. Just enough to read quickly.
-  switch (sport) {
-    case 'swim':
-      return 'bg-sky-200';
-    case 'bike':
-      return 'bg-indigo-200';
-    case 'run':
-      return 'bg-emerald-200';
-    case 'strength':
-      return 'bg-amber-200';
-    case 'rest':
-      return 'bg-gray-200';
-    default:
-      return 'bg-gray-200';
-  }
 }
 
 /* ---------- main component ---------- */
@@ -141,7 +204,6 @@ export default function DayCell({
     completedSessions?.some((c) => c.date === session.date && c.session_title === session.title);
 
   const header = useMemo(() => {
-    // Desktop: clean “d” + small weekday
     const dayNum = format(date, 'd');
     const dayWk = format(date, 'EEE');
     return { dayNum, dayWk };
@@ -152,15 +214,10 @@ export default function DayCell({
       <div
         ref={setNodeRef}
         className={clsx(
-          // Layout
-          'min-h-[210px] w-full rounded-2xl border p-3 flex flex-col gap-2 transition-all',
-          // Base
+          'group min-h-[210px] w-full rounded-2xl border p-3 flex flex-col gap-2 transition-all',
           'bg-white border-gray-200 shadow-[0_1px_0_rgba(0,0,0,0.03)]',
-          // Outside month: muted but still premium
           isOutside && 'bg-gray-50 text-gray-400 border-gray-200',
-          // Today: calm highlight
           isToday(date) && 'ring-1 ring-gray-900/10 border-gray-300',
-          // DnD states
           isOver && 'bg-gray-50 border-gray-300',
           justDropped && 'animate-pulse'
         )}
@@ -168,12 +225,7 @@ export default function DayCell({
         {/* Day header */}
         <div className="flex items-center justify-between">
           <div className="flex items-baseline gap-2">
-            <div
-              className={clsx(
-                'text-sm font-semibold',
-                isOutside ? 'text-gray-400' : 'text-gray-900'
-              )}
-            >
+            <div className={clsx('text-sm font-semibold', isOutside ? 'text-gray-400' : 'text-gray-900')}>
               {header.dayNum}
             </div>
             <div className="text-[11px] font-medium uppercase tracking-wide text-gray-500">
@@ -181,11 +233,24 @@ export default function DayCell({
             </div>
           </div>
 
-          {isToday(date) ? (
-            <div className="text-[11px] font-medium text-gray-700 rounded-full border border-gray-200 bg-white px-2 py-0.5">
-              Today
-            </div>
-          ) : null}
+          <div className="flex items-center gap-2">
+            {isToday(date) ? (
+              <div className="text-[11px] font-medium text-gray-700 rounded-full border border-gray-200 bg-white px-2 py-0.5">
+                Today
+              </div>
+            ) : null}
+
+            {/* Desktop: hover-only add button */}
+            <button
+              onClick={() => setShowForm(true)}
+              className={clsx(
+                'hidden md:inline-flex items-center rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-600',
+                'opacity-0 group-hover:opacity-100 transition hover:bg-gray-50'
+              )}
+            >
+              + Add
+            </button>
+          </div>
         </div>
 
         {/* Sessions */}
@@ -196,28 +261,24 @@ export default function DayCell({
 
             const sportRaw = String(s.sport ?? normalizeSportFromTitle(rawTitle));
             const sport = normalizeSport(sportRaw);
-            const emoji = sportEmoji(sport);
+            const accent = sportAccentClass(sport);
 
             const isStravaMatch = !!s.stravaActivity;
             const isCompleted = isSessionCompleted(s) || isStravaMatch;
 
-            const [labelLine, ...rest] = rawTitle.split(': ');
-            const detailLine = rest.join(': ').trim();
-
-            const baseTitle = stripLeadingEmoji(labelLine?.trim() || 'Untitled');
-            const titleLine = isRest ? 'Rest Day' : baseTitle || 'Untitled';
+            const { badge, title, detail } = getReadableTitle({ rawTitle, sport });
 
             const activity = s.stravaActivity;
-            const duration = activity?.moving_time
-              ? `${Math.floor(activity.moving_time / 3600)}h ${Math.round(
-                  (activity.moving_time % 3600) / 60
-                )}m`
-              : null;
-            const distance = activity?.distance ? `${(activity.distance / 1609).toFixed(1)} mi` : null;
-            const hr = activity?.average_heartrate ? `${Math.round(activity.average_heartrate)} bpm` : null;
-            const watts = activity?.average_watts ? `${Math.round(activity.average_watts)}w` : null;
-
-            const accent = sportAccentClass(sport);
+            const duration =
+              activity?.moving_time != null
+                ? `${Math.floor(activity.moving_time / 3600)}h ${Math.round((activity.moving_time % 3600) / 60)}m`
+                : null;
+            const distance =
+              activity?.distance != null ? `${(activity.distance / 1609).toFixed(1)} mi` : null;
+            const hr =
+              activity?.average_heartrate != null ? `${Math.round(activity.average_heartrate)} bpm` : null;
+            const watts =
+              activity?.average_watts != null ? `${Math.round(activity.average_watts)}w` : null;
 
             return (
               <DraggableSession key={s.id} session={s}>
@@ -226,7 +287,6 @@ export default function DayCell({
                   className={clsx(
                     'w-full text-left rounded-xl border px-3 py-2 transition',
                     'hover:bg-gray-50 hover:border-gray-300',
-                    // Completed / matched state
                     isStravaMatch
                       ? 'bg-indigo-50 border-indigo-200'
                       : isCompleted
@@ -235,25 +295,34 @@ export default function DayCell({
                   )}
                   title={rawTitle}
                 >
-                  <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-start gap-2.5">
                         {/* Left accent bar */}
-                        <span className={clsx('h-4 w-1.5 rounded-full', accent)} />
+                        <span className={clsx('mt-1.5 h-4 w-1.5 rounded-full', accent)} />
 
-                        {/* Emoji: show on mobile, hide on desktop */}
-                        <span className="md:hidden text-sm">{emoji}</span>
+                        {/* Badge (B./R./S./L.) */}
+                        {badge ? (
+                          <span
+                            className={clsx(
+                              'shrink-0 inline-flex h-6 items-center rounded-md border px-2 text-[11px] font-semibold',
+                              badgeToneClass(sport)
+                            )}
+                          >
+                            {badge}
+                          </span>
+                        ) : null}
 
+                        {/* Text */}
                         <div className="min-w-0">
-                          <div className="text-sm font-medium text-gray-900 leading-snug truncate">
-                            {titleLine && !startsWithEmoji(titleLine)
-                              ? titleLine
-                              : stripLeadingEmoji(titleLine)}
+                          {/* IMPORTANT: no truncate. Use clamp so it’s readable like Intervals. */}
+                          <div className="text-sm font-semibold text-gray-900 leading-snug line-clamp-2">
+                            {isRest ? 'Rest Day' : title}
                           </div>
 
-                          {detailLine ? (
-                            <div className="mt-0.5 text-xs text-gray-500 line-clamp-2">
-                              {detailLine}
+                          {detail ? (
+                            <div className="mt-0.5 text-xs text-gray-600 leading-snug line-clamp-2">
+                              {detail}
                             </div>
                           ) : null}
                         </div>
@@ -262,7 +331,7 @@ export default function DayCell({
 
                     <div className="shrink-0 flex items-center gap-2">
                       {isStravaMatch ? (
-                        <span className="text-[11px] font-medium text-indigo-700 rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5">
+                        <span className="text-[11px] font-medium text-indigo-700 rounded-full border border-indigo-200 bg-white px-2 py-0.5">
                           Strava
                         </span>
                       ) : null}
@@ -302,15 +371,6 @@ export default function DayCell({
           {extraActivities?.length > 0 ? (
             <div className="flex flex-col gap-2">
               {extraActivities.map((a) => {
-                const sport = (a.sport_type || '').toLowerCase();
-                const emoji = sport.includes('run')
-                  ? '🏃'
-                  : sport.includes('swim')
-                  ? '🏊'
-                  : sport.includes('ride')
-                  ? '🚴'
-                  : '•';
-
                 const key = String((a as any).strava_id ?? a.id);
 
                 return (
@@ -319,17 +379,19 @@ export default function DayCell({
                     className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-900"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <div className="truncate">
-                        <span className="md:hidden mr-1">{emoji}</span>
-                        {a.name || 'Unplanned Activity'}
+                      <div className="min-w-0">
+                        <div className="font-medium truncate">
+                          {a.name || 'Unplanned Activity'}
+                        </div>
+                        <div className="mt-0.5 flex justify-between text-[11px] text-indigo-900/70">
+                          <span>{a.moving_time ? `${Math.floor(a.moving_time / 60)}m` : '—'}</span>
+                          <span>{a.distance ? `${(a.distance / 1609).toFixed(1)} mi` : '—'}</span>
+                        </div>
                       </div>
-                      <span className="text-[11px] font-medium text-indigo-700 rounded-full border border-indigo-200 bg-white px-2 py-0.5">
+
+                      <span className="shrink-0 text-[11px] font-medium text-indigo-700 rounded-full border border-indigo-200 bg-white px-2 py-0.5">
                         Strava-only
                       </span>
-                    </div>
-                    <div className="mt-1 flex justify-between text-[11px] text-indigo-900/70">
-                      <span>{a.moving_time ? `${Math.floor(a.moving_time / 60)}m` : '—'}</span>
-                      <span>{a.distance ? `${(a.distance / 1609).toFixed(1)} mi` : '—'}</span>
                     </div>
                   </div>
                 );
@@ -337,13 +399,13 @@ export default function DayCell({
             </div>
           ) : null}
 
-          {/* Add session (desktop = quieter) */}
+          {/* Mobile add session (visible). Desktop uses hover in header */}
           <button
             onClick={() => setShowForm(true)}
             className={clsx(
               'mt-1 inline-flex items-center justify-center rounded-xl border border-dashed',
               'border-gray-200 bg-white px-3 py-2 text-sm text-gray-500 hover:text-gray-900',
-              'hover:bg-gray-50 transition'
+              'hover:bg-gray-50 transition md:hidden'
             )}
           >
             + Add session

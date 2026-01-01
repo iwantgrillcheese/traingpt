@@ -8,6 +8,7 @@ import {
   addDays,
   isSameMonth,
   format,
+  isToday,
 } from 'date-fns';
 import { useMemo } from 'react';
 import DayCell from './DayCell';
@@ -29,6 +30,16 @@ type MonthGridProps = {
   onSessionAdded?: (newSession: any) => void;
 };
 
+function weekLabel(weekStart: Date) {
+  return `Week ${format(weekStart, 'I')}`; // ISO week number
+}
+
+function weekRangeLabel(week: Date[]) {
+  const a = week[0];
+  const b = week[6];
+  return `${format(a, 'MMM d')}–${format(b, 'MMM d')}`;
+}
+
 export default function MonthGrid({
   currentMonth,
   sessionsByDate,
@@ -38,58 +49,112 @@ export default function MonthGrid({
   onSessionAdded,
 }: MonthGridProps) {
   const weeks = useMemo(() => {
-    const start = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 0 });
-    const end = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 0 });
+    const start = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 });
+    const end = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 });
 
     const days: Date[] = [];
-    let day = start;
-    while (day <= end) {
-      days.push(day);
-      day = addDays(day, 1);
+    let d = start;
+    while (d <= end) {
+      days.push(d);
+      d = addDays(d, 1);
     }
 
     const chunks: Date[][] = [];
-    for (let i = 0; i < days.length; i += 7) {
-      chunks.push(days.slice(i, i + 7));
-    }
+    for (let i = 0; i < days.length; i += 7) chunks.push(days.slice(i, i + 7));
     return chunks;
   }, [currentMonth]);
 
   return (
-    <div className="w-full animate-fade-in">
-      {/* Day-of-week header */}
-      <div className="grid grid-cols-7 gap-3 px-1 pb-2">
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-          <div
-            key={day}
-            className="text-center text-xs font-medium tracking-wide text-gray-500"
-          >
-            {day}
+    <div className="w-full">
+      {/* Header row */}
+      <div className="grid grid-cols-[180px_repeat(7,minmax(0,1fr))] items-center text-xs text-gray-500">
+        <div className="px-3 py-2 border-b border-gray-200 bg-white sticky left-0 z-10">
+          Week
+        </div>
+        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
+          <div key={d} className="px-3 py-2 border-b border-gray-200 text-center bg-white">
+            {d}
           </div>
         ))}
       </div>
 
-      {/* Calendar grid */}
-      <div className="grid grid-cols-7 gap-3">
-        {weeks.flatMap((week) =>
-          week.map((dateObj) => {
-            const dayKey = format(dateObj, 'yyyy-MM-dd');
-            const isOutside = !isSameMonth(dateObj, currentMonth);
+      {/* Grid */}
+      <div className="border border-gray-200 rounded-lg overflow-hidden">
+        {weeks.map((week, idx) => {
+          const wkStart = week[0];
 
-            return (
-              <DayCell
-                key={dayKey}
-                date={dateObj}
-                sessions={sessionsByDate?.[dayKey] ?? []}
-                isOutside={isOutside}
-                completedSessions={completedSessions}
-                extraActivities={stravaByDate?.[dayKey] ?? []}
-                onSessionClick={onSessionClick}
-                onSessionAdded={onSessionAdded}
-              />
-            );
-          })
-        )}
+          const isAllOutside = week.every((d) => !isSameMonth(d, currentMonth));
+          if (isAllOutside) return null; // don’t show fully outside weeks
+
+          return (
+            <div
+              key={`${format(wkStart, 'yyyy-MM-dd')}-${idx}`}
+              className="grid grid-cols-[180px_repeat(7,minmax(0,1fr))] bg-white"
+            >
+              {/* Left “Week summary” column (Intervals vibe) */}
+              <div className="border-b border-gray-200 bg-gray-50 px-3 py-3">
+                <div className="text-xs font-semibold text-gray-900">{weekLabel(wkStart)}</div>
+                <div className="mt-1 text-[11px] text-gray-600">{weekRangeLabel(week)}</div>
+
+                {/* You can replace these later with real load/fitness */}
+                <div className="mt-3 space-y-1 text-[11px] text-gray-600">
+                  <div className="flex items-center justify-between">
+                    <span>Planned</span>
+                    <span className="text-gray-900">
+                      {week.reduce((acc, d) => {
+                        const k = format(d, 'yyyy-MM-dd');
+                        return acc + (sessionsByDate[k]?.length ?? 0);
+                      }, 0)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Completed</span>
+                    <span className="text-gray-900">
+                      {week.reduce((acc, d) => {
+                        const k = format(d, 'yyyy-MM-dd');
+                        const planned = sessionsByDate[k] ?? [];
+                        const completedCount = planned.filter((s) =>
+                          completedSessions?.some(
+                            (c) => c.date === (s as any).date && c.session_title === (s as any).title
+                          )
+                        ).length;
+                        return acc + completedCount;
+                      }, 0)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 7 day cells */}
+              {week.map((dateObj) => {
+                const dayKey = format(dateObj, 'yyyy-MM-dd');
+                const outside = !isSameMonth(dateObj, currentMonth);
+
+                return (
+                  <div
+                    key={dayKey}
+                    className={[
+                      'border-b border-gray-200',
+                      'min-h-[140px]',
+                      outside ? 'bg-gray-50' : 'bg-white',
+                      isToday(dateObj) ? 'bg-gray-50' : '',
+                    ].join(' ')}
+                  >
+                    <DayCell
+                      date={dateObj}
+                      sessions={sessionsByDate?.[dayKey] ?? []}
+                      isOutside={outside}
+                      completedSessions={completedSessions}
+                      extraActivities={stravaByDate?.[dayKey] ?? []}
+                      onSessionClick={onSessionClick}
+                      onSessionAdded={onSessionAdded}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
