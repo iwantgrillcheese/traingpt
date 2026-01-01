@@ -5,6 +5,7 @@ import { startOfMonth, subMonths, addMonths, format } from 'date-fns';
 import MonthGrid from './MonthGrid';
 import MobileCalendarView from './MobileCalendarView';
 import SessionModal from './SessionModal';
+import DesktopContextPanel from './DesktopContextPanel';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
 import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
@@ -16,7 +17,6 @@ import {
   TouchSensor,
   useSensor,
   useSensors,
-  type SensorDescriptor,
   type SensorOptions,
 } from '@dnd-kit/core';
 
@@ -156,47 +156,66 @@ export default function CalendarShell({
   }
 
   return (
-    <main
-      className={
-        `min-h-[100dvh] bg-background pb-[env(safe-area-inset-bottom)] ` +
-        (isMobile
-          ? 'px-0'
-          : 'px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 2xl:px-20 max-w-[1800px] mx-auto')
-      }
-    >
+    <main className="min-h-[100dvh] bg-background pb-[env(safe-area-inset-bottom)]">
       {isMobile ? (
-        <MobileCalendarView
-          sessions={localSessions as any}
-          completedSessions={completed}
-          stravaActivities={extraStravaActivities}
-        />
+        <div className="px-0">
+          <MobileCalendarView
+            sessions={localSessions as any}
+            completedSessions={completed}
+            stravaActivities={extraStravaActivities}
+          />
+        </div>
       ) : (
-        <>
+        <div className="mx-auto max-w-[1400px] px-4 sm:px-6 md:px-8 lg:px-10">
           <SupportBanner />
 
-          <div className="flex items-center justify-between mb-6 w-full">
-            <button onClick={goToPrevMonth} className="text-sm text-gray-500 hover:text-black">
-              ←
-            </button>
-            <h2 className="text-2xl font-semibold text-center">
-              {format(currentMonth, 'MMMM yyyy')}
-            </h2>
-            <button onClick={goToNextMonth} className="text-sm text-gray-500 hover:text-black">
-              →
-            </button>
-          </div>
-
-          <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-            <MonthGrid
+          {/* Desktop “mission control” shell */}
+          <div className="grid grid-cols-[320px_1fr] gap-6 items-start">
+            <DesktopContextPanel
               currentMonth={currentMonth}
-              sessionsByDate={sessionsByDate}
+              localSessions={localSessions}
               completedSessions={completed}
-              stravaByDate={stravaByDate}
-              onSessionClick={handleSessionClick}
-              onSessionAdded={handleSessionAdded}
             />
-          </DndContext>
-        </>
+
+            <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <button
+                  onClick={goToPrevMonth}
+                  className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+                >
+                  ←
+                </button>
+
+                <div className="text-center">
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    {format(currentMonth, 'MMMM yyyy')}
+                  </h2>
+                  <div className="mt-0.5 text-xs text-gray-500">
+                    Drag and drop sessions to reschedule
+                  </div>
+                </div>
+
+                <button
+                  onClick={goToNextMonth}
+                  className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+                >
+                  →
+                </button>
+              </div>
+
+              <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+                <MonthGrid
+                  currentMonth={currentMonth}
+                  sessionsByDate={sessionsByDate}
+                  completedSessions={completed}
+                  stravaByDate={stravaByDate}
+                  onSessionClick={handleSessionClick}
+                  onSessionAdded={handleSessionAdded}
+                />
+              </DndContext>
+            </section>
+          </div>
+        </div>
       )}
 
       <SessionModal

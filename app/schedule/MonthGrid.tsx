@@ -56,16 +56,21 @@ export default function MonthGrid({
   }, [currentMonth]);
 
   return (
-    <div className="w-full animate-fade-in space-y-2">
-      <div className="grid grid-cols-7 text-center font-medium text-sm text-muted-foreground pb-1">
+    <div className="w-full animate-fade-in">
+      {/* Day-of-week header */}
+      <div className="grid grid-cols-7 gap-3 px-1 pb-2">
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-          <div key={day} className="tracking-wide">
+          <div
+            key={day}
+            className="text-center text-xs font-medium tracking-wide text-gray-500"
+          >
             {day}
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-x-4 gap-y-4">
+      {/* Calendar grid */}
+      <div className="grid grid-cols-7 gap-3">
         {weeks.flatMap((week) =>
           week.map((dateObj) => {
             const dayKey = format(dateObj, 'yyyy-MM-dd');

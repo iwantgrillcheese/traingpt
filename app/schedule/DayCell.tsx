@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { format, isToday } from 'date-fns';
 import clsx from 'clsx';
 import { useDroppable, useDraggable } from '@dnd-kit/core';
@@ -36,23 +36,10 @@ function normalizeSportFromTitle(title: string): string {
   return 'other';
 }
 
-/**
- * Normalize sport strings from different sources (Sessions table vs Strava)
- * into our canonical set used by emoji + UI.
- */
 function normalizeSport(sport: string): string {
   const lower = (sport || '').toLowerCase();
-
-  // Strava variants -> canonical
   if (lower === 'ride' || lower === 'virtualride' || lower === 'ebikeride') return 'bike';
-
-  // Sometimes things come through already canonical
-  if (lower === 'bike') return 'bike';
-  if (lower === 'run') return 'run';
-  if (lower === 'swim') return 'swim';
-  if (lower === 'strength') return 'strength';
-  if (lower === 'rest') return 'rest';
-
+  if (['bike', 'run', 'swim', 'strength', 'rest'].includes(lower)) return lower;
   return lower || 'other';
 }
 
@@ -69,7 +56,7 @@ function sportEmoji(sport: string): string {
     case 'rest':
       return '😴';
     default:
-      return '🔸';
+      return '•';
   }
 }
 
@@ -77,10 +64,6 @@ function startsWithEmoji(text: string) {
   return /^(\p{Emoji_Presentation}|\p{Extended_Pictographic})/u.test(text);
 }
 
-/**
- * If older titles were saved starting with a "wrong" emoji (e.g. 🔸 Ride),
- * strip it so the UI can render the correct emoji from `sport`.
- */
 function stripLeadingEmoji(text: string) {
   return text.replace(/^(\p{Emoji_Presentation}|\p{Extended_Pictographic})\s*/u, '');
 }
@@ -103,13 +86,31 @@ function DraggableSession({
       {...attributes}
       style={{
         transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-        opacity: isDragging ? 0.5 : 1,
+        opacity: isDragging ? 0.6 : 1,
       }}
       className="cursor-grab active:cursor-grabbing"
     >
       {children}
     </div>
   );
+}
+
+function sportAccentClass(sport: string) {
+  // Subtle + premium. Not loud. Just enough to read quickly.
+  switch (sport) {
+    case 'swim':
+      return 'bg-sky-200';
+    case 'bike':
+      return 'bg-indigo-200';
+    case 'run':
+      return 'bg-emerald-200';
+    case 'strength':
+      return 'bg-amber-200';
+    case 'rest':
+      return 'bg-gray-200';
+    default:
+      return 'bg-gray-200';
+  }
 }
 
 /* ---------- main component ---------- */
@@ -132,29 +133,62 @@ export default function DayCell({
   useEffect(() => {
     if (!isOver) return;
     setJustDropped(true);
-    const timer = setTimeout(() => setJustDropped(false), 600);
+    const timer = setTimeout(() => setJustDropped(false), 450);
     return () => clearTimeout(timer);
   }, [isOver]);
 
   const isSessionCompleted = (session: MergedSession) =>
     completedSessions?.some((c) => c.date === session.date && c.session_title === session.title);
 
+  const header = useMemo(() => {
+    // Desktop: clean “d” + small weekday
+    const dayNum = format(date, 'd');
+    const dayWk = format(date, 'EEE');
+    return { dayNum, dayWk };
+  }, [date]);
+
   return (
     <>
       <div
         ref={setNodeRef}
         className={clsx(
-          'min-h-[220px] p-3 border rounded-xl flex flex-col gap-2 transition-all duration-150 w-full',
-          isOutside ? 'bg-zinc-100 text-zinc-400' : 'bg-white text-black',
-          isToday(date) && 'ring-2 ring-blue-400',
-          isOver && 'bg-blue-50 border-blue-300 shadow-inner',
-          justDropped && 'animate-pulse bg-blue-100 border-blue-400'
+          // Layout
+          'min-h-[210px] w-full rounded-2xl border p-3 flex flex-col gap-2 transition-all',
+          // Base
+          'bg-white border-gray-200 shadow-[0_1px_0_rgba(0,0,0,0.03)]',
+          // Outside month: muted but still premium
+          isOutside && 'bg-gray-50 text-gray-400 border-gray-200',
+          // Today: calm highlight
+          isToday(date) && 'ring-1 ring-gray-900/10 border-gray-300',
+          // DnD states
+          isOver && 'bg-gray-50 border-gray-300',
+          justDropped && 'animate-pulse'
         )}
       >
-        <div className="text-xs text-zinc-500 font-medium text-right uppercase tracking-wide">
-          {format(date, 'EEE d')}
+        {/* Day header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-baseline gap-2">
+            <div
+              className={clsx(
+                'text-sm font-semibold',
+                isOutside ? 'text-gray-400' : 'text-gray-900'
+              )}
+            >
+              {header.dayNum}
+            </div>
+            <div className="text-[11px] font-medium uppercase tracking-wide text-gray-500">
+              {header.dayWk}
+            </div>
+          </div>
+
+          {isToday(date) ? (
+            <div className="text-[11px] font-medium text-gray-700 rounded-full border border-gray-200 bg-white px-2 py-0.5">
+              Today
+            </div>
+          ) : null}
         </div>
 
+        {/* Sessions */}
         <div className="flex flex-col gap-2">
           {sessions?.map((s) => {
             const rawTitle = s.title ?? '';
@@ -167,11 +201,9 @@ export default function DayCell({
             const isStravaMatch = !!s.stravaActivity;
             const isCompleted = isSessionCompleted(s) || isStravaMatch;
 
-            // ✅ Split only on ": " so we don't break times/paces like 8:30–9:00/mi
             const [labelLine, ...rest] = rawTitle.split(': ');
             const detailLine = rest.join(': ').trim();
 
-            // Strip any leading emoji so we always show the canonical emoji from `sport`.
             const baseTitle = stripLeadingEmoji(labelLine?.trim() || 'Untitled');
             const titleLine = isRest ? 'Rest Day' : baseTitle || 'Untitled';
 
@@ -181,64 +213,94 @@ export default function DayCell({
                   (activity.moving_time % 3600) / 60
                 )}m`
               : null;
-            const distance = activity?.distance
-              ? `${(activity.distance / 1609).toFixed(1)} mi`
-              : null;
-            const hr = activity?.average_heartrate
-              ? `${Math.round(activity.average_heartrate)} bpm`
-              : null;
+            const distance = activity?.distance ? `${(activity.distance / 1609).toFixed(1)} mi` : null;
+            const hr = activity?.average_heartrate ? `${Math.round(activity.average_heartrate)} bpm` : null;
             const watts = activity?.average_watts ? `${Math.round(activity.average_watts)}w` : null;
+
+            const accent = sportAccentClass(sport);
 
             return (
               <DraggableSession key={s.id} session={s}>
                 <button
                   onClick={() => !isRest && onSessionClick?.(s)}
                   className={clsx(
-                    'w-full text-left rounded-md px-3 py-2 transition-all border hover:shadow-sm',
+                    'w-full text-left rounded-xl border px-3 py-2 transition',
+                    'hover:bg-gray-50 hover:border-gray-300',
+                    // Completed / matched state
                     isStravaMatch
-                      ? 'bg-blue-50 border-blue-300'
+                      ? 'bg-indigo-50 border-indigo-200'
                       : isCompleted
-                      ? 'bg-green-50 border-green-300'
-                      : 'bg-muted/20 border-muted'
+                      ? 'bg-emerald-50 border-emerald-200'
+                      : 'bg-white border-gray-200'
                   )}
                   title={rawTitle}
                 >
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="font-medium text-sm leading-snug line-clamp-2">
-                      <span className="mr-1">{emoji}</span>
-                      {titleLine && !startsWithEmoji(titleLine)
-                        ? titleLine
-                        : stripLeadingEmoji(titleLine)}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        {/* Left accent bar */}
+                        <span className={clsx('h-4 w-1.5 rounded-full', accent)} />
+
+                        {/* Emoji: show on mobile, hide on desktop */}
+                        <span className="md:hidden text-sm">{emoji}</span>
+
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-gray-900 leading-snug truncate">
+                            {titleLine && !startsWithEmoji(titleLine)
+                              ? titleLine
+                              : stripLeadingEmoji(titleLine)}
+                          </div>
+
+                          {detailLine ? (
+                            <div className="mt-0.5 text-xs text-gray-500 line-clamp-2">
+                              {detailLine}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
                     </div>
 
-                    {isStravaMatch && <span className="text-xs text-blue-500">(Strava)</span>}
-                    {!isStravaMatch && isCompleted && <span className="text-sm text-green-600">✓</span>}
+                    <div className="shrink-0 flex items-center gap-2">
+                      {isStravaMatch ? (
+                        <span className="text-[11px] font-medium text-indigo-700 rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5">
+                          Strava
+                        </span>
+                      ) : null}
+
+                      {!isStravaMatch && isCompleted ? (
+                        <span className="text-[11px] font-semibold text-emerald-700">✓</span>
+                      ) : null}
+                    </div>
                   </div>
 
-                  {detailLine && (
-                    <div className="text-xs text-muted-foreground line-clamp-2">{detailLine}</div>
-                  )}
-
-                  {isStravaMatch && (
-                    <div className="mt-1 text-xs text-blue-700 flex flex-col gap-0.5">
-                      <div className="flex justify-between w-full">
-                        <span>{duration}</span>
-                        <span>{distance}</span>
+                  {isStravaMatch ? (
+                    <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-indigo-900/80">
+                      <div className="flex justify-between gap-2">
+                        <span className="text-indigo-900/60">Time</span>
+                        <span className="font-medium">{duration ?? '—'}</span>
                       </div>
-                      <div className="flex justify-between w-full">
-                        <span>{hr}</span>
-                        <span>{watts}</span>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-indigo-900/60">Dist</span>
+                        <span className="font-medium">{distance ?? '—'}</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-indigo-900/60">HR</span>
+                        <span className="font-medium">{hr ?? '—'}</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-indigo-900/60">Power</span>
+                        <span className="font-medium">{watts ?? '—'}</span>
                       </div>
                     </div>
-                  )}
+                  ) : null}
                 </button>
               </DraggableSession>
             );
           })}
 
           {/* Strava-only extras (UNMATCHED ONLY) */}
-          {extraActivities?.length > 0 && (
-            <div className="flex flex-col gap-1 mt-1">
+          {extraActivities?.length > 0 ? (
+            <div className="flex flex-col gap-2">
               {extraActivities.map((a) => {
                 const sport = (a.sport_type || '').toLowerCase();
                 const emoji = sport.includes('run')
@@ -247,31 +309,44 @@ export default function DayCell({
                   ? '🏊'
                   : sport.includes('ride')
                   ? '🚴'
-                  : '🔸';
+                  : '•';
 
                 const key = String((a as any).strava_id ?? a.id);
 
                 return (
                   <div
                     key={key}
-                    className="rounded-md bg-blue-50 border border-blue-300 px-3 py-2 text-xs text-blue-800"
+                    className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-900"
                   >
-                    {emoji} {a.name || 'Unplanned Activity'}
-                    <div className="flex justify-between text-[11px]">
-                      <span>{a.moving_time ? `${Math.floor(a.moving_time / 60)}m` : ''}</span>
-                      <span>{a.distance ? `${(a.distance / 1609).toFixed(1)} mi` : ''}</span>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="truncate">
+                        <span className="md:hidden mr-1">{emoji}</span>
+                        {a.name || 'Unplanned Activity'}
+                      </div>
+                      <span className="text-[11px] font-medium text-indigo-700 rounded-full border border-indigo-200 bg-white px-2 py-0.5">
+                        Strava-only
+                      </span>
+                    </div>
+                    <div className="mt-1 flex justify-between text-[11px] text-indigo-900/70">
+                      <span>{a.moving_time ? `${Math.floor(a.moving_time / 60)}m` : '—'}</span>
+                      <span>{a.distance ? `${(a.distance / 1609).toFixed(1)} mi` : '—'}</span>
                     </div>
                   </div>
                 );
               })}
             </div>
-          )}
+          ) : null}
 
+          {/* Add session (desktop = quieter) */}
           <button
             onClick={() => setShowForm(true)}
-            className="text-gray-400 hover:text-black text-sm mt-1"
+            className={clsx(
+              'mt-1 inline-flex items-center justify-center rounded-xl border border-dashed',
+              'border-gray-200 bg-white px-3 py-2 text-sm text-gray-500 hover:text-gray-900',
+              'hover:bg-gray-50 transition'
+            )}
           >
-            ＋ Add session
+            + Add session
           </button>
         </div>
       </div>
@@ -279,11 +354,11 @@ export default function DayCell({
       {/* Form modal */}
       <div
         className={clsx(
-          'fixed inset-0 flex items-center justify-center z-50 transition-opacity duration-200',
+          'fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-200',
           showForm ? 'opacity-100 visible bg-black/20 backdrop-blur-sm' : 'opacity-0 invisible'
         )}
       >
-        <div className="bg-white p-4 rounded-xl shadow-xl w-full max-w-md">
+        <div className="w-full max-w-md rounded-2xl bg-white p-4 shadow-xl border border-gray-200">
           <InlineSessionForm
             date={format(date, 'yyyy-MM-dd')}
             onClose={() => setShowForm(false)}

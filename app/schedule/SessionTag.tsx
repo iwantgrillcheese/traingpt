@@ -10,24 +10,17 @@ type Props = {
 
 export default function SessionTag({ session, onClick }: Props) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: session, // unique identifier for drag events
+    id: session,
   });
 
-  // Basic transform style for smooth dragging
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
     : undefined;
 
-  // Handle edge case where session isn't a string
   if (typeof session !== 'string') {
-    return (
-      <div className="text-xs text-gray-500 italic px-2 py-[2px]">
-        Unrecognized session
-      </div>
-    );
+    return <div className="px-2 py-1 text-xs text-gray-500 italic">Unrecognized session</div>;
   }
 
-  // Parse emoji + label
   const icon = session.charAt(0);
   const label = session.slice(2).trim();
 
@@ -39,12 +32,17 @@ export default function SessionTag({ session, onClick }: Props) {
       style={style}
       onClick={() => onClick?.(session)}
       className={clsx(
-        'flex items-center gap-2 text-sm px-4 py-2 rounded-md border bg-white hover:shadow-sm transition-all cursor-grab active:cursor-grabbing',
-        isDragging && 'opacity-60 shadow-lg'
+        'group flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2',
+        'text-sm text-gray-800 shadow-[0_1px_0_rgba(0,0,0,0.03)]',
+        'hover:bg-gray-50 hover:border-gray-300 transition cursor-grab active:cursor-grabbing',
+        isDragging && 'opacity-60 shadow-md'
       )}
     >
-      <span className="text-sm">{icon}</span>
-      <span className="truncate">{label}</span>
+      <span className="md:hidden text-sm">{icon}</span>
+      <span className="truncate font-medium">{label}</span>
+      <span className="ml-auto hidden md:block text-[11px] text-gray-500 opacity-0 group-hover:opacity-100 transition">
+        Drag
+      </span>
     </div>
   );
 }
