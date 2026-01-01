@@ -198,7 +198,7 @@ export default function PlanPage() {
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number | null>(null);
 
-  // Walkthrough state (controlled)
+  // Walkthrough state (still supported for manual open, but we redirect on success)
   const [walkthroughContext, setWalkthroughContext] = useState<WalkthroughContext | null>(null);
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
   const [planReady, setPlanReady] = useState(false);
@@ -262,7 +262,11 @@ export default function PlanPage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleGoToSchedule = () => router.push('/schedule');
+  // When user taps "Open Schedule" (during loading or after), use replace + refresh (mobile-safe)
+  const handleGoToSchedule = () => {
+    router.replace('/schedule');
+    router.refresh();
+  };
 
   /* -------------------- Submit Handler -------------------- */
   const handleFinalize = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -373,16 +377,17 @@ export default function PlanPage() {
               setLoading(false);
               setPlanReady(true);
 
+              // Fetch plan context (optional planId passthrough)
               let ctx = await fetchLatestPlanContext();
               if (!ctx) {
                 await new Promise((r) => setTimeout(r, 500));
                 ctx = await fetchLatestPlanContext();
               }
 
-              if (ctx) {
-                setWalkthroughContext({ ...(ctx as any), mode: 'auto' });
-                setTimeout(() => setWalkthroughOpen(true), 350);
-              }
+              // Redirect to schedule and auto-open walkthrough there
+              const planIdParam = ctx?.planId ? `&planId=${encodeURIComponent(ctx.planId)}` : '';
+              router.replace(`/schedule?walkthrough=1${planIdParam}`);
+              router.refresh();
 
               resolve();
               return;
@@ -565,7 +570,7 @@ export default function PlanPage() {
 
   return (
     <div className="min-h-screen bg-white text-gray-900 relative overflow-x-hidden">
-      {/* Controlled walkthrough modal */}
+      {/* Controlled walkthrough modal (kept for manual open) */}
       <PostPlanWalkthrough
         context={walkthroughContext}
         open={walkthroughOpen}
@@ -626,7 +631,7 @@ export default function PlanPage() {
               <p className="mt-3 text-gray-500 text-lg">{subtitle}</p>
             </div>
 
-            {/* Plan Ready (reduce CTAs: 1 primary + optional secondary) */}
+            {/* Plan Ready (kept; user will usually be redirected) */}
             {planReady && (
               <NoticeCard
                 title="Your plan is ready."
@@ -681,8 +686,6 @@ export default function PlanPage() {
                     Built around your race and weekly time. Adjust anytime.
                   </div>
                 </div>
-
-                {/* removed "Free to start" badge */}
               </div>
 
               <div className="px-5 sm:px-6 py-4">

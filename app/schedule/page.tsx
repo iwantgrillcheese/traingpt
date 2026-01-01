@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase-client';
 import CalendarShell from './CalendarShell';
 import type { Session } from '@/types/session';
@@ -19,8 +20,13 @@ type CompletedSession = {
 };
 
 export default function SchedulePage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   const userTimezone =
     Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'America/Los_Angeles';
+
+  const [authedUserId, setAuthedUserId] = useState<string | null>(null);
 
   const [sessions, setSessions] = useState<Session[]>([]);
   const [stravaActivities, setStravaActivities] = useState<StravaActivity[]>([]);
@@ -33,25 +39,68 @@ export default function SchedulePage() {
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
   const [walkthroughLoading, setWalkthroughLoading] = useState(false);
 
+  // Prevent double auto-open
+  const [autoWalkthroughFired, setAutoWalkthroughFired] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
 
-    const fetchData = async () => {
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    const load = async (attempt: number) => {
       try {
         setLoading(true);
         setLoadError(null);
 
+        // Get session first (more stable during hydration).
+        const {
+          data: { session },
+          error: sessionErr,
+        } = await supabase.auth.getSession();
+
+        if (!session || sessionErr) {
+          if (!cancelled) {
+            setAuthedUserId(null);
+            setSessions([]);
+            setStravaActivities([]);
+            setCompletedSessions([]);
+            setLoading(false);
+          }
+          return;
+        }
+
+        // Now fetch user (can throw transient "Auth session missing" right after redirect on mobile).
         const {
           data: { user },
           error: userErr,
         } = await supabase.auth.getUser();
 
+        const msg = userErr?.message?.toLowerCase() ?? '';
+        if (msg.includes('auth session missing')) {
+          if (attempt < 1) {
+            await sleep(400);
+            return load(attempt + 1);
+          }
+          if (!cancelled) {
+            setAuthedUserId(null);
+            setLoading(false);
+          }
+          return;
+        }
+
         if (userErr) throw userErr;
 
         if (!user) {
-          if (!cancelled) setLoading(false);
+          if (!cancelled) {
+            setAuthedUserId(null);
+            setLoading(false);
+          }
           return;
         }
+
+        if (cancelled) return;
+
+        setAuthedUserId(user.id);
 
         const [sessionsRes, stravaRes, completedRes] = await Promise.all([
           supabase.from('sessions').select('*').eq('user_id', user.id),
@@ -77,7 +126,7 @@ export default function SchedulePage() {
         setCompletedSessions(normalizedCompleted);
         setLoading(false);
       } catch (e: any) {
-        console.error('SchedulePage fetchData error:', e);
+        console.error('SchedulePage load error:', e);
         if (!cancelled) {
           setLoadError(e?.message ?? 'Failed to load schedule data.');
           setLoading(false);
@@ -85,9 +134,16 @@ export default function SchedulePage() {
       }
     };
 
-    fetchData();
+    load(0);
+
+    // If auth finishes hydrating after first render, reload.
+    const { data: sub } = supabase.auth.onAuthStateChange(() => {
+      load(0);
+    });
+
     return () => {
       cancelled = true;
+      sub?.subscription?.unsubscribe();
     };
   }, []);
 
@@ -108,7 +164,7 @@ export default function SchedulePage() {
     }
   }, [sessions, stravaActivities, userTimezone]);
 
-  const isLoggedOut = enrichedSessions.length === 0 && stravaActivities.length === 0;
+  const isLoggedOut = !authedUserId;
 
   const fetchLatestPlanContext = useCallback(async (): Promise<WalkthroughContext | null> => {
     const {
@@ -159,6 +215,35 @@ export default function SchedulePage() {
       setWalkthroughLoading(false);
     }
   }, [fetchLatestPlanContext, walkthroughContext]);
+
+  // Auto-open walkthrough when redirected from plan generation
+  useEffect(() => {
+    const shouldOpen = searchParams?.get('walkthrough') === '1';
+    if (!shouldOpen) return;
+    if (autoWalkthroughFired) return;
+
+    // Wait for auth + initial load
+    if (loading) return;
+    if (!authedUserId) return;
+
+    setAutoWalkthroughFired(true);
+
+    // Prefer "auto" mode if your walkthrough supports it
+    (async () => {
+      const ctx = await fetchLatestPlanContext();
+      if (ctx) setWalkthroughContext({ ...(ctx as any), mode: 'auto' });
+      setWalkthroughOpen(true);
+      // Clean URL so refresh doesn't re-open
+      router.replace('/schedule');
+    })();
+  }, [
+    searchParams,
+    autoWalkthroughFired,
+    loading,
+    authedUserId,
+    fetchLatestPlanContext,
+    router,
+  ]);
 
   if (loading) {
     return <div className="text-center py-10 text-zinc-400">Loading your training data...</div>;
