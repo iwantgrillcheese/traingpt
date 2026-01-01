@@ -45,24 +45,47 @@ function normalizeSport(sport: string): string {
 }
 
 /**
- * Apple/Strava Pro palette: neutral surface + restrained accent.
- * - Use a thin left rail for category.
- * - Keep backgrounds mostly white/zinc to feel “luxury”.
+ * Premium palette: neutral surface + ink accents (no pastels).
+ * Goal: feel like Strava Pro / Intervals — color is identity, not decoration.
  */
 function sportAccent(sport: string) {
   switch (sport) {
     case 'swim':
-      return { rail: 'bg-cyan-500/80', ring: 'ring-cyan-500/15' };
+      return {
+        rail: 'bg-slate-700/80',
+        ring: 'ring-slate-900/10',
+        badge: 'text-slate-700',
+      };
     case 'bike':
-      return { rail: 'bg-amber-500/80', ring: 'ring-amber-500/12' };
+      return {
+        rail: 'bg-zinc-900/70',
+        ring: 'ring-zinc-900/10',
+        badge: 'text-zinc-700',
+      };
     case 'run':
-      return { rail: 'bg-emerald-500/80', ring: 'ring-emerald-500/12' };
+      return {
+        rail: 'bg-emerald-800/75',
+        ring: 'ring-emerald-900/10',
+        badge: 'text-emerald-800',
+      };
     case 'strength':
-      return { rail: 'bg-violet-500/80', ring: 'ring-violet-500/12' };
+      return {
+        rail: 'bg-violet-800/70',
+        ring: 'ring-violet-900/10',
+        badge: 'text-violet-800',
+      };
     case 'rest':
-      return { rail: 'bg-zinc-400/80', ring: 'ring-zinc-400/10' };
+      return {
+        rail: 'bg-zinc-500/60',
+        ring: 'ring-zinc-900/5',
+        badge: 'text-zinc-600',
+      };
     default:
-      return { rail: 'bg-zinc-400/70', ring: 'ring-zinc-400/10' };
+      return {
+        rail: 'bg-zinc-600/55',
+        ring: 'ring-zinc-900/5',
+        badge: 'text-zinc-700',
+      };
   }
 }
 
@@ -205,9 +228,8 @@ export default function DayCell({
           {sessions?.map((s) => {
             const rawTitle = s.title ?? '';
             const isRest =
-  rawTitle.toLowerCase().includes('rest day') ||
-  normalizeSport(String(s.sport ?? '')).toLowerCase() === 'rest';
-
+              rawTitle.toLowerCase().includes('rest day') ||
+              normalizeSport(String(s.sport ?? '')).toLowerCase() === 'rest';
 
             const sportRaw = String(s.sport ?? normalizeSportFromTitle(rawTitle));
             const sport = normalizeSport(sportRaw);
@@ -238,18 +260,18 @@ export default function DayCell({
                     'shadow-[0_1px_2px_rgba(0,0,0,0.06)]',
                     'hover:shadow-[0_8px_24px_rgba(0,0,0,0.10)] hover:-translate-y-[1px]',
                     'active:translate-y-0',
-                    // soft “pro” feedback rings
-                    isStravaMatch && 'ring-1 ring-cyan-500/15',
-                    !isStravaMatch && isCompleted && 'ring-1 ring-emerald-500/12'
+                    // premium rings: subtle, derived from sport palette
+                    (isStravaMatch || isCompleted) && 'ring-1',
+                    (isStravaMatch || isCompleted) && accent.ring
                   )}
                   title={rawTitle}
                 >
                   <div className="flex">
-                    {/* Accent rail */}
-                    <div className={clsx('w-1.5', accent.rail)} />
+                    {/* Accent rail (final boss: thinner rail + slightly more padding in body) */}
+                    <div className={clsx('w-1', accent.rail)} />
 
                     {/* Body */}
-                    <div className="min-w-0 flex-1 px-3 py-2.5">
+                    <div className="min-w-0 flex-1 px-3.5 py-2.5">
                       {/* Top meta row */}
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
@@ -264,7 +286,7 @@ export default function DayCell({
                           ) : null}
 
                           {!isStravaMatch && isCompleted ? (
-                            <span className="shrink-0 text-[11px] font-semibold text-emerald-700">
+                            <span className={clsx('shrink-0 text-[11px] font-semibold', accent.badge)}>
                               ✓
                             </span>
                           ) : null}
@@ -318,13 +340,18 @@ export default function DayCell({
                       'w-full text-left overflow-hidden rounded-lg border transition-all',
                       'border-black/5 bg-white',
                       'shadow-[0_1px_2px_rgba(0,0,0,0.06)]',
-                      'hover:shadow-[0_8px_24px_rgba(0,0,0,0.10)] hover:-translate-y-[1px]'
+                      'hover:shadow-[0_8px_24px_rgba(0,0,0,0.10)] hover:-translate-y-[1px]',
+                      // subtle ring so Strava-only doesn’t scream
+                      'ring-1 ring-zinc-900/5'
                     )}
                     title={a.name || 'Strava activity'}
                   >
                     <div className="flex">
-                      <div className={clsx('w-1.5', accent.rail)} />
-                      <div className="min-w-0 flex-1 px-3 py-2.5">
+                      {/* Accent rail (final boss: thinner) */}
+                      <div className={clsx('w-1', accent.rail)} />
+
+                      {/* Body */}
+                      <div className="min-w-0 flex-1 px-3.5 py-2.5">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-[11px] font-medium text-zinc-500">
                             {sportLabel(sport)}
