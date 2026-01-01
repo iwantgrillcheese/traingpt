@@ -44,20 +44,25 @@ function normalizeSport(sport: string): string {
   return lower || 'other';
 }
 
-function sportAccentClass(sport: string) {
+/**
+ * Apple/Strava Pro palette: neutral surface + restrained accent.
+ * - Use a thin left rail for category.
+ * - Keep backgrounds mostly white/zinc to feel “luxury”.
+ */
+function sportAccent(sport: string) {
   switch (sport) {
     case 'swim':
-      return { strip: 'bg-sky-500', soft: 'bg-sky-50' };
+      return { rail: 'bg-cyan-500/80', ring: 'ring-cyan-500/15' };
     case 'bike':
-      return { strip: 'bg-amber-400', soft: 'bg-amber-50' };
+      return { rail: 'bg-amber-500/80', ring: 'ring-amber-500/12' };
     case 'run':
-      return { strip: 'bg-emerald-500', soft: 'bg-emerald-50' };
+      return { rail: 'bg-emerald-500/80', ring: 'ring-emerald-500/12' };
     case 'strength':
-      return { strip: 'bg-purple-500', soft: 'bg-purple-50' };
+      return { rail: 'bg-violet-500/80', ring: 'ring-violet-500/12' };
     case 'rest':
-      return { strip: 'bg-zinc-500', soft: 'bg-zinc-50' };
+      return { rail: 'bg-zinc-400/80', ring: 'ring-zinc-400/10' };
     default:
-      return { strip: 'bg-zinc-400', soft: 'bg-zinc-50' };
+      return { rail: 'bg-zinc-400/70', ring: 'ring-zinc-400/10' };
   }
 }
 
@@ -115,9 +120,9 @@ function DraggableSession({
       {...attributes}
       style={{
         transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-        opacity: isDragging ? 0.6 : 1,
+        opacity: isDragging ? 0.75 : 1,
       }}
-      className="cursor-grab active:cursor-grabbing"
+      className={clsx('cursor-grab active:cursor-grabbing', isDragging && 'z-10')}
     >
       {children}
     </div>
@@ -158,40 +163,51 @@ export default function DayCell({
     return { dayNum, dayWk };
   }, [date]);
 
+  const dayIsToday = isToday(date);
+
   return (
     <>
       <div
         ref={setNodeRef}
         className={clsx(
           'h-full w-full px-3 py-3',
+          'transition-colors',
           isOutside && 'opacity-60',
-          isOver && 'bg-gray-50',
+          isOver && 'bg-black/[0.02]',
           justDropped && 'animate-pulse'
         )}
       >
         {/* Day header */}
         <div className="flex items-center justify-between">
           <div className="flex items-baseline gap-2">
-            <div className={clsx('text-sm font-semibold', isOutside ? 'text-gray-400' : 'text-gray-900')}>
+            <div
+              className={clsx(
+                'text-sm font-semibold tracking-tight',
+                isOutside ? 'text-zinc-400' : 'text-zinc-950'
+              )}
+            >
               {header.dayNum}
             </div>
-            <div className="text-[11px] font-medium uppercase tracking-wide text-gray-500">
+            <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
               {header.dayWk}
             </div>
           </div>
 
-          {isToday(date) ? (
-            <div className="text-[11px] font-medium text-gray-700 rounded-full border border-gray-200 bg-white px-2 py-0.5">
+          {dayIsToday ? (
+            <div className="text-[11px] font-medium text-zinc-700 rounded-full border border-black/10 bg-white/70 backdrop-blur px-2 py-0.5">
               Today
             </div>
           ) : null}
         </div>
 
         {/* Sessions stack */}
-        <div className="mt-2 flex flex-col gap-1.5">
+        <div className="mt-2 flex flex-col gap-2">
           {sessions?.map((s) => {
             const rawTitle = s.title ?? '';
-            const isRest = rawTitle.toLowerCase().includes('rest day');
+            const isRest =
+  rawTitle.toLowerCase().includes('rest day') ||
+  normalizeSport(String(s.sport ?? '')).toLowerCase() === 'rest';
+
 
             const sportRaw = String(s.sport ?? normalizeSportFromTitle(rawTitle));
             const sport = normalizeSport(sportRaw);
@@ -199,13 +215,15 @@ export default function DayCell({
             const isStravaMatch = !!s.stravaActivity;
             const isCompleted = isSessionCompleted(s) || isStravaMatch;
 
+            // Improve readability: keep title intact; treat everything after ": " as details if present
             const [labelLine, ...rest] = rawTitle.split(': ');
             const detailLine = rest.join(': ').trim();
 
-            const baseTitle = stripLeadingEmoji(labelLine?.trim() || 'Untitled');
+            const baseTitle = stripLeadingEmoji((labelLine || rawTitle).trim() || 'Untitled');
             const titleLine = isRest ? 'Rest Day' : baseTitle || 'Untitled';
 
-            const accent = sportAccentClass(sport);
+            const accent = sportAccent(sport);
+
             const activity = s.stravaActivity;
             const duration = formatDuration(activity?.moving_time ?? null);
             const distance = formatDistanceMiles(activity?.distance ?? null);
@@ -215,47 +233,64 @@ export default function DayCell({
                 <button
                   onClick={() => !isRest && onSessionClick?.(s)}
                   className={clsx(
-                    'w-full text-left border transition',
-                    'rounded-md overflow-hidden',
-                    'hover:border-gray-400 hover:bg-gray-50/40',
-                    isStravaMatch
-                      ? 'border-indigo-200 bg-indigo-50/30'
-                      : isCompleted
-                      ? 'border-emerald-200 bg-emerald-50/30'
-                      : 'border-gray-200 bg-white'
+                    'w-full text-left overflow-hidden rounded-lg border transition-all',
+                    'border-black/5 bg-white',
+                    'shadow-[0_1px_2px_rgba(0,0,0,0.06)]',
+                    'hover:shadow-[0_8px_24px_rgba(0,0,0,0.10)] hover:-translate-y-[1px]',
+                    'active:translate-y-0',
+                    // soft “pro” feedback rings
+                    isStravaMatch && 'ring-1 ring-cyan-500/15',
+                    !isStravaMatch && isCompleted && 'ring-1 ring-emerald-500/12'
                   )}
                   title={rawTitle}
                 >
-                  {/* TP-like header strip */}
-                  <div className={clsx('h-5 px-2 flex items-center justify-between', accent.strip)}>
-                    <span className="text-[10px] font-semibold text-white/95">
-                      {sportLabel(sport)}
-                    </span>
+                  <div className="flex">
+                    {/* Accent rail */}
+                    <div className={clsx('w-1.5', accent.rail)} />
 
-                    {isStravaMatch ? (
-                      <span className="text-[10px] font-semibold text-white/95">Strava</span>
-                    ) : null}
-                  </div>
+                    {/* Body */}
+                    <div className="min-w-0 flex-1 px-3 py-2.5">
+                      {/* Top meta row */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-[11px] font-medium text-zinc-500">
+                            {sportLabel(sport)}
+                          </span>
 
-                  {/* Body */}
-                  <div className="px-2 py-2">
-                    <div className="text-[12px] font-semibold text-gray-900 leading-4 line-clamp-2">
-                      {titleLine}
+                          {isStravaMatch ? (
+                            <span className="shrink-0 rounded-full border border-black/10 bg-white/70 px-2 py-0.5 text-[10px] font-semibold text-zinc-700">
+                              Strava
+                            </span>
+                          ) : null}
+
+                          {!isStravaMatch && isCompleted ? (
+                            <span className="shrink-0 text-[11px] font-semibold text-emerald-700">
+                              ✓
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {/* Title */}
+                      <div className="mt-1 text-[13.5px] font-semibold tracking-tight text-zinc-950 line-clamp-2 leading-snug">
+                        {titleLine}
+                      </div>
+
+                      {/* Detail */}
+                      {detailLine ? (
+                        <div className="mt-1 text-[12px] leading-snug text-zinc-500 line-clamp-1">
+                          {detailLine}
+                        </div>
+                      ) : null}
+
+                      {/* Strava meta */}
+                      {isStravaMatch ? (
+                        <div className="mt-2 flex items-center justify-between text-[11px] text-zinc-500">
+                          <span>{duration ?? '—'}</span>
+                          <span>{distance ?? '—'}</span>
+                        </div>
+                      ) : null}
                     </div>
-
-                    {detailLine ? (
-                      <div className="mt-1 text-[11px] leading-4 text-gray-600 line-clamp-2">
-                        {detailLine}
-                      </div>
-                    ) : null}
-
-                    {/* Optional tiny footer meta (only when Strava matched) */}
-                    {isStravaMatch ? (
-                      <div className="mt-1 flex items-center justify-between text-[10px] text-gray-500">
-                        <span>{duration ?? '—'}</span>
-                        <span>{distance ?? '—'}</span>
-                      </div>
-                    ) : null}
                   </div>
                 </button>
               </DraggableSession>
@@ -264,10 +299,10 @@ export default function DayCell({
 
           {/* Strava-only extras (unmatched only) */}
           {extraActivities?.length > 0 ? (
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-2">
               {extraActivities.map((a) => {
                 const sport = normalizeSport((a.sport_type || '').toLowerCase());
-                const accent = sportAccentClass(sport);
+                const accent = sportAccent(sport);
 
                 const duration = formatDuration(a.moving_time ?? null);
                 const distance = formatDistanceMiles(a.distance ?? null);
@@ -280,31 +315,37 @@ export default function DayCell({
                     type="button"
                     onClick={() => onStravaActivityClick?.(a)}
                     className={clsx(
-                      'w-full text-left border transition',
-                      'rounded-md overflow-hidden',
-                      'hover:border-gray-400 hover:bg-gray-50/40',
-                      'border-indigo-200 bg-indigo-50/30'
+                      'w-full text-left overflow-hidden rounded-lg border transition-all',
+                      'border-black/5 bg-white',
+                      'shadow-[0_1px_2px_rgba(0,0,0,0.06)]',
+                      'hover:shadow-[0_8px_24px_rgba(0,0,0,0.10)] hover:-translate-y-[1px]'
                     )}
                     title={a.name || 'Strava activity'}
                   >
-                    <div className={clsx('h-5 px-2 flex items-center justify-between', accent.strip)}>
-                      <span className="text-[10px] font-semibold text-white/95">
-                        {sportLabel(sport)}
-                      </span>
-                      <span className="text-[10px] font-semibold text-white/95">Strava</span>
-                    </div>
+                    <div className="flex">
+                      <div className={clsx('w-1.5', accent.rail)} />
+                      <div className="min-w-0 flex-1 px-3 py-2.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] font-medium text-zinc-500">
+                            {sportLabel(sport)}
+                          </span>
+                          <span className="shrink-0 rounded-full border border-black/10 bg-white/70 px-2 py-0.5 text-[10px] font-semibold text-zinc-700">
+                            Strava
+                          </span>
+                        </div>
 
-                    <div className="px-2 py-2">
-                      <div className="text-[12px] font-semibold text-gray-900 leading-4 line-clamp-2">
-                        {a.name || 'Unplanned Activity'}
-                      </div>
-                      <div className="mt-1 text-[11px] leading-4 text-gray-600 line-clamp-1">
-                        Strava activity (not in plan)
-                      </div>
+                        <div className="mt-1 text-[13.5px] font-semibold tracking-tight text-zinc-950 line-clamp-2 leading-snug">
+                          {a.name || 'Unplanned Activity'}
+                        </div>
 
-                      <div className="mt-1 flex items-center justify-between text-[10px] text-gray-500">
-                        <span>{duration ?? '—'}</span>
-                        <span>{distance ?? '—'}</span>
+                        <div className="mt-1 text-[12px] leading-snug text-zinc-500 line-clamp-1">
+                          Strava activity (not in plan)
+                        </div>
+
+                        <div className="mt-2 flex items-center justify-between text-[11px] text-zinc-500">
+                          <span>{duration ?? '—'}</span>
+                          <span>{distance ?? '—'}</span>
+                        </div>
                       </div>
                     </div>
                   </button>
@@ -317,9 +358,9 @@ export default function DayCell({
           <button
             onClick={() => setShowForm(true)}
             className={clsx(
-              'mt-1 inline-flex items-center justify-center rounded-md border border-dashed',
-              'border-gray-200 bg-white px-3 py-2 text-sm text-gray-500 hover:text-gray-900',
-              'hover:bg-gray-50 transition'
+              'mt-1 inline-flex items-center justify-center rounded-lg border border-dashed',
+              'border-black/10 bg-white/60 px-3 py-2 text-sm text-zinc-400 hover:text-zinc-700',
+              'hover:bg-white transition'
             )}
           >
             + Add session
@@ -334,7 +375,7 @@ export default function DayCell({
           showForm ? 'opacity-100 visible bg-black/20 backdrop-blur-sm' : 'opacity-0 invisible'
         )}
       >
-        <div className="w-full max-w-md rounded-2xl bg-white p-4 shadow-xl border border-gray-200">
+        <div className="w-full max-w-md rounded-2xl bg-white p-4 shadow-xl border border-black/10">
           <InlineSessionForm
             date={format(date, 'yyyy-MM-dd')}
             onClose={() => setShowForm(false)}

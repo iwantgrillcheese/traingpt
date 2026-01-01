@@ -42,6 +42,34 @@ class NoopSensor {
   constructor() {}
 }
 
+function IconChevronLeft(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
+      <path
+        d="M12.5 4.5L7.5 10l5 5.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function IconChevronRight(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
+      <path
+        d="M7.5 4.5l5 5.5-5 5.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function Toolbar({
   currentMonth,
   onPrev,
@@ -56,45 +84,46 @@ function Toolbar({
   walkthroughLoading?: boolean;
 }) {
   return (
-    <div className="sticky top-0 z-30 border-b border-gray-200 bg-white/90 backdrop-blur">
+    <div className="sticky top-0 z-30 border-b border-black/5 bg-white/70 backdrop-blur">
       <div className="w-full px-6 lg:px-10">
         <div className="flex h-14 items-center justify-between">
           <div className="flex items-center gap-3">
-            <button
-              onClick={onPrev}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 text-sm text-gray-700 hover:bg-gray-50"
-              aria-label="Previous month"
-            >
-              ←
-            </button>
+            {/* Glassy nav pills */}
+            <div className="inline-flex items-center rounded-full border border-black/10 bg-white/70 backdrop-blur shadow-[0_1px_2px_rgba(0,0,0,0.06)] overflow-hidden">
+              <button
+                onClick={onPrev}
+                className="inline-flex h-9 w-10 items-center justify-center text-zinc-700 hover:bg-black/[0.03] active:bg-black/[0.05]"
+                aria-label="Previous month"
+              >
+                <IconChevronLeft className="h-5 w-5" />
+              </button>
+              <div className="h-6 w-px bg-black/10" />
+              <button
+                onClick={onNext}
+                className="inline-flex h-9 w-10 items-center justify-center text-zinc-700 hover:bg-black/[0.03] active:bg-black/[0.05]"
+                aria-label="Next month"
+              >
+                <IconChevronRight className="h-5 w-5" />
+              </button>
+            </div>
 
-            <button
-              onClick={onNext}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-200 text-sm text-gray-700 hover:bg-gray-50"
-              aria-label="Next month"
-            >
-              →
-            </button>
-
-            <div className="ml-2 leading-tight">
-              <div className="text-sm font-semibold text-gray-900">
+            <div className="ml-1 leading-tight">
+              <div className="text-[16px] font-semibold tracking-tight text-zinc-950">
                 {format(currentMonth, 'MMMM yyyy')}
               </div>
-              <div className="text-xs text-gray-500">Drag & drop to reschedule</div>
+              <div className="text-[12px] text-zinc-500">
+                Drag & drop to reschedule
+              </div>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <button className="hidden sm:inline-flex h-9 items-center rounded-md border border-gray-200 px-3 text-sm text-gray-700 hover:bg-gray-50">
-              Options
-            </button>
-
             {onOpenWalkthrough ? (
               <button
                 type="button"
                 onClick={onOpenWalkthrough}
                 disabled={walkthroughLoading}
-                className="h-9 rounded-full border border-gray-200 bg-white px-4 text-sm text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
+                className="h-9 rounded-full border border-black/10 bg-white/70 backdrop-blur px-4 text-[13px] font-medium text-zinc-700 shadow-[0_1px_2px_rgba(0,0,0,0.06)] hover:bg-white active:bg-black/[0.03] transition disabled:opacity-50"
               >
                 {walkthroughLoading ? 'Opening…' : 'Walkthrough'}
               </button>
@@ -211,7 +240,7 @@ export default function CalendarShell({
   }
 
   return (
-    <main className="min-h-[100dvh] w-full bg-white pb-[env(safe-area-inset-bottom)]">
+    <main className="min-h-[100dvh] w-full bg-zinc-50 pb-[env(safe-area-inset-bottom)]">
       {isMobile ? (
         <div className="px-0">
           <MobileCalendarView
