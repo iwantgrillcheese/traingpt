@@ -27,11 +27,11 @@ type MonthGridProps = {
   completedSessions: CompletedSession[];
   stravaByDate: Record<string, StravaActivity[]>;
   onSessionClick?: (session: MergedSession) => void;
+  onStravaActivityClick?: (activity: StravaActivity) => void;
   onSessionAdded?: (newSession: any) => void;
 };
 
 function weekLabel(weekStart: Date) {
-  // ISO week number
   return `Week ${format(weekStart, 'I')}`;
 }
 
@@ -47,6 +47,7 @@ export default function MonthGrid({
   completedSessions,
   stravaByDate,
   onSessionClick,
+  onStravaActivityClick,
   onSessionAdded,
 }: MonthGridProps) {
   const weeks = useMemo(() => {
@@ -69,7 +70,7 @@ export default function MonthGrid({
     <div className="w-full">
       {/* Header row */}
       <div className="grid grid-cols-[220px_repeat(7,minmax(0,1fr))] items-center text-xs text-gray-500">
-        <div className="px-3 py-2 border-b border-gray-200 bg-white sticky left-0 z-10">
+        <div className="px-4 py-2 border-b border-gray-200 bg-white sticky left-0 z-10">
           Week
         </div>
         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
@@ -79,12 +80,10 @@ export default function MonthGrid({
         ))}
       </div>
 
-      {/* Grid */}
       <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
         {weeks.map((week, idx) => {
           const wkStart = week[0];
 
-          // Hide weeks that are fully outside the month
           const isAllOutside = week.every((d) => !isSameMonth(d, currentMonth));
           if (isAllOutside) return null;
 
@@ -96,10 +95,10 @@ export default function MonthGrid({
           const completedCount = week.reduce((acc, d) => {
             const k = format(d, 'yyyy-MM-dd');
             const planned = sessionsByDate[k] ?? [];
-            const completedForDay = planned.filter((s) =>
-              completedSessions?.some((c) => c.date === (s as any).date && c.session_title === (s as any).title)
+            const c = planned.filter((s) =>
+              completedSessions?.some((x) => x.date === (s as any).date && x.session_title === (s as any).title)
             ).length;
-            return acc + completedForDay;
+            return acc + c;
           }, 0);
 
           return (
@@ -108,11 +107,11 @@ export default function MonthGrid({
               className="grid grid-cols-[220px_repeat(7,minmax(0,1fr))]"
             >
               {/* Week summary column */}
-              <div className="border-b border-gray-200 bg-gray-50 px-3 py-3">
+              <div className="border-b border-gray-200 bg-gray-50 px-4 py-4">
                 <div className="text-xs font-semibold text-gray-900">{weekLabel(wkStart)}</div>
                 <div className="mt-1 text-[11px] text-gray-600">{weekRangeLabel(week)}</div>
 
-                <div className="mt-3 space-y-1 text-[11px] text-gray-600">
+                <div className="mt-4 space-y-1 text-[11px] text-gray-600">
                   <div className="flex items-center justify-between">
                     <span>Planned</span>
                     <span className="text-gray-900 font-medium">{plannedCount}</span>
@@ -123,7 +122,9 @@ export default function MonthGrid({
                   </div>
                 </div>
 
-                <div className="mt-3 text-[11px] text-gray-500">Drag sessions to reschedule</div>
+                <div className="mt-4 text-[11px] text-gray-500">
+                  Drag sessions to reschedule
+                </div>
               </div>
 
               {/* 7 day cells */}
@@ -135,11 +136,8 @@ export default function MonthGrid({
                   <div
                     key={dayKey}
                     className={[
-                      // borders:
                       'border-b border-gray-200 border-l border-gray-200',
-                      // sizing: allow growth and prevent overlap
-                      'min-h-[170px] h-full',
-                      // background
+                      'min-h-[240px]', // ✅ fixes overlap; enough for multi sessions
                       outside ? 'bg-gray-50' : 'bg-white',
                       isToday(dateObj) ? 'bg-gray-50' : '',
                     ].join(' ')}
@@ -151,6 +149,7 @@ export default function MonthGrid({
                       completedSessions={completedSessions}
                       extraActivities={stravaByDate?.[dayKey] ?? []}
                       onSessionClick={onSessionClick}
+                      onStravaActivityClick={onStravaActivityClick}
                       onSessionAdded={onSessionAdded}
                     />
                   </div>

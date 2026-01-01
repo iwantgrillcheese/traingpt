@@ -151,11 +151,7 @@ export default function SchedulePage() {
       }
 
       const ctx = await fetchLatestPlanContext();
-
-      if (!ctx) {
-        console.warn('[Walkthrough] No plan context found for user.');
-        return;
-      }
+      if (!ctx) return;
 
       setWalkthroughContext(ctx);
       setWalkthroughOpen(true);
@@ -178,8 +174,7 @@ export default function SchedulePage() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
-      {/* Only mount walkthrough when open so it cannot intercept taps */}
+    <div className="flex min-h-screen flex-col bg-white">
       {walkthroughOpen && (
         <PostPlanWalkthrough
           context={walkthroughContext}
@@ -188,22 +183,20 @@ export default function SchedulePage() {
         />
       )}
 
-      <main className="flex-grow w-full">
+      <main className="flex-grow">
         {isLoggedOut ? (
           <div className="text-center py-10 text-zinc-400">Please sign in to view your schedule.</div>
         ) : (
-          <div className="w-full">
-            <CalendarShell
-              sessions={enrichedSessions}
-              completedSessions={completedSessions}
-              stravaActivities={stravaActivities}
-              extraStravaActivities={unmatchedActivities}
-              onCompletedUpdate={handleCompletedUpdate}
-              timezone={userTimezone}
-              onOpenWalkthrough={openWalkthrough}
-              walkthroughLoading={walkthroughLoading}
-            />
-          </div>
+          <CalendarShell
+            sessions={enrichedSessions}
+            completedSessions={completedSessions}
+            stravaActivities={stravaActivities}
+            extraStravaActivities={unmatchedActivities}
+            onCompletedUpdate={handleCompletedUpdate}
+            timezone={userTimezone}
+            onOpenWalkthrough={openWalkthrough}
+            walkthroughLoading={walkthroughLoading}
+          />
         )}
       </main>
 

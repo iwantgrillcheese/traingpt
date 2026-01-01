@@ -5,6 +5,7 @@ import { startOfMonth, subMonths, addMonths, format } from 'date-fns';
 import MonthGrid from './MonthGrid';
 import MobileCalendarView from './MobileCalendarView';
 import SessionModal from './SessionModal';
+import StravaActivityModal from './StravaActivityModal';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
 import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
@@ -27,12 +28,11 @@ type CompletedSession = {
 type CalendarShellProps = {
   sessions: MergedSession[];
   completedSessions: CompletedSession[];
-  stravaActivities: StravaActivity[]; // intentionally not used for day rendering
+  stravaActivities: StravaActivity[]; // not used directly in day rendering
   extraStravaActivities: StravaActivity[];
   onCompletedUpdate?: (updated: CompletedSession[]) => void;
   timezone?: string;
 
-  // toolbar actions
   onOpenWalkthrough?: () => void;
   walkthroughLoading?: boolean;
 };
@@ -56,8 +56,8 @@ function Toolbar({
   walkthroughLoading?: boolean;
 }) {
   return (
-    <div className="sticky top-0 z-20 border-b border-gray-200 bg-white/90 backdrop-blur">
-      <div className="w-full px-4 sm:px-6 lg:px-8">
+    <div className="sticky top-0 z-30 border-b border-gray-200 bg-white/90 backdrop-blur">
+      <div className="w-full px-6 lg:px-10">
         <div className="flex h-14 items-center justify-between">
           <div className="flex items-center gap-3">
             <button
@@ -76,11 +76,11 @@ function Toolbar({
               →
             </button>
 
-            <div className="ml-2">
+            <div className="ml-2 leading-tight">
               <div className="text-sm font-semibold text-gray-900">
                 {format(currentMonth, 'MMMM yyyy')}
               </div>
-              <div className="text-xs text-gray-500">Drag &amp; drop to reschedule</div>
+              <div className="text-xs text-gray-500">Drag & drop to reschedule</div>
             </div>
           </div>
 
@@ -109,7 +109,6 @@ function Toolbar({
 export default function CalendarShell({
   sessions,
   completedSessions,
-  stravaActivities, // kept for prop compatibility
   extraStravaActivities = [],
   onCompletedUpdate,
   timezone = 'America/Los_Angeles',
@@ -120,6 +119,7 @@ export default function CalendarShell({
   const [hasMounted, setHasMounted] = useState(false);
 
   const [selectedSession, setSelectedSession] = useState<MergedSession | null>(null);
+  const [selectedActivity, setSelectedActivity] = useState<StravaActivity | null>(null);
   const [currentMonth, setCurrentMonth] = useState<Date>(startOfMonth(new Date()));
 
   const [completed, setCompleted] = useState<CompletedSession[]>(completedSessions);
@@ -142,7 +142,7 @@ export default function CalendarShell({
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Only mount real sensors on desktop
+  // only mount real sensors on desktop
   const sensors = useSensors(
     useSensor(isMobile ? (NoopSensor as any) : MouseSensor, {
       activationConstraint: { distance: 8 },
@@ -154,7 +154,6 @@ export default function CalendarShell({
 
   const sessionsByDate = useMemo(() => {
     const map: Record<string, MergedSession[]> = {};
-
     localSessions.forEach((s) => {
       if (!s.date) return;
       if (!map[s.date]) map[s.date] = [];
@@ -179,6 +178,7 @@ export default function CalendarShell({
   const goToNextMonth = () => setCurrentMonth((m) => addMonths(m, 1));
 
   const handleSessionClick = (session: MergedSession) => setSelectedSession(session);
+  const handleStravaActivityClick = (activity: StravaActivity) => setSelectedActivity(activity);
 
   const handleSessionAdded = (newSession: any) => {
     setLocalSessions((prev) => [...prev, newSession]);
@@ -191,12 +191,10 @@ export default function CalendarShell({
     const draggedId = active.id;
     const targetDate = over.id;
 
-    // optimistic local update
     setLocalSessions((prev) =>
       prev.map((s) => (s.id === draggedId ? { ...s, date: targetDate } : s))
     );
 
-    // debounce persist
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       const { error } = await supabase
@@ -233,7 +231,7 @@ export default function CalendarShell({
           />
 
           {/* Full-width desktop canvas */}
-          <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
+          <div className="w-full px-6 lg:px-10 py-5">
             <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
               <MonthGrid
                 currentMonth={currentMonth}
@@ -241,6 +239,7 @@ export default function CalendarShell({
                 completedSessions={completed}
                 stravaByDate={stravaByDate}
                 onSessionClick={handleSessionClick}
+                onStravaActivityClick={handleStravaActivityClick}
                 onSessionAdded={handleSessionAdded}
               />
             </DndContext>
@@ -255,6 +254,13 @@ export default function CalendarShell({
         onClose={() => setSelectedSession(null)}
         completedSessions={completed}
         onCompletedUpdate={(updatedList) => setCompleted(updatedList)}
+      />
+
+      <StravaActivityModal
+        activity={selectedActivity}
+        open={!!selectedActivity}
+        onClose={() => setSelectedActivity(null)}
+        timezone={timezone}
       />
     </main>
   );
