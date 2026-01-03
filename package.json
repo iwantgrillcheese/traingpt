@@ -50,25 +50,18 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
     "start": "next start",
-    "postbuild": "next-sitemap"
+    "build": "next build",
+    "postbuild": "next-sitemap",
+    "lint": "next lint",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "verify": "yarn lint && yarn typecheck && yarn build"
   },
   "eslintConfig": {
-    "extends": [
-      "next/core-web-vitals"
-    ]
+    "extends": ["next/core-web-vitals"]
   },
   "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
+    "production": [">0.2%", "not dead", "not op_mini all"],
+    "development": ["last 1 chrome version", "last 1 firefox version", "last 1 safari version"]
   }
 }
