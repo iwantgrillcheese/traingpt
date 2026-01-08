@@ -6,7 +6,8 @@ import clsx from 'clsx';
 import { useDroppable, useDraggable } from '@dnd-kit/core';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
-import InlineSessionForm from './InlineSessionForm';
+import AddSessionModalTP from './AddSessionModalTP';
+
 
 type CompletedSession = {
   date: string;
@@ -396,23 +397,16 @@ export default function DayCell({
       </div>
 
       {/* Form modal */}
-      <div
-        className={clsx(
-          'fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-200',
-          showForm ? 'opacity-100 visible bg-black/20 backdrop-blur-sm' : 'opacity-0 invisible'
-        )}
-      >
-        <div className="w-full max-w-md rounded-2xl bg-white p-4 shadow-xl border border-black/10">
-          <InlineSessionForm
-            date={format(date, 'yyyy-MM-dd')}
-            onClose={() => setShowForm(false)}
-            onAdded={(newSession: any) => {
-              onSessionAdded?.(newSession);
-              setShowForm(false);
-            }}
-          />
-        </div>
-      </div>
+      <AddSessionModalTP
+  open={showForm}
+  date={date}
+  onClose={() => setShowForm(false)}
+  onAdded={(newSession: any) => {
+    onSessionAdded?.(newSession);
+    setShowForm(false);
+  }}
+/>
+
     </>
   );
 }
