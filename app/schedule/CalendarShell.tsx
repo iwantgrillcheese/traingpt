@@ -1,12 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { startOfMonth, subMonths, addMonths } from 'date-fns';
+import { startOfMonth, subMonths, addMonths, format } from 'date-fns';
 import MonthGrid from './MonthGrid';
 import MobileCalendarView from './MobileCalendarView';
 import SessionModal from './SessionModal';
 import StravaActivityModal from './StravaActivityModal';
-import CalendarSummaryPanel from './CalendarSummaryPanel';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
 import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
@@ -29,7 +28,7 @@ type CompletedSession = {
 type CalendarShellProps = {
   sessions: MergedSession[];
   completedSessions: CompletedSession[];
-  stravaActivities: StravaActivity[]; // not used directly in day rendering
+  stravaActivities: StravaActivity[];
   extraStravaActivities: StravaActivity[];
   onCompletedUpdate?: (updated: CompletedSession[]) => void;
   timezone?: string;
@@ -37,11 +36,6 @@ type CalendarShellProps = {
   onOpenWalkthrough?: () => void;
   walkthroughLoading?: boolean;
 };
-
-class NoopSensor {
-  static activators: any[] = [];
-  constructor() {}
-}
 
 function IconChevronLeft(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -72,12 +66,14 @@ function IconChevronRight(props: React.SVGProps<SVGSVGElement>) {
 }
 
 function Toolbar({
+  currentMonth,
   onPrev,
   onNext,
   onToday,
   onOpenWalkthrough,
   walkthroughLoading,
 }: {
+  currentMonth: Date;
   onPrev: () => void;
   onNext: () => void;
   onToday: () => void;
@@ -88,32 +84,40 @@ function Toolbar({
     <div className="sticky top-0 z-30 border-b border-black/10 bg-white">
       <div className="w-full px-6 lg:px-10">
         <div className="flex h-14 items-center justify-between">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onToday}
-              className="h-9 rounded-md border border-black/10 bg-white px-3 text-[13px] font-medium text-zinc-700 hover:bg-zinc-50"
-            >
-              Today
-            </button>
+          <div className="flex items-center gap-3">
+            <div className="text-[15px] font-semibold tracking-tight text-zinc-950">
+              {format(currentMonth, 'MMMM yyyy')}
+            </div>
 
-            <button
-              type="button"
-              onClick={onPrev}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-black/10 bg-white text-zinc-700 hover:bg-zinc-50"
-              aria-label="Previous month"
-            >
-              <IconChevronLeft className="h-5 w-5" />
-            </button>
+            <div className="h-5 w-px bg-black/10" />
 
-            <button
-              type="button"
-              onClick={onNext}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-black/10 bg-white text-zinc-700 hover:bg-zinc-50"
-              aria-label="Next month"
-            >
-              <IconChevronRight className="h-5 w-5" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onToday}
+                className="h-9 rounded-md border border-black/10 bg-white px-3 text-[13px] font-medium text-zinc-700 hover:bg-zinc-50"
+              >
+                Today
+              </button>
+
+              <button
+                type="button"
+                onClick={onPrev}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-black/10 bg-white text-zinc-700 hover:bg-zinc-50"
+                aria-label="Previous month"
+              >
+                <IconChevronLeft className="h-5 w-5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={onNext}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-black/10 bg-white text-zinc-700 hover:bg-zinc-50"
+                aria-label="Next month"
+              >
+                <IconChevronRight className="h-5 w-5" />
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -143,7 +147,6 @@ export default function CalendarShell({
   onOpenWalkthrough,
   walkthroughLoading,
 }: CalendarShellProps) {
-  const [isMobile, setIsMobile] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
 
   const [selectedSession, setSelectedSession] = useState<MergedSession | null>(null);
@@ -155,6 +158,7 @@ export default function CalendarShell({
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  useEffect(() => setHasMounted(true), []);
   useEffect(() => setCompleted(completedSessions), [completedSessions]);
   useEffect(() => setLocalSessions(sessions), [sessions]);
 
@@ -162,19 +166,11 @@ export default function CalendarShell({
     onCompletedUpdate?.(completed);
   }, [completed, onCompletedUpdate]);
 
-  useEffect(() => {
-    setHasMounted(true);
-    const checkMobile = () => setIsMobile(window.innerWidth < 1024); // tp-like desktop threshold
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
   const sensors = useSensors(
-    useSensor(isMobile ? (NoopSensor as any) : MouseSensor, {
+    useSensor(MouseSensor, {
       activationConstraint: { distance: 8 },
     } as SensorOptions),
-    useSensor(isMobile ? (NoopSensor as any) : TouchSensor, {
+    useSensor(TouchSensor, {
       activationConstraint: { delay: 200, tolerance: 8 },
     } as SensorOptions)
   );
@@ -204,9 +200,6 @@ export default function CalendarShell({
   const goToNextMonth = () => setCurrentMonth((m) => addMonths(m, 1));
   const goToToday = () => setCurrentMonth(startOfMonth(new Date()));
 
-  const handleSessionClick = (session: MergedSession) => setSelectedSession(session);
-  const handleStravaActivityClick = (activity: StravaActivity) => setSelectedActivity(activity);
-
   const handleSessionAdded = (newSession: any) => {
     setLocalSessions((prev) => [...prev, newSession]);
   };
@@ -224,68 +217,52 @@ export default function CalendarShell({
 
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
-      const { error } = await supabase
-        .from('sessions')
-        .update({ date: targetDate })
-        .eq('id', draggedId);
-
+      const { error } = await supabase.from('sessions').update({ date: targetDate }).eq('id', draggedId);
       if (error) console.error('Error persisting session move:', error);
     }, 450);
   };
 
-  if (!hasMounted) {
-    return <main className="min-h-[100dvh] w-full bg-white" />;
-  }
+  if (!hasMounted) return <main className="min-h-[100dvh] w-full bg-white" />;
 
   return (
     <main className="min-h-[100dvh] w-full bg-zinc-50 pb-[env(safe-area-inset-bottom)]">
-      {isMobile ? (
-        <div className="px-0">
-          <MobileCalendarView
-            sessions={localSessions as any}
-            completedSessions={completed}
-            stravaActivities={extraStravaActivities}
-          />
-        </div>
-      ) : (
-        <>
-          <Toolbar
-            onPrev={goToPrevMonth}
-            onNext={goToNextMonth}
-            onToday={goToToday}
-            onOpenWalkthrough={onOpenWalkthrough}
-            walkthroughLoading={walkthroughLoading}
-          />
+      {/* Mobile (CSS-controlled) */}
+      <div className="md:hidden">
+        <MobileCalendarView
+          sessions={localSessions as any}
+          completedSessions={completed}
+          stravaActivities={extraStravaActivities}
+        />
+      </div>
 
-          {/* TP layout: Calendar + Summary sidebar */}
-          <div className="w-full px-6 lg:px-10 py-5">
-            <div className="grid grid-cols-[1fr_340px] gap-4">
-              <div className="min-w-0">
-                <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-                  <MonthGrid
-                    currentMonth={currentMonth}
-                    sessionsByDate={sessionsByDate}
-                    completedSessions={completed}
-                    stravaByDate={stravaByDate}
-                    onSessionClick={handleSessionClick}
-                    onStravaActivityClick={handleStravaActivityClick}
-                    onSessionAdded={handleSessionAdded}
-                  />
-                </DndContext>
-              </div>
+      {/* Desktop (CSS-controlled) */}
+      <div className="hidden md:block">
+        <Toolbar
+          currentMonth={currentMonth}
+          onPrev={goToPrevMonth}
+          onNext={goToNextMonth}
+          onToday={goToToday}
+          onOpenWalkthrough={onOpenWalkthrough}
+          walkthroughLoading={walkthroughLoading}
+        />
 
-              <div className="hidden xl:block">
-                <CalendarSummaryPanel
-                  currentMonth={currentMonth}
-                  sessionsByDate={sessionsByDate}
-                  completedSessions={completed}
-                  stravaByDate={stravaByDate}
-                />
-              </div>
-            </div>
+        {/* Full-width canvas */}
+        <div className="w-full px-6 lg:px-10 py-5">
+          <div className="w-full overflow-x-auto">
+            <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+              <MonthGrid
+                currentMonth={currentMonth}
+                sessionsByDate={sessionsByDate}
+                completedSessions={completed}
+                stravaByDate={stravaByDate}
+                onSessionClick={(s) => setSelectedSession(s)}
+                onStravaActivityClick={(a) => setSelectedActivity(a)}
+                onSessionAdded={handleSessionAdded}
+              />
+            </DndContext>
           </div>
-        </>
-      )}
+        </div>
+      </div>
 
       <SessionModal
         session={selectedSession}
