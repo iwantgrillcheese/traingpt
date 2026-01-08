@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { startOfMonth, subMonths, addMonths, format } from 'date-fns';
+import { startOfMonth, subMonths, addMonths } from 'date-fns';
 import MonthGrid from './MonthGrid';
 import MobileCalendarView from './MobileCalendarView';
 import SessionModal from './SessionModal';
 import StravaActivityModal from './StravaActivityModal';
+import CalendarSummaryPanel from './CalendarSummaryPanel';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
 import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
@@ -71,50 +72,48 @@ function IconChevronRight(props: React.SVGProps<SVGSVGElement>) {
 }
 
 function Toolbar({
-  currentMonth,
   onPrev,
   onNext,
+  onToday,
   onOpenWalkthrough,
   walkthroughLoading,
 }: {
-  currentMonth: Date;
   onPrev: () => void;
   onNext: () => void;
+  onToday: () => void;
   onOpenWalkthrough?: () => void;
   walkthroughLoading?: boolean;
 }) {
   return (
-    <div className="sticky top-0 z-30 border-b border-black/5 bg-white/70 backdrop-blur">
+    <div className="sticky top-0 z-30 border-b border-black/10 bg-white">
       <div className="w-full px-6 lg:px-10">
         <div className="flex h-14 items-center justify-between">
-          <div className="flex items-center gap-3">
-            {/* Glassy nav pills */}
-            <div className="inline-flex items-center rounded-full border border-black/10 bg-white/70 backdrop-blur shadow-[0_1px_2px_rgba(0,0,0,0.06)] overflow-hidden">
-              <button
-                onClick={onPrev}
-                className="inline-flex h-9 w-10 items-center justify-center text-zinc-700 hover:bg-black/[0.03] active:bg-black/[0.05]"
-                aria-label="Previous month"
-              >
-                <IconChevronLeft className="h-5 w-5" />
-              </button>
-              <div className="h-6 w-px bg-black/10" />
-              <button
-                onClick={onNext}
-                className="inline-flex h-9 w-10 items-center justify-center text-zinc-700 hover:bg-black/[0.03] active:bg-black/[0.05]"
-                aria-label="Next month"
-              >
-                <IconChevronRight className="h-5 w-5" />
-              </button>
-            </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onToday}
+              className="h-9 rounded-md border border-black/10 bg-white px-3 text-[13px] font-medium text-zinc-700 hover:bg-zinc-50"
+            >
+              Today
+            </button>
 
-            <div className="ml-1 leading-tight">
-              <div className="text-[16px] font-semibold tracking-tight text-zinc-950">
-                {format(currentMonth, 'MMMM yyyy')}
-              </div>
-              <div className="text-[12px] text-zinc-500">
-                Drag & drop to reschedule
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={onPrev}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-black/10 bg-white text-zinc-700 hover:bg-zinc-50"
+              aria-label="Previous month"
+            >
+              <IconChevronLeft className="h-5 w-5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={onNext}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-black/10 bg-white text-zinc-700 hover:bg-zinc-50"
+              aria-label="Next month"
+            >
+              <IconChevronRight className="h-5 w-5" />
+            </button>
           </div>
 
           <div className="flex items-center gap-2">
@@ -123,7 +122,7 @@ function Toolbar({
                 type="button"
                 onClick={onOpenWalkthrough}
                 disabled={walkthroughLoading}
-                className="h-9 rounded-full border border-black/10 bg-white/70 backdrop-blur px-4 text-[13px] font-medium text-zinc-700 shadow-[0_1px_2px_rgba(0,0,0,0.06)] hover:bg-white active:bg-black/[0.03] transition disabled:opacity-50"
+                className="h-9 rounded-md border border-black/10 bg-white px-3 text-[13px] font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
               >
                 {walkthroughLoading ? 'Opening…' : 'Walkthrough'}
               </button>
@@ -165,13 +164,12 @@ export default function CalendarShell({
 
   useEffect(() => {
     setHasMounted(true);
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    const checkMobile = () => setIsMobile(window.innerWidth < 1024); // tp-like desktop threshold
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // only mount real sensors on desktop
   const sensors = useSensors(
     useSensor(isMobile ? (NoopSensor as any) : MouseSensor, {
       activationConstraint: { distance: 8 },
@@ -189,7 +187,6 @@ export default function CalendarShell({
       map[s.date].push(s);
     });
 
-    // deterministic order within a day
     Object.keys(map).forEach((k) => {
       map[k] = map[k]
         .slice()
@@ -205,6 +202,7 @@ export default function CalendarShell({
 
   const goToPrevMonth = () => setCurrentMonth((m) => subMonths(m, 1));
   const goToNextMonth = () => setCurrentMonth((m) => addMonths(m, 1));
+  const goToToday = () => setCurrentMonth(startOfMonth(new Date()));
 
   const handleSessionClick = (session: MergedSession) => setSelectedSession(session);
   const handleStravaActivityClick = (activity: StravaActivity) => setSelectedActivity(activity);
@@ -252,26 +250,39 @@ export default function CalendarShell({
       ) : (
         <>
           <Toolbar
-            currentMonth={currentMonth}
             onPrev={goToPrevMonth}
             onNext={goToNextMonth}
+            onToday={goToToday}
             onOpenWalkthrough={onOpenWalkthrough}
             walkthroughLoading={walkthroughLoading}
           />
 
-          {/* Full-width desktop canvas */}
+          {/* TP layout: Calendar + Summary sidebar */}
           <div className="w-full px-6 lg:px-10 py-5">
-            <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-              <MonthGrid
-                currentMonth={currentMonth}
-                sessionsByDate={sessionsByDate}
-                completedSessions={completed}
-                stravaByDate={stravaByDate}
-                onSessionClick={handleSessionClick}
-                onStravaActivityClick={handleStravaActivityClick}
-                onSessionAdded={handleSessionAdded}
-              />
-            </DndContext>
+            <div className="grid grid-cols-[1fr_340px] gap-4">
+              <div className="min-w-0">
+                <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+                  <MonthGrid
+                    currentMonth={currentMonth}
+                    sessionsByDate={sessionsByDate}
+                    completedSessions={completed}
+                    stravaByDate={stravaByDate}
+                    onSessionClick={handleSessionClick}
+                    onStravaActivityClick={handleStravaActivityClick}
+                    onSessionAdded={handleSessionAdded}
+                  />
+                </DndContext>
+              </div>
+
+              <div className="hidden xl:block">
+                <CalendarSummaryPanel
+                  currentMonth={currentMonth}
+                  sessionsByDate={sessionsByDate}
+                  completedSessions={completed}
+                  stravaByDate={stravaByDate}
+                />
+              </div>
+            </div>
           </div>
         </>
       )}

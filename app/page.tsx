@@ -31,6 +31,8 @@ function useRevealOnScroll() {
   }, []);
 }
 
+/* ------------------------------ reveal (no tailwind data-variants) ------------------------------ */
+
 function Reveal({
   children,
   className = '',
@@ -40,14 +42,35 @@ function Reveal({
   className?: string;
   delayMs?: number;
 }) {
+  const ref = React.useRef<HTMLDivElement | null>(null);
+  const [shown, setShown] = React.useState(false);
+
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry?.isIntersecting) {
+          setShown(true);
+          obs.disconnect();
+        }
+      },
+      { root: null, rootMargin: '0px 0px -10% 0px', threshold: 0.12 }
+    );
+
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
   return (
     <div
-      data-reveal
+      ref={ref}
       style={{ transitionDelay: `${delayMs}ms` }}
       className={[
         'transition-all duration-700 ease-out will-change-transform',
-        'opacity-0 translate-y-3',
-        'data-[revealed=true]:opacity-100 data-[revealed=true]:translate-y-0',
+        shown ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3',
         className,
       ].join(' ')}
     >
@@ -55,6 +78,7 @@ function Reveal({
     </div>
   );
 }
+
 
 function ShineDivider({ dark }: { dark?: boolean }) {
   return (
@@ -281,11 +305,12 @@ function MarketingHeader({
 
   return (
     <header className={`fixed top-0 inset-x-0 z-50 transition-colors duration-200 ${headerClass}`}>
-      <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+     <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between gap-6">
+
         {/* Brand */}
         <button
           onClick={() => scrollTo('home')}
-          className="flex items-center gap-3 select-none"
+          className="flex items-center gap-3 select-none shrink-0"
           aria-label="Go to top"
         >
           <div
@@ -585,7 +610,7 @@ function LogoPills() {
 /* ------------------------------ Page ------------------------------ */
 
 export default function Home() {
-  useRevealOnScroll();
+  
 
   const router = useRouter();
 
