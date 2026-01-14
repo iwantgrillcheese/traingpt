@@ -106,6 +106,38 @@ function TextareaBase(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) 
   );
 }
 
+function Segmented({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: Array<{ label: string; value: string }>;
+}) {
+  return (
+    <div className="inline-flex w-full rounded-full border border-gray-200 bg-white p-1 shadow-sm">
+      {options.map((opt) => {
+        const active = opt.value === value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            className={[
+              'flex-1 rounded-full px-3 py-2 text-sm font-medium transition',
+              active ? 'bg-black text-white' : 'text-gray-700 hover:bg-gray-50',
+            ].join(' ')}
+            aria-pressed={active}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function NoticeCard({
   tone = 'neutral',
   title,
@@ -178,6 +210,7 @@ export default function PlanPage() {
     experience: '',
     maxHours: '',
     restDay: '',
+    paceUnit: 'mi' as 'mi' | 'km',
   });
 
   const [userNote, setUserNote] = useState('');
@@ -523,7 +556,7 @@ export default function PlanPage() {
           id: 'runPace',
           label: 'Run threshold pace',
           type: 'text',
-          placeholder: 'e.g. 7:30 / mi',
+          placeholder: formData.paceUnit === 'km' ? 'e.g. 4:40 / km' : 'e.g. 7:30 / mi',
         },
         {
           id: 'restDay',
@@ -538,7 +571,7 @@ export default function PlanPage() {
           id: 'runPace',
           label: 'Run threshold pace',
           type: 'text',
-          placeholder: 'e.g. 7:30 / mi',
+          placeholder: formData.paceUnit === 'km' ? 'e.g. 4:40 / km' : 'e.g. 7:30 / mi',
         },
         {
           id: 'swimPace',
@@ -691,8 +724,10 @@ export default function PlanPage() {
               <div className="px-5 sm:px-6 py-4">
                 <div className="divide-y divide-gray-100">
                   {beginnerFields.map(({ id, label, type, options, placeholder }) => {
-                    const required = !['bikeFTP', 'runPace', 'swimPace', 'restDay'].includes(id);
-                    const value = formData[id as keyof typeof formData];
+                    const required = !['bikeFTP', 'runPace', 'swimPace', 'restDay', 'paceUnit'].includes(
+                      id
+                    );
+                    const value = formData[id as keyof typeof formData] as any;
 
                     const hint =
                       id === 'raceType'
@@ -786,8 +821,27 @@ export default function PlanPage() {
 
                   {showAdvanced ? (
                     <div className="mt-3 divide-y divide-gray-200/70">
+                      {/* Pace units toggle (running plans only, for now) */}
+                      {isRunningPlan ? (
+                        <Row label="Pace units" hint="Used for run pacing across your plan">
+                          <Segmented
+                            value={formData.paceUnit}
+                            onChange={(v) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                paceUnit: v as 'mi' | 'km',
+                              }))
+                            }
+                            options={[
+                              { label: 'Miles', value: 'mi' },
+                              { label: 'Kilometers', value: 'km' },
+                            ]}
+                          />
+                        </Row>
+                      ) : null}
+
                       {advancedFields.map(({ id, label, type, options, placeholder }) => {
-                        const value = formData[id as keyof typeof formData];
+                        const value = formData[id as keyof typeof formData] as any;
 
                         const hint =
                           id === 'bikeFTP'

@@ -27,6 +27,7 @@ export type UserParams = {
   bikeFtp?: number;
   runPace?: string;         // "6:55 / mi"
   swimPace?: string;        // "1:32 / 100m"
+  paceUnit?: 'mi' | 'km';
 
   // Preferences (optional)
   trainingPrefs?: TrainingPrefs;

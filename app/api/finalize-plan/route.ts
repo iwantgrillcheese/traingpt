@@ -74,6 +74,7 @@ function computeTotalWeeks(todayISO: string, raceDateISO: string): number {
 
 /* ----------------------------- route ----------------------------- */
 
+
 export async function POST(req: Request) {
   const startedAt = Date.now();
   // keep a little safety buffer under 300s so we don’t get killed mid-write
@@ -95,6 +96,7 @@ export async function POST(req: Request) {
       swimPace,
       planType,
       preferencesText,
+      paceUnit,
     } = body ?? {};
 
     const supabase = createRouteHandlerClient({ cookies });
@@ -131,6 +133,9 @@ export async function POST(req: Request) {
         ? undefined
         : Number(ftpRaw);
 
+        const paceUnitResolved: 'mi' | 'km' | undefined =
+  paceUnit === 'km' || paceUnit === 'mi' ? paceUnit : undefined;
+
     const userParams: UserParams = {
       raceType,
       raceDate,
@@ -140,6 +145,7 @@ export async function POST(req: Request) {
       bikeFtp: Number.isFinite(ftpNormalized as number) ? (ftpNormalized as number) : undefined,
       runPace: runPace ?? undefined,
       swimPace: swimPace ?? undefined,
+      paceUnit: paceUnitResolved,
       trainingPrefs,
     };
 
