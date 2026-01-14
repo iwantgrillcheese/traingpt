@@ -4,6 +4,14 @@ import type { WeekMeta, UserParams, DayOfWeek } from "@/types/plan";
 const dayName = (d: number) =>
   ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][d];
 
+function unitLabel(unit: "mi" | "km") {
+  return unit === "km" ? "per km" : "per mile";
+}
+
+function unitSuffix(unit: "mi" | "km") {
+  return unit === "km" ? "/km" : "/mi";
+}
+
 export function buildRunningPrompt({
   userParams,
   weekMeta,
@@ -30,6 +38,10 @@ export function buildRunningPrompt({
   const prefs = userParams.trainingPrefs ?? {};
   const longRunDay = (prefs.longRunDay ?? 0) as DayOfWeek; // default Sunday
 
+  // ✅ Default to miles unless explicitly set to km
+  const paceUnit: "mi" | "km" = userParams.paceUnit === "km" ? "km" : "mi";
+  const paceSuffix = unitSuffix(paceUnit);
+
   return `
 You are creating ${weekMeta.label} for a RUNNING plan.
 
@@ -49,8 +61,12 @@ You are creating ${weekMeta.label} for a RUNNING plan.
 ## Preferences
 - Long Run Day (MUST FOLLOW): ${dayName(longRunDay)} (${longRunDay})
 
+## Pace Units (STRICT)
+- Use ONLY ${paceSuffix} in all pace ranges. Do NOT output the other unit.
+- If any example below conflicts, ignore it and follow ${paceSuffix}.
+
 ## Metrics
-- Run Threshold Pace: ${userParams.runPace ?? "unknown"}
+- Run Threshold Pace: ${userParams.runPace ?? "unknown"} (interpret in ${unitLabel(paceUnit)} if provided)
 
 ## Previous Week (for progression)
 - Previous weekly run minutes: ${prevSummary?.prevWeeklyMin ?? "unknown"}
@@ -74,11 +90,11 @@ You are creating ${weekMeta.label} for a RUNNING plan.
 - Prefer ending each session with "— Details" (consistent with the rest of the app).
 - Rest day should be [] OR ["Rest"].
 
-## Session writing examples (follow this style)
-- "🏃 Run — 45min easy (around 5:15–5:30/km) — Details"
-- "🏃 Run — 50min tempo (20min @ tempo around 4:25–4:30/km) — Details"
+## Session writing examples (follow this style EXACTLY; keep unit ${paceSuffix})
+- "🏃 Run — 45min easy (around 7:45–8:30${paceSuffix}) — Details"
+- "🏃 Run — 50min tempo (20min @ tempo around 6:30–6:50${paceSuffix}) — Details"
 - "🏃 Run — 45min intervals (6x3min @ 5k effort, 2min easy) — Details"
-- "🏃 Long Run — 90min steady (around 5:00–5:15/km) — Details"
+- "🏃 Long Run — 90min steady (around 7:30–8:10${paceSuffix}) — Details"
 
 ## Guidelines by phase
 - Base: mostly easy + strides/hills; 1 controlled quality session max.
