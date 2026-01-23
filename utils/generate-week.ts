@@ -25,16 +25,19 @@ export async function generateWeek({
 }): Promise<WeekJson> {
   const isRunPlan = planType === "running" || planType === "run";
 
+  // Always normalize week index (prevents undefined + removes 0/1-based ambiguity in prompt layer)
+  const weekIndex = index ?? 0;
+
   // Running-only targets + prompt
   const targets = isRunPlan
-    ? computeRunTargets({ userParams, weekMeta, weekIndex: index ?? 0, prevWeek })
+    ? computeRunTargets({ userParams, weekMeta, weekIndex, prevWeek })
     : null;
 
   const userMsg = isRunPlan
     ? buildRunningPrompt({
         userParams,
         weekMeta,
-        index,
+        index: weekIndex,
         targets: targets
           ? {
               targetWeeklyMin: targets.targetWeeklyMin,
@@ -50,7 +53,7 @@ export async function generateWeek({
           prevLongRunMin: targets?.prevLongRunMin ?? undefined,
         },
       })
-    : buildCoachPrompt({ userParams, weekMeta, index });
+    : buildCoachPrompt({ userParams, weekMeta, index: weekIndex });
 
   const systemPrompt = isRunPlan ? RUNNING_SYSTEM_PROMPT : COACH_SYSTEM_PROMPT;
 
@@ -73,35 +76,52 @@ export async function generateWeek({
     return JSON.parse(content) as WeekJson;
   }
 
-  const week1 = await callLLM();
+  // First attempt
+  let currentWeek = await callLLM();
 
-  // Running-only validation + one reroll
+  // Running-only validation + rerolls (up to 3 attempts)
   if (isRunPlan && targets) {
     const preferredLongRunDay = (userParams.trainingPrefs?.longRunDay ?? 0) as DayOfWeek;
 
-    const v1 = validateRunWeek({
-      week: week1,
-      userParams,
-      weekMeta: { deload: weekMeta.deload },
-      targets: {
-        targetWeeklyMin: targets.targetWeeklyMin,
-        longRunMax: targets.longRunMax,
-        qualityDays: targets.qualityDays,
-        preferredLongRunDay,
-      },
-      prevWeek,
-    });
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const v = validateRunWeek({
+        week: currentWeek,
+        userParams,
+        weekMeta: { deload: weekMeta.deload },
+        targets: {
+          targetWeeklyMin: targets.targetWeeklyMin,
+          targetLongRunMin: targets.targetLongRunMin,
+          longRunMax: targets.longRunMax,
+          qualityDays: targets.qualityDays,
+          maxQualityMin: targets.maxQualityMin,
+          preferredLongRunDay,
+          // Optional: if you add this later, the validator will enforce it.
+          // maxSingleRunMin: 45,
+        },
+        prevWeek,
+      });
 
-    if (!v1.ok) {
+      if (v.ok) return currentWeek;
+
       const fix = `Regenerate the week to satisfy ALL Weekly Targets and rules.
 Problems detected:
-- ${v1.errors.join("\n- ")}
+- ${v.errors.join("\n- ")}
+
+Hard constraints:
+- Weekly minutes target: ${targets.targetWeeklyMin} (±5%)
+- Long run target: ${targets.targetLongRunMin} (must be within tolerance, and ≤ ${targets.longRunMax})
+- Hard days ≤ ${targets.qualityDays}
+- Total hard-run minutes ≤ ${targets.maxQualityMin}
+- Longest run must land on preferred long run day (${preferredLongRunDay})
+
 Important: Every run must include duration and longest run must be on the preferred long run day.`;
 
-      const week2 = await callLLM(fix);
-      return week2;
+      currentWeek = await callLLM(fix);
     }
+
+    // If still failing after rerolls, return last attempt (or you can throw)
+    return currentWeek;
   }
 
-  return week1;
+  return currentWeek;
 }

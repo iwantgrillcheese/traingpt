@@ -103,6 +103,22 @@ export function normalizeExperience(exp: string | undefined) {
   return "unknown" as const;
 }
 
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
+/**
+ * True-beginner heuristic:
+ * If user is Beginner (or Unknown) AND we don't have a meaningful prior-week volume,
+ * treat them as "true beginner" and ramp for weeks 1–3.
+ */
+function isTrueBeginner(exp: ReturnType<typeof normalizeExperience>, prev: ReturnType<typeof summarizeRunWeek>) {
+  if (exp === "advanced") return false;
+  if (exp === "intermediate") return prev.totalMin < 120;
+  // beginner or unknown
+  return prev.totalMin < 150;
+}
+
 export function computeRunTargets(args: {
   userParams: UserParams;
   weekMeta: WeekMeta;
@@ -115,13 +131,31 @@ export function computeRunTargets(args: {
   const prev = summarizeRunWeek(prevWeek);
   const maxHours = Number(userParams.maxHours || 0);
 
-  // Baseline weekly minutes:
-  // - Use previous week if we had parseable durations
-  // - Else use maxHours proxy (running plan => most of maxHours is running)
-  const baseWeeklyMin =
-    prev.totalMin > 0 ? prev.totalMin : Math.max(180, Math.round((maxHours || 4) * 60));
+  const trueBeginner = isTrueBeginner(exp, prev);
+  const inRamp = trueBeginner && weekIndex <= 2; // Weeks 1–3
 
-  // Ramp rate
+  /**
+   * Baseline weekly minutes:
+   * - If we have prior parseable volume, use it.
+   * - If not, DO NOT assume maxHours == run hours for week 1.
+   *   That's what was generating hour-long runs immediately.
+   */
+  const baseWeeklyFromPrev = prev.totalMin > 0 ? prev.totalMin : 0;
+
+  // Conservative fallback baselines (when no prev week)
+  const fallbackWeeklyMin =
+    exp === "advanced" ? Math.max(240, Math.round((maxHours || 6) * 50)) :
+    exp === "intermediate" ? Math.max(180, Math.round((maxHours || 5) * 45)) :
+    // beginner/unknown fallback should be modest
+    Math.max(120, Math.round((maxHours || 4) * 35));
+
+  // If true beginner and no prior volume, force an explicit ramp baseline
+  const rampWeeklyTargets = [140, 155, 170]; // week1..week3 targets
+  const rampLongTargets = [45, 50, 55];      // week1..week3 long run targets
+
+  const baseWeeklyMin = baseWeeklyFromPrev > 0 ? baseWeeklyFromPrev : fallbackWeeklyMin;
+
+  // Ramp rate (for post-ramp and for those with an existing base)
   const rampPct = exp === "beginner" ? 0.05 : exp === "advanced" ? 0.08 : 0.06;
 
   // Phase behavior (light)
@@ -135,17 +169,52 @@ export function computeRunTargets(args: {
   // Deload reduces volume
   const deloadMult = weekMeta.deload ? 0.80 : 1.0;
 
-  // Progression from base (no ramp on deload)
-  const progressed = Math.round(baseWeeklyMin * (1 + (weekMeta.deload ? 0 : rampPct)));
+  let targetWeeklyMin: number;
 
-  // Small additive ramp in Base/Build (helps if prev week was unparseable)
-  const additive = (weekMeta.phase === "Base" || weekMeta.phase === "Build") ? weekIndex * 3 : 0;
+  if (inRamp && baseWeeklyFromPrev === 0) {
+    // True beginner + no prior data: explicit ramp weeks override everything
+    targetWeeklyMin = rampWeeklyTargets[weekIndex] ?? rampWeeklyTargets[rampWeeklyTargets.length - 1];
+  } else {
+    // Progression from base (no ramp on deload)
+    const progressed = Math.round(baseWeeklyMin * (1 + (weekMeta.deload ? 0 : rampPct)));
 
-  const targetWeeklyMin = Math.round((progressed + additive) * phaseMult * deloadMult);
+    // Small additive ramp in Base/Build (helps if prev week was unparseable)
+    const additive = (weekMeta.phase === "Base" || weekMeta.phase === "Build") ? weekIndex * 3 : 0;
+
+    targetWeeklyMin = Math.round((progressed + additive) * phaseMult * deloadMult);
+  }
+
+  // Global sanity clamp by experience (prevents crazy spikes)
+  const weeklyMinCap =
+    exp === "advanced" ? 500 :
+    exp === "intermediate" ? 380 :
+    260;
+
+  const weeklyMinFloor =
+    exp === "advanced" ? 240 :
+    exp === "intermediate" ? 160 :
+    120;
+
+  targetWeeklyMin = clamp(targetWeeklyMin, weeklyMinFloor, weeklyMinCap);
 
   // Long run fraction
   const longPct = exp === "beginner" ? 0.25 : exp === "advanced" ? 0.33 : 0.30;
-  const targetLongRunMin = Math.round(targetWeeklyMin * longPct);
+
+  let targetLongRunMin: number;
+
+  if (inRamp && baseWeeklyFromPrev === 0) {
+    targetLongRunMin = rampLongTargets[weekIndex] ?? rampLongTargets[rampLongTargets.length - 1];
+  } else {
+    targetLongRunMin = Math.round(targetWeeklyMin * longPct);
+  }
+
+  // Absolute caps early (this is the “no 60min day-one” guarantee)
+  const absLongCap =
+    trueBeginner ? (inRamp ? 60 : 85) :
+    exp === "intermediate" ? (weekIndex <= 1 ? 90 : 120) :
+    150;
+
+  targetLongRunMin = Math.min(targetLongRunMin, absLongCap);
 
   // Quality caps
   const qualityDays =
@@ -160,16 +229,28 @@ export function computeRunTargets(args: {
     weekMeta.phase === "Peak" ? 45 :
     20;
 
-  // Long run max cap (prevent spikes vs prev long run if known)
+  // Tighten quality for true beginners in ramp
+  const effectiveQualityDays = inRamp ? 1 : qualityDays;
+  const effectiveMaxQualityMin = inRamp ? Math.min(maxQualityMin, 20) : maxQualityMin;
+
+  /**
+   * Long run max cap (prevent spikes vs prev long run if known)
+   * BUG FIX: previously used Math.max(...), which makes the "cap" bigger than target.
+   * Correct behavior is to cap at min(target, prevLong * allowedGrowth) if prev is known.
+   */
   const prevLong = prev.longRunMin || 0;
-  const longRunMax = prevLong > 0 ? Math.round(Math.max(targetLongRunMin, prevLong * 1.08)) : targetLongRunMin;
+
+  const growthCap = prevLong > 0 ? Math.round(prevLong * 1.08) : absLongCap;
+  const longRunMax = prevLong > 0
+    ? Math.min(Math.max(targetLongRunMin, prevLong), growthCap) // allow modest growth but cap it
+    : targetLongRunMin;
 
   return {
     targetWeeklyMin,
     targetLongRunMin,
     longRunMax,
-    qualityDays,
-    maxQualityMin,
+    qualityDays: effectiveQualityDays,
+    maxQualityMin: effectiveMaxQualityMin,
     prevWeeklyMin: prev.totalMin || 0,
     prevLongRunMin: prev.longRunMin || 0,
     experienceNorm: exp,

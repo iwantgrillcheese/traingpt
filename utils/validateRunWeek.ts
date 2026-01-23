@@ -1,6 +1,12 @@
 // utils/validateRunWeek.ts
 import type { UserParams, WeekJson, DayOfWeek } from "@/types/plan";
-import { summarizeRunWeek, isRunSession, parseMinutesFromText, normalizeExperience, isHardRun } from "@/utils/runTargets";
+import {
+  summarizeRunWeek,
+  isRunSession,
+  parseMinutesFromText,
+  normalizeExperience,
+  isHardRun,
+} from "@/utils/runTargets";
 
 const hasDuration = (s: string) =>
   /\b\d{1,3}\s*min(s)?\b/i.test(s) ||
@@ -12,20 +18,34 @@ const isoToDow = (dateISO: string): DayOfWeek => {
   return d.getDay() as DayOfWeek;
 };
 
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
 export function validateRunWeek(args: {
   week: WeekJson;
   userParams: UserParams;
   weekMeta: { deload: boolean };
+
   targets: {
     targetWeeklyMin: number;
+
+    // existing
     longRunMax: number;
     qualityDays: number;
     preferredLongRunDay: DayOfWeek;
+
+    // NEW (optional but strongly recommended)
+    targetLongRunMin?: number;
+    maxQualityMin?: number;
+    maxSingleRunMin?: number; // helps enforce "no 60min day one" even if LR max is loose
   };
+
   prevWeek?: WeekJson;
 }) {
   const { week, userParams, weekMeta, targets, prevWeek } = args;
   const errors: string[] = [];
+
   const exp = normalizeExperience(userParams.experience);
   const allowDoubles = exp === "advanced";
 
@@ -43,7 +63,6 @@ export function validateRunWeek(args: {
   }
 
   // 2) Weekly minutes band: only enforce if most run sessions are parseable
-  // (prevents false fails if model still sneaks in distance-only strings)
   const parseableRatio =
     curr.totalRunSessions > 0 ? curr.parseableRunSessions / curr.totalRunSessions : 1;
 
@@ -51,13 +70,36 @@ export function validateRunWeek(args: {
     const minAllowed = Math.round(targets.targetWeeklyMin * 0.95);
     const maxAllowed = Math.round(targets.targetWeeklyMin * 1.05);
     if (curr.totalMin < minAllowed || curr.totalMin > maxAllowed) {
-      errors.push(`Total run minutes ${curr.totalMin} outside target band ${minAllowed}-${maxAllowed}.`);
+      errors.push(
+        `Total run minutes ${curr.totalMin} outside target band ${minAllowed}-${maxAllowed}.`
+      );
     }
   }
 
   // 3) Long run cap
   if (curr.longRunMin > 0 && curr.longRunMin > targets.longRunMax) {
     errors.push(`Long run ${curr.longRunMin} exceeds max ${targets.longRunMax}.`);
+  }
+
+  // 3b) NEW: Long run should roughly match targetLongRunMin (if provided and parseable)
+  if (
+    typeof targets.targetLongRunMin === "number" &&
+    targets.targetLongRunMin > 0 &&
+    curr.longRunMin > 0
+  ) {
+    // Tolerance:
+    // - allow ±15% OR ±10 minutes (whichever is larger), because some weeks will split volume differently
+    const tolPct = Math.round(targets.targetLongRunMin * 0.15);
+    const tol = Math.max(10, tolPct);
+
+    const minLR = clamp(targets.targetLongRunMin - tol, 0, targets.longRunMax);
+    const maxLR = clamp(targets.targetLongRunMin + tol, 0, targets.longRunMax);
+
+    if (curr.longRunMin < minLR || curr.longRunMin > maxLR) {
+      errors.push(
+        `Long run ${curr.longRunMin} not within target tolerance (${minLR}-${maxLR}) for target ${targets.targetLongRunMin}.`
+      );
+    }
   }
 
   // 4) Hard day count + no back-to-back hard days
@@ -76,16 +118,54 @@ export function validateRunWeek(args: {
     }
   }
 
+  // 4b) NEW: Max total "quality minutes" (sum parsed minutes of hard runs)
+  if (typeof targets.maxQualityMin === "number" && targets.maxQualityMin > 0) {
+    let hardMinTotal = 0;
+
+    for (const sessions of Object.values(week.days ?? {})) {
+      for (const s of sessions ?? []) {
+        if (!isRunSession(s)) continue;
+        if (!isHardRun(s)) continue;
+        const m = parseMinutesFromText(s);
+        if (m) hardMinTotal += m;
+      }
+    }
+
+    // Only enforce if we can parse most sessions; otherwise it can false-fail.
+    if (parseableRatio >= 0.8 && hardMinTotal > targets.maxQualityMin) {
+      errors.push(
+        `Total hard-run minutes ${hardMinTotal} exceeds maxQualityMin ${targets.maxQualityMin}.`
+      );
+    }
+  }
+
   // 5) No doubles unless Advanced (2+ run sessions in same day)
   for (const [date, sessions] of Object.entries(week.days ?? {})) {
     const runCount = (sessions ?? []).filter(isRunSession).length;
     if (runCount > 1 && !allowDoubles) {
-      errors.push(`Multiple run sessions in one day (${runCount}) on ${date}. Doubles not allowed for ${userParams.experience}.`);
+      errors.push(
+        `Multiple run sessions in one day (${runCount}) on ${date}. Doubles not allowed for ${userParams.experience}.`
+      );
+    }
+  }
+
+  // 5b) NEW: Max single run duration (optional but powerful for ramp)
+  if (typeof targets.maxSingleRunMin === "number" && targets.maxSingleRunMin > 0) {
+    for (const [date, sessions] of Object.entries(week.days ?? {})) {
+      for (const s of sessions ?? []) {
+        if (!isRunSession(s)) continue;
+        const m = parseMinutesFromText(s);
+        if (!m) continue;
+        if (m > targets.maxSingleRunMin) {
+          errors.push(
+            `Run duration ${m}min exceeds maxSingleRunMin ${targets.maxSingleRunMin} on ${date}: "${s}"`
+          );
+        }
+      }
     }
   }
 
   // 6) Preferred long run day: longest run by duration must land on preferred DOW
-  // Find the date(s) containing the max parsed duration.
   if (curr.longRunMin > 0) {
     const maxDates: string[] = [];
     for (const [date, sessions] of Object.entries(week.days ?? {})) {
@@ -101,7 +181,9 @@ export function validateRunWeek(args: {
     const ok = maxDates.some((d) => isoToDow(d) === targets.preferredLongRunDay);
     if (!ok) {
       errors.push(
-        `Longest run is not scheduled on preferred long run day (${targets.preferredLongRunDay}). Longest run dates: ${maxDates.join(", ")}`
+        `Longest run is not scheduled on preferred long run day (${targets.preferredLongRunDay}). Longest run dates: ${maxDates.join(
+          ", "
+        )}`
       );
     }
   }
@@ -109,15 +191,15 @@ export function validateRunWeek(args: {
   // 7) Deload behavior: prefer volume reduction (if prev week parseable)
   if (weekMeta.deload && prev.totalMin > 0 && curr.totalMin > 0) {
     if (curr.totalMin > Math.round(prev.totalMin * 0.9)) {
-      errors.push(`Deload week did not reduce volume enough: prev ${prev.totalMin}min → now ${curr.totalMin}min.`);
+      errors.push(
+        `Deload week did not reduce volume enough: prev ${prev.totalMin}min → now ${curr.totalMin}min.`
+      );
     }
 
-    // Also limit hard work on deload: at most 1 hard day, and it should be short
     if (curr.hardDays.length > 1) {
       errors.push(`Deload week has too many hard days (${curr.hardDays.length}).`);
     }
 
-    // Catch “full workout” intervals on deload by keyword + duration > ~40min
     for (const [date, sessions] of Object.entries(week.days ?? {})) {
       for (const s of sessions ?? []) {
         if (!isRunSession(s)) continue;
