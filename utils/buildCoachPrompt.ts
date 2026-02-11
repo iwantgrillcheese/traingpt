@@ -44,10 +44,14 @@ You are creating ${weekMeta.label} for a ${userParams.raceType} plan.
 - Run Threshold Pace: ${userParams.runPace ?? 'unknown'}
 - Swim CSS: ${userParams.swimPace ?? 'unknown'}
 
+## Recent Strava History (optional context)
+${userParams.stravaHistorySummary ? userParams.stravaHistorySummary : 'No recent Strava data available. Build from goals and experience defaults.'}
+
 ## Instructions
 - Generate 5–6 balanced sessions plus the Rest Day.
 - Place long ride/run/brick according to Preferences above.
 - Tie intensities to metrics when available.
+- If Strava history exists, use it to calibrate starting load and discipline balance while still honoring race goals.
 - Return ONLY valid JSON matching the schema in the system message.
 `.trim();
 }
