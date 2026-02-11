@@ -1,4 +1,5 @@
 // utils/buildRunningPrompt.ts
+import { addDays, format } from "date-fns";
 import type { WeekMeta, UserParams, DayOfWeek } from "@/types/plan";
 
 const dayName = (d: number) =>
@@ -13,6 +14,12 @@ function unitSuffix(unit: "mi" | "km") {
 }
 
 type RunReadiness = "true_beginner" | "base_built" | "advanced";
+
+
+function weekDateList(startDateISO: string) {
+  const start = new Date(`${startDateISO}T00:00:00`);
+  return Array.from({ length: 7 }, (_, i) => format(addDays(start, i), "yyyy-MM-dd"));
+}
 
 function inferReadiness(userParams: UserParams, prevSummary?: { prevWeeklyMin?: number }): RunReadiness {
   const exp = (userParams.experience ?? "").toLowerCase();
@@ -93,6 +100,7 @@ export function buildRunningPrompt({
 
   const paceUnit: "mi" | "km" = userParams.paceUnit === "km" ? "km" : "mi";
   const paceSuffix = unitSuffix(paceUnit);
+  const weekDates = weekDateList(weekMeta.startDate);
 
   const readiness = inferReadiness(userParams, prevSummary);
   const caps = rampCaps(readiness, index);
@@ -167,6 +175,18 @@ You are creating ${weekMeta.label} for a RUNNING plan.
 - No back-to-back hard run days
 - Avoid doubles (2 run sessions in one day) unless Experience is Advanced
 - Longest run (by duration) must land on Long Run Day
+
+## Week Layout Requirements (STRICT)
+- You MUST return exactly these date keys and no others: ${weekDates.join(", ")}
+- Keep at least one full recovery day ([] or ["Rest"]).
+- Distribute running load across the week; avoid front-loading volume early in the week.
+- Long run should generally be 1.4x–2.2x an easy-day run duration (unless taper constraints require shorter).
+
+## Quality Guidance by Phase
+- Base: one light quality touch only (short tempo, strides, or gentle hills).
+- Build: one primary quality workout + optional secondary lighter stimulus.
+- Peak: quality is race-specific and controlled; maintain freshness for key sessions.
+- Taper: reduce volume and keep only brief sharpening.
 
 ## True Beginner Rules (if readiness is true_beginner)
 - Weeks 1–3 must prioritize consistency, not volume.

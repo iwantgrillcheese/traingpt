@@ -24,6 +24,9 @@ export async function generateWeek({
   prevWeek?: WeekJson;
 }): Promise<WeekJson> {
   const isRunPlan = planType === "running" || planType === "run";
+  const runModel = process.env.RUNNING_PLAN_MODEL ?? process.env.PLAN_MODEL ?? "gpt-5-mini";
+  const defaultModel = process.env.PLAN_MODEL ?? "gpt-4o";
+  const model = isRunPlan ? runModel : defaultModel;
 
   // Always normalize week index (prevents undefined + removes 0/1-based ambiguity in prompt layer)
   const weekIndex = index ?? 0;
@@ -59,8 +62,8 @@ export async function generateWeek({
 
   async function callLLM(extraFixText?: string): Promise<WeekJson> {
     const resp = await openai.chat.completions.create({
-      model: process.env.PLAN_MODEL ?? "gpt-4o",
-      temperature: 0.2,
+      model,
+      temperature: isRunPlan ? 0.1 : 0.2,
       top_p: 1,
       response_format: { type: "json_object" },
       messages: [
@@ -79,11 +82,30 @@ export async function generateWeek({
   // First attempt
   let currentWeek = await callLLM();
 
-  // Running-only validation + rerolls (up to 3 attempts)
+  // Running-only validation + rerolls
   if (isRunPlan && targets) {
     const preferredLongRunDay = (userParams.trainingPrefs?.longRunDay ?? 0) as DayOfWeek;
 
-    for (let attempt = 0; attempt < 3; attempt++) {
+    let bestWeek = currentWeek;
+    let bestValidation = validateRunWeek({
+      week: bestWeek,
+      userParams,
+      weekMeta: { deload: weekMeta.deload },
+      targets: {
+        targetWeeklyMin: targets.targetWeeklyMin,
+        targetLongRunMin: targets.targetLongRunMin,
+        longRunMax: targets.longRunMax,
+        qualityDays: targets.qualityDays,
+        maxQualityMin: targets.maxQualityMin,
+        preferredLongRunDay,
+      },
+      prevWeek,
+    });
+
+    if (bestValidation.ok) return bestWeek;
+
+    // Give the model multiple correction attempts and keep the best candidate by error count.
+    for (let attempt = 0; attempt < 5; attempt++) {
       const v = validateRunWeek({
         week: currentWeek,
         userParams,
@@ -95,17 +117,25 @@ export async function generateWeek({
           qualityDays: targets.qualityDays,
           maxQualityMin: targets.maxQualityMin,
           preferredLongRunDay,
-          // Optional: if you add this later, the validator will enforce it.
-          // maxSingleRunMin: 45,
         },
         prevWeek,
       });
 
       if (v.ok) return currentWeek;
 
+      if (v.errors.length < bestValidation.errors.length) {
+        bestValidation = v;
+        bestWeek = currentWeek;
+      }
+
+      const topIssues = v.errors.slice(0, 10);
+      const previousWeekBlock = prevWeek
+        ? `\nPrevious week snapshot (for continuity):\n${JSON.stringify(prevWeek, null, 2)}`
+        : "";
+
       const fix = `Regenerate the week to satisfy ALL Weekly Targets and rules.
 Problems detected:
-- ${v.errors.join("\n- ")}
+- ${topIssues.join("\n- ")}
 
 Hard constraints:
 - Weekly minutes target: ${targets.targetWeeklyMin} (±5%)
@@ -114,13 +144,14 @@ Hard constraints:
 - Total hard-run minutes ≤ ${targets.maxQualityMin}
 - Longest run must land on preferred long run day (${preferredLongRunDay})
 
-Important: Every run must include duration and longest run must be on the preferred long run day.`;
+Return complete JSON week object only, with all 7 day keys for the requested week.
+Important: Every run must include duration and longest run must be on the preferred long run day.${previousWeekBlock}`;
 
       currentWeek = await callLLM(fix);
     }
 
-    // If still failing after rerolls, return last attempt (or you can throw)
-    return currentWeek;
+    // If still failing after rerolls, return the best candidate seen.
+    return bestWeek;
   }
 
   return currentWeek;
