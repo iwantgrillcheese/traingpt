@@ -13,7 +13,6 @@ import {
 
 import type { UserParams, WeekMeta, PlanType, GeneratedPlan, WeekJson } from "@/types/plan";
 import { extractPrefs } from "@/utils/extractPrefs";
-import { startPlan } from "@/utils/start-plan";
 import { convertPlanToSessions } from "@/utils/convertPlanToSessions";
 
 export const runtime = "nodejs";
@@ -25,7 +24,6 @@ export const maxDuration = 300;
 function safeDateISO(date: Date): string {
   const m = date.getMonth();
   const d = date.getDate();
-  // Guard against Feb 29 on non-leap years (extra safety)
   if (m === 1 && d === 29 && !isLeapYear(date)) date.setDate(28);
   return formatISO(date, { representation: "date" });
 }
@@ -125,16 +123,13 @@ function computeTotalWeeks(todayISO: string, raceDateISO: string): number {
 
 /* ----------------------------- route ----------------------------- */
 
-
 export async function POST(req: Request) {
   const startedAt = Date.now();
-  // keep a little safety buffer under 300s so we don’t get killed mid-write
   const HARD_BUDGET_MS = 285_000;
 
   try {
     const body = await req.json();
 
-    // ✅ Accept both bikeFtp (new) and bikeFTP (legacy UI)
     const {
       raceType,
       raceDate,
@@ -162,22 +157,12 @@ export async function POST(req: Request) {
 
     const userId = user.id;
 
-    // ✅ Validation (restDay now optional)
-    if (!raceType || !raceDate || !experience || !maxHours) {
-      return NextResponse.json({ ok: false, error: "Missing required fields" }, { status: 400 });
+    if (!raceType) {
+      return NextResponse.json({ ok: false, error: "Missing race type" }, { status: 400 });
     }
-
-    const raceISO = parseISO(raceDate);
-    if (!isValidDate(raceISO)) {
-      return NextResponse.json({ ok: false, error: "Invalid raceDate" }, { status: 400 });
-    }
-
-    // ✅ Default rest day fallback
-    const restDayResolved = restDay && restDay.trim() !== "" ? restDay : "Monday";
 
     const trainingPrefs = extractPrefs(preferencesText);
 
-    // ✅ Normalize FTP to a number if present (avoid strings like "250")
     const ftpRaw = bikeFtp ?? bikeFTP;
     const ftpNormalized =
       ftpRaw === null || ftpRaw === undefined || String(ftpRaw).trim() === ""
@@ -207,9 +192,9 @@ export async function POST(req: Request) {
 
     const userParams: UserParams = {
       raceType,
-      raceDate,
-      experience,
-      maxHours: Number(maxHours),
+      raceDate: raceDateResolved,
+      experience: experienceResolved,
+      maxHours: maxHoursResolved,
       restDay: restDayResolved,
       bikeFtp: Number.isFinite(ftpNormalized as number) ? (ftpNormalized as number) : undefined,
       runPace: runPace ?? undefined,
@@ -219,21 +204,18 @@ export async function POST(req: Request) {
       stravaHistorySummary: stravaHistorySummary || undefined,
     };
 
-    // Compute meta now (light)
     const todayISO = safeDateISO(new Date());
-    const totalWeeks = computeTotalWeeks(todayISO, raceDate);
+    const totalWeeks = computeTotalWeeks(todayISO, raceDateResolved);
     const planMeta = buildPlanMeta(totalWeeks, todayISO);
-    const planTypeResolved: PlanType = planType ?? "triathlon";
 
     console.log("[finalize-plan] generation started", {
       userId,
       totalWeeks,
       planTypeResolved,
       raceType,
-      raceDate,
+      raceDate: raceDateResolved,
     });
 
-    // ✅ Generate weeks in-request (reliable). Add timing logs around it.
     const genStart = Date.now();
     const weeks: WeekJson[] = [];
 
@@ -249,17 +231,15 @@ export async function POST(req: Request) {
         const { generateWeek } = await import("@/utils/generate-week");
         const { guardWeek } = await import("@/utils/planGuard");
 
-        // ✅ NEW: pass prevWeek for running continuity (triathlon path ignores it)
-const prevWeek = weeks[i - 1];
+        const prevWeek = weeks[i - 1];
 
-const raw: WeekJson = await generateWeek({
-  weekMeta: planMeta[i],
-  userParams,
-  planType: planTypeResolved,
-  index: i,
-  prevWeek,
-});
-
+        const raw: WeekJson = await generateWeek({
+          weekMeta: planMeta[i],
+          userParams,
+          planType: planTypeResolved,
+          index: i,
+          prevWeek,
+        });
 
         return guardWeek(raw, userParams.trainingPrefs);
       })();
@@ -281,10 +261,9 @@ const raw: WeekJson = await generateWeek({
       elapsedSec: Math.round((Date.now() - startedAt) / 1000),
     });
 
-    // Force taper + race day
     if (weeks.length > 0) weeks[weeks.length - 1].phase = "Taper";
 
-    const raceDay = safeDateISO(parseISO(raceDate));
+    const raceDay = safeDateISO(parseISO(raceDateResolved));
     const lastWeek = weeks[weeks.length - 1];
     if (lastWeek) lastWeek.days[raceDay] = [`🏁 ${raceType} Race Day`];
 
@@ -295,13 +274,12 @@ const raw: WeekJson = await generateWeek({
       createdAt: new Date().toISOString(),
     };
 
-    // Upsert plan
     const { data: upserted, error: upsertErr } = await supabase
       .from("plans")
       .upsert(
         {
           user_id: userId,
-          race_date: raceDate,
+          race_date: raceDateResolved,
           race_type: raceType,
           plan: generatedPlan,
           created_at: new Date().toISOString(),
@@ -314,7 +292,6 @@ const raw: WeekJson = await generateWeek({
     if (upsertErr) throw upsertErr;
     const planId = upserted?.id as string;
 
-    // Clear existing sessions for this plan
     const { error: delErr } = await supabase
       .from("sessions")
       .delete()
@@ -323,10 +300,8 @@ const raw: WeekJson = await generateWeek({
 
     if (delErr) console.error("[finalize-plan] delete sessions error", delErr);
 
-    // Convert → session rows (date-safe)
     let sessionRows = convertPlanToSessions(userId, planId, generatedPlan);
 
-    // ✅ Deduplicate without dropping legit doubles
     const seen = new Set<string>();
     sessionRows = sessionRows.filter((s) => {
       const key = `${s.date}-${s.sport}-${s.title ?? ""}`;
@@ -343,7 +318,6 @@ const raw: WeekJson = await generateWeek({
       }
     }
 
-    // Welcome email (do not fail request if this fails)
     try {
       const url = new URL(req.url);
       const origin =
