@@ -132,8 +132,12 @@ export default function DayCell({
     return () => clearTimeout(timer);
   }, [isOver]);
 
+  const completedSessionKeys = useMemo(() => {
+    return new Set(completedSessions.map((c) => `${c.date}::${c.session_title}`));
+  }, [completedSessions]);
+
   const isSessionCompleted = (session: MergedSession) =>
-    completedSessions?.some((c) => c.date === session.date && c.session_title === session.title);
+    completedSessionKeys.has(`${session.date}::${session.title}`);
 
   const header = useMemo(() => {
     const dayNum = format(date, 'd');
@@ -181,12 +185,12 @@ export default function DayCell({
         <div className="mt-2 flex flex-col gap-1.5">
           {sessions?.map((s) => {
             const rawTitle = s.title ?? '';
+            const rawTitleLower = rawTitle.toLowerCase();
 
             const sportRaw = String(s.sport ?? normalizeSportFromTitle(rawTitle));
             const sport = normalizeSport(sportRaw);
 
-            const isRest =
-              rawTitle.toLowerCase().includes('rest day') || sport.toLowerCase() === 'rest';
+            const isRest = rawTitleLower.includes('rest day') || sport === 'rest';
 
             const isStravaMatch = !!s.stravaActivity;
             const isCompleted = isSessionCompleted(s) || isStravaMatch;

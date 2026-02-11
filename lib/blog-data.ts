@@ -850,4 +850,353 @@ At TrainGPT, we see athletes burn out by following generic advice that doesn’t
   },
 
 
+  {
+    slug: 'triathlon-training-plan-16-week-guide',
+    title: 'Triathlon Training Plan: A Complete 16-Week Guide for Beginners to Intermediate Athletes',
+    description: 'A practical 16-week triathlon training plan with weekly structure, progression targets, and race-week taper guidance.',
+    tag: 'Training Tip',
+    date: 'Feb 11, 2026',
+    image: '/tiles/triathlon-run-edmonton.jpg',
+    content: `## Triathlon Training Plan: Start With Structure, Not Guesswork
+
+If you searched for a triathlon training plan, you likely want one thing: a clear roadmap that gets you to race day confident and healthy.
+
+A good plan should help you:
+- Build endurance without overtraining
+- Improve swim, bike, and run efficiency
+- Practice transitions and race fueling
+- Peak at the right time with a smart taper
+
+---
+
+## Who This 16-Week Plan Is For
+
+This framework works best for athletes who can train **6–10 hours/week** and have at least basic comfort in all three sports.
+
+If you are brand new to swimming, spend 2–4 weeks on swim fundamentals first.
+
+---
+
+## Weekly Triathlon Training Plan Structure
+
+A proven weekly structure:
+
+- **Monday:** Rest or mobility + light strength
+- **Tuesday:** Bike intervals + short transition run
+- **Wednesday:** Technique swim + easy run
+- **Thursday:** Tempo run + short strength session
+- **Friday:** Endurance swim or recovery bike
+- **Saturday:** Long ride + brick run
+- **Sunday:** Long aerobic run
+
+Keep most sessions easy (Zone 2), then layer in one to two quality sessions per week.
+
+---
+
+## 16-Week Progression (Base → Build → Peak → Taper)
+
+### Weeks 1–6: Base
+- Focus on aerobic consistency and technique
+- Increase weekly volume by ~5–10% max
+- Include one skills-focused swim and one long ride weekly
+
+### Weeks 7–12: Build
+- Add race-pace efforts and threshold work
+- Extend brick sessions gradually
+- Rehearse fueling every weekend
+
+### Weeks 13–15: Peak
+- Keep intensity, slightly reduce volume
+- Prioritize race-specific sessions
+- Practice open-water skills and transitions
+
+### Week 16: Taper
+- Reduce volume 40–60%
+- Keep short efforts at race intensity
+- Arrive fresh, not flat
+
+---
+
+## Common Mistakes That Break a Triathlon Training Plan
+
+1. Doing every session too hard
+2. Skipping easy days
+3. Not practicing race fueling
+4. Ignoring sleep and recovery metrics
+5. Changing your plan every week without data
+
+---
+
+## Final Tip: The Best Plan Is the One You Can Follow
+
+The most effective triathlon training plan is realistic, personalized, and adaptable to work and family life.
+
+If you want a plan adjusted to your race date, fitness, and schedule, [build your personalized plan with TrainGPT](/plan).`,
+  },
+  {
+    slug: '70-3-training-plan-20-week',
+    title: '70.3 Training Plan: Your Complete 20-Week Half Ironman Blueprint',
+    description: 'A complete 70.3 training plan with weekly volume guidance, key brick workouts, fueling targets, and taper strategy.',
+    tag: 'Training Tip',
+    date: 'Feb 11, 2026',
+    image: '/tiles/cyclist-hero.webp',
+    content: `## 70.3 Training Plan: What Actually Works
+
+A strong 70.3 training plan balances endurance, race-pace specificity, and recovery. Most athletes underperform not because they train too little — but because they train inconsistently or too hard.
+
+---
+
+## 20-Week 70.3 Training Plan Overview
+
+Use this phase structure:
+
+- **Weeks 1–8 (Base):** Aerobic capacity, swim form, durable run frequency
+- **Weeks 9–15 (Build):** Longer bricks, threshold intervals, fueling practice
+- **Weeks 16–18 (Peak):** Race-specific simulation sessions
+- **Weeks 19–20 (Taper):** Freshen up while keeping rhythm
+
+Typical weekly hours: **8 to 12**.
+
+---
+
+## Key 70.3 Workouts to Include Every Week
+
+- **Long bike (2.5–4.5h)** with race-pace segments
+- **Brick run (15–45 min)** immediately after key rides
+- **Long run (75–120 min)** mostly easy aerobic
+- **Threshold session** on bike or run (not both hard in same 24h)
+- **2–3 swims** including one endurance set and one form/speed set
+
+---
+
+## 70.3 Fueling Benchmarks
+
+Practice this in training so race day has no surprises:
+
+- **Bike:** 60–90g carbs/hour + consistent hydration
+- **Run:** 30–60g carbs/hour based on tolerance
+- **Sodium:** Adjust to sweat rate and climate
+
+Never test new nutrition in race week.
+
+---
+
+## Sample Build-Phase Week
+
+- **Mon:** Recovery swim + mobility
+- **Tue:** Bike threshold intervals (75 min)
+- **Wed:** Easy run (50 min) + form swim
+- **Thu:** Tempo run (60 min)
+- **Fri:** Endurance swim + optional recovery spin
+- **Sat:** Long ride (3.5h) + 30-min brick run
+- **Sun:** Long run (95 min)
+
+---
+
+## Want a 70.3 Plan Built Around Your Life?
+
+A generic half Ironman plan cannot account for your work schedule, current fitness, or injury history.
+
+[Get your personalized 70.3 training plan](/plan) with TrainGPT and train with confidence.`,
+  },
+  {
+    slug: 'olympic-triathlon-training-plan-12-week',
+    title: 'Olympic Triathlon Training Plan: A Smart 12-Week Program',
+    description: 'A practical 12-week Olympic triathlon training plan with weekly structure, pacing zones, and race-week taper steps.',
+    tag: 'Training Tip',
+    date: 'Feb 11, 2026',
+    image: '/tiles/swim-bike-handup.jpg',
+    content: `## Olympic Triathlon Training Plan (12 Weeks)
+
+Training for an Olympic-distance triathlon requires precision: enough volume to build endurance, enough intensity to raise speed, and enough recovery to absorb the work.
+
+---
+
+## Weekly Framework
+
+- **2–3 swims** (technique + threshold)
+- **2–3 bikes** (one interval, one endurance)
+- **3 runs** (easy, tempo, long)
+- **1 rest day** minimum
+
+Aim for **6–9 hours/week** depending on experience.
+
+---
+
+## Pace and Intensity Guidelines
+
+- Keep ~80% of training easy aerobic
+- Use tempo/threshold 1–2x weekly
+- Keep quality sessions short and purposeful
+
+For many athletes, better pacing alone can improve race-day time more than adding extra volume.
+
+---
+
+## Olympic Triathlon Race-Prep Checklist
+
+- Practice open-water starts
+- Rehearse T1 and T2 setup
+- Test race-day breakfast and gels
+- Include one simulation brick in final 3 weeks
+
+---
+
+## Need a Custom Olympic Triathlon Plan?
+
+If you want race-specific workouts based on your exact fitness and schedule, [generate your personalized plan](/plan) with TrainGPT.`,
+  },
+  {
+    slug: 'sprint-triathlon-training-plan-8-week',
+    title: 'Sprint Triathlon Training Plan: 8 Weeks to Your First Finish Line',
+    description: 'An 8-week sprint triathlon training plan for beginners with manageable volume, skill progression, and race-day confidence tips.',
+    tag: 'Training Tip',
+    date: 'Feb 11, 2026',
+    image: '/tiles/swimmer-breathing.jpg',
+    content: `## Sprint Triathlon Training Plan for Beginners
+
+A sprint triathlon is the best entry point into the sport — but your first race still needs structure.
+
+This 8-week sprint triathlon training plan helps you build consistency without overload.
+
+---
+
+## What to Train Each Week
+
+- **2 swims:** technique + steady endurance
+- **2 bikes:** one easy, one with short efforts
+- **2–3 runs:** easy aerobic plus optional strides
+- **1 mini brick:** 10–20 min run off the bike
+
+Plan on **4–6 hours/week**.
+
+---
+
+## 8-Week Progression
+
+- **Weeks 1–3:** Skill development and routine
+- **Weeks 4–6:** Add short race-pace efforts
+- **Week 7:** Peak confidence week
+- **Week 8:** Taper and race
+
+---
+
+## First-Time Athlete Tips
+
+- Focus on consistency, not perfection
+- Keep easy days easy
+- Practice transitions twice before race day
+- Learn effort control so you do not overbike
+
+---
+
+## Build Your Beginner Plan in Minutes
+
+Need a sprint plan personalized to your exact start point?
+
+[Create your sprint triathlon plan](/plan) with TrainGPT.`,
+  },
+  {
+    slug: 'ironman-training-plan-24-week',
+    title: 'Ironman Training Plan: A 24-Week Strategy for First-Time Finishers',
+    description: 'A realistic Ironman training plan with long-session progression, fueling practice, and taper strategy for first-time finishers.',
+    tag: 'Training Tip',
+    date: 'Feb 11, 2026',
+    image: '/tiles/tt-bike-field.jpg',
+    content: `## Ironman Training Plan: Build Endurance Without Burning Out
+
+For long-course racing, your Ironman training plan must prioritize durability and recovery as much as intensity.
+
+---
+
+## 24-Week Ironman Build
+
+- **Weeks 1–10:** Base fitness and technique
+- **Weeks 11–18:** Build volume and race-specific bricks
+- **Weeks 19–21:** Peak long sessions and pacing rehearsal
+- **Weeks 22–24:** Taper and sharpen
+
+Most athletes train **10–14 hours/week**, with occasional higher-volume weekends.
+
+---
+
+## Non-Negotiables in an Ironman Plan
+
+- Weekly long ride with nutrition rehearsal
+- Weekly long run mostly easy aerobic
+- Regular open-water confidence work
+- Mobility + strength 1–2x weekly
+- One full rest day
+
+---
+
+## Long-Course Fueling Practice
+
+Your race plan should be tested, not guessed:
+
+- Carbohydrate targets by hour
+- Hydration and sodium by temperature
+- Caffeine timing if used
+
+Practice exactly what you plan to execute.
+
+---
+
+## Make Your Ironman Plan Personal
+
+A one-size-fits-all Ironman schedule often fails when real life gets busy.
+
+[Build your personalized Ironman training plan](/plan) with TrainGPT.`,
+  },
+  {
+    slug: 'triathlon-nutrition-plan-race-prep',
+    title: 'Triathlon Nutrition Plan: What to Eat During Training and Race Week',
+    description: 'A triathlon nutrition plan for daily training, key long sessions, and race week so you can perform without GI surprises.',
+    tag: 'Nutrition',
+    date: 'Feb 11, 2026',
+    image: '/tiles/running-pack.jpg',
+    content: `## Triathlon Nutrition Plan Essentials
+
+No triathlon training plan works if fueling is an afterthought.
+
+Whether you are preparing for sprint, Olympic, 70.3, or full Ironman, nutrition should be trained just like pacing.
+
+---
+
+## Daily Training Nutrition Basics
+
+- Prioritize consistent carbohydrate intake around key workouts
+- Include 25–40g protein after hard sessions
+- Stay hydrated throughout the day, not only during workouts
+
+---
+
+## Long-Session Fueling Practice
+
+During long sessions, test:
+
+- Carbs per hour you can absorb comfortably
+- Fluid amounts by weather condition
+- Sodium strategy based on sweat rate
+
+Use training logs to track tolerance and performance.
+
+---
+
+## Race-Week Nutrition Priorities
+
+- Reduce fiber 24–48h pre-race if GI-sensitive
+- Keep meals familiar and simple
+- Carb-load progressively for longer events
+- Avoid trying new products late
+
+---
+
+## Want Nutrition Built Into Your Weekly Plan?
+
+TrainGPT can help you align session intensity, volume, and fueling across your whole build.
+
+[Generate your personalized triathlon plan](/plan) now.`,
+  },
+
 ];

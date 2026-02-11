@@ -292,7 +292,6 @@ export default function SchedulePage() {
           <CalendarShell
             sessions={enrichedSessions}
             completedSessions={completedSessions}
-            stravaActivities={stravaActivities}
             extraStravaActivities={unmatchedActivities}
             onCompletedUpdate={handleCompletedUpdate}
             timezone={userTimezone}

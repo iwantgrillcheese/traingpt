@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Dialog } from '@headlessui/react';
 import { format, parseISO } from 'date-fns';
 import clsx from 'clsx';
+import { supabase } from '@/lib/supabase-client';
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 
@@ -20,6 +21,7 @@ type Props = {
   onClose: () => void;
   completedSessions: CompletedSession[];
   onCompletedUpdate: (updated: CompletedSession[]) => void;
+  onSessionDeleted?: (sessionId: string) => void;
 };
 
 function useIsMobile(breakpointPx = 768) {
@@ -143,6 +145,7 @@ export default function SessionModal({
   onClose,
   completedSessions,
   onCompletedUpdate,
+  onSessionDeleted,
 }: Props) {
   const isMobile = useIsMobile(768);
 
@@ -163,6 +166,23 @@ export default function SessionModal({
   }, [session?.id]);
 
   const parsedWorkout = useMemo(() => parseWorkout(output), [output]);
+
+  const isUserCreatedSession = useMemo(() => {
+    if (!session) return false;
+
+    const hasStructuredData = Boolean(session.structured_workout || session.details);
+    const hasStravaLink = Boolean(session.strava_id || stravaActivity);
+    const sportValue = String((session as any).sport ?? '')
+      .trim()
+      .toLowerCase();
+    const looksLikeManualTitle = /^session\s/i.test(session.title || '');
+
+    return (
+      !hasStructuredData &&
+      !hasStravaLink &&
+      (sportValue === '' || sportValue === 'other' || looksLikeManualTitle)
+    );
+  }, [session, stravaActivity]);
 
   const handleGenerate = async () => {
     if (!session) return;
@@ -202,6 +222,30 @@ export default function SessionModal({
       alert('Unexpected error generating workout.');
     } finally {
       setLoading(false);
+    }
+  };
+
+
+  const handleDeleteSession = async () => {
+    if (!session || !isUserCreatedSession) return;
+
+    const confirmed = window.confirm('Delete this session from your calendar?');
+    if (!confirmed) return;
+
+    try {
+      const { error } = await supabase.from('sessions').delete().eq('id', session.id);
+
+      if (error) {
+        console.error('Failed to delete session:', error);
+        alert('Failed to delete session. Please try again.');
+        return;
+      }
+
+      onSessionDeleted?.(session.id);
+      onClose();
+    } catch (err) {
+      console.error(err);
+      alert('Unexpected error deleting session.');
     }
   };
 
@@ -423,6 +467,15 @@ export default function SessionModal({
                 >
                   {markingComplete ? 'Saving…' : isCompleted ? 'Undo completion' : 'Mark as done'}
                 </button>
+
+                {isUserCreatedSession ? (
+                  <button
+                    onClick={handleDeleteSession}
+                    className="w-full rounded-xl border border-black/10 bg-zinc-100 text-zinc-700 text-[14px] font-semibold px-4 py-3 active:translate-y-[0.5px]"
+                  >
+                    Delete session
+                  </button>
+                ) : null}
               </div>
             </div>
           </div>

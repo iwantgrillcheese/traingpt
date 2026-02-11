@@ -222,6 +222,10 @@ export async function POST(req: Request) {
     if (planTypeResolved === 'triathlon') {
       const sinceISO = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
       const { data, error: stravaErr } = await supabase
+    let stravaHistorySummary = '';
+    if ((planType ?? 'triathlon') === 'triathlon') {
+      const sinceISO = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: stravaRows, error: stravaErr } = await supabase
         .from('strava_activities')
         .select('sport_type,moving_time,distance,start_date')
         .eq('user_id', userId)
@@ -276,6 +280,9 @@ export async function POST(req: Request) {
     const restDayResolved = restDay && restDay.trim() !== "" ? restDay : "Monday";
 
     const stravaHistorySummary = buildStravaHistorySummary(stravaRows);
+        stravaHistorySummary = buildStravaHistorySummary(stravaRows ?? []);
+      }
+    }
 
     const userParams: UserParams = {
       raceType,
