@@ -213,22 +213,18 @@ export async function POST(req: Request) {
       start_date: string | null;
     }> = [];
 
-    if (planTypeResolved === 'triathlon') {
+    if (planTypeResolved === "triathlon") {
       const sinceISO = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
       const { data, error: stravaErr } = await supabase
-    let stravaHistorySummary = '';
-    if ((planType ?? 'triathlon') === 'triathlon') {
-      const sinceISO = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
-      const { data: stravaRows, error: stravaErr } = await supabase
-        .from('strava_activities')
-        .select('sport_type,moving_time,distance,start_date')
-        .eq('user_id', userId)
-        .gte('start_date', sinceISO)
-        .order('start_date', { ascending: false })
+        .from("strava_activities")
+        .select("sport_type,moving_time,distance,start_date")
+        .eq("user_id", userId)
+        .gte("start_date", sinceISO)
+        .order("start_date", { ascending: false })
         .limit(150);
 
       if (stravaErr) {
-        console.warn('[finalize-plan] strava history lookup failed', stravaErr);
+        console.warn("[finalize-plan] strava history lookup failed", stravaErr);
       } else {
         stravaRows = data ?? [];
       }
@@ -274,9 +270,6 @@ export async function POST(req: Request) {
     const restDayResolved = restDay && restDay.trim() !== "" ? restDay : "Monday";
 
     const stravaHistorySummary = buildStravaHistorySummary(stravaRows);
-        stravaHistorySummary = buildStravaHistorySummary(stravaRows ?? []);
-      }
-    }
 
     const userParams: UserParams = {
       raceType,
