@@ -324,7 +324,17 @@ export default function MobileCalendarView({
             <div className="text-[20px] font-semibold tracking-tight text-zinc-950">This Plan</div>
           </div>
 
+<<<<<<< codex/add-session-logic-for-mobile-1db7or
           <div className="text-[12px] font-medium text-zinc-500">Tap + Add session</div>
+=======
+          <button
+            type="button"
+            onClick={() => setAddSessionDate(getDefaultAddDate())}
+            className="h-9 rounded-md border border-black/10 bg-white px-3 text-[13px] font-medium text-zinc-700 shadow-sm"
+          >
+            + Add
+          </button>
+>>>>>>> main
         </div>
       </div>
 
@@ -451,6 +461,24 @@ export default function MobileCalendarView({
                         </button>
                       );
                     })}
+
+                    {Array.from(
+                      new Set(
+                        sessions.map((s) => normalizeDate(safeParseDate(s.date))).filter(Boolean)
+                      )
+                    )
+                      .sort()
+                      .map((dateKey) => (
+                        <div key={`add-${dateKey}`} className="border-t border-black/5 px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={() => setAddSessionDate(safeParseDate(dateKey))}
+                            className="inline-flex w-full items-center justify-center rounded-md border border-dashed border-black/15 bg-white px-3 py-2 text-[13px] font-medium text-zinc-600 hover:text-zinc-900"
+                          >
+                            + Add session for {format(safeParseDate(dateKey), 'EEE, MMM d')}
+                          </button>
+                        </div>
+                      ))}
 
                     {/* Strava-only extras */}
                     {extras.map((a) => {

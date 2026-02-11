@@ -62,6 +62,57 @@ function buildPlanMeta(totalWeeks: number, startDateISO: string): WeekMeta[] {
   return weeks;
 }
 
+
+function secondsToHMM(totalSec: number): string {
+  const safe = Number.isFinite(totalSec) ? Math.max(0, Math.floor(totalSec)) : 0;
+  const h = Math.floor(safe / 3600);
+  const m = Math.floor((safe % 3600) / 60);
+  return `${h}h ${String(m).padStart(2, "0")}m`;
+}
+
+function buildStravaHistorySummary(
+  rows: Array<{ sport_type: string | null; moving_time: number | null; distance: number | null; start_date: string | null }>
+): string {
+  if (!rows.length) return '';
+
+  const totalSec = rows.reduce((acc, row) => acc + (row.moving_time ?? 0), 0);
+  const totalDistanceKm = rows.reduce((acc, row) => acc + ((row.distance ?? 0) / 1000), 0);
+
+  const bySport = new Map<string, { sessions: number; sec: number }>();
+  for (const row of rows) {
+    const sport = row.sport_type || 'Other';
+    const entry = bySport.get(sport) ?? { sessions: 0, sec: 0 };
+    entry.sessions += 1;
+    entry.sec += row.moving_time ?? 0;
+    bySport.set(sport, entry);
+  }
+
+  const sportLines = Array.from(bySport.entries())
+    .sort((a, b) => b[1].sec - a[1].sec)
+    .slice(0, 4)
+    .map(([sport, data]) => `${sport}: ${data.sessions} sessions, ${secondsToHMM(data.sec)}`)
+    .join(' | ');
+
+  const recent = [...rows]
+    .filter((row) => !!row.start_date)
+    .sort((a, b) => new Date(b.start_date as string).getTime() - new Date(a.start_date as string).getTime())
+    .slice(0, 5)
+    .map((row) => {
+      const date = String(row.start_date).slice(0, 10);
+      const distanceKm = row.distance ? (row.distance / 1000).toFixed(1) : null;
+      const time = secondsToHMM(row.moving_time ?? 0);
+      return `${date} ${row.sport_type ?? 'Other'} ${time}${distanceKm ? `, ${distanceKm}km` : ''}`;
+    })
+    .join(' ; ');
+
+  return [
+    `Last 90 days: ${rows.length} activities, ${secondsToHMM(totalSec)} total, ${totalDistanceKm.toFixed(1)}km total distance.`,
+    sportLines ? `Sport split: ${sportLines}.` : '',
+    recent ? `Recent sessions: ${recent}.` : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
 function computeTotalWeeks(todayISO: string, raceDateISO: string): number {
   const start = startOfWeek(parseISO(todayISO), { weekStartsOn: 1 });
   const raceDate = parseISO(raceDateISO);
@@ -133,8 +184,26 @@ export async function POST(req: Request) {
         ? undefined
         : Number(ftpRaw);
 
-        const paceUnitResolved: 'mi' | 'km' | undefined =
-  paceUnit === 'km' || paceUnit === 'mi' ? paceUnit : undefined;
+    const paceUnitResolved: 'mi' | 'km' | undefined =
+      paceUnit === 'km' || paceUnit === 'mi' ? paceUnit : undefined;
+
+    let stravaHistorySummary = '';
+    if ((planType ?? 'triathlon') === 'triathlon') {
+      const sinceISO = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: stravaRows, error: stravaErr } = await supabase
+        .from('strava_activities')
+        .select('sport_type,moving_time,distance,start_date')
+        .eq('user_id', userId)
+        .gte('start_date', sinceISO)
+        .order('start_date', { ascending: false })
+        .limit(150);
+
+      if (stravaErr) {
+        console.warn('[finalize-plan] strava history lookup failed', stravaErr);
+      } else {
+        stravaHistorySummary = buildStravaHistorySummary(stravaRows ?? []);
+      }
+    }
 
     const userParams: UserParams = {
       raceType,
@@ -147,6 +216,7 @@ export async function POST(req: Request) {
       swimPace: swimPace ?? undefined,
       paceUnit: paceUnitResolved,
       trainingPrefs,
+      stravaHistorySummary: stravaHistorySummary || undefined,
     };
 
     // Compute meta now (light)

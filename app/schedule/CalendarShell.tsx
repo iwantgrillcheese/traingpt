@@ -28,7 +28,6 @@ type CompletedSession = {
 type CalendarShellProps = {
   sessions: MergedSession[];
   completedSessions: CompletedSession[];
-  stravaActivities: StravaActivity[];
   extraStravaActivities: StravaActivity[];
   onCompletedUpdate?: (updated: CompletedSession[]) => void;
   timezone?: string;
@@ -242,7 +241,7 @@ export default function CalendarShell({
       </div>
 
       {/* Desktop (CSS-controlled) */}
-      <div className="hidden md:block">
+      <div className="hidden md:block md:h-[100dvh] md:overflow-y-auto">
         <Toolbar
           currentMonth={currentMonth}
           onPrev={goToPrevMonth}
@@ -253,7 +252,7 @@ export default function CalendarShell({
         />
 
         {/* Full-width canvas */}
-        <div className="w-full px-6 lg:px-10 py-5">
+        <div className="w-full px-6 py-5 lg:px-10">
           <div className="w-full overflow-x-auto">
             <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
               <MonthGrid
