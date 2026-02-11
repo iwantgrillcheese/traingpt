@@ -56,10 +56,6 @@ export default function MonthGrid({
     return arr;
   }, [currentMonth]);
 
-  const totalCells = days.length; // typically 35 or 42
-  const cols = 7;
-  const rows = Math.ceil(totalCells / cols);
-
   return (
     <div className="w-full">
       {/* Outer frame: TP-ish (flat, table-like) */}
