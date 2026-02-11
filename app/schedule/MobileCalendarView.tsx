@@ -324,6 +324,9 @@ export default function MobileCalendarView({
             <div className="text-[20px] font-semibold tracking-tight text-zinc-950">This Plan</div>
           </div>
 
+<<<<<<< codex/add-session-logic-for-mobile-1db7or
+          <div className="text-[12px] font-medium text-zinc-500">Tap + Add session</div>
+=======
           <button
             type="button"
             onClick={() => setAddSessionDate(getDefaultAddDate())}
@@ -331,6 +334,7 @@ export default function MobileCalendarView({
           >
             + Add
           </button>
+>>>>>>> main
         </div>
       </div>
 

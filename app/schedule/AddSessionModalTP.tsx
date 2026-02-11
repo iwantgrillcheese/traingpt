@@ -233,7 +233,7 @@ export default function AddSessionModalTP({ open, date, onClose, onAdded }: Prop
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[80] flex items-end justify-center p-0 md:items-center md:p-4">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/35"
@@ -251,19 +251,20 @@ export default function AddSessionModalTP({ open, date, onClose, onAdded }: Prop
         aria-modal="true"
         className={[
           'relative w-full max-w-[980px]',
-          'rounded-2xl bg-white',
+          'max-h-[92dvh] overflow-y-auto md:max-h-[86dvh]',
+          'rounded-t-2xl md:rounded-2xl bg-white',
           'shadow-[0_24px_80px_rgba(0,0,0,0.25)]',
           'border border-black/10',
           'overflow-hidden',
         ].join(' ')}
       >
         {/* Header */}
-        <div className="flex items-start justify-between px-8 py-6 border-b border-black/10 bg-white">
+        <div className="flex items-start justify-between border-b border-black/10 bg-white px-4 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6">
           <div>
-            <div className="text-[22px] font-semibold tracking-tight text-zinc-950">
+            <div className="text-[18px] font-semibold tracking-tight text-zinc-950 sm:text-[20px] md:text-[22px]">
               {format(d, 'EEEE, MMMM d, yyyy')}
             </div>
-            <div className="mt-1 text-sm text-zinc-500">
+            <div className="mt-1 text-[13px] text-zinc-500 sm:text-sm">
               Add a session to your calendar.
             </div>
           </div>
@@ -279,9 +280,9 @@ export default function AddSessionModalTP({ open, date, onClose, onAdded }: Prop
         </div>
 
         {/* Body: 2-column layout like TP (left types, right details) */}
-        <div className="grid grid-cols-1 md:grid-cols-[360px_1fr]">
+        <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] lg:grid-cols-[360px_1fr]">
           {/* Left: Workout types */}
-          <div className="border-b md:border-b-0 md:border-r border-black/10 bg-zinc-50/60 p-6">
+          <div className="border-b border-black/10 bg-zinc-50/60 p-4 sm:p-5 md:border-b-0 md:border-r md:p-6">
             <div className="text-[12px] font-semibold uppercase tracking-wide text-zinc-600">
               Add a Workout
             </div>
@@ -334,7 +335,7 @@ export default function AddSessionModalTP({ open, date, onClose, onAdded }: Prop
           </div>
 
           {/* Right: Details + existing form */}
-          <div className="p-6">
+          <div className="p-4 sm:p-5 md:p-6">
             <div className="text-[12px] font-semibold uppercase tracking-wide text-zinc-600">
               Details
             </div>
@@ -363,7 +364,7 @@ export default function AddSessionModalTP({ open, date, onClose, onAdded }: Prop
             </div>
 
             {/* (Optional) “Add Other” parity row */}
-            <div className="mt-6">
+            <div className="mt-6 hidden sm:block">
               <div className="text-[12px] font-semibold uppercase tracking-wide text-zinc-600">
                 Add Other
               </div>
