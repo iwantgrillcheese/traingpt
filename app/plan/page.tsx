@@ -222,6 +222,8 @@ export default function PlanPage() {
 
   const [sessionChecked, setSessionChecked] = useState(false);
   const [hasPlan, setHasPlan] = useState(false);
+  const [stravaConnected, setStravaConnected] = useState(false);
+  const [quickMode, setQuickMode] = useState(true);
 
   const [progress, setProgress] = useState(0);
   const [stepIndex, setStepIndex] = useState(0);
@@ -238,6 +240,21 @@ export default function PlanPage() {
 
   const runningTypes = useMemo(() => ['5k', '10k', 'Half Marathon', 'Marathon'], []);
   const isRunningPlan = runningTypes.includes(formData.raceType);
+
+  const stravaConnectHref = useMemo(() => {
+    const clientId = process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID;
+    if (!clientId) return '/settings';
+
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    if (!origin) return '/settings';
+
+    const callback = `${origin}/api/strava/callback`;
+    const returnTo = '/plan?source=strava';
+
+    return `https://www.strava.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(
+      callback
+    )}&scope=activity:read_all,profile:read_all&approval_prompt=auto&state=${encodeURIComponent(returnTo)}`;
+  }, []);
 
   /* -------------------- Clean up polling on unmount -------------------- */
   useEffect(() => {
@@ -328,6 +345,18 @@ export default function PlanPage() {
       if (!userId) throw new Error('No user found.');
 
       const planType = isRunningPlan ? 'running' : 'triathlon';
+
+      const payload = {
+        ...formData,
+        ...(quickMode
+          ? {
+              raceDate: '',
+              experience: '',
+              maxHours: '',
+              restDay: '',
+            }
+          : {}),
+      };
 
       const checkPlanExists = async () => {
         const { data, error: planErr } = await supabase
@@ -454,7 +483,7 @@ export default function PlanPage() {
             Authorization: `Bearer ${access_token}`,
           },
           body: JSON.stringify({
-            ...formData,
+            ...payload,
             userNote,
             planType,
           }),
@@ -508,15 +537,26 @@ export default function PlanPage() {
         return;
       }
 
-      const { data: planData } = await supabase
-        .from('plans')
-        .select('id')
-        .eq('user_id', session.user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const [planRes, profileRes] = await Promise.all([
+        supabase
+          .from('plans')
+          .select('id')
+          .eq('user_id', session.user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from('profiles')
+          .select('strava_access_token')
+          .eq('id', session.user.id)
+          .maybeSingle(),
+      ]);
 
-      if (planData?.id) setHasPlan(true);
+      if (planRes.data?.id) {
+        setHasPlan(true);
+      }
+
+      setStravaConnected(!!profileRes.data?.strava_access_token);
       setSessionChecked(true);
     };
 
@@ -597,9 +637,17 @@ export default function PlanPage() {
   }
 
   const title = hasPlan ? 'Re-generate your plan' : 'Generate your plan';
-  const subtitle = hasPlan
+  const subtitle = quickMode
+    ? hasPlan
+      ? 'Regenerate from race + Strava history for a fresh ability-calibrated plan.'
+      : 'For your first plan, choose a race and sync Strava. We’ll estimate the rest from your recent training.'
+    : hasPlan
     ? 'This will replace your current training plan.'
     : 'We’ll personalize your training based on your inputs.';
+
+  const visibleBeginnerFields = quickMode
+    ? beginnerFields.filter((field) => field.id === 'raceType')
+    : beginnerFields;
 
   return (
     <div className="min-h-screen bg-white text-gray-900 relative overflow-x-hidden">
@@ -713,17 +761,29 @@ export default function PlanPage() {
               <div className="px-5 sm:px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-gray-900">
-                    {hasPlan ? 'Update your inputs' : 'Create your training plan'}
+                    {hasPlan ? 'Update your inputs' : quickMode ? 'Quick start from Strava' : 'Create your training plan'}
                   </div>
                   <div className="mt-1 text-xs text-gray-500">
-                    Built around your race and weekly time. Adjust anytime.
+                    {quickMode
+                      ? 'Pick your race and connect Strava. We calibrate the plan from your recent training history.'
+                      : 'Built around your race and weekly time. Adjust anytime.'}
                   </div>
                 </div>
+
+                {hasPlan && !quickMode ? (
+                  <button
+                    type="button"
+                    onClick={() => setQuickMode(true)}
+                    className="shrink-0 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Use Strava-led quick regenerate
+                  </button>
+                ) : null}
               </div>
 
               <div className="px-5 sm:px-6 py-4">
                 <div className="divide-y divide-gray-100">
-                  {beginnerFields.map(({ id, label, type, options, placeholder }) => {
+                  {visibleBeginnerFields.map(({ id, label, type, options, placeholder }) => {
                     const required = !['bikeFTP', 'runPace', 'swimPace', 'restDay', 'paceUnit'].includes(
                       id
                     );
@@ -731,7 +791,9 @@ export default function PlanPage() {
 
                     const hint =
                       id === 'raceType'
-                        ? 'Sprint, Olympic, 70.3, Ironman or running events'
+                        ? quickMode
+                          ? 'Choose your triathlon distance'
+                          : 'Sprint, Olympic, 70.3, Ironman or running events'
                         : id === 'raceDate'
                         ? 'Your goal day'
                         : id === 'maxHours'
@@ -739,6 +801,10 @@ export default function PlanPage() {
                         : id === 'experience'
                         ? 'How long you’ve trained'
                         : undefined;
+
+                    const raceOptions = quickMode
+                      ? ['Sprint', 'Olympic', 'Half Ironman (70.3)', 'Ironman (140.6)']
+                      : options;
 
                     return (
                       <Row key={id} label={label} hint={hint}>
@@ -751,7 +817,7 @@ export default function PlanPage() {
                             required={required}
                           >
                             <option value="">Select…</option>
-                            {options?.map((opt) => (
+                            {raceOptions?.map((opt) => (
                               <option key={opt} value={opt}>
                                 {opt}
                               </option>
@@ -773,8 +839,41 @@ export default function PlanPage() {
                   })}
                 </div>
 
+                {quickMode ? (
+                  <div className="mt-5 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                    <div className="text-sm font-medium text-gray-900">Strava sync</div>
+                    <p className="mt-1 text-xs text-gray-600">
+                      Connect Strava and we’ll calibrate {hasPlan ? 'your regenerated plan' : 'your first plan'} from recent training history.
+                    </p>
+
+                    <div className="mt-3 flex flex-col sm:flex-row gap-3">
+                      {stravaConnected ? (
+                        <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700">
+                          <img src="/strava-2.svg" alt="Strava" className="h-4 w-4" />
+                          Strava connected
+                        </div>
+                      ) : (
+                        <a
+                          href={stravaConnectHref}
+                          className="inline-flex items-center justify-center rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-100"
+                        >
+                          Connect Strava
+                        </a>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => setQuickMode(false)}
+                        className="inline-flex items-center justify-center rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        {hasPlan ? 'Regenerate with full inputs' : 'Enter all inputs manually'}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
                 {/* Optional note */}
-                <div className="mt-4">
+                {!quickMode ? <div className="mt-4">
                   <div className="text-sm font-medium text-gray-900">
                     Customize your plan (optional)
                   </div>
@@ -791,10 +890,10 @@ export default function PlanPage() {
                   <div className="mt-2 text-xs text-gray-500">
                     The more specific you are, the more “coach-like” the plan will feel.
                   </div>
-                </div>
+                </div> : null}
 
                 {/* Advanced toggle */}
-                <div className="mt-5 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 overflow-hidden">
+                {!quickMode ? <div className="mt-5 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 overflow-hidden">
                   <div className="flex items-center justify-between gap-4">
                     <div className="min-w-0">
                       <div className="text-sm font-medium text-gray-900">Advanced options</div>
@@ -880,20 +979,30 @@ export default function PlanPage() {
                       })}
                     </div>
                   ) : null}
-                </div>
+                </div> : null}
 
                 {/* Primary submit only */}
                 <div className="mt-6 flex flex-col items-center text-center">
                   <button
                     type="submit"
-                    disabled={loading}
+                    disabled={loading || (quickMode && !stravaConnected)}
                     className="bg-black text-white px-8 py-3 rounded-full font-medium hover:bg-gray-800 disabled:opacity-50 w-full sm:w-auto max-w-full"
                   >
-                    {loading ? 'Generating…' : hasPlan ? 'Re-generate plan' : 'Generate plan'}
+                    {loading
+                      ? 'Generating…'
+                      : hasPlan
+                      ? quickMode
+                        ? 'Regenerate from Strava'
+                        : 'Re-generate plan'
+                      : quickMode
+                      ? 'Build first plan from Strava'
+                      : 'Generate plan'}
                   </button>
 
                   <div className="mt-3 text-xs text-gray-500">
-                    Plans usually take 20–60 seconds. Full-distance or far-out races can take longer.
+                    {quickMode
+                      ? 'We’ll estimate timeline and weekly volume, then tune as your data accumulates.'
+                      : 'Plans usually take 20–60 seconds. Full-distance or far-out races can take longer.'}
                   </div>
                 </div>
               </div>
