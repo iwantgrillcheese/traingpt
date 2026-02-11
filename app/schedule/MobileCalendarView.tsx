@@ -13,6 +13,7 @@ import {
 } from 'date-fns';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import SessionModal from './SessionModal';
+import AddSessionModalTP from './AddSessionModalTP';
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 
@@ -28,6 +29,7 @@ export type MobileCalendarViewProps = {
   sessions: EnrichedSession[];
   completedSessions: CompletedSession[];
   stravaActivities?: StravaActivity[];
+  onSessionDeleted?: (sessionId: string) => void;
 };
 
 function safeParseDate(input: string | Date): Date {
@@ -193,8 +195,10 @@ export default function MobileCalendarView({
   sessions,
   completedSessions: initialCompleted,
   stravaActivities = EMPTY_STRAVA,
+  onSessionDeleted,
 }: MobileCalendarViewProps) {
   const [selectedSession, setSelectedSession] = useState<EnrichedSession | null>(null);
+  const [addSessionDate, setAddSessionDate] = useState<Date | null>(null);
   const [sessionsState, setSessionsState] = useState<EnrichedSession[]>(sessions);
   const [completedSessions, setCompletedSessions] = useState<CompletedSession[]>(initialCompleted);
   const [collapsedWeeks, setCollapsedWeeks] = useState<Record<string, boolean>>({});
@@ -202,6 +206,19 @@ export default function MobileCalendarView({
   const didAutoScroll = useRef(false);
 
   const today = new Date();
+
+  const getDefaultAddDate = () => {
+    const currentWeekEntry = Object.values(groupedByWeek).find((val) =>
+      isWithinInterval(today, { start: val.start, end: val.end })
+    );
+    if (!currentWeekEntry) return today;
+
+    const firstSession = [...currentWeekEntry.sessions]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .at(0);
+
+    return firstSession ? safeParseDate(firstSession.date) : today;
+  };
 
   useEffect(() => setSessionsState(sessions), [sessions]);
   useEffect(() => setCompletedSessions(initialCompleted), [initialCompleted]);
@@ -307,9 +324,7 @@ export default function MobileCalendarView({
             <div className="text-[20px] font-semibold tracking-tight text-zinc-950">This Plan</div>
           </div>
 
-          <div className="h-9 w-9 rounded-full bg-white border border-black/10 text-zinc-900 flex items-center justify-center text-sm font-semibold shadow-sm">
-            C
-          </div>
+          <div className="text-[12px] font-medium text-zinc-500">Tap + Add session</div>
         </div>
       </div>
 
@@ -490,6 +505,15 @@ export default function MobileCalendarView({
           );
         })}
 
+        <button
+          type="button"
+          onClick={() => setAddSessionDate(getDefaultAddDate())}
+          className="fixed bottom-[calc(env(safe-area-inset-bottom)+16px)] right-4 z-30 inline-flex h-12 items-center justify-center rounded-full border border-black/10 bg-zinc-950 px-5 text-[14px] font-semibold text-white shadow-[0_14px_30px_rgba(0,0,0,0.25)] active:translate-y-[0.5px] md:hidden"
+          aria-label="Add session"
+        >
+          + Add session
+        </button>
+
         <SessionModal
           session={selectedSession}
           stravaActivity={selectedSession?.stravaActivity}
@@ -497,6 +521,30 @@ export default function MobileCalendarView({
           onClose={() => setSelectedSession(null)}
           completedSessions={completedSessions}
           onCompletedUpdate={(updatedList) => setCompletedSessions(updatedList)}
+          onSessionDeleted={(sessionId) => {
+            setSessionsState((prev) => prev.filter((s) => s.id !== sessionId));
+            setCompletedSessions((prev) =>
+              prev.filter(
+                (c) =>
+                  !(
+                    c.date === selectedSession?.date &&
+                    c.session_title === selectedSession?.title
+                  )
+              )
+            );
+            onSessionDeleted?.(sessionId);
+            setSelectedSession(null);
+          }}
+        />
+
+        <AddSessionModalTP
+          open={!!addSessionDate}
+          date={addSessionDate ?? today}
+          onClose={() => setAddSessionDate(null)}
+          onAdded={(newSession: EnrichedSession) => {
+            setSessionsState((prev) => [...prev, newSession]);
+            setAddSessionDate(null);
+          }}
         />
       </div>
     </div>

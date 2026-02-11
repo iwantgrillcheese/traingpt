@@ -204,6 +204,11 @@ export default function CalendarShell({
     setLocalSessions((prev) => [...prev, newSession]);
   };
 
+  const handleSessionDeleted = (sessionId: string) => {
+    setLocalSessions((prev) => prev.filter((s) => s.id !== sessionId));
+    setSelectedSession((prev) => (prev?.id === sessionId ? null : prev));
+  };
+
   const handleDragEnd = async (event: any) => {
     const { active, over } = event;
     if (!active || !over) return;
@@ -232,6 +237,7 @@ export default function CalendarShell({
           sessions={localSessions as any}
           completedSessions={completed}
           stravaActivities={extraStravaActivities}
+          onSessionDeleted={handleSessionDeleted}
         />
       </div>
 
@@ -271,6 +277,7 @@ export default function CalendarShell({
         onClose={() => setSelectedSession(null)}
         completedSessions={completed}
         onCompletedUpdate={(updatedList) => setCompleted(updatedList)}
+        onSessionDeleted={handleSessionDeleted}
       />
 
       <StravaActivityModal
