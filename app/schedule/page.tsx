@@ -8,6 +8,7 @@ import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 import mergeSessionsWithStrava, { MergedSession } from '@/utils/mergeSessionWithStrava';
 import Footer from '../components/footer';
+import RaceHubCard from '../components/race/RaceHubCard';
 
 // Walkthrough
 import PostPlanWalkthrough from '../plan/components/PostPlanWalkthrough';
@@ -18,6 +19,32 @@ type CompletedSession = {
   session_title: string;
   strava_id?: string;
 };
+
+type RaceHubState = {
+  raceType?: string | null;
+  raceDate?: string | null;
+  currentPhase?: string | null;
+};
+
+function deriveCurrentPhase(planPayload: any): string | null {
+  const weeks = planPayload?.weeks;
+  if (!Array.isArray(weeks) || weeks.length === 0) return null;
+
+  const today = new Date();
+  let latestPhase: string | null = null;
+
+  for (const week of weeks) {
+    if (!week?.startDate || !week?.phase) continue;
+    const start = new Date(week.startDate);
+    if (Number.isNaN(start.getTime())) continue;
+
+    if (start <= today) {
+      latestPhase = String(week.phase);
+    }
+  }
+
+  return latestPhase ?? (weeks[0]?.phase ? String(weeks[0].phase) : null);
+}
 
 export default function SchedulePage() {
   const router = useRouter();
@@ -30,6 +57,7 @@ export default function SchedulePage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [stravaActivities, setStravaActivities] = useState<StravaActivity[]>([]);
   const [completedSessions, setCompletedSessions] = useState<CompletedSession[]>([]);
+  const [raceHub, setRaceHub] = useState<RaceHubState | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -74,6 +102,7 @@ export default function SchedulePage() {
             setSessions([]);
             setStravaActivities([]);
             setCompletedSessions([]);
+            setRaceHub(null);
             setLoading(false);
           }
           return;
@@ -93,6 +122,7 @@ export default function SchedulePage() {
           }
           if (!cancelled) {
             setAuthedUserId(null);
+            setRaceHub(null);
             setLoading(false);
           }
           return;
@@ -103,6 +133,7 @@ export default function SchedulePage() {
         if (!user) {
           if (!cancelled) {
             setAuthedUserId(null);
+            setRaceHub(null);
             setLoading(false);
           }
           return;
@@ -125,15 +156,23 @@ export default function SchedulePage() {
           // Don't block schedule load
         }
 
-        const [sessionsRes, stravaRes, completedRes] = await Promise.all([
+        const [sessionsRes, stravaRes, completedRes, latestPlanRes] = await Promise.all([
           supabase.from('sessions').select('*').eq('user_id', user.id),
           supabase.from('strava_activities').select('*').eq('user_id', user.id),
           supabase.from('completed_sessions').select('*').eq('user_id', user.id),
+          supabase
+            .from('plans')
+            .select('race_type, race_date, plan')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
         ]);
 
         if (sessionsRes.error) throw sessionsRes.error;
         if (stravaRes.error) throw stravaRes.error;
         if (completedRes.error) throw completedRes.error;
+        if (latestPlanRes.error) throw latestPlanRes.error;
 
         if (cancelled) return;
 
@@ -145,6 +184,13 @@ export default function SchedulePage() {
           session_title: c.session_title || c.title,
           strava_id: c.strava_id,
         }));
+
+        const latestPlan = latestPlanRes.data as any;
+        setRaceHub({
+          raceType: latestPlan?.race_type ?? null,
+          raceDate: latestPlan?.race_date ?? null,
+          currentPhase: deriveCurrentPhase(latestPlan?.plan),
+        });
 
         setCompletedSessions(normalizedCompleted);
         setLoading(false);
@@ -289,17 +335,27 @@ export default function SchedulePage() {
         {isLoggedOut ? (
           <div className="text-center py-10 text-zinc-400">Please sign in to view your schedule.</div>
         ) : (
-          <div className="relative left-1/2 w-screen -translate-x-1/2">
-            <CalendarShell
-              sessions={enrichedSessions}
-              completedSessions={completedSessions}
-              extraStravaActivities={unmatchedActivities}
-              onCompletedUpdate={handleCompletedUpdate}
-              timezone={userTimezone}
-              onOpenWalkthrough={openWalkthrough}
-              walkthroughLoading={walkthroughLoading}
-            />
-          </div>
+          <>
+            <div className="mx-auto w-full max-w-7xl px-4 pb-4">
+              <RaceHubCard
+                raceType={raceHub?.raceType}
+                raceDate={raceHub?.raceDate}
+                currentPhase={raceHub?.currentPhase}
+              />
+            </div>
+
+            <div className="relative left-1/2 w-screen -translate-x-1/2">
+              <CalendarShell
+                sessions={enrichedSessions}
+                completedSessions={completedSessions}
+                extraStravaActivities={unmatchedActivities}
+                onCompletedUpdate={handleCompletedUpdate}
+                timezone={userTimezone}
+                onOpenWalkthrough={openWalkthrough}
+                walkthroughLoading={walkthroughLoading}
+              />
+            </div>
+          </>
         )}
       </main>
 
