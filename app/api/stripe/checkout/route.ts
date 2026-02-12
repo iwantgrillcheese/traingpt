@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
-import { stripe } from '@/utils/stripe';
+import { getStripeClient } from '@/utils/stripe';
 
 export async function POST() {
   try {
@@ -29,6 +29,8 @@ export async function POST() {
       console.error('[Stripe Checkout] Failed to fetch profile:', profileError);
       return NextResponse.json({ error: 'Profile not found' }, { status: 500 });
     }
+
+    const stripe = getStripeClient();
 
     const customerId =
       profile?.stripe_customer_id ||

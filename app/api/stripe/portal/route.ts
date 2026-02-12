@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
-import { stripe } from '@/utils/stripe';
+import { getStripeClient } from '@/utils/stripe';
 
 export async function POST() {
   try {
@@ -38,6 +38,8 @@ export async function POST() {
     if (!baseUrl) {
       throw new Error('Missing NEXT_PUBLIC_BASE_URL in env');
     }
+
+    const stripe = getStripeClient();
 
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: profile.stripe_customer_id,

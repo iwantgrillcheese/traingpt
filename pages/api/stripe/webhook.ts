@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next/types';
-import { stripe } from '@/utils/stripe';
+import { getStripeClient } from '@/utils/stripe';
 import Stripe from 'stripe';
 import { buffer } from 'micro';
 import { createServerSupabaseClient } from '@supabase/auth-helpers-nextjs';
@@ -21,6 +21,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   let event: Stripe.Event;
 
   try {
+    const stripe = getStripeClient();
+
     event = stripe.webhooks.constructEvent(
       buf,
       sig,
