@@ -339,14 +339,6 @@ export default function MobileCalendarView({
             <div className="text-[12px] tracking-wide text-zinc-500 uppercase">Schedule</div>
             <div className="text-[20px] font-semibold tracking-tight text-zinc-950">Weekly Flow</div>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setAddSessionDate(getDefaultAddDate())}
-            className="h-9 rounded-md border border-black/10 bg-white px-3 text-[13px] font-medium text-zinc-700 shadow-sm"
-          >
-            + Add
-          </button>
         </div>
       </div>
 
@@ -513,6 +505,8 @@ export default function MobileCalendarView({
 
                   {/* Strava-only extras */}
                   {extras.map((a) => {
+                    {/* Strava-only extras */}
+                    {extras.map((a) => {
                       const date = safeParseDate(a.start_date_local);
                       const distance = a.distance ? `${(a.distance / 1609).toFixed(1)} mi` : '';
                       const hr = a.average_heartrate ? `${Math.round(a.average_heartrate)} bpm` : '';
@@ -582,6 +576,14 @@ export default function MobileCalendarView({
           onClose={() => setSelectedSession(null)}
           completedSessions={completedSessions}
           onCompletedUpdate={(updatedList) => setCompletedSessions(updatedList)}
+          onSessionUpdated={(updatedSession) => {
+            setSessionsState((prev) =>
+              prev.map((s) => (s.id === updatedSession.id ? { ...s, details: updatedSession.details } : s))
+            );
+            setSelectedSession((prev) =>
+              prev?.id === updatedSession.id ? { ...prev, details: updatedSession.details } : prev
+            );
+          }}
           onSessionDeleted={(sessionId) => {
             setSessionsState((prev) => prev.filter((s) => s.id !== sessionId));
             setCompletedSessions((prev) =>
