@@ -6,7 +6,6 @@ import clsx from 'clsx';
 import { useDroppable, useDraggable } from '@dnd-kit/core';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
-import AddSessionModalTP from './AddSessionModalTP';
 
 type CompletedSession = {
   date: string;
@@ -22,7 +21,6 @@ type Props = {
   onStravaActivityClick?: (activity: StravaActivity) => void;
   completedSessions: CompletedSession[];
   extraActivities?: StravaActivity[];
-  onSessionAdded?: (session: any) => void;
 };
 
 function normalizeSportFromTitle(title: string): string {
@@ -141,9 +139,7 @@ export default function DayCell({
   onStravaActivityClick,
   completedSessions,
   extraActivities = [],
-  onSessionAdded,
 }: Props) {
-  const [showForm, setShowForm] = useState(false);
   const dateStr = format(date, 'yyyy-MM-dd');
 
   const { setNodeRef, isOver } = useDroppable({ id: dateStr });
@@ -327,6 +323,8 @@ export default function DayCell({
           setShowForm(false);
         }}
       />
+        </div>
+      </div>
     </>
   );
 }

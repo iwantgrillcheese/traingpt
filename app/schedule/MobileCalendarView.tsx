@@ -458,24 +458,6 @@ export default function MobileCalendarView({
                       );
                     })}
 
-                    {Array.from(
-                      new Set(
-                        sessions.map((s) => normalizeDate(safeParseDate(s.date))).filter(Boolean)
-                      )
-                    )
-                      .sort()
-                      .map((dateKey) => (
-                        <div key={`add-${dateKey}`} className="border-t border-black/5 px-4 py-3">
-                          <button
-                            type="button"
-                            onClick={() => setAddSessionDate(safeParseDate(dateKey))}
-                            className="inline-flex w-full items-center justify-center rounded-md border border-dashed border-black/15 bg-white px-3 py-2 text-[13px] font-medium text-zinc-600 hover:text-zinc-900"
-                          >
-                            + Add session for {format(safeParseDate(dateKey), 'EEE, MMM d')}
-                          </button>
-                        </div>
-                      ))}
-
                     {/* Strava-only extras */}
                     {extras.map((a) => {
                       const date = safeParseDate(a.start_date_local);
@@ -545,6 +527,14 @@ export default function MobileCalendarView({
           onClose={() => setSelectedSession(null)}
           completedSessions={completedSessions}
           onCompletedUpdate={(updatedList) => setCompletedSessions(updatedList)}
+          onSessionUpdated={(updatedSession) => {
+            setSessionsState((prev) =>
+              prev.map((s) => (s.id === updatedSession.id ? { ...s, details: updatedSession.details } : s))
+            );
+            setSelectedSession((prev) =>
+              prev?.id === updatedSession.id ? { ...prev, details: updatedSession.details } : prev
+            );
+          }}
           onSessionDeleted={(sessionId) => {
             setSessionsState((prev) => prev.filter((s) => s.id !== sessionId));
             setCompletedSessions((prev) =>
