@@ -323,8 +323,6 @@ export default function DayCell({
           setShowForm(false);
         }}
       />
-        </div>
-      </div>
     </>
   );
 }

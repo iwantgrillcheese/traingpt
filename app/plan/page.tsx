@@ -809,8 +809,6 @@ export default function PlanPage() {
     ? hasPlan
       ? 'Build a fresh plan from your chosen event + date with Strava-calibrated fitness.'
       : 'Choose your event + race date, sync Strava, and we’ll estimate the rest from recent training.'
-      ? 'Regenerate from race + Strava history for a fresh ability-calibrated plan.'
-      : 'For your first plan, choose a race + date and sync Strava. We’ll estimate the rest from your recent training.'
     : hasPlan
       ? 'This will replace your current training plan.'
       : 'We’ll personalize your training based on your inputs.';
@@ -936,7 +934,6 @@ export default function PlanPage() {
                   <div className="mt-1 text-xs text-gray-500">
                     {quickMode
                       ? 'Pick an event + race date and connect Strava. We calibrate the plan from your recent training history.'
-                      ? 'Pick your race + date and connect Strava. We calibrate workouts from your recent training history.'
                       : 'Built around your race and weekly time. Adjust anytime.'}
                   </div>
                 </div>
@@ -1031,7 +1028,6 @@ export default function PlanPage() {
                       id === 'raceType'
                         ? quickMode
                           ? 'Choose your event (running or triathlon)'
-                          ? 'Choose your target race distance'
                           : 'Sprint, Olympic, 70.3, Ironman or running events'
                         : id === 'raceDate'
                         ? 'Your goal day'

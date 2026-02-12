@@ -302,34 +302,6 @@ export async function POST(req: Request) {
       console.warn('[finalize-plan] strava history lookup failed', stravaErr);
     } else {
       stravaRows = data ?? [];
-    const paceUnitResolved: 'mi' | 'km' | undefined =
-      paceUnit === 'km' || paceUnit === 'mi' ? paceUnit : undefined;
-
-    const planTypeResolved: PlanType = planType ?? "triathlon";
-
-    let stravaRows: Array<{
-      sport_type: string | null;
-      moving_time: number | null;
-      distance: number | null;
-      start_date: string | null;
-    }> = [];
-
-    if (planTypeResolved === "triathlon" || planTypeResolved === "running") {
-    if (planTypeResolved === "triathlon") {
-      const sinceISO = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
-      const { data, error: stravaErr } = await supabase
-        .from("strava_activities")
-        .select("sport_type,moving_time,distance,start_date")
-        .eq("user_id", userId)
-        .gte("start_date", sinceISO)
-        .order("start_date", { ascending: false })
-        .limit(150);
-
-      if (stravaErr) {
-        console.warn("[finalize-plan] strava history lookup failed", stravaErr);
-      } else {
-        stravaRows = data ?? [];
-      }
     }
 
     const hasStravaHistory = stravaRows.length > 0;
