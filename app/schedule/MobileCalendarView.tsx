@@ -410,6 +410,23 @@ export default function MobileCalendarView({
                   </div>
                 </div>
 
+                </div>
+
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  <div className="rounded-xl border border-black/5 bg-zinc-50 px-3 py-2">
+                    <div className="text-[11px] text-zinc-500">Sessions</div>
+                    <div className="text-[16px] font-semibold text-zinc-900">{sessions.length}</div>
+                  </div>
+                  <div className="rounded-xl border border-black/5 bg-zinc-50 px-3 py-2">
+                    <div className="text-[11px] text-zinc-500">Done</div>
+                    <div className="text-[16px] font-semibold text-zinc-900">{completedCount}</div>
+                  </div>
+                  <div className="rounded-xl border border-black/5 bg-zinc-50 px-3 py-2">
+                    <div className="text-[11px] text-zinc-500">Key work</div>
+                    <div className="text-[16px] font-semibold text-zinc-900">{keySessionCount}</div>
+                  </div>
+                </div>
+
                 <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-zinc-200">
                   <div
                     className="h-full rounded-full bg-zinc-900 transition-all"
@@ -513,6 +530,8 @@ export default function MobileCalendarView({
 
                   {/* Strava-only extras */}
                   {extras.map((a) => {
+                    {/* Strava-only extras */}
+                    {extras.map((a) => {
                       const date = safeParseDate(a.start_date_local);
                       const distance = a.distance ? `${(a.distance / 1609).toFixed(1)} mi` : '';
                       const hr = a.average_heartrate ? `${Math.round(a.average_heartrate)} bpm` : '';
@@ -582,6 +601,14 @@ export default function MobileCalendarView({
           onClose={() => setSelectedSession(null)}
           completedSessions={completedSessions}
           onCompletedUpdate={(updatedList) => setCompletedSessions(updatedList)}
+          onSessionUpdated={(updatedSession) => {
+            setSessionsState((prev) =>
+              prev.map((s) => (s.id === updatedSession.id ? { ...s, details: updatedSession.details } : s))
+            );
+            setSelectedSession((prev) =>
+              prev?.id === updatedSession.id ? { ...prev, details: updatedSession.details } : prev
+            );
+          }}
           onSessionDeleted={(sessionId) => {
             setSessionsState((prev) => prev.filter((s) => s.id !== sessionId));
             setCompletedSessions((prev) =>

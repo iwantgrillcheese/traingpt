@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabase-client';
 
 export default function ProfilePage() {
@@ -271,6 +272,20 @@ export default function ProfilePage() {
           >
             Manage Subscription
           </button>
+        </section>
+
+        <section className="bg-white border rounded-xl p-6 shadow-sm">
+          <h2 className="text-lg font-medium mb-2">Fueling</h2>
+          <p className="text-sm text-gray-600 mb-4">
+            Want workout-specific nutrition guidance? Turn on fueling when generating a detailed
+            session from your calendar.
+          </p>
+          <Link
+            href="/fueling"
+            className="inline-flex rounded-md border border-black/10 px-4 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50 transition"
+          >
+            Open fueling shop guide
+          </Link>
         </section>
 
         {/* Danger Zone */}
