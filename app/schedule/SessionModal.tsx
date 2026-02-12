@@ -266,6 +266,18 @@ export default function SessionModal({
     setBodyFatPct('');
     setSweatRateLPerHour('');
   }, [session?.id]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
   const notesChanged = notesDraft !== (session?.details ?? '');
 
   const handleApplyMood = (mood: string) => {
@@ -477,8 +489,8 @@ export default function SessionModal({
   const sportLabel = formatSportLabel(session.sport);
 
   const panelClass = isMobile
-    ? 'w-full max-w-none rounded-t-3xl border border-black/10 bg-white shadow-[0_30px_80px_rgba(0,0,0,0.4)]'
-    : 'w-full max-w-3xl rounded-3xl border border-black/10 bg-white shadow-[0_35px_100px_rgba(0,0,0,0.38)]';
+    ? 'w-full max-w-none rounded-t-3xl border border-black/10 bg-white shadow-[0_30px_80px_rgba(0,0,0,0.4)] h-[85vh] max-h-[85vh] overflow-hidden'
+    : 'w-full max-w-3xl rounded-3xl border border-black/10 bg-white shadow-[0_35px_100px_rgba(0,0,0,0.38)] h-[85vh] max-h-[85vh] overflow-hidden';
 
   return (
     <Dialog open={open} onClose={onClose} className="relative z-50">
@@ -492,11 +504,7 @@ export default function SessionModal({
       >
         <Dialog.Panel
           className={panelClass}
-          style={
-            isMobile
-              ? { height: '72vh', paddingBottom: 'env(safe-area-inset-bottom)' }
-              : undefined
-          }
+          style={isMobile ? { paddingBottom: 'env(safe-area-inset-bottom)' } : undefined}
         >
           {isMobile && (
             <div className="pt-3 pb-2 flex justify-center">
@@ -508,7 +516,7 @@ export default function SessionModal({
             {/* Header */}
             <div
               className={clsx(
-                'rounded-2xl border px-4 py-4 sm:px-5 sm:py-5 text-white',
+                'sticky top-0 z-20 rounded-2xl border px-4 py-4 sm:px-5 sm:py-5 text-white',
                 'bg-gradient-to-r',
                 sportTheme.gradient,
                 sportTheme.softBorder
@@ -559,15 +567,11 @@ export default function SessionModal({
                       : '—'
                   }
                 />
-                <QuickStat label="Sport" value={formatSportLabel(session.sport)} />
-                <QuickStat label="Planned" value={plannedDuration ?? '—'} />
-                <QuickStat label="Distance" value={plannedDistance ?? '—'} />
-                <QuickStat label="Duration" value={plannedDuration ?? '—'} />
               </div>
             </div>
 
             {/* Body */}
-            <div className="mt-5 flex-1 overflow-auto pr-1">
+            <div className="mt-4 flex-1 overflow-y-auto overscroll-contain pr-1 [-webkit-overflow-scrolling:touch]">
               {/* Workout */}
               <div className={clsx('rounded-2xl border bg-white', sportTheme.softBorder)}>
                 <div className={clsx('px-4 pt-4 pb-3 border-b', sportTheme.softBorder, sportTheme.softBg)}>
@@ -698,10 +702,9 @@ export default function SessionModal({
                   </div>
                 </div>
               )}
-            </div>
 
-            {/* Footer */}
-            <div className="mt-5 pt-4 border-t border-black/5">
+              {/* Footer */}
+            <div className="mt-5 border-t border-black/5 pt-4 pb-3">
               <div className="mb-4 rounded-xl border border-black/10 bg-zinc-50/70 p-4">
                 <label className="flex items-center gap-3 text-[14px] text-zinc-800">
                   <input
@@ -798,6 +801,7 @@ export default function SessionModal({
                   </button>
                 ) : null}
               </div>
+            </div>
             </div>
           </div>
         </Dialog.Panel>
