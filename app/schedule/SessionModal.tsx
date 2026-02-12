@@ -789,47 +789,6 @@ export default function SessionModal({
                       Open fueling shop guide
                     </a>
                   </>
-                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    <div>
-                      <label className="mb-1 block text-[12px] text-zinc-600">Body weight (kg)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        value={bodyWeightKg}
-                        onChange={(e) => setBodyWeightKg(e.target.value)}
-                        className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-[14px]"
-                        placeholder="70"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="mb-1 block text-[12px] text-zinc-600">Body fat % (optional)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="60"
-                        step="0.1"
-                        value={bodyFatPct}
-                        onChange={(e) => setBodyFatPct(e.target.value)}
-                        className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-[14px]"
-                        placeholder="18"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="mb-1 block text-[12px] text-zinc-600">Sweat rate L/hr (optional)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        value={sweatRateLPerHour}
-                        onChange={(e) => setSweatRateLPerHour(e.target.value)}
-                        className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-[14px]"
-                        placeholder="0.8"
-                      />
-                    </div>
-                  </div>
                 ) : null}
               </div>
 
