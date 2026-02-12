@@ -191,6 +191,22 @@ function ChevronIcon(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
+function sportLabelFromType(sport: ReturnType<typeof inferSport>) {
+  if (sport === 'bike') return 'Bike';
+  if (sport === 'run') return 'Run';
+  if (sport === 'swim') return 'Swim';
+  if (sport === 'strength') return 'Strength';
+  return 'Session';
+}
+
+function sportToneClasses(sport: ReturnType<typeof inferSport>) {
+  if (sport === 'bike') return 'bg-zinc-100 text-zinc-700 border-zinc-200';
+  if (sport === 'run') return 'bg-zinc-900 text-zinc-100 border-zinc-800';
+  if (sport === 'swim') return 'bg-zinc-200 text-zinc-700 border-zinc-300';
+  if (sport === 'strength') return 'bg-zinc-800 text-zinc-100 border-zinc-700';
+  return 'bg-zinc-100 text-zinc-700 border-zinc-200';
+}
+
 export default function MobileCalendarView({
   sessions,
   completedSessions: initialCompleted,
@@ -314,14 +330,14 @@ export default function MobileCalendarView({
   }
 
   return (
-    <div className="bg-[#f7f7f8] min-h-[100dvh] text-zinc-950">
+    <div className="bg-zinc-100 min-h-[100dvh] text-zinc-950">
       {/* Sticky top bar */}
-      <div className="sticky top-0 z-20 bg-[#f7f7f8]/85 backdrop-blur border-b border-black/5">
+      <div className="sticky top-0 z-20 bg-zinc-100/95 backdrop-blur border-b border-black/5">
         <div className="pt-[env(safe-area-inset-top)]" />
         <div className="px-4 py-3 flex items-center justify-between">
           <div>
             <div className="text-[12px] tracking-wide text-zinc-500 uppercase">Schedule</div>
-            <div className="text-[20px] font-semibold tracking-tight text-zinc-950">This Plan</div>
+            <div className="text-[20px] font-semibold tracking-tight text-zinc-950">Weekly Flow</div>
           </div>
 
           <button
@@ -334,12 +350,21 @@ export default function MobileCalendarView({
         </div>
       </div>
 
-      <div className="px-4 pb-28 pt-4">
+      <div className="px-4 pb-28 pt-4 space-y-6">
         {Object.entries(groupedByWeek).map(([weekLabel, { sessions, extras, start, end }]) => {
           const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
           const isPast = isBefore(start, currentWeekStart);
           const isCollapsed = collapsedWeeks[weekLabel];
           const rangeLabel = `${format(start, 'MMM d')} – ${format(end, 'MMM d')}`;
+          const completedCount = sessions.filter((session) =>
+            completedSessions.some(
+              (c) => c.date === session.date && c.session_title === session.title
+            )
+          ).length;
+          const keySessionCount = sessions.filter((session) => isKeySession(session.title || '')).length;
+          const completionRate = sessions.length
+            ? Math.round((completedCount / sessions.length) * 100)
+            : 0;
 
           return (
             <div
@@ -347,29 +372,55 @@ export default function MobileCalendarView({
               ref={(el) => {
                 weekRefs.current[weekLabel] = el;
               }}
-              className="mb-6 scroll-mt-24"
+              className="scroll-mt-24"
             >
-              <div className="flex items-end justify-between mb-2">
-                <div>
-                  <div className="text-[13px] text-zinc-600">{rangeLabel}</div>
-                  <h2 className="text-[18px] font-semibold text-zinc-950">{weekLabel}</h2>
+              <div className="rounded-2xl border border-black/5 bg-white/90 shadow-[0_10px_30px_rgba(0,0,0,0.06)] p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-[12px] uppercase tracking-wide text-zinc-500">{rangeLabel}</div>
+                    <h2 className="text-[20px] font-semibold tracking-tight text-zinc-950 mt-1">
+                      {weekLabel}
+                    </h2>
+                  </div>
+
+                  {isPast && (
+                    <button
+                      onClick={() =>
+                        setCollapsedWeeks((prev) => ({ ...prev, [weekLabel]: !prev[weekLabel] }))
+                      }
+                      className="rounded-full border border-black/10 px-3 py-1.5 text-[12px] font-medium text-zinc-700"
+                    >
+                      {isCollapsed ? 'Expand' : 'Collapse'}
+                    </button>
+                  )}
                 </div>
 
-                {isPast && (
-                  <button
-                    onClick={() =>
-                      setCollapsedWeeks((prev) => ({ ...prev, [weekLabel]: !prev[weekLabel] }))
-                    }
-                    className="text-[13px] text-zinc-600 hover:text-zinc-900 underline underline-offset-2"
-                  >
-                    {isCollapsed ? 'Show' : 'Hide'}
-                  </button>
-                )}
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  <div className="rounded-xl border border-black/5 bg-zinc-50 px-3 py-2">
+                    <div className="text-[11px] text-zinc-500">Sessions</div>
+                    <div className="text-[16px] font-semibold text-zinc-900">{sessions.length}</div>
+                  </div>
+                  <div className="rounded-xl border border-black/5 bg-zinc-50 px-3 py-2">
+                    <div className="text-[11px] text-zinc-500">Done</div>
+                    <div className="text-[16px] font-semibold text-zinc-900">{completedCount}</div>
+                  </div>
+                  <div className="rounded-xl border border-black/5 bg-zinc-50 px-3 py-2">
+                    <div className="text-[11px] text-zinc-500">Key work</div>
+                    <div className="text-[16px] font-semibold text-zinc-900">{keySessionCount}</div>
+                  </div>
+                </div>
+
+                <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-zinc-200">
+                  <div
+                    className="h-full rounded-full bg-zinc-900 transition-all"
+                    style={{ width: `${completionRate}%` }}
+                  />
+                </div>
               </div>
 
               {!isCollapsed && (
-                <div className="rounded-2xl overflow-hidden border border-black/5 bg-white shadow-[0_14px_35px_rgba(0,0,0,0.08)]">
-                  <div className="divide-y divide-black/5">
+                <div className="mt-3 space-y-2.5">
+                  <div className="rounded-2xl overflow-hidden border border-black/5 bg-white shadow-[0_14px_35px_rgba(0,0,0,0.08)]">
                     {sessions.map((session) => {
                       const title = session.title || session.stravaActivity?.name || 'Unnamed Session';
                       const date = safeParseDate(session.date);
@@ -382,49 +433,34 @@ export default function MobileCalendarView({
                       const detail = deriveDetail(title);
                       const key = isKeySession(title);
 
-                      const sportLabel =
-                        sport === 'bike'
-                          ? 'Bike'
-                          : sport === 'run'
-                          ? 'Run'
-                          : sport === 'swim'
-                          ? 'Swim'
-                          : sport === 'strength'
-                          ? 'Strength'
-                          : 'Session';
+                      const sportLabel = sportLabelFromType(sport);
 
                       return (
                         <button
                           key={session.id}
                           onClick={() => setSelectedSession(session)}
                           className={[
-                            'relative w-full text-left px-4 py-4 flex items-center gap-3 transition',
-                            'active:bg-black/[0.03]',
+                            'relative w-full text-left px-4 py-4 flex items-center gap-3 transition border-b border-black/5 last:border-b-0',
+                            'active:bg-black/[0.03] hover:bg-zinc-50',
                             completed ? 'opacity-70' : 'opacity-100',
                           ].join(' ')}
                         >
                           {/* Key-session accent bar */}
                           {key && (
                             <span
-                              className="absolute left-0 top-0 bottom-0 w-[2px] bg-orange-500"
+                              className="absolute left-0 top-0 bottom-0 w-[2px] bg-zinc-500"
                               aria-hidden="true"
                             />
                           )}
 
-                        {/* Sport marker */}
-          <div className="shrink-0 h-9 w-9 rounded-full bg-zinc-50 border border-black/5 flex items-center justify-center">
-                    <span className="text-[13px] font-semibold text-zinc-700 tracking-wide">
-               {sport === 'bike'
-      ? 'B'
-      : sport === 'run'
-      ? 'R'
-      : sport === 'swim'
-      ? 'S'
-      : sport === 'strength'
-      ? 'T'
-      : ''}
-  </span>
-</div>
+                          <div
+                            className={[
+                              'shrink-0 h-10 w-10 rounded-xl border flex items-center justify-center',
+                              sportToneClasses(sport),
+                            ].join(' ')}
+                          >
+                            <SportIcon sport={sport} className="h-5 w-5" />
+                          </div>
 
 
                           <div className="min-w-0 flex-1">
@@ -440,8 +476,10 @@ export default function MobileCalendarView({
                               )}
                             </div>
 
-                            <div className="mt-0.5 text-[13px] text-zinc-600 truncate">
-                              <span className="text-zinc-700">{sportLabel}</span>
+                            <div className="mt-1 text-[13px] text-zinc-600 truncate">
+                              <span className="rounded-full border border-black/10 px-1.5 py-0.5 text-[11px] font-medium text-zinc-700">
+                                {sportLabel}
+                              </span>
                               <span className="text-zinc-400">{'  •  '}</span>
                               <span>{format(date, 'EEE, MMM d')}</span>
                               {detail ? (
@@ -458,33 +496,33 @@ export default function MobileCalendarView({
                       );
                     })}
 
-                    {Array.from(
-                      new Set(
-                        sessions.map((s) => normalizeDate(safeParseDate(s.date))).filter(Boolean)
-                      )
-                    )
+                    {Array.from(new Set(sessions.map((s) => normalizeDate(safeParseDate(s.date))).filter(Boolean)))
                       .sort()
                       .map((dateKey) => (
-                        <div key={`add-${dateKey}`} className="border-t border-black/5 px-4 py-3">
+                        <div key={`add-${dateKey}`} className="px-4 py-2.5 border-b border-black/5 last:border-b-0">
                           <button
                             type="button"
                             onClick={() => setAddSessionDate(safeParseDate(dateKey))}
-                            className="inline-flex w-full items-center justify-center rounded-md border border-dashed border-black/15 bg-white px-3 py-2 text-[13px] font-medium text-zinc-600 hover:text-zinc-900"
+                            className="inline-flex w-full items-center justify-center rounded-xl border border-dashed border-black/20 bg-zinc-50 px-3 py-2 text-[13px] font-medium text-zinc-600 hover:text-zinc-900"
                           >
                             + Add session for {format(safeParseDate(dateKey), 'EEE, MMM d')}
                           </button>
                         </div>
                       ))}
+                  </div>
 
-                    {/* Strava-only extras */}
-                    {extras.map((a) => {
+                  {/* Strava-only extras */}
+                  {extras.map((a) => {
                       const date = safeParseDate(a.start_date_local);
                       const distance = a.distance ? `${(a.distance / 1609).toFixed(1)} mi` : '';
                       const hr = a.average_heartrate ? `${Math.round(a.average_heartrate)} bpm` : '';
 
                       return (
-                        <div key={a.id} className="px-4 py-4 flex items-center gap-3 bg-zinc-50">
-                          <div className="shrink-0 h-10 w-10 rounded-full bg-white border border-black/5 flex items-center justify-center">
+                        <div
+                          key={a.id}
+                          className="px-4 py-4 flex items-center gap-3 rounded-2xl border border-black/5 bg-zinc-50"
+                        >
+                          <div className="shrink-0 h-10 w-10 rounded-xl bg-white border border-black/5 flex items-center justify-center">
                             <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5 text-zinc-800">
                               <path
                                 d="M12 4v12m0 0 4-4m-4 4-4-4"
@@ -522,7 +560,6 @@ export default function MobileCalendarView({
                         </div>
                       );
                     })}
-                  </div>
                 </div>
               )}
             </div>
