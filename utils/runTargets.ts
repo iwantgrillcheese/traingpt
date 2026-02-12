@@ -28,19 +28,17 @@ export function isRunSession(text: string): boolean {
 
 export function isHardRun(text: string): boolean {
   const s = text.toLowerCase();
-  if (s.includes("tempo")) return true;
-  if (s.includes("threshold")) return true;
-  if (s.includes("interval")) return true;
-  if (s.includes("vo2")) return true;
-  if (s.includes("hill")) return true;
-  if (s.includes("race pace")) return true;
-  if (s.includes("speed")) return true;
-
-  if (s.match(/\b\d+\s*x\s*\d+\b/)) return true;
-  if (s.match(/\b\d+x\d+\b/)) return true;
-  if (s.match(/\b\d+\s*x\s*\d+\s*m\b/)) return true;
-
-  return false;
+  return (
+    s.includes("tempo") ||
+    s.includes("threshold") ||
+    s.includes("interval") ||
+    s.includes("vo2") ||
+    s.includes("hill") ||
+    s.includes("race pace") ||
+    s.includes("speed") ||
+    /\b\d+\s*x\s*\d+\b/.test(s) ||
+    /\b\d+x\d+\b/.test(s)
+  );
 }
 
 export function summarizeRunWeek(week?: WeekJson) {
@@ -101,20 +99,16 @@ function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
-function isTrueBeginner(exp: ReturnType<typeof normalizeExperience>, prev: ReturnType<typeof summarizeRunWeek>) {
-  if (exp === "advanced") return false;
-  if (exp === "intermediate") return prev.totalMin < 120;
-  return prev.totalMin < 150;
-}
-
-function isMarathon(raceType?: string) {
+function raceFamily(raceType?: string) {
   const s = String(raceType ?? "").toLowerCase();
-  // be forgiving: "marathon", "26.2", etc.
-  return s.includes("marathon") || s.includes("26.2");
+  if (s.includes("marathon") || s.includes("26.2")) return "marathon" as const;
+  if (s.includes("half") || s.includes("13.1")) return "half" as const;
+  if (s.includes("10k")) return "10k" as const;
+  if (s.includes("5k")) return "5k" as const;
+  return "other" as const;
 }
 
 function weeksUntilRace(weekStartISO: string, raceISO?: string) {
-  // returns whole weeks from week start to race date (floor)
   if (!raceISO) return null;
   const a = new Date(`${weekStartISO}T00:00:00`).getTime();
   const b = new Date(`${raceISO}T00:00:00`).getTime();
@@ -131,147 +125,128 @@ export function computeRunTargets(args: {
 }) {
   const { userParams, weekMeta, weekIndex, prevWeek } = args;
   const exp = normalizeExperience(userParams.experience);
-
+  const race = raceFamily(userParams.raceType);
   const prev = summarizeRunWeek(prevWeek);
+  const wtr = weeksUntilRace(weekMeta.startDate, userParams.raceDate);
+
   const maxHours = Number(userParams.maxHours || 0);
+  const baseFromAvailability = Math.round(clamp(maxHours, 3, 14) * 60 * 0.78);
+  const baseFromPrev = prev.totalMin > 0 ? prev.totalMin : baseFromAvailability;
 
-  const marathon = isMarathon(userParams.raceType);
-  const wtr = weeksUntilRace(weekMeta.startDate, userParams.raceDate); // can be null
-
-  const trueBeginner = isTrueBeginner(exp, prev);
-  const inRamp = trueBeginner && weekIndex <= 2; // Weeks 1–3
-
-  const baseWeeklyFromPrev = prev.totalMin > 0 ? prev.totalMin : 0;
-
-  // Conservative fallback baselines (when no prev week)
-  const fallbackWeeklyMin =
-    exp === "advanced"
-      ? Math.max(240, Math.round((maxHours || 6) * 50))
-      : exp === "intermediate"
-        ? Math.max(180, Math.round((maxHours || 5) * 45))
-        : Math.max(120, Math.round((maxHours || 4) * 35));
-
-  // Explicit beginner ramp if no prior data
-  const rampWeeklyTargets = [140, 155, 170]; // week1..week3
-  const rampLongTargets = [45, 50, 55]; // week1..week3
-
-  const baseWeeklyMin = baseWeeklyFromPrev > 0 ? baseWeeklyFromPrev : fallbackWeeklyMin;
-
-  // Ramp rate (post-ramp)
-  const rampPct = exp === "beginner" ? 0.06 : exp === "advanced" ? 0.09 : 0.075;
-
-  // Deload reduces volume
-  const deloadMult = weekMeta.deload ? 0.80 : 1.0;
-
-  // Phase behavior
+  const deloadMult = weekMeta.deload ? 0.82 : 1;
   const phaseMult =
     weekMeta.phase === "Base" ? 1.0 :
-    weekMeta.phase === "Build" ? 1.04 :
+    weekMeta.phase === "Build" ? 1.05 :
     weekMeta.phase === "Peak" ? 1.02 :
-    weekMeta.phase === "Taper" ? 0.70 :
-    1.0;
+    0.72; // taper
 
-  // Marathon-aware ceilings (THIS IS THE BIG FIX)
-  const peakWeeklyMin =
-    !marathon
-      ? (exp === "advanced" ? 500 : exp === "intermediate" ? 380 : 260)
-      : (exp === "advanced" ? 560 : exp === "intermediate" ? 440 : 340);
+  const rampPct = exp === "advanced" ? 0.08 : exp === "intermediate" ? 0.07 : 0.06;
 
-  const weeklyMinFloor =
-    exp === "advanced" ? 240 :
-    exp === "intermediate" ? 160 :
-    120;
+  const weeklyCeilingByExp = {
+    beginner: race === "marathon" ? 390 : 300,
+    intermediate: race === "marathon" ? 520 : 420,
+    advanced: race === "marathon" ? 650 : 520,
+    unknown: race === "marathon" ? 480 : 360,
+  } as const;
 
-  let targetWeeklyMin: number;
+  const weeklyFloorByExp = {
+    beginner: 130,
+    intermediate: 180,
+    advanced: 240,
+    unknown: 160,
+  } as const;
 
-  if (inRamp && baseWeeklyFromPrev === 0) {
-    targetWeeklyMin = rampWeeklyTargets[weekIndex] ?? rampWeeklyTargets[rampWeeklyTargets.length - 1];
-  } else {
-    const progressed = Math.round(baseWeeklyMin * (1 + (weekMeta.deload ? 0 : rampPct)));
-    const additive = (weekMeta.phase === "Base" || weekMeta.phase === "Build") ? weekIndex * 4 : 0;
-    targetWeeklyMin = Math.round((progressed + additive) * phaseMult * deloadMult);
+  const expKey = (exp in weeklyCeilingByExp ? exp : "unknown") as keyof typeof weeklyCeilingByExp;
+  let targetWeeklyMin = Math.round(baseFromPrev * (weekMeta.deload ? 1 : 1 + rampPct) * phaseMult * deloadMult);
+  targetWeeklyMin = clamp(targetWeeklyMin, weeklyFloorByExp[expKey], weeklyCeilingByExp[expKey]);
+
+  // Marathon-specific long run progression, with short-cycle safety modes.
+  const marathonPeakByExp = {
+    beginner: 160,
+    intermediate: 190,
+    advanced: 220,
+    unknown: 180,
+  } as const;
+
+  const genericPeakByExp = {
+    beginner: 100,
+    intermediate: 130,
+    advanced: 160,
+    unknown: 120,
+  } as const;
+
+  const peakLongRunMin = race === "marathon" ? marathonPeakByExp[expKey] : genericPeakByExp[expKey];
+
+  let longPct = race === "marathon" ? 0.3 : 0.26;
+  if (race === "marathon" && weekMeta.phase === "Build") longPct = 0.33;
+  if (race === "marathon" && weekMeta.phase === "Peak") longPct = 0.35;
+
+  if (wtr !== null && wtr <= 8 && wtr > 3) longPct = Math.max(longPct, race === "marathon" ? 0.34 : 0.28);
+  if (wtr !== null && wtr <= 3) longPct = race === "marathon" ? 0.24 : 0.2;
+
+  let targetLongRunMin = Math.round(targetWeeklyMin * longPct);
+
+  // Floor by time-to-race for marathon realism (except taper/deload).
+  let minLongRunMin = 0;
+  if (race === "marathon" && !weekMeta.deload && weekMeta.phase !== "Taper") {
+    if (wtr === null || wtr > 12) {
+      minLongRunMin = exp === "beginner" ? 90 : exp === "advanced" ? 120 : 105;
+    } else if (wtr > 8) {
+      minLongRunMin = exp === "beginner" ? 110 : exp === "advanced" ? 145 : 130;
+    } else if (wtr > 3) {
+      minLongRunMin = exp === "beginner" ? 100 : exp === "advanced" ? 135 : 120;
+    }
   }
 
-  targetWeeklyMin = clamp(targetWeeklyMin, weeklyMinFloor, peakWeeklyMin);
-
-  // Long run peak target (time-on-feet)
-  const peakLongRunMin =
-    !marathon
-      ? (exp === "advanced" ? 150 : exp === "intermediate" ? 120 : 90)
-      : (exp === "advanced" ? 200 : exp === "intermediate" ? 180 : 160);
-
-  // Long run fraction (marathon plans should not be stuck at 25%)
-  // Let it float higher in Build/Peak.
-  const longPct =
-    !marathon
-      ? (exp === "beginner" ? 0.25 : exp === "advanced" ? 0.33 : 0.30)
-      : (weekMeta.phase === "Peak" ? 0.34 : weekMeta.phase === "Build" ? 0.32 : 0.28);
-
-  let targetLongRunMin: number;
-
-  if (inRamp && baseWeeklyFromPrev === 0) {
-    targetLongRunMin = rampLongTargets[weekIndex] ?? rampLongTargets[rampLongTargets.length - 1];
-  } else {
-    // Primary target based on weekly minutes
-    targetLongRunMin = Math.round(targetWeeklyMin * longPct);
+  if (minLongRunMin > 0) {
+    targetLongRunMin = Math.max(targetLongRunMin, minLongRunMin);
   }
 
-  // Taper behavior: pull long run down as race approaches
-  if (marathon && weekMeta.phase === "Taper") {
-    // If we know weeks-to-race, taper more aggressively near race week
-    const taperMult = wtr !== null && wtr <= 1 ? 0.45 : 0.60;
+  // Progression cap from previous long run.
+  const prevLong = prev.longRunMin || 0;
+  const maxStep = weekMeta.deload ? 0 : race === "marathon" ? 15 : 12;
+  const longRunProgressionCap = prevLong > 0 ? prevLong + maxStep : peakLongRunMin;
+
+  // Single-run absolute cap for safety.
+  const maxSingleRunMin =
+    exp === "beginner" ? (race === "marathon" ? 165 : 110) :
+    exp === "advanced" ? (race === "marathon" ? 230 : 170) :
+    (race === "marathon" ? 200 : 140);
+
+  // Taper reductions
+  if (weekMeta.phase === "Taper") {
+    const taperMult = wtr !== null && wtr <= 1 ? 0.45 : 0.62;
     targetLongRunMin = Math.round(targetLongRunMin * taperMult);
+    minLongRunMin = 0;
   }
 
-  // Absolute caps early (prevents “too much too soon”)
-  const absLongCap =
-    trueBeginner ? (inRamp ? 60 : 95) :
-    exp === "intermediate" ? (weekIndex <= 1 ? 95 : 140) :
-    180;
+  targetLongRunMin = clamp(targetLongRunMin, 45, peakLongRunMin);
+  const longRunMax = clamp(Math.min(targetLongRunMin, longRunProgressionCap), 45, maxSingleRunMin);
 
-  targetLongRunMin = Math.min(targetLongRunMin, peakLongRunMin, absLongCap);
-
-  // Quality caps
   const qualityDays =
     weekMeta.phase === "Base" ? 1 :
-    weekMeta.phase === "Build" ? 2 :
-    weekMeta.phase === "Peak" ? 2 :
+    weekMeta.phase === "Build" ? (exp === "beginner" ? 1 : 2) :
+    weekMeta.phase === "Peak" ? (exp === "beginner" ? 1 : 2) :
     1;
 
   const maxQualityMin =
     weekMeta.phase === "Base" ? 25 :
-    weekMeta.phase === "Build" ? 45 :
+    weekMeta.phase === "Build" ? 50 :
     weekMeta.phase === "Peak" ? 55 :
     20;
-
-  const effectiveQualityDays = inRamp ? 1 : qualityDays;
-  const effectiveMaxQualityMin = inRamp ? Math.min(maxQualityMin, 20) : maxQualityMin;
-
-  // Long run max cap: allow growth vs prev long run, but keep it controlled
-  const prevLong = prev.longRunMin || 0;
-
-  const stepUp =
-    inRamp ? 5 :
-    weekMeta.phase === "Base" ? 8 :
-    weekMeta.phase === "Build" ? 12 :
-    weekMeta.phase === "Peak" ? 10 :
-    8;
-
-  const growthCap = prevLong > 0 ? prevLong + stepUp : absLongCap;
-
-  const longRunMax =
-    prevLong > 0
-      ? Math.min(Math.max(targetLongRunMin, prevLong), growthCap, peakLongRunMin)
-      : targetLongRunMin;
 
   return {
     targetWeeklyMin,
     targetLongRunMin,
+    minLongRunMin,
     longRunMax,
-    qualityDays: effectiveQualityDays,
-    maxQualityMin: effectiveMaxQualityMin,
+    maxSingleRunMin,
+    qualityDays,
+    maxQualityMin,
     prevWeeklyMin: prev.totalMin || 0,
     prevLongRunMin: prev.longRunMin || 0,
     experienceNorm: exp,
+    raceFamily: race,
+    weeksToRace: wtr,
   };
 }

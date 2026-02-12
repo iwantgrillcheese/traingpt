@@ -37,8 +37,10 @@ export function validateRunWeek(args: {
 
     // NEW (optional but strongly recommended)
     targetLongRunMin?: number;
+    minLongRunMin?: number;
     maxQualityMin?: number;
     maxSingleRunMin?: number; // helps enforce "no 60min day one" even if LR max is loose
+    raceFamily?: string;
   };
 
   prevWeek?: WeekJson;
@@ -81,16 +83,10 @@ export function validateRunWeek(args: {
     errors.push(`Long run ${curr.longRunMin} exceeds max ${targets.longRunMax}.`);
   }
 
-  // 3b) NEW: Long run should roughly match targetLongRunMin (if provided and parseable)
-  if (
-    typeof targets.targetLongRunMin === "number" &&
-    targets.targetLongRunMin > 0 &&
-    curr.longRunMin > 0
-  ) {
-    // Tolerance:
-    // - allow ±15% OR ±10 minutes (whichever is larger), because some weeks will split volume differently
-    const tolPct = Math.round(targets.targetLongRunMin * 0.15);
-    const tol = Math.max(10, tolPct);
+  // 3b) Long run should match target band, with stricter floor for marathon non-taper weeks.
+  if (typeof targets.targetLongRunMin === "number" && targets.targetLongRunMin > 0 && curr.longRunMin > 0) {
+    const tolPct = Math.round(targets.targetLongRunMin * 0.12);
+    const tol = Math.max(8, tolPct);
 
     const minLR = clamp(targets.targetLongRunMin - tol, 0, targets.longRunMax);
     const maxLR = clamp(targets.targetLongRunMin + tol, 0, targets.longRunMax);
@@ -100,6 +96,16 @@ export function validateRunWeek(args: {
         `Long run ${curr.longRunMin} not within target tolerance (${minLR}-${maxLR}) for target ${targets.targetLongRunMin}.`
       );
     }
+  }
+
+  if (
+    typeof targets.minLongRunMin === "number" &&
+    targets.minLongRunMin > 0 &&
+    !weekMeta.deload &&
+    curr.longRunMin > 0 &&
+    curr.longRunMin < targets.minLongRunMin
+  ) {
+    errors.push(`Long run ${curr.longRunMin} below minimum floor ${targets.minLongRunMin}.`);
   }
 
   // 4) Hard day count + no back-to-back hard days
