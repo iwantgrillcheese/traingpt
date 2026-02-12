@@ -162,6 +162,11 @@ function buildStravaHistorySummary(
     .sort((a, b) => b[1].sec - a[1].sec)
     .slice(0, 4);
 
+  const sportSummaryParts = topSports.map(
+    ([sport, data]) => `${sport}: ${data.sessions} sessions, ${secondsToHMM(data.sec)}`
+  );
+
+  const sportLines = sportSummaryParts.join(' | ');
   const sportLines = topSports
     .map(([sport, data]) => `${sport}: ${data.sessions} sessions, ${secondsToHMM(data.sec)}`)
     .join(" | ");
