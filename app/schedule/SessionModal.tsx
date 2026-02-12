@@ -513,10 +513,11 @@ export default function SessionModal({
           )}
 
           <div className={clsx(isMobile ? 'px-5 pb-5' : 'p-7', 'h-full flex flex-col')}>
+            <div className={clsx('h-full overflow-hidden rounded-2xl border bg-gradient-to-b from-white to-zinc-50/80', sportTheme.softBorder)}>
             {/* Header */}
             <div
               className={clsx(
-                'sticky top-0 z-20 rounded-2xl border px-4 py-4 sm:px-5 sm:py-5 text-white',
+                'sticky top-0 z-20 border-b px-4 py-4 sm:px-5 sm:py-5 text-white',
                 'bg-gradient-to-r',
                 sportTheme.gradient,
                 sportTheme.softBorder
@@ -571,9 +572,9 @@ export default function SessionModal({
             </div>
 
             {/* Body */}
-            <div className="mt-4 flex-1 overflow-y-auto overscroll-contain pr-1 [-webkit-overflow-scrolling:touch]">
+            <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4 [-webkit-overflow-scrolling:touch]">
               {/* Workout */}
-              <div className={clsx('rounded-2xl border bg-white', sportTheme.softBorder)}>
+              <div className={clsx('rounded-2xl border bg-white/80 backdrop-blur-sm', sportTheme.softBorder)}>
                 <div className={clsx('px-4 pt-4 pb-3 border-b', sportTheme.softBorder, sportTheme.softBg)}>
                   <div className="text-[12px] font-semibold tracking-wide text-zinc-500 uppercase">
                     Workout
@@ -620,14 +621,14 @@ export default function SessionModal({
                   )}
 
                   {session.details ? (
-                    <div className="mt-4 rounded-xl border border-black/5 bg-zinc-50/70 p-3">
+                    <div className={clsx('mt-4 rounded-xl border p-3', sportTheme.softBorder, sportTheme.softBg)}>
                       <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
                         Session notes
                       </div>
                       <div className="mt-1 text-[13px] leading-relaxed text-zinc-700">{session.details}</div>
                     </div>
                   ) : null}
-                  <div className="mt-4 rounded-xl border border-black/5 bg-zinc-50/70 p-3">
+                  <div className={clsx('mt-4 rounded-xl border p-3', sportTheme.softBorder, sportTheme.softBg)}>
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
                         How did it feel?
@@ -670,7 +671,7 @@ export default function SessionModal({
 
               {/* Metrics */}
               {stravaActivity && (
-                <div className="mt-4 rounded-2xl border border-black/5 bg-white">
+                <div className={clsx('mt-4 rounded-2xl border bg-white/80 backdrop-blur-sm', sportTheme.softBorder)}>
                   <div className="px-4 pt-4 pb-3 border-b border-black/5">
                     <div className="text-[12px] font-semibold tracking-wide text-zinc-500 uppercase">
                       Completed
@@ -704,8 +705,8 @@ export default function SessionModal({
               )}
 
               {/* Footer */}
-            <div className="mt-5 border-t border-black/5 pt-4 pb-3">
-              <div className="mb-4 rounded-xl border border-black/10 bg-zinc-50/70 p-4">
+            <div className={clsx('mt-4 border-t pt-4 pb-3 px-1 sm:px-0', sportTheme.softBorder, sportTheme.softBg)}>
+              <div className={clsx('mb-4 rounded-xl border bg-white/70 p-4', sportTheme.softBorder)}>
                 <label className="flex items-center gap-3 text-[14px] text-zinc-800">
                   <input
                     type="checkbox"
@@ -774,7 +775,7 @@ export default function SessionModal({
                 <button
                   onClick={handleGenerate}
                   disabled={loading}
-                  className="w-full rounded-xl bg-zinc-950 text-white text-[14px] font-semibold px-4 py-3 disabled:opacity-50 active:translate-y-[0.5px]"
+                  className={clsx('w-full rounded-xl bg-gradient-to-r text-white text-[14px] font-semibold px-4 py-3 disabled:opacity-50 active:translate-y-[0.5px]', sportTheme.gradient)}
                 >
                   {loading ? 'Generating…' : parsedWorkout.length ? 'Regenerate workout' : 'Generate workout'}
                 </button>
@@ -803,6 +804,7 @@ export default function SessionModal({
               </div>
             </div>
             </div>
+          </div>
           </div>
         </Dialog.Panel>
       </div>
