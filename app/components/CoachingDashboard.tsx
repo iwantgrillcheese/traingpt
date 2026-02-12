@@ -18,6 +18,7 @@ import {
   format,
 } from 'date-fns';
 import clsx from 'clsx';
+import { calculateReadiness } from '@/lib/readiness';
 
 
 
@@ -40,6 +41,7 @@ type Props = {
   weeklyVolume: number[];
   weeklySummary: any;
   stravaConnected: boolean;
+  raceDate?: string | null;
 };
 
 type WindowKey = 'L7' | 'L30' | 'L90' | 'M6' | 'Y1';
@@ -120,6 +122,7 @@ export default function CoachingDashboard({
   weeklyVolume,
   weeklySummary,
   stravaConnected,
+  raceDate,
 }: Props) {
 const [chatOpen, setChatOpen] = useState(false);
 const [chatPrefill, setChatPrefill] = useState<string>('');
@@ -210,6 +213,16 @@ const [chatPrefill, setChatPrefill] = useState<string>('');
     return clampPct((completedMinutes / plannedMinutes) * 100);
   }, [plannedMinutes, completedMinutes]);
 
+  const readiness = useMemo(
+    () =>
+      calculateReadiness({
+        sessions,
+        completedSessions,
+        raceDate,
+      }),
+    [sessions, completedSessions, raceDate]
+  );
+
   // Previous window for deltas
   const prevStrava = useMemo(() => {
     return (stravaActivities ?? []).filter((a) => {
@@ -267,16 +280,26 @@ const [chatPrefill, setChatPrefill] = useState<string>('');
           </p>
         </div>
 
-        {/* Mobile primary action */}
-        <button
-  onClick={() => {
-    setChatPrefill('');
-    setChatOpen(true);
-  }}
-  className="md:hidden inline-flex items-center justify-center rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-gray-800"
->
-  Ask coach
-</button>
+        <div className="flex flex-col items-end gap-2">
+          <div
+            className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-right"
+            title="Score based on adherence, consistency, and race proximity."
+          >
+            <div className="text-[11px] uppercase tracking-wide text-gray-500">Readiness</div>
+            <div className="text-sm font-semibold text-gray-900">{readiness.score}/100 · {readiness.label}</div>
+          </div>
+
+          {/* Mobile primary action */}
+          <button
+            onClick={() => {
+              setChatPrefill('');
+              setChatOpen(true);
+            }}
+            className="md:hidden inline-flex items-center justify-center rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-gray-800"
+          >
+            Ask coach
+          </button>
+        </div>
 
 
       </div>
