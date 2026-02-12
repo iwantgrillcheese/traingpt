@@ -229,6 +229,9 @@ export default function PlanPage() {
     runCount: number;
     bikeCount: number;
     swimCount: number;
+    estimatedFtp: number | null;
+    estimatedLthr: number | null;
+    estimatedRunPace: string | null;
   } | null>(null);
   const [quickMode, setQuickMode] = useState(true);
 
@@ -543,7 +546,7 @@ export default function PlanPage() {
         return;
       }
 
-      const sinceISO = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+      const sinceISO = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
 
       const [planRes, profileRes, stravaRes] = await Promise.all([
         supabase
@@ -560,7 +563,7 @@ export default function PlanPage() {
           .maybeSingle(),
         supabase
           .from('strava_activities')
-          .select('sport_type,moving_time,start_date')
+          .select('sport_type,moving_time,start_date,average_heartrate,average_speed,weighted_average_watts,average_watts')
           .eq('user_id', session.user.id)
           .gte('start_date', sinceISO),
       ]);
@@ -578,12 +581,44 @@ export default function PlanPage() {
         const bikeCount = rows.filter((row: any) => String(row.sport_type ?? '').toLowerCase() === 'bike').length;
         const swimCount = rows.filter((row: any) => String(row.sport_type ?? '').toLowerCase() === 'swim').length;
 
+        const runCandidates = rows.filter(
+          (row: any) =>
+            String(row.sport_type ?? '').toLowerCase() === 'run' && (row.moving_time ?? 0) >= 20 * 60
+        );
+        const bikeCandidates = rows.filter(
+          (row: any) =>
+            String(row.sport_type ?? '').toLowerCase() === 'bike' && (row.moving_time ?? 0) >= 30 * 60
+        );
+
+        const runHrs = runCandidates
+          .map((row: any) => row.average_heartrate)
+          .filter((v: any) => Number.isFinite(v));
+        const estLthr = runHrs.length ? Math.round(Math.max(...runHrs)) : null;
+
+        const bikePowers = bikeCandidates
+          .map((row: any) => row.weighted_average_watts ?? row.average_watts)
+          .filter((v: any) => Number.isFinite(v) && v > 0);
+        const estFtp = bikePowers.length ? Math.round(Math.max(...bikePowers) * 0.95) : null;
+
+        const runSpeeds = runCandidates
+          .map((row: any) => row.average_speed)
+          .filter((v: any) => Number.isFinite(v) && v > 0);
+        const bestRunSpeed = runSpeeds.length ? Math.max(...runSpeeds) : null;
+        const estRunPace = bestRunSpeed
+          ? `${Math.floor((1000 / bestRunSpeed) / 60)}:${String(
+              Math.round((1000 / bestRunSpeed) % 60)
+            ).padStart(2, '0')} / km`
+          : null;
+
         setStravaSummary({
           activityCount: rows.length,
           totalHours,
           runCount,
           bikeCount,
           swimCount,
+          estimatedFtp: estFtp,
+          estimatedLthr: estLthr,
+          estimatedRunPace: estRunPace,
         });
       } else {
         setStravaSummary(null);
@@ -876,12 +911,16 @@ export default function PlanPage() {
 
                     {stravaSummary ? (
                       <div className="mt-3 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700">
-                        Using last 90 days: {stravaSummary.activityCount} activities • {stravaSummary.totalHours.toFixed(1)}h
+                        Using last 365 days: {stravaSummary.activityCount} activities • {stravaSummary.totalHours.toFixed(1)}h
                         total • Run {stravaSummary.runCount} • Bike {stravaSummary.bikeCount} • Swim {stravaSummary.swimCount}
+                        <br />
+                        Baselines: FTP {stravaSummary.estimatedFtp ? `~${stravaSummary.estimatedFtp}w` : 'unknown'} • LTHR{' '}
+                        {stravaSummary.estimatedLthr ? `~${stravaSummary.estimatedLthr} bpm` : 'unknown'} • Threshold pace{' '}
+                        {stravaSummary.estimatedRunPace ?? 'unknown'}
                       </div>
                     ) : (
                       <div className="mt-3 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-600">
-                        Once connected, we’ll analyze your last 90 days of Strava data and auto-calibrate your plan.
+                        Once connected, we’ll analyze your last 365 days of Strava data and auto-calibrate your plan.
                       </div>
                     )}
 
