@@ -725,9 +725,6 @@ export default function PlanPage() {
         setStravaSummary(null);
       }
 
-
-
-      setStravaConnected(!!profileRes.data?.strava_access_token);
       setSessionChecked(true);
     };
 
@@ -815,8 +812,8 @@ export default function PlanPage() {
       ? 'Regenerate from race + Strava history for a fresh ability-calibrated plan.'
       : 'For your first plan, choose a race + date and sync Strava. We’ll estimate the rest from your recent training.'
     : hasPlan
-    ? 'This will replace your current training plan.'
-    : 'We’ll personalize your training based on your inputs.';
+      ? 'This will replace your current training plan.'
+      : 'We’ll personalize your training based on your inputs.';
 
   const visibleBeginnerFields = quickMode
     ? beginnerFields.filter((field) => field.id === 'raceType' || field.id === 'raceDate')
