@@ -191,13 +191,12 @@ export default function SchedulePage() {
         }));
 
         const latestPlan = latestPlanRes.data as any;
-        const params = latestPlan?.plan?.params ?? {};
         setRaceHub({
           planId: latestPlan?.id ?? null,
           raceType: latestPlan?.race_type ?? null,
           raceDate: latestPlan?.race_date ?? null,
-          raceName: params?.raceName ?? null,
-          raceLocation: params?.raceLocation ?? null,
+          raceName: null,
+          raceLocation: null,
           currentPhase: deriveCurrentPhase(latestPlan?.plan),
           planPayload: latestPlan?.plan ?? null,
         });
@@ -244,23 +243,30 @@ export default function SchedulePage() {
       try {
         setRaceHubSaving(true);
 
-        const basePlan = raceHub?.planPayload && typeof raceHub.planPayload === 'object' ? raceHub.planPayload : {};
-        const nextParams = {
-          ...(basePlan as any).params,
-          raceName: next.raceName?.trim() || null,
-          raceLocation: next.raceLocation?.trim() || null,
+        const basePlan = raceHub?.planPayload && typeof raceHub.planPayload === 'object' ? raceHub.planPayload : null;
+        const nextParams = basePlan
+          ? {
+              ...((basePlan as any).params ?? {}),
+              raceType: next.raceType,
+              raceDate: next.raceDate,
+            }
+          : null;
+
+        const updatePayload: any = {
+          race_type: next.raceType,
+          race_date: next.raceDate,
         };
+
+        if (basePlan) {
+          updatePayload.plan = {
+            ...(basePlan as any),
+            params: nextParams,
+          };
+        }
 
         const { error } = await supabase
           .from('plans')
-          .update({
-            race_type: next.raceType,
-            race_date: next.raceDate,
-            plan: {
-              ...(basePlan as any),
-              params: nextParams,
-            },
-          })
+          .update(updatePayload)
           .eq('id', raceHub.planId)
           .eq('user_id', authedUserId);
 
@@ -274,10 +280,13 @@ export default function SchedulePage() {
                 raceDate: next.raceDate,
                 raceName: next.raceName?.trim() || null,
                 raceLocation: next.raceLocation?.trim() || null,
-                planPayload: {
-                  ...(basePlan as any),
-                  params: nextParams,
-                },
+                planPayload:
+                  basePlan && nextParams
+                    ? {
+                        ...(basePlan as any),
+                        params: nextParams,
+                      }
+                    : prev.planPayload,
               }
             : prev
         );

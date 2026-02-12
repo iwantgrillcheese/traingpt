@@ -62,7 +62,7 @@ export default function RaceHubCard({
   const hasRaceSet = Boolean(raceType?.trim() && raceDate?.trim());
 
   const raceTypeOptions = useMemo(
-    () => ['5K', '10K', 'Half Marathon', 'Marathon', 'Sprint Triathlon', 'Olympic Triathlon', '70.3', 'Ironman', 'Custom'],
+    () => ['Triathlon', '70.3', 'Ironman', 'Marathon', 'Half Marathon', '10K', 'Other'],
     []
   );
 
@@ -121,7 +121,7 @@ export default function RaceHubCard({
             onClick={openEditor}
             className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
           >
-            {hasRaceSet ? 'Edit' : 'Set race'}
+            {hasRaceSet ? 'Edit' : 'Set your target race'}
           </button>
         </div>
       </div>
@@ -148,10 +148,10 @@ export default function RaceHubCard({
               <label className="block text-sm">
                 <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">Race type</span>
                 <select
-                  value={raceTypeOptions.includes(draftRaceType) ? draftRaceType : 'Custom'}
+                  value={raceTypeOptions.includes(draftRaceType) ? draftRaceType : 'Other'}
                   onChange={(e) => {
                     const next = e.target.value;
-                    setDraftRaceType(next === 'Custom' ? '' : next);
+                    setDraftRaceType(next === 'Other' ? '' : next);
                   }}
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
                 >
