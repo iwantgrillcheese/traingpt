@@ -348,12 +348,20 @@ export default function SchedulePage() {
       ? `Weekly coaching check-in for ${rangeLabel}. My top sessions are: ${keySessionTitles.join('; ')}.`
       : `Weekly coaching check-in for ${rangeLabel}. Help me plan my key sessions.`;
 
+    const weeklyCheckInPrompt = [
+      `Weekly check-in (${rangeLabel})`,
+      `Goal race: ${raceHub?.raceType ?? 'Not set'} on ${raceHub?.raceDate ?? 'Not set'}`,
+      `Top sessions this week: ${keySessionTitles.length ? keySessionTitles.join('; ') : 'Not available yet'}`,
+      'Please help me review what went well, what to adjust, and set 3 priorities for next week.',
+    ].join(' | ');
+
     return {
       weekRangeLabel: rangeLabel,
       bullets,
       coachingHref: `/coaching?q=${encodeURIComponent(prefill)}`,
+      checkInHref: `/coaching?q=${encodeURIComponent(weeklyCheckInPrompt)}`,
     };
-  }, [sessions]);
+  }, [sessions, raceHub?.raceType, raceHub?.raceDate]);
 
   const isLoggedOut = !authedUserId;
 
@@ -475,6 +483,8 @@ export default function SchedulePage() {
                 bullets={weeklyIntent.bullets}
                 ctaHref={weeklyIntent.coachingHref}
                 ctaLabel="Open weekly coaching"
+                checkInHref={weeklyIntent.checkInHref}
+                checkInLabel="Start weekly check-in"
               />
             </div>
 
