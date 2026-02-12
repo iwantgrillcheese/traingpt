@@ -537,20 +537,21 @@ export default function PlanPage() {
         return;
       }
 
-      const [planRes, profileRes] = await Promise.all([
-        supabase
-          .from('plans')
-          .select('id')
-          .eq('user_id', session.user.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-        supabase
-          .from('profiles')
-          .select('strava_access_token')
-          .eq('id', session.user.id)
-          .maybeSingle(),
-      ]);
+      const latestPlanQuery = supabase
+        .from('plans')
+        .select('id')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const profileQuery = supabase
+        .from('profiles')
+        .select('strava_access_token')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      const [planRes, profileRes] = await Promise.all([latestPlanQuery, profileQuery]);
 
       if (planRes.data?.id) {
         setHasPlan(true);
