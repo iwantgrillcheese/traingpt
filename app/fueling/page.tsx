@@ -40,13 +40,11 @@ export default function FuelingPage() {
 
         <div className="mt-6 flex flex-wrap items-center gap-3">
           <a
-            href="https://feed.com/"
             href="https://thefeed.com/"
             target="_blank"
             rel="noreferrer"
             className="inline-flex rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800 transition"
           >
-            Shop on Feed.com
             Shop on The Feed
           </a>
           <Link

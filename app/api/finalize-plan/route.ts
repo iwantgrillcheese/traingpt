@@ -423,7 +423,15 @@ export async function POST(req: Request) {
           prevWeek,
         });
 
-        return guardWeek(raw, userParams.trainingPrefs);
+        const guarded = guardWeek(raw, userParams.trainingPrefs);
+
+        return {
+          ...guarded,
+          days:
+            guarded?.days && typeof guarded.days === 'object' && !Array.isArray(guarded.days)
+              ? guarded.days
+              : {},
+        } as WeekJson;
       })();
 
       weeks.push(singleWeek);
@@ -447,7 +455,12 @@ export async function POST(req: Request) {
 
     const raceDay = safeDateISO(parseISO(raceDateResolved));
     const lastWeek = weeks[weeks.length - 1];
-    if (lastWeek) lastWeek.days[raceDay] = [`🏁 ${raceType} Race Day`];
+    if (lastWeek) {
+      if (!lastWeek.days || typeof lastWeek.days !== 'object' || Array.isArray(lastWeek.days)) {
+        lastWeek.days = {};
+      }
+      lastWeek.days[raceDay] = [`🏁 ${raceType} Race Day`];
+    }
 
     const generatedPlan: GeneratedPlan = {
       planType: planTypeResolved,
