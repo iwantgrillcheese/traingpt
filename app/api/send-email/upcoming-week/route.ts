@@ -5,12 +5,18 @@ import { sendUpcomingWeekEmail } from '@/lib/emails/send-upcoming-week-email';
 
 export const runtime = 'nodejs';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 export async function GET(req: NextRequest) {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return NextResponse.json(
+      { success: false, error: 'SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not configured' },
+      { status: 500 }
+    );
+  }
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
   const testEmail = req.nextUrl.searchParams.get('test');
   const manual = req.nextUrl.searchParams.get('manual');
 

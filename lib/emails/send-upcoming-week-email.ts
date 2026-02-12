@@ -2,8 +2,6 @@
 import { Resend } from 'resend';
 import { generateUpcomingWeekEmail } from './generateUpcomingWeekEmail';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export async function sendUpcomingWeekEmail({
   email,
   sessions,
@@ -15,7 +13,13 @@ export async function sendUpcomingWeekEmail({
   coachNote: string;
   weekRange: string;
 }) {
-const html = await generateUpcomingWeekEmail({ sessions, weekRange });
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    throw new Error('RESEND_API_KEY is not configured');
+  }
+
+  const resend = new Resend(apiKey);
+  const html = await generateUpcomingWeekEmail({ sessions, weekRange });
 
   await resend.emails.send({
     from: 'TrainGPT <hello@traingpt.co>',
