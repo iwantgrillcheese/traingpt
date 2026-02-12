@@ -339,6 +339,14 @@ export default function MobileCalendarView({
             <div className="text-[12px] tracking-wide text-zinc-500 uppercase">Schedule</div>
             <div className="text-[20px] font-semibold tracking-tight text-zinc-950">Weekly Flow</div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setAddSessionDate(getDefaultAddDate())}
+            className="h-9 rounded-md border border-black/10 bg-white px-3 text-[13px] font-medium text-zinc-700 shadow-sm"
+          >
+            + Add
+          </button>
         </div>
       </div>
 

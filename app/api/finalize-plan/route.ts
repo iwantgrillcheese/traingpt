@@ -364,6 +364,7 @@ export async function POST(req: Request) {
       start_date: string | null;
     }> = [];
 
+    if (planTypeResolved === "triathlon" || planTypeResolved === "running") {
     if (planTypeResolved === "triathlon") {
       const sinceISO = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
       const { data, error: stravaErr } = await supabase

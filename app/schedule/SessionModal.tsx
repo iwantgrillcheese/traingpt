@@ -577,6 +577,14 @@ export default function SessionModal({
                     </div>
                   )}
 
+                  {session.details ? (
+                    <div className="mt-4 rounded-xl border border-black/5 bg-zinc-50/70 p-3">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                        Session notes
+                      </div>
+                      <div className="mt-1 text-[13px] leading-relaxed text-zinc-700">{session.details}</div>
+                    </div>
+                  ) : null}
                   <div className="mt-4 rounded-xl border border-black/5 bg-zinc-50/70 p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">

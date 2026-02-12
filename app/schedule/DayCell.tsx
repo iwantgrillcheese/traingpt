@@ -301,6 +301,28 @@ export default function DayCell({
             </div>
           ) : null}
 
+          <button
+            onClick={() => setShowForm(true)}
+            className={clsx(
+              'mt-1 inline-flex w-full items-center justify-center rounded-lg border border-dashed border-black/20',
+              'bg-white/75 px-2.5 py-2 text-[12px] font-semibold text-zinc-500 transition-colors',
+              'hover:bg-white hover:text-zinc-800'
+            )}
+          >
+            + Add session
+          </button>
+        </div>
+      </div>
+
+      <AddSessionModalTP
+        open={showForm}
+        date={date}
+        onClose={() => setShowForm(false)}
+        onAdded={(newSession: any) => {
+          onSessionAdded?.(newSession);
+          setShowForm(false);
+        }}
+      />
         </div>
       </div>
     </>

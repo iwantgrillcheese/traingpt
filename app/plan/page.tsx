@@ -423,7 +423,6 @@ export default function PlanPage() {
         ...formData,
         ...(quickMode
           ? {
-              raceDate: '',
               experience: '',
               maxHours: '',
               restDay: '',
@@ -811,6 +810,8 @@ export default function PlanPage() {
   const title = hasPlan ? 'Re-generate your plan' : 'Generate your plan';
   const subtitle = quickMode
     ? hasPlan
+      ? 'Build a fresh plan from your chosen event + date with Strava-calibrated fitness.'
+      : 'Choose your event + race date, sync Strava, and we’ll estimate the rest from recent training.'
       ? 'Regenerate from race + Strava history for a fresh ability-calibrated plan.'
       : 'For your first plan, choose a race + date and sync Strava. We’ll estimate the rest from your recent training.'
     : hasPlan
@@ -937,6 +938,7 @@ export default function PlanPage() {
                   </div>
                   <div className="mt-1 text-xs text-gray-500">
                     {quickMode
+                      ? 'Pick an event + race date and connect Strava. We calibrate the plan from your recent training history.'
                       ? 'Pick your race + date and connect Strava. We calibrate workouts from your recent training history.'
                       : 'Built around your race and weekly time. Adjust anytime.'}
                   </div>
@@ -1031,6 +1033,7 @@ export default function PlanPage() {
                     const hint =
                       id === 'raceType'
                         ? quickMode
+                          ? 'Choose your event (running or triathlon)'
                           ? 'Choose your target race distance'
                           : 'Sprint, Olympic, 70.3, Ironman or running events'
                         : id === 'raceDate'
@@ -1042,7 +1045,7 @@ export default function PlanPage() {
                         : undefined;
 
                     const raceOptions = quickMode
-                      ? ['Sprint', 'Olympic', 'Half Ironman (70.3)', 'Ironman (140.6)']
+                      ? ['5k', '10k', 'Half Marathon', 'Marathon', 'Sprint', 'Olympic', 'Half Ironman (70.3)', 'Ironman (140.6)']
                       : options;
 
                     return (
@@ -1082,7 +1085,7 @@ export default function PlanPage() {
                   <div className="mt-5 rounded-2xl border border-gray-200 bg-gray-50 p-4">
                     <div className="text-sm font-medium text-gray-900">Strava sync</div>
                     <p className="mt-1 text-xs text-gray-600">
-                      Connect Strava and we’ll calibrate {hasPlan ? 'your regenerated plan' : 'your first plan'} from recent training history.
+                      Connect Strava and we’ll calibrate {hasPlan ? 'your new plan' : 'your first plan'} from recent training history.
                     </p>
 
                     {stravaSummary ? (
