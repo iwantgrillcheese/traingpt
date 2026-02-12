@@ -7,6 +7,8 @@ import { supabase } from '@/lib/supabase-client';
 import PostPlanWalkthrough from './components/PostPlanWalkthrough';
 import type { WalkthroughContext } from '@/types/coachGuides';
 
+export const dynamic = 'force-dynamic';
+
 type FieldConfig = {
   id: string;
   label: string;
@@ -243,7 +245,7 @@ function NoticeCard({
 
 /* -------------------------------- Page -------------------------------- */
 
-export default function PlanPage() {
+function PlanPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -650,7 +652,6 @@ export default function PlanPage() {
           body: JSON.stringify({
             ...payload,
             userNote: mergedUserNote,
-            userNote: combinedUserNote,
             planType,
           }),
         });
@@ -1348,5 +1349,13 @@ export default function PlanPage() {
 
       <Footer />
     </div>
+  );
+}
+
+export default function PlanPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-white" />}>
+      <PlanPageContent />
+    </Suspense>
   );
 }

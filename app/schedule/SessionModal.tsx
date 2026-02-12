@@ -204,44 +204,19 @@ function formatSportLabel(sportRaw?: string | null) {
 function extractPlannedMetrics(session: Session | null): { plannedDuration: string | null; plannedDistance: string | null } {
   if (!session) return { plannedDuration: null, plannedDistance: null };
 
-  const text = [session.title, session.details, session.structured_workout]
-    .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
-    .join(' ')
-    .toLowerCase();
-
-  const explicitDuration =
-  const sport = String(sportRaw ?? '').trim();
-  if (!sport) return '—';
-  return sport.charAt(0).toUpperCase() + sport.slice(1).toLowerCase();
-}
-
-function extractPlannedMetrics(session: Session) {
-  const combined = `${session.title ?? ''} ${session.details ?? ''}`;
+  const combined = `${session.title ?? ''} ${session.details ?? ''} ${session.structured_workout ?? ''}`;
 
   const durationFromField =
     typeof session.duration === 'number' && Number.isFinite(session.duration)
       ? `${Math.round(session.duration)} min`
       : null;
 
-  const durationMatch = text.match(/(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|min|mins|minute|minutes)\b/);
-  const durationValue = durationMatch
-    ? `${durationMatch[1]} ${durationMatch[2].startsWith('h') ? 'hr' : 'min'}`
-    : null;
-
-  const distanceMatch = text.match(/(\d+(?:\.\d+)?)\s*(km|kilometers?|kilometres?|mi|miles?|m)\b/);
-  const distanceValue = distanceMatch
-    ? `${distanceMatch[1]} ${distanceMatch[2].startsWith('k') ? 'km' : distanceMatch[2].startsWith('m') && distanceMatch[2] !== 'mi' ? 'm' : 'mi'}`
-    : null;
-
-  return {
-    plannedDuration: explicitDuration ?? durationValue,
-    plannedDistance: distanceValue,
   const durationMatch =
     combined.match(/\b(\d+(?:\.\d+)?)\s*(min|mins|minute|minutes)\b/i) ||
     combined.match(/\b(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours)\b/i);
 
   const distanceMatch = combined.match(
-    /\b(\d+(?:\.\d+)?)\s*(km|kilometer|kilometers|mi|mile|miles)\b/i
+    /\b(\d+(?:\.\d+)?)\s*(km|kilometer|kilometers|kilometre|kilometres|mi|mile|miles|m)\b/i
   );
 
   return {
