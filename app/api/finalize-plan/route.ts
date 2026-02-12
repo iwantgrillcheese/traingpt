@@ -299,6 +299,20 @@ export async function POST(req: Request) {
 
     const userId = user.id;
 
+    const { data: latestPlanRow } = await supabase
+      .from("plans")
+      .select("race_date,race_type,plan")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const latestPlanParams = (latestPlanRow?.plan as any)?.params ?? null;
+
+    if (!raceType) {
+      return NextResponse.json({ ok: false, error: "Missing race type" }, { status: 400 });
+    }
+
     if (!raceType) {
       return NextResponse.json({ ok: false, error: "Missing race type" }, { status: 400 });
     }
@@ -373,12 +387,25 @@ export async function POST(req: Request) {
         const parsed = parseISO(raw);
         if (isValidDate(parsed)) return raw;
       }
+
+      const latestRaceDate =
+        typeof latestPlanRow?.race_date === "string" ? latestPlanRow.race_date : "";
+      if (latestRaceDate) {
+        const parsedLatest = parseISO(latestRaceDate);
+        if (isValidDate(parsedLatest)) return latestRaceDate;
+      }
+
       return defaultRaceDateISO(raceType);
     })();
 
     const experienceResolved =
       typeof experience === "string" && experience.trim()
         ? experience.trim()
+        : typeof latestPlanParams?.experience === "string" && latestPlanParams.experience.trim()
+          ? latestPlanParams.experience.trim()
+        : hasStravaHistory
+          ? inferredAbility.experience
+          : "";
         : hasStravaHistory
           ? inferredAbility.experience
           : "";
@@ -391,6 +418,9 @@ export async function POST(req: Request) {
     const maxHoursResolved = (() => {
       const raw = Number(maxHours);
       if (Number.isFinite(raw) && raw > 0) return raw;
+      const latestRaw = Number(latestPlanParams?.maxHours);
+      if (Number.isFinite(latestRaw) && latestRaw > 0) return latestRaw;
+      return hasStravaHistory ? inferredAbility.maxHours : Number.NaN;
       return hasStravaHistory ? inferredAbility.maxHours : Number.NaN;
       return hasStravaHistory ? inferredAbility.maxHours : NaN;
     })();
@@ -407,16 +437,27 @@ export async function POST(req: Request) {
       );
     }
 
+    const restDayResolved =
+      restDay && restDay.trim() !== ""
+        ? restDay
+        : typeof latestPlanParams?.restDay === "string" && latestPlanParams.restDay.trim() !== ""
+          ? latestPlanParams.restDay
+          : "Monday";
     const restDayResolved = restDay && restDay.trim() !== "" ? restDay : "Monday";
     const stravaHistorySummary = buildStravaHistorySummary(stravaRows);
 
     const bikeFtpResolved = Number.isFinite(ftpNormalized as number)
       ? (ftpNormalized as number)
+      : Number.isFinite(Number(latestPlanParams?.bikeFtp))
+        ? Number(latestPlanParams?.bikeFtp)
       : inferredBaselines.estimatedFtp ?? undefined;
 
     const runPaceResolved =
       typeof runPace === "string" && runPace.trim()
         ? runPace
+        : typeof latestPlanParams?.runPace === "string" && latestPlanParams.runPace.trim()
+          ? latestPlanParams.runPace
+        : inferredBaselines.estimatedRunThresholdPacePerKm ?? undefined;
         : inferredBaselines.estimatedRunThresholdPacePerKm ?? undefined;
     // ✅ Default rest day fallback
     const restDayResolved = restDay && restDay.trim() !== "" ? restDay : "Monday";

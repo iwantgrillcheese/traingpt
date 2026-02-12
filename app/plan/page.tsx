@@ -550,6 +550,9 @@ export default function PlanPage() {
       const sinceISO = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
 
       const [planRes, profileRes, stravaRes] = await Promise.all([
+        supabase
+          .from('plans')
+          .select('id,race_type,race_date,plan')
       const [planRes, profileRes] = await Promise.all([
         supabase
           .from('plans')
@@ -572,6 +575,25 @@ export default function PlanPage() {
 
       if (planRes.data?.id) {
         setHasPlan(true);
+
+        const latestParams = (planRes.data as any).plan?.params ?? null;
+        setFormData((prev) => ({
+          ...prev,
+          raceType: (planRes.data as any).race_type ?? latestParams?.raceType ?? prev.raceType,
+          raceDate: (planRes.data as any).race_date ?? latestParams?.raceDate ?? prev.raceDate,
+          experience: latestParams?.experience ?? prev.experience,
+          maxHours:
+            latestParams?.maxHours != null && latestParams?.maxHours !== ''
+              ? String(latestParams.maxHours)
+              : prev.maxHours,
+          restDay: latestParams?.restDay ?? prev.restDay,
+          bikeFTP:
+            latestParams?.bikeFtp != null && latestParams?.bikeFtp !== ''
+              ? String(latestParams.bikeFtp)
+              : prev.bikeFTP,
+          runPace: latestParams?.runPace ?? prev.runPace,
+          swimPace: latestParams?.swimPace ?? prev.swimPace,
+        }));
       }
 
       setStravaConnected(!!profileRes.data?.strava_access_token);
@@ -625,6 +647,7 @@ export default function PlanPage() {
       } else {
         setStravaSummary(null);
       }
+
 
 
       setStravaConnected(!!profileRes.data?.strava_access_token);
