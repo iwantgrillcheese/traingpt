@@ -542,9 +542,9 @@ export async function POST(req: Request) {
       plan: generatedPlan,
     });
   } catch (err: any) {
-    console.error("[finalize-plan] error", err);
+    console.error("FINALIZE_PLAN_ERROR", err?.message, err?.stack, err);
     return NextResponse.json(
-      { ok: false, error: "Internal error", details: String(err?.message ?? err) },
+      { error: err?.message ?? "Internal error" },
       { status: 500 }
     );
   }

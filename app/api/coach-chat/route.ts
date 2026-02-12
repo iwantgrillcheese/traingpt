@@ -13,6 +13,7 @@ import {
 } from 'date-fns';
 
 import mergeSessionsWithStrava from '@/utils/mergeSessionWithStrava';
+import { stripUnsupportedParams } from '@/utils/openaiSafeParams';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -362,10 +363,12 @@ ${issues.length ? issues.map((x) => `• ${x}`).join('\n') : '• None'}
       ...(shouldAppendUser ? [{ role: 'user', content: userMessage }] : []),
     ];
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4-turbo',
-      messages,
-    });
+    const completion = await openai.chat.completions.create(
+      stripUnsupportedParams({
+        model: 'gpt-4-turbo',
+        messages,
+      })
+    );
 
     const coachReply = completion.choices[0]?.message?.content?.trim();
     return NextResponse.json({ message: coachReply ?? 'No response generated' }, { status: 200 });

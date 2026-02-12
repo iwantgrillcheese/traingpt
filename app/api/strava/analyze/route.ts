@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { OpenAI } from 'openai';
+import { stripUnsupportedParams } from '@/utils/openaiSafeParams';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -91,14 +92,15 @@ Helpful interpretation hints (use only if relevant):
 Return the structured coaching feedback.
 `;
 
-    const resp = await client.chat.completions.create({
-      model: process.env.OPENAI_ANALYZE_MODEL || 'gpt-4o',
-      messages: [
-        { role: 'system', content: system.trim() },
-        { role: 'user', content: userPrompt.trim() },
-      ],
-      temperature: 0.4,
-    });
+    const resp = await client.chat.completions.create(
+      stripUnsupportedParams({
+        model: process.env.OPENAI_ANALYZE_MODEL || 'gpt-4o',
+        messages: [
+          { role: 'system', content: system.trim() },
+          { role: 'user', content: userPrompt.trim() },
+        ],
+      })
+    );
 
     const analysis = resp.choices?.[0]?.message?.content?.trim() ?? '';
 

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { OpenAI } from 'openai';
+import { stripUnsupportedParams } from '@/utils/openaiSafeParams';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -101,13 +102,15 @@ Use ranges when precision is uncertain and clearly label assumptions.`
 
     const openai = getOpenAI();
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4-turbo',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-    });
+    const completion = await openai.chat.completions.create(
+      stripUnsupportedParams({
+        model: 'gpt-4-turbo',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+      })
+    );
 
     const structured = completion.choices?.[0]?.message?.content?.trim() ?? '';
 
