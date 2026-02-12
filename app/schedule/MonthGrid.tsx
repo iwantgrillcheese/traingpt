@@ -57,33 +57,28 @@ export default function MonthGrid({
   }, [currentMonth]);
 
   return (
-    <div className="w-full">
-      {/* Outer frame: TP-ish (flat, table-like) */}
+    <div className="w-full min-w-[1450px]">
       <div
         className={clsx(
-          'overflow-hidden',
-          'rounded-xl border border-black/10 bg-white',
+          'overflow-hidden rounded-2xl border border-black/10 bg-zinc-100/60',
           'shadow-[0_1px_2px_rgba(0,0,0,0.05)]'
         )}
       >
-        {/* Weekday header */}
-        <div className="grid grid-cols-7 border-b border-black/10 bg-zinc-50">
+        <div className="grid grid-cols-7 border-b border-black/10 bg-zinc-100">
           {WEEKDAYS.map((d) => (
             <div
               key={d}
-              className="px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-zinc-600"
+              className="px-3 py-2.5 text-center text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-600"
             >
               {d}
             </div>
           ))}
         </div>
 
-        {/* Calendar grid */}
         <div
           className="grid grid-cols-7"
           style={{
-            // makes rows feel consistent / “table” like TP
-            gridAutoRows: 'minmax(180px, 1fr)',
+            gridAutoRows: 'minmax(220px, 1fr)',
           }}
         >
           {days.map((dateObj, idx) => {
@@ -101,14 +96,11 @@ export default function MonthGrid({
               <div
                 key={dayKey}
                 className={clsx(
-                  // borders: single-pixel grid with no double edges
                   showLeft && 'border-l border-black/10',
                   showTop && 'border-t border-black/10',
-                  // backgrounds
-                  outside ? 'bg-zinc-50/60' : 'bg-white',
-                  today && 'bg-zinc-50',
-                  // subtle hover to mimic “interactive calendar”
-                  'transition-colors hover:bg-black/[0.015]'
+                  outside ? 'bg-zinc-50/70' : 'bg-zinc-50/20',
+                  today && 'bg-white',
+                  'transition-colors hover:bg-white/80'
                 )}
               >
                 <DayCell
@@ -125,12 +117,8 @@ export default function MonthGrid({
             );
           })}
         </div>
-
-        {/* Optional: tiny footer strip to mimic TP’s “end of grid” subtle edge */}
-        <div className="h-2 bg-white" />
       </div>
 
-      {/* Micro caption like TP (optional) */}
       <div className="mt-2 text-[11px] text-zinc-500">
         Drag sessions to reschedule. Click a session for details.
       </div>
