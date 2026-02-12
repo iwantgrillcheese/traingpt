@@ -725,6 +725,14 @@ export default function Home() {
 
   const ctas = useMemo(() => {
     if (session && hasPlan) {
+      if (!stravaConnected) {
+        return {
+          primary: { label: 'View my schedule', href: '/schedule' },
+          secondary: { label: 'Connect Strava for smarter re-generation', href: stravaConnectHref },
+          tertiary: { label: 'See how it works', kind: 'scroll' as const },
+        };
+      }
+
       return {
         primary: { label: 'View my schedule', href: '/schedule' },
         secondary: { label: 'Re-generate my plan', href: '/plan?mode=regen' },

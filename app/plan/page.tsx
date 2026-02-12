@@ -223,6 +223,16 @@ export default function PlanPage() {
   const [sessionChecked, setSessionChecked] = useState(false);
   const [hasPlan, setHasPlan] = useState(false);
   const [stravaConnected, setStravaConnected] = useState(false);
+  const [stravaSummary, setStravaSummary] = useState<{
+    activityCount: number;
+    totalHours: number;
+    runCount: number;
+    bikeCount: number;
+    swimCount: number;
+    estimatedFtp: number | null;
+    estimatedLthr: number | null;
+    estimatedRunPace: string | null;
+  } | null>(null);
   const [quickMode, setQuickMode] = useState(true);
 
   const [progress, setProgress] = useState(0);
@@ -469,7 +479,7 @@ export default function PlanPage() {
         });
       };
 
-      setStatusLine('Submitting your inputs…');
+      setStatusLine(quickMode ? 'Analyzing your Strava history…' : 'Submitting your inputs…');
 
       let res: Response | null = null;
       let resText = '';
@@ -552,10 +562,108 @@ export default function PlanPage() {
         .maybeSingle();
 
       const [planRes, profileRes] = await Promise.all([latestPlanQuery, profileQuery]);
+      const sinceISO = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
+
+      const [planRes, profileRes, stravaRes] = await Promise.all([
+        supabase
+          .from('plans')
+          .select('id,race_type,race_date,plan')
+      const [planRes, profileRes] = await Promise.all([
+        supabase
+          .from('plans')
+          .select('id')
+          .eq('user_id', session.user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from('profiles')
+          .select('strava_access_token')
+          .eq('id', session.user.id)
+          .maybeSingle(),
+        supabase
+          .from('strava_activities')
+          .select('sport_type,moving_time,start_date,average_heartrate,average_speed,weighted_average_watts,average_watts')
+          .eq('user_id', session.user.id)
+          .gte('start_date', sinceISO),
+      ]);
 
       if (planRes.data?.id) {
         setHasPlan(true);
+
+        const latestParams = (planRes.data as any).plan?.params ?? null;
+        setFormData((prev) => ({
+          ...prev,
+          raceType: (planRes.data as any).race_type ?? latestParams?.raceType ?? prev.raceType,
+          raceDate: (planRes.data as any).race_date ?? latestParams?.raceDate ?? prev.raceDate,
+          experience: latestParams?.experience ?? prev.experience,
+          maxHours:
+            latestParams?.maxHours != null && latestParams?.maxHours !== ''
+              ? String(latestParams.maxHours)
+              : prev.maxHours,
+          restDay: latestParams?.restDay ?? prev.restDay,
+          bikeFTP:
+            latestParams?.bikeFtp != null && latestParams?.bikeFtp !== ''
+              ? String(latestParams.bikeFtp)
+              : prev.bikeFTP,
+          runPace: latestParams?.runPace ?? prev.runPace,
+          swimPace: latestParams?.swimPace ?? prev.swimPace,
+        }));
       }
+
+      setStravaConnected(!!profileRes.data?.strava_access_token);
+
+      if (stravaRes.data?.length) {
+        const rows = stravaRes.data;
+        const totalHours = rows.reduce((acc, row: any) => acc + ((row.moving_time ?? 0) / 3600), 0);
+        const runCount = rows.filter((row: any) => String(row.sport_type ?? '').toLowerCase() === 'run').length;
+        const bikeCount = rows.filter((row: any) => String(row.sport_type ?? '').toLowerCase() === 'bike').length;
+        const swimCount = rows.filter((row: any) => String(row.sport_type ?? '').toLowerCase() === 'swim').length;
+
+        const runCandidates = rows.filter(
+          (row: any) =>
+            String(row.sport_type ?? '').toLowerCase() === 'run' && (row.moving_time ?? 0) >= 20 * 60
+        );
+        const bikeCandidates = rows.filter(
+          (row: any) =>
+            String(row.sport_type ?? '').toLowerCase() === 'bike' && (row.moving_time ?? 0) >= 30 * 60
+        );
+
+        const runHrs = runCandidates
+          .map((row: any) => row.average_heartrate)
+          .filter((v: any) => Number.isFinite(v));
+        const estLthr = runHrs.length ? Math.round(Math.max(...runHrs)) : null;
+
+        const bikePowers = bikeCandidates
+          .map((row: any) => row.weighted_average_watts ?? row.average_watts)
+          .filter((v: any) => Number.isFinite(v) && v > 0);
+        const estFtp = bikePowers.length ? Math.round(Math.max(...bikePowers) * 0.95) : null;
+
+        const runSpeeds = runCandidates
+          .map((row: any) => row.average_speed)
+          .filter((v: any) => Number.isFinite(v) && v > 0);
+        const bestRunSpeed = runSpeeds.length ? Math.max(...runSpeeds) : null;
+        const estRunPace = bestRunSpeed
+          ? `${Math.floor((1000 / bestRunSpeed) / 60)}:${String(
+              Math.round((1000 / bestRunSpeed) % 60)
+            ).padStart(2, '0')} / km`
+          : null;
+
+        setStravaSummary({
+          activityCount: rows.length,
+          totalHours,
+          runCount,
+          bikeCount,
+          swimCount,
+          estimatedFtp: estFtp,
+          estimatedLthr: estLthr,
+          estimatedRunPace: estRunPace,
+        });
+      } else {
+        setStravaSummary(null);
+      }
+
+
 
       setStravaConnected(!!profileRes.data?.strava_access_token);
       setSessionChecked(true);
@@ -641,12 +749,14 @@ export default function PlanPage() {
   const subtitle = quickMode
     ? hasPlan
       ? 'Regenerate from race + Strava history for a fresh ability-calibrated plan.'
+      : 'For your first plan, choose a race + date and sync Strava. We’ll estimate the rest from your recent training.'
       : 'For your first plan, choose a race and sync Strava. We’ll estimate the rest from your recent training.'
     : hasPlan
     ? 'This will replace your current training plan.'
     : 'We’ll personalize your training based on your inputs.';
 
   const visibleBeginnerFields = quickMode
+    ? beginnerFields.filter((field) => field.id === 'raceType' || field.id === 'raceDate')
     ? beginnerFields.filter((field) => field.id === 'raceType')
     : beginnerFields;
 
@@ -766,6 +876,7 @@ export default function PlanPage() {
                   </div>
                   <div className="mt-1 text-xs text-gray-500">
                     {quickMode
+                      ? 'Pick your race + date and connect Strava. We calibrate workouts from your recent training history.'
                       ? 'Pick your race and connect Strava. We calibrate the plan from your recent training history.'
                       : 'Built around your race and weekly time. Adjust anytime.'}
                   </div>
@@ -793,6 +904,7 @@ export default function PlanPage() {
                     const hint =
                       id === 'raceType'
                         ? quickMode
+                          ? 'Choose your target race distance'
                           ? 'Choose your triathlon distance'
                           : 'Sprint, Olympic, 70.3, Ironman or running events'
                         : id === 'raceDate'
@@ -846,6 +958,21 @@ export default function PlanPage() {
                     <p className="mt-1 text-xs text-gray-600">
                       Connect Strava and we’ll calibrate {hasPlan ? 'your regenerated plan' : 'your first plan'} from recent training history.
                     </p>
+
+                    {stravaSummary ? (
+                      <div className="mt-3 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700">
+                        Using last 365 days: {stravaSummary.activityCount} activities • {stravaSummary.totalHours.toFixed(1)}h
+                        total • Run {stravaSummary.runCount} • Bike {stravaSummary.bikeCount} • Swim {stravaSummary.swimCount}
+                        <br />
+                        Baselines: FTP {stravaSummary.estimatedFtp ? `~${stravaSummary.estimatedFtp}w` : 'unknown'} • LTHR{' '}
+                        {stravaSummary.estimatedLthr ? `~${stravaSummary.estimatedLthr} bpm` : 'unknown'} • Threshold pace{' '}
+                        {stravaSummary.estimatedRunPace ?? 'unknown'}
+                      </div>
+                    ) : (
+                      <div className="mt-3 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-600">
+                        Once connected, we’ll analyze your last 365 days of Strava data and auto-calibrate your plan.
+                      </div>
+                    )}
 
                     <div className="mt-3 flex flex-col sm:flex-row gap-3">
                       {stravaConnected ? (
