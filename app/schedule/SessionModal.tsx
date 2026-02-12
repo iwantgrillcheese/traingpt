@@ -183,6 +183,34 @@ function getSportTheme(sportRaw?: string | null) {
   }
 }
 
+function formatSportLabel(sportRaw?: string | null) {
+  const sport = String(sportRaw ?? '').trim();
+  if (!sport) return '—';
+  return sport.charAt(0).toUpperCase() + sport.slice(1).toLowerCase();
+}
+
+function extractPlannedMetrics(session: Session) {
+  const combined = `${session.title ?? ''} ${session.details ?? ''}`;
+
+  const durationFromField =
+    typeof session.duration === 'number' && Number.isFinite(session.duration)
+      ? `${Math.round(session.duration)} min`
+      : null;
+
+  const durationMatch =
+    combined.match(/\b(\d+(?:\.\d+)?)\s*(min|mins|minute|minutes)\b/i) ||
+    combined.match(/\b(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours)\b/i);
+
+  const distanceMatch = combined.match(
+    /\b(\d+(?:\.\d+)?)\s*(km|kilometer|kilometers|mi|mile|miles)\b/i
+  );
+
+  return {
+    plannedDuration: durationFromField ?? (durationMatch ? durationMatch[0] : null),
+    plannedDistance: distanceMatch ? distanceMatch[0] : null,
+  };
+}
+
 export default function SessionModal({
   session,
   stravaActivity,
@@ -341,10 +369,7 @@ export default function SessionModal({
 
   const formattedDate = format(parseISO(session.date), 'EEE, MMM d');
   const sportTheme = getSportTheme(session.sport);
-  const plannedDuration =
-    typeof session.duration === 'number' && Number.isFinite(session.duration)
-      ? `${Math.round(session.duration)} min`
-      : null;
+  const { plannedDuration, plannedDistance } = extractPlannedMetrics(session);
 
   const panelClass = isMobile
     ? 'w-full max-w-none rounded-t-3xl border border-black/10 bg-white shadow-[0_30px_80px_rgba(0,0,0,0.4)]'
@@ -395,7 +420,7 @@ export default function SessionModal({
                       {formattedDate}
                     </span>
                     <span className="rounded-full border border-white/30 bg-white/10 px-2.5 py-1 font-semibold capitalize">
-                      {session.sport}
+                      {formatSportLabel(session.sport)}
                     </span>
                     {isCompleted && (
                       <span className="rounded-full border border-white/35 bg-white/15 px-2.5 py-1 font-semibold">
@@ -415,24 +440,10 @@ export default function SessionModal({
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <QuickStat label="Sport" value={session.sport || '—'} />
+                <QuickStat label="Sport" value={formatSportLabel(session.sport)} />
                 <QuickStat label="Planned" value={plannedDuration ?? '—'} />
-                <QuickStat
-                  label="Distance"
-                  value={
-                    stravaActivity?.distance != null
-                      ? `${(stravaActivity.distance / 1000).toFixed(1)} km`
-                      : '—'
-                  }
-                />
-                <QuickStat
-                  label="Duration"
-                  value={
-                    stravaActivity?.moving_time != null
-                      ? `${Math.floor(stravaActivity.moving_time / 60)}m`
-                      : '—'
-                  }
-                />
+                <QuickStat label="Distance" value={plannedDistance ?? '—'} />
+                <QuickStat label="Duration" value={plannedDuration ?? '—'} />
               </div>
             </div>
 
