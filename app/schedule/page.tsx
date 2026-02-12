@@ -343,9 +343,15 @@ export default function SchedulePage() {
       ? keySessions.map((s) => `${s.sport}: ${s.title}`)
       : ['Set your race and generate a plan to see this week’s key focus sessions.'];
 
+    const keySessionTitles = keySessions.map((s) => `${s.sport}: ${s.title}`);
+    const prefill = keySessionTitles.length
+      ? `Weekly coaching check-in for ${rangeLabel}. My top sessions are: ${keySessionTitles.join('; ')}.`
+      : `Weekly coaching check-in for ${rangeLabel}. Help me plan my key sessions.`;
+
     return {
       weekRangeLabel: rangeLabel,
       bullets,
+      coachingHref: `/coaching?q=${encodeURIComponent(prefill)}`,
     };
   }, [sessions]);
 
@@ -467,7 +473,7 @@ export default function SchedulePage() {
                 weekRangeLabel={weeklyIntent.weekRangeLabel}
                 phase={raceHub?.currentPhase}
                 bullets={weeklyIntent.bullets}
-                ctaHref="#"
+                ctaHref={weeklyIntent.coachingHref}
                 ctaLabel="Open weekly coaching"
               />
             </div>
