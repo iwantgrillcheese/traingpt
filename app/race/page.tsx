@@ -224,6 +224,21 @@ export default function RacePage() {
         <p className="mt-2 inline-flex rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-sm font-medium text-gray-700">
           {countdownLabel(raceDate)}
         </p>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <a
+            href="/schedule"
+            className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Back to Schedule
+          </a>
+          <a
+            href={`/coaching?q=${encodeURIComponent(`Race prep check-in for ${raceType ?? 'my race'} on ${raceDate ?? 'TBD'}. What should I focus on this week?`)}`}
+            className="inline-flex items-center rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800"
+          >
+            Ask coach about race prep
+          </a>
+        </div>
       </section>
 
       <section className="mt-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
