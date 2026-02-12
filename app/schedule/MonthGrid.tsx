@@ -29,7 +29,6 @@ type MonthGridProps = {
   stravaByDate: Record<string, StravaActivity[]>;
   onSessionClick?: (session: MergedSession) => void;
   onStravaActivityClick?: (activity: StravaActivity) => void;
-  onSessionAdded?: (newSession: any) => void;
 };
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -41,7 +40,6 @@ export default function MonthGrid({
   stravaByDate,
   onSessionClick,
   onStravaActivityClick,
-  onSessionAdded,
 }: MonthGridProps) {
   const days = useMemo(() => {
     const start = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 });
@@ -111,7 +109,6 @@ export default function MonthGrid({
                   extraActivities={stravaByDate?.[dayKey] ?? []}
                   onSessionClick={onSessionClick}
                   onStravaActivityClick={onStravaActivityClick}
-                  onSessionAdded={onSessionAdded}
                 />
               </div>
             );
