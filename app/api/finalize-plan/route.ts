@@ -85,11 +85,15 @@ function buildStravaHistorySummary(
     bySport.set(sport, entry);
   }
 
-  const sportLines = Array.from(bySport.entries())
+  const topSports = Array.from(bySport.entries())
     .sort((a, b) => b[1].sec - a[1].sec)
-    .slice(0, 4)
-    .map(([sport, data]) => `${sport}: ${data.sessions} sessions, ${secondsToHMM(data.sec)}`)
-    .join(' | ');
+    .slice(0, 4);
+
+  const sportSummaryParts = topSports.map(
+    ([sport, data]) => `${sport}: ${data.sessions} sessions, ${secondsToHMM(data.sec)}`
+  );
+
+  const sportLines = sportSummaryParts.join(' | ');
 
   const recent = [...rows]
     .filter((row) => !!row.start_date)
@@ -213,22 +217,18 @@ export async function POST(req: Request) {
       start_date: string | null;
     }> = [];
 
-    if (planTypeResolved === 'triathlon') {
+    if (planTypeResolved === "triathlon" || planTypeResolved === "running") {
       const sinceISO = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
       const { data, error: stravaErr } = await supabase
-    let stravaHistorySummary = '';
-    if ((planType ?? 'triathlon') === 'triathlon') {
-      const sinceISO = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
-      const { data: stravaRows, error: stravaErr } = await supabase
-        .from('strava_activities')
-        .select('sport_type,moving_time,distance,start_date')
-        .eq('user_id', userId)
-        .gte('start_date', sinceISO)
-        .order('start_date', { ascending: false })
+        .from("strava_activities")
+        .select("sport_type,moving_time,distance,start_date")
+        .eq("user_id", userId)
+        .gte("start_date", sinceISO)
+        .order("start_date", { ascending: false })
         .limit(150);
 
       if (stravaErr) {
-        console.warn('[finalize-plan] strava history lookup failed', stravaErr);
+        console.warn("[finalize-plan] strava history lookup failed", stravaErr);
       } else {
         stravaRows = data ?? [];
       }
@@ -274,9 +274,6 @@ export async function POST(req: Request) {
     const restDayResolved = restDay && restDay.trim() !== "" ? restDay : "Monday";
 
     const stravaHistorySummary = buildStravaHistorySummary(stravaRows);
-        stravaHistorySummary = buildStravaHistorySummary(stravaRows ?? []);
-      }
-    }
 
     const userParams: UserParams = {
       raceType,

@@ -350,7 +350,6 @@ export default function PlanPage() {
         ...formData,
         ...(quickMode
           ? {
-              raceDate: '',
               experience: '',
               maxHours: '',
               restDay: '',
@@ -537,20 +536,21 @@ export default function PlanPage() {
         return;
       }
 
-      const [planRes, profileRes] = await Promise.all([
-        supabase
-          .from('plans')
-          .select('id')
-          .eq('user_id', session.user.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-        supabase
-          .from('profiles')
-          .select('strava_access_token')
-          .eq('id', session.user.id)
-          .maybeSingle(),
-      ]);
+      const latestPlanQuery = supabase
+        .from('plans')
+        .select('id')
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const profileQuery = supabase
+        .from('profiles')
+        .select('strava_access_token')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      const [planRes, profileRes] = await Promise.all([latestPlanQuery, profileQuery]);
 
       if (planRes.data?.id) {
         setHasPlan(true);
@@ -639,14 +639,14 @@ export default function PlanPage() {
   const title = hasPlan ? 'Re-generate your plan' : 'Generate your plan';
   const subtitle = quickMode
     ? hasPlan
-      ? 'Regenerate from race + Strava history for a fresh ability-calibrated plan.'
-      : 'For your first plan, choose a race and sync Strava. We’ll estimate the rest from your recent training.'
+      ? 'Build a fresh plan from your chosen event + date with Strava-calibrated fitness.'
+      : 'Choose your event + race date, sync Strava, and we’ll estimate the rest from recent training.'
     : hasPlan
     ? 'This will replace your current training plan.'
     : 'We’ll personalize your training based on your inputs.';
 
   const visibleBeginnerFields = quickMode
-    ? beginnerFields.filter((field) => field.id === 'raceType')
+    ? beginnerFields.filter((field) => field.id === 'raceType' || field.id === 'raceDate')
     : beginnerFields;
 
   return (
@@ -765,7 +765,7 @@ export default function PlanPage() {
                   </div>
                   <div className="mt-1 text-xs text-gray-500">
                     {quickMode
-                      ? 'Pick your race and connect Strava. We calibrate the plan from your recent training history.'
+                      ? 'Pick an event + race date and connect Strava. We calibrate the plan from your recent training history.'
                       : 'Built around your race and weekly time. Adjust anytime.'}
                   </div>
                 </div>
@@ -792,7 +792,7 @@ export default function PlanPage() {
                     const hint =
                       id === 'raceType'
                         ? quickMode
-                          ? 'Choose your triathlon distance'
+                          ? 'Choose your event (running or triathlon)'
                           : 'Sprint, Olympic, 70.3, Ironman or running events'
                         : id === 'raceDate'
                         ? 'Your goal day'
@@ -803,7 +803,7 @@ export default function PlanPage() {
                         : undefined;
 
                     const raceOptions = quickMode
-                      ? ['Sprint', 'Olympic', 'Half Ironman (70.3)', 'Ironman (140.6)']
+                      ? ['5k', '10k', 'Half Marathon', 'Marathon', 'Sprint', 'Olympic', 'Half Ironman (70.3)', 'Ironman (140.6)']
                       : options;
 
                     return (
@@ -843,7 +843,7 @@ export default function PlanPage() {
                   <div className="mt-5 rounded-2xl border border-gray-200 bg-gray-50 p-4">
                     <div className="text-sm font-medium text-gray-900">Strava sync</div>
                     <p className="mt-1 text-xs text-gray-600">
-                      Connect Strava and we’ll calibrate {hasPlan ? 'your regenerated plan' : 'your first plan'} from recent training history.
+                      Connect Strava and we’ll calibrate {hasPlan ? 'your new plan' : 'your first plan'} from recent training history.
                     </p>
 
                     <div className="mt-3 flex flex-col sm:flex-row gap-3">
