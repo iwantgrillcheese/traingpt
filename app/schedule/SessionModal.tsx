@@ -512,8 +512,8 @@ export default function SessionModal({
             </div>
           )}
 
-          <div className={clsx(isMobile ? 'px-5 pb-5' : 'p-7', 'h-full flex flex-col')}>
-            <div className={clsx('h-full overflow-hidden rounded-2xl border bg-gradient-to-b from-white to-zinc-50/80', sportTheme.softBorder)}>
+          <div className={clsx(isMobile ? 'px-5 pb-5' : 'p-7', 'h-full min-h-0 flex flex-col')}>
+            <div className={clsx('h-full min-h-0 overflow-hidden rounded-2xl border bg-gradient-to-b from-white/70 via-white/40 to-white/20', sportTheme.softBorder, 'flex flex-col')}>
             {/* Header */}
             <div
               className={clsx(
@@ -572,9 +572,9 @@ export default function SessionModal({
             </div>
 
             {/* Body */}
-            <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4 [-webkit-overflow-scrolling:touch]">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4 [-webkit-overflow-scrolling:touch]">
               {/* Workout */}
-              <div className={clsx('rounded-2xl border bg-white/80 backdrop-blur-sm', sportTheme.softBorder)}>
+              <div className={clsx('rounded-2xl border backdrop-blur-sm', sportTheme.softBorder, sportTheme.softBg)}>
                 <div className={clsx('px-4 pt-4 pb-3 border-b', sportTheme.softBorder, sportTheme.softBg)}>
                   <div className="text-[12px] font-semibold tracking-wide text-zinc-500 uppercase">
                     Workout
@@ -610,7 +610,7 @@ export default function SessionModal({
                       ))}
                     </div>
                   ) : (
-                    <div className="rounded-xl bg-black/[0.03] p-4">
+                    <div className="rounded-xl bg-white/40 p-4">
                       <div className="text-[14px] font-semibold text-zinc-900">
                         No detailed workout yet
                       </div>
@@ -671,7 +671,7 @@ export default function SessionModal({
 
               {/* Metrics */}
               {stravaActivity && (
-                <div className={clsx('mt-4 rounded-2xl border bg-white/80 backdrop-blur-sm', sportTheme.softBorder)}>
+                <div className={clsx('mt-4 rounded-2xl border backdrop-blur-sm', sportTheme.softBorder, sportTheme.softBg)}>
                   <div className="px-4 pt-4 pb-3 border-b border-black/5">
                     <div className="text-[12px] font-semibold tracking-wide text-zinc-500 uppercase">
                       Completed
@@ -706,7 +706,7 @@ export default function SessionModal({
 
               {/* Footer */}
             <div className={clsx('mt-4 border-t pt-4 pb-3 px-1 sm:px-0', sportTheme.softBorder, sportTheme.softBg)}>
-              <div className={clsx('mb-4 rounded-xl border bg-white/70 p-4', sportTheme.softBorder)}>
+              <div className={clsx('mb-4 rounded-xl border p-4', sportTheme.softBorder, sportTheme.softBg)}>
                 <label className="flex items-center gap-3 text-[14px] text-zinc-800">
                   <input
                     type="checkbox"
