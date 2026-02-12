@@ -273,10 +273,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Missing race type" }, { status: 400 });
     }
 
-    if (!raceType) {
-      return NextResponse.json({ ok: false, error: "Missing race type" }, { status: 400 });
-    }
-
     const trainingPrefs = extractPrefs(preferencesText);
 
     const ftpRaw = bikeFtp ?? bikeFTP;
