@@ -28,7 +28,6 @@ type CompletedSession = {
 type CalendarShellProps = {
   sessions: MergedSession[];
   completedSessions: CompletedSession[];
-  stravaActivities: StravaActivity[];
   extraStravaActivities: StravaActivity[];
   onCompletedUpdate?: (updated: CompletedSession[]) => void;
   timezone?: string;
@@ -82,7 +81,7 @@ function Toolbar({
 }) {
   return (
     <div className="sticky top-0 z-30 border-b border-black/10 bg-white">
-      <div className="w-full px-6 lg:px-10">
+      <div className="w-full px-4 lg:px-6">
         <div className="flex h-14 items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="text-[15px] font-semibold tracking-tight text-zinc-950">
@@ -204,6 +203,11 @@ export default function CalendarShell({
     setLocalSessions((prev) => [...prev, newSession]);
   };
 
+  const handleSessionDeleted = (sessionId: string) => {
+    setLocalSessions((prev) => prev.filter((s) => s.id !== sessionId));
+    setSelectedSession((prev) => (prev?.id === sessionId ? null : prev));
+  };
+
   const handleDragEnd = async (event: any) => {
     const { active, over } = event;
     if (!active || !over) return;
@@ -232,6 +236,7 @@ export default function CalendarShell({
           sessions={localSessions as any}
           completedSessions={completed}
           stravaActivities={extraStravaActivities}
+          onSessionDeleted={handleSessionDeleted}
         />
       </div>
 
@@ -247,7 +252,7 @@ export default function CalendarShell({
         />
 
         {/* Full-width canvas */}
-        <div className="w-full px-6 lg:px-10 py-5">
+        <div className="w-full px-4 py-5 lg:px-6">
           <div className="w-full overflow-x-auto">
             <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
               <MonthGrid
@@ -271,6 +276,7 @@ export default function CalendarShell({
         onClose={() => setSelectedSession(null)}
         completedSessions={completed}
         onCompletedUpdate={(updatedList) => setCompleted(updatedList)}
+        onSessionDeleted={handleSessionDeleted}
       />
 
       <StravaActivityModal

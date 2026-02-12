@@ -60,6 +60,7 @@ function buildPlanMeta(totalWeeks: number, startDateISO: string): WeekMeta[] {
   return weeks;
 }
 
+
 function secondsToHMM(totalSec: number): string {
   const safe = Number.isFinite(totalSec) ? Math.max(0, Math.floor(totalSec)) : 0;
   const h = Math.floor(safe / 3600);
@@ -140,6 +141,17 @@ function buildStravaHistorySummary(
   const bySport = new Map<string, { sessions: number; sec: number }>();
   for (const row of rows) {
     const sport = row.sport_type || "Other";
+function buildStravaHistorySummary(
+  rows: Array<{ sport_type: string | null; moving_time: number | null; distance: number | null; start_date: string | null }>
+): string {
+  if (!rows.length) return '';
+
+  const totalSec = rows.reduce((acc, row) => acc + (row.moving_time ?? 0), 0);
+  const totalDistanceKm = rows.reduce((acc, row) => acc + ((row.distance ?? 0) / 1000), 0);
+
+  const bySport = new Map<string, { sessions: number; sec: number }>();
+  for (const row of rows) {
+    const sport = row.sport_type || 'Other';
     const entry = bySport.get(sport) ?? { sessions: 0, sec: 0 };
     entry.sessions += 1;
     entry.sec += row.moving_time ?? 0;
@@ -151,6 +163,7 @@ function buildStravaHistorySummary(
     .slice(0, 4)
     .map(([sport, data]) => `${sport}: ${data.sessions} sessions, ${secondsToHMM(data.sec)}`)
     .join(" | ");
+    .join(' | ');
 
   const recent = [...rows]
     .filter((row) => !!row.start_date)
@@ -172,6 +185,17 @@ function buildStravaHistorySummary(
   ]
     .filter(Boolean)
     .join(" ");
+      return `${date} ${row.sport_type ?? 'Other'} ${time}${distanceKm ? `, ${distanceKm}km` : ''}`;
+    })
+    .join(' ; ');
+
+  return [
+    `Last 90 days: ${rows.length} activities, ${secondsToHMM(totalSec)} total, ${totalDistanceKm.toFixed(1)}km total distance.`,
+    sportLines ? `Sport split: ${sportLines}.` : '',
+    recent ? `Recent sessions: ${recent}.` : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
 function defaultRaceDateISO(raceType: string): string {
@@ -180,6 +204,8 @@ function defaultRaceDateISO(raceType: string): string {
     Olympic: 16,
     "Half Ironman (70.3)": 20,
     "Ironman (140.6)": 28,
+    'Half Ironman (70.3)': 20,
+    'Ironman (140.6)': 28,
   };
 
   const weeks = weeksByRace[raceType] ?? 16;
@@ -212,6 +238,19 @@ function inferAbilityFromStrava(
     experience: "Beginner",
     maxHours: Math.max(5, Math.round(Math.max(avgWeeklyHours, 3))),
   };
+): { experience: 'Beginner' | 'Intermediate' | 'Advanced'; maxHours: number } {
+  const totalHours = rows.reduce((acc, row) => acc + ((row.moving_time ?? 0) / 3600), 0);
+  const avgWeeklyHours = totalHours / 13;
+
+  if (avgWeeklyHours >= 9) {
+    return { experience: 'Advanced', maxHours: Math.min(16, Math.max(10, Math.round(avgWeeklyHours + 2))) };
+  }
+
+  if (avgWeeklyHours >= 5) {
+    return { experience: 'Intermediate', maxHours: Math.min(12, Math.max(7, Math.round(avgWeeklyHours + 1))) };
+  }
+
+  return { experience: 'Beginner', maxHours: Math.max(5, Math.round(Math.max(avgWeeklyHours, 3))) };
 }
 
 function computeTotalWeeks(todayISO: string, raceDateISO: string): number {
@@ -274,6 +313,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Missing race type" }, { status: 400 });
     }
 
+    if (!raceType) {
+      return NextResponse.json({ ok: false, error: "Missing race type" }, { status: 400 });
+    }
+
     const trainingPrefs = extractPrefs(preferencesText);
 
     const ftpRaw = bikeFtp ?? bikeFTP;
@@ -302,6 +345,33 @@ export async function POST(req: Request) {
       console.warn("[finalize-plan] strava history lookup failed", stravaErr);
     } else {
       stravaRows = data ?? [];
+    const paceUnitResolved: 'mi' | 'km' | undefined =
+      paceUnit === 'km' || paceUnit === 'mi' ? paceUnit : undefined;
+
+    const planTypeResolved: PlanType = planType ?? "triathlon";
+
+    let stravaRows: Array<{
+      sport_type: string | null;
+      moving_time: number | null;
+      distance: number | null;
+      start_date: string | null;
+    }> = [];
+
+    if (planTypeResolved === "triathlon") {
+      const sinceISO = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+      const { data, error: stravaErr } = await supabase
+        .from("strava_activities")
+        .select("sport_type,moving_time,distance,start_date")
+        .eq("user_id", userId)
+        .gte("start_date", sinceISO)
+        .order("start_date", { ascending: false })
+        .limit(150);
+
+      if (stravaErr) {
+        console.warn("[finalize-plan] strava history lookup failed", stravaErr);
+      } else {
+        stravaRows = data ?? [];
+      }
     }
 
     const hasStravaHistory = stravaRows.length > 0;
@@ -310,6 +380,9 @@ export async function POST(req: Request) {
 
     const raceDateResolved = (() => {
       const raw = typeof raceDate === "string" ? raceDate.trim() : "";
+
+    const raceDateResolved = (() => {
+      const raw = typeof raceDate === 'string' ? raceDate.trim() : '';
       if (raw) {
         const parsed = parseISO(raw);
         if (isValidDate(parsed)) return raw;
@@ -333,6 +406,14 @@ export async function POST(req: Request) {
         : hasStravaHistory
           ? inferredAbility.experience
           : "";
+        : hasStravaHistory
+          ? inferredAbility.experience
+          : "";
+      typeof experience === 'string' && experience.trim()
+        ? experience.trim()
+        : hasStravaHistory
+        ? inferredAbility.experience
+        : '';
 
     const maxHoursResolved = (() => {
       const raw = Number(maxHours);
@@ -340,6 +421,8 @@ export async function POST(req: Request) {
       const latestRaw = Number(latestPlanParams?.maxHours);
       if (Number.isFinite(latestRaw) && latestRaw > 0) return latestRaw;
       return hasStravaHistory ? inferredAbility.maxHours : Number.NaN;
+      return hasStravaHistory ? inferredAbility.maxHours : Number.NaN;
+      return hasStravaHistory ? inferredAbility.maxHours : NaN;
     })();
 
     if (!experienceResolved || !Number.isFinite(maxHoursResolved)) {
@@ -348,6 +431,7 @@ export async function POST(req: Request) {
           ok: false,
           error:
             "Please connect Strava (recommended for quick start) or enter experience + weekly time to generate your plan.",
+            'Please connect Strava (recommended for quick start) or enter experience + weekly time to generate your plan.',
         },
         { status: 400 }
       );
@@ -359,6 +443,7 @@ export async function POST(req: Request) {
         : typeof latestPlanParams?.restDay === "string" && latestPlanParams.restDay.trim() !== ""
           ? latestPlanParams.restDay
           : "Monday";
+    const restDayResolved = restDay && restDay.trim() !== "" ? restDay : "Monday";
     const stravaHistorySummary = buildStravaHistorySummary(stravaRows);
 
     const bikeFtpResolved = Number.isFinite(ftpNormalized as number)
@@ -373,6 +458,11 @@ export async function POST(req: Request) {
         : typeof latestPlanParams?.runPace === "string" && latestPlanParams.runPace.trim()
           ? latestPlanParams.runPace
         : inferredBaselines.estimatedRunThresholdPacePerKm ?? undefined;
+        : inferredBaselines.estimatedRunThresholdPacePerKm ?? undefined;
+    // ✅ Default rest day fallback
+    const restDayResolved = restDay && restDay.trim() !== "" ? restDay : "Monday";
+
+    const stravaHistorySummary = buildStravaHistorySummary(stravaRows);
 
     const userParams: UserParams = {
       raceType,

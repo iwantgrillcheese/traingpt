@@ -289,16 +289,17 @@ export default function SchedulePage() {
         {isLoggedOut ? (
           <div className="text-center py-10 text-zinc-400">Please sign in to view your schedule.</div>
         ) : (
-          <CalendarShell
-            sessions={enrichedSessions}
-            completedSessions={completedSessions}
-            stravaActivities={stravaActivities}
-            extraStravaActivities={unmatchedActivities}
-            onCompletedUpdate={handleCompletedUpdate}
-            timezone={userTimezone}
-            onOpenWalkthrough={openWalkthrough}
-            walkthroughLoading={walkthroughLoading}
-          />
+          <div className="relative left-1/2 w-screen -translate-x-1/2">
+            <CalendarShell
+              sessions={enrichedSessions}
+              completedSessions={completedSessions}
+              extraStravaActivities={unmatchedActivities}
+              onCompletedUpdate={handleCompletedUpdate}
+              timezone={userTimezone}
+              onOpenWalkthrough={openWalkthrough}
+              walkthroughLoading={walkthroughLoading}
+            />
+          </div>
         )}
       </main>
 

@@ -360,6 +360,7 @@ export default function PlanPage() {
         ...formData,
         ...(quickMode
           ? {
+              raceDate: '',
               experience: '',
               maxHours: '',
               restDay: '',
@@ -552,6 +553,10 @@ export default function PlanPage() {
         supabase
           .from('plans')
           .select('id,race_type,race_date,plan')
+      const [planRes, profileRes] = await Promise.all([
+        supabase
+          .from('plans')
+          .select('id')
           .eq('user_id', session.user.id)
           .order('created_at', { ascending: false })
           .limit(1)
@@ -643,6 +648,9 @@ export default function PlanPage() {
         setStravaSummary(null);
       }
 
+
+
+      setStravaConnected(!!profileRes.data?.strava_access_token);
       setSessionChecked(true);
     };
 
@@ -727,12 +735,14 @@ export default function PlanPage() {
     ? hasPlan
       ? 'Regenerate from race + Strava history for a fresh ability-calibrated plan.'
       : 'For your first plan, choose a race + date and sync Strava. We’ll estimate the rest from your recent training.'
+      : 'For your first plan, choose a race and sync Strava. We’ll estimate the rest from your recent training.'
     : hasPlan
     ? 'This will replace your current training plan.'
     : 'We’ll personalize your training based on your inputs.';
 
   const visibleBeginnerFields = quickMode
     ? beginnerFields.filter((field) => field.id === 'raceType' || field.id === 'raceDate')
+    ? beginnerFields.filter((field) => field.id === 'raceType')
     : beginnerFields;
 
   return (
@@ -852,6 +862,7 @@ export default function PlanPage() {
                   <div className="mt-1 text-xs text-gray-500">
                     {quickMode
                       ? 'Pick your race + date and connect Strava. We calibrate workouts from your recent training history.'
+                      ? 'Pick your race and connect Strava. We calibrate the plan from your recent training history.'
                       : 'Built around your race and weekly time. Adjust anytime.'}
                   </div>
                 </div>
@@ -879,6 +890,7 @@ export default function PlanPage() {
                       id === 'raceType'
                         ? quickMode
                           ? 'Choose your target race distance'
+                          ? 'Choose your triathlon distance'
                           : 'Sprint, Olympic, 70.3, Ironman or running events'
                         : id === 'raceDate'
                         ? 'Your goal day'
@@ -887,6 +899,10 @@ export default function PlanPage() {
                         : id === 'experience'
                         ? 'How long you’ve trained'
                         : undefined;
+
+                    const raceOptions = quickMode
+                      ? ['Sprint', 'Olympic', 'Half Ironman (70.3)', 'Ironman (140.6)']
+                      : options;
 
                     return (
                       <Row key={id} label={label} hint={hint}>
@@ -899,7 +915,7 @@ export default function PlanPage() {
                             required={required}
                           >
                             <option value="">Select…</option>
-                            {options?.map((opt) => (
+                            {raceOptions?.map((opt) => (
                               <option key={opt} value={opt}>
                                 {opt}
                               </option>
