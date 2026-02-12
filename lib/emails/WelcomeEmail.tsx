@@ -60,7 +60,7 @@ export default function WelcomeEmail({ name, plan }: Props) {
 
           <Section>
             <Text style={paragraph}>
-              Whether you're chasing a PR or just showing up stronger each week — your coach is with you, every step of the way.
+              Whether you&apos;re chasing a PR or just showing up stronger each week — your coach is with you, every step of the way.
             </Text>
             <Text style={paragraph}>
               Have questions? Just reply to this email — we’re here to help.
