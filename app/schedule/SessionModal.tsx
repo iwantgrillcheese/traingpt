@@ -513,7 +513,7 @@ export default function SessionModal({
           )}
 
           <div className={clsx(isMobile ? 'px-5 pb-5' : 'p-7', 'h-full min-h-0 flex flex-col')}>
-            <div className={clsx('h-full min-h-0 overflow-hidden rounded-2xl border bg-gradient-to-b from-white/70 via-white/40 to-white/20', sportTheme.softBorder, 'flex flex-col')}>
+            <div className={clsx('h-full min-h-0 rounded-2xl border bg-gradient-to-b from-white/70 via-white/40 to-white/20', sportTheme.softBorder, 'flex flex-col')}>
             {/* Header */}
             <div
               className={clsx(
@@ -572,7 +572,10 @@ export default function SessionModal({
             </div>
 
             {/* Body */}
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4 [-webkit-overflow-scrolling:touch]">
+            <div
+              className="min-h-0 max-h-full flex-1 overflow-y-scroll overscroll-contain px-3 py-3 sm:px-4"
+              style={{ WebkitOverflowScrolling: 'touch' }}
+            >
               {/* Workout */}
               <div className={clsx('rounded-2xl border backdrop-blur-sm', sportTheme.softBorder, sportTheme.softBg)}>
                 <div className={clsx('px-4 pt-4 pb-3 border-b', sportTheme.softBorder, sportTheme.softBg)}>
