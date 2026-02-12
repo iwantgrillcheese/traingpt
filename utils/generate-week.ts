@@ -6,6 +6,7 @@ import { buildCoachPrompt } from "./buildCoachPrompt";
 import { buildRunningPrompt } from "./buildRunningPrompt";
 import { computeRunTargets } from "@/utils/runTargets";
 import { validateRunWeek } from "@/utils/validateRunWeek";
+import { stripUnsupportedParams } from "@/utils/openaiSafeParams";
 import type { WeekMeta, UserParams, WeekJson, PlanType, DayOfWeek } from "@/types/plan";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
@@ -61,19 +62,20 @@ export async function generateWeek({
   const systemPrompt = isRunPlan ? RUNNING_SYSTEM_PROMPT : COACH_SYSTEM_PROMPT;
 
   async function callLLM(extraFixText?: string): Promise<WeekJson> {
-    const resp = await openai.chat.completions.create({
-      model,
-      temperature: isRunPlan ? 0.1 : 0.2,
-      top_p: 1,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: systemPrompt },
-        {
-          role: "user",
-          content: extraFixText ? `${userMsg}\n\n## Fix Required\n${extraFixText}` : userMsg,
-        },
-      ],
-    });
+    const resp = await openai.chat.completions.create(
+      stripUnsupportedParams({
+        model,
+        top_p: 1,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: systemPrompt },
+          {
+            role: "user",
+            content: extraFixText ? `${userMsg}\n\n## Fix Required\n${extraFixText}` : userMsg,
+          },
+        ],
+      })
+    );
 
     const content = resp.choices[0]?.message?.content ?? "{}";
     return JSON.parse(content) as WeekJson;
