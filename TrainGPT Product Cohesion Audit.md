@@ -175,3 +175,177 @@ TrainGPT should feel like:
   **race goal → weekly intent → daily execution → coach feedback → race readiness**.
 
 That single chain should be visible in every primary workflow.
+---
+
+## Execution Roadmap (Solo Builder, 6 Weeks)
+
+### Planning assumptions
+- Solo builder velocity, incremental weekly slices.
+- No large architectural rewrites in a single sprint.
+- Prioritize visible user-value and race-prep cohesion over backend perfection.
+
+## Sprint 1 (Week 1): Establish the Race Anchor Everywhere
+
+**Sprint goal**
+Make the race goal persistent and visible so every core page feels tied to one mission.
+
+**Features to ship**
+- Add a reusable **Race Command Center** strip to Schedule + Coaching + Plan.
+- Display: race name/type, race date, days-to-race, current phase (Base/Build/Peak/Taper), weekly focus text.
+- Add fallback empty-state CTA when no race context exists.
+
+**Files/systems likely impacted**
+- `app/components/Layout.tsx`
+- New shared component: `app/components/RaceCommandCenter.tsx`
+- `app/schedule/page.tsx`
+- `app/coaching/CoachingClient.tsx`
+- `app/plan/page.tsx`
+- Supabase reads from `plans` (latest active plan)
+
+**Acceptance criteria**
+- Race strip appears on Plan, Schedule, and Coaching for authenticated users with a plan.
+- Countdown and phase are consistent across pages.
+- If no plan exists, clear CTA routes to plan setup.
+- No regressions in page load/auth flows.
+
+---
+
+## Sprint 2 (Week 2): Tighten IA + Navigation to Match User Journey
+
+**Sprint goal**
+Align navigation with race-preparation workflow (not just feature buckets).
+
+**Features to ship**
+- Update nav labels/order to a clearer journey:
+  - Today (Schedule)
+  - Plan
+  - Insights (Coaching)
+  - Race
+  - Settings
+- Add active-page context labels/subtitles to reduce “where am I?” ambiguity.
+- Ensure CTA paths from landing/login route users into the right first task.
+
+**Files/systems likely impacted**
+- `app/components/Layout.tsx`
+- `app/page.tsx` (marketing CTAs)
+- `app/login/page.tsx`
+- `app/races/page.tsx`
+
+**Acceptance criteria**
+- Navigation language is consistent across desktop/mobile drawer.
+- New users can get from login to first workout context in ≤3 clicks.
+- No dead links or route mismatches.
+
+---
+
+## Sprint 3 (Week 3): Connect Weekly Intent to Daily Execution
+
+**Sprint goal**
+Make schedule weeks explain *why* each week/session exists in the race build.
+
+**Features to ship**
+- Add weekly objective banner in Schedule (e.g., “Build aerobic durability”).
+- Mark 1–3 **key sessions** each week in calendar/session views.
+- In SessionModal, show “This session contributes to: [weekly objective]”.
+
+**Files/systems likely impacted**
+- `app/schedule/page.tsx`
+- `app/schedule/CalendarShell.tsx`
+- `app/schedule/DesktopContextPanel.tsx`
+- `app/schedule/SessionModal.tsx`
+- Plan/session metadata mapping utilities (likely `utils/*` and `types/*`)
+
+**Acceptance criteria**
+- Weekly objective visible for current week.
+- At least one key session highlighted when plan provides signal.
+- Session modal always shows contextual purpose text.
+- No breakage to existing completion/notes/generation actions.
+
+---
+
+## Sprint 4 (Week 4): Embed Coaching at Decision Points
+
+**Sprint goal**
+Move coaching from separate destination to in-flow support.
+
+**Features to ship**
+- Add contextual coach prompts in Schedule and SessionModal:
+  - “Adjust this workout for fatigue?”
+  - “What should tomorrow look like after this?”
+- Pre-fill coach modal with session/race context when launched from session UI.
+- Add a compact “Coach recommendation for this week” card in Schedule.
+
+**Files/systems likely impacted**
+- `app/components/CoachChatModal.tsx`
+- `app/schedule/SessionModal.tsx`
+- `app/schedule/DesktopContextPanel.tsx`
+- `app/coaching/CoachingClient.tsx`
+- `app/api/coach-chat/route.ts` (prompt/context packaging)
+
+**Acceptance criteria**
+- Coach can be invoked from session workflow without leaving context.
+- Prefilled prompt includes session + phase context.
+- Coach response quality remains stable (no blank/irrelevant responses).
+
+---
+
+## Sprint 5 (Week 5): Race-Readiness Signals + Outcome Framing
+
+**Sprint goal**
+Turn metrics into race-outcome guidance (“on track / at risk / improving”).
+
+**Features to ship**
+- Add race-readiness status card combining:
+  - adherence trend
+  - recent load consistency
+  - key workout completion
+- Add human-readable explanation: “You’re on track because…”
+- Add risk flags (e.g., missed key sessions, declining consistency).
+
+**Files/systems likely impacted**
+- `app/components/CoachingDashboard.tsx`
+- `app/coaching/FitnessPanel.tsx`
+- `app/coaching/WeeklySummaryPanel.tsx`
+- Derived metrics utilities (`utils/getWeeklySummary.ts`, `utils/getWeeklyVolume.ts`)
+
+**Acceptance criteria**
+- Readiness status shows one of: On Track / Watch / At Risk.
+- Status explanation references concrete recent data.
+- No contradictory messaging between dashboard cards.
+
+---
+
+## Sprint 6 (Week 6): Race-Day Preparation Module (Lightweight v1)
+
+**Sprint goal**
+Close the loop from training to race execution.
+
+**Features to ship**
+- Add race-day prep checklist:
+  - pacing plan drafted
+  - fueling plan rehearsed
+  - key rehearsal workouts done
+  - taper checklist complete
+  - logistics complete
+- Add checklist progress indicator in Race page and Race Command Center.
+- Add simple reminder nudges in final 2 weeks.
+
+**Files/systems likely impacted**
+- `app/races/page.tsx`
+- New component(s): `app/components/RacePrepChecklist.tsx`
+- `app/components/RaceCommandCenter.tsx`
+- Optional light persistence in Supabase (race_prep checklist state)
+
+**Acceptance criteria**
+- User can view/update checklist state.
+- Checklist progress is visible in at least two key surfaces.
+- Final-2-week nudge copy appears without disrupting core flows.
+
+---
+
+## Highest-impact-first summary
+1. **Week 1–2:** Cohesion foundation (race anchor + IA).
+2. **Week 3–4:** In-workflow clarity and coaching assistance.
+3. **Week 5–6:** Outcome framing and race-day execution layer.
+
+This sequence delivers immediate product coherence first, then compounds into better daily usability and race-readiness confidence.
