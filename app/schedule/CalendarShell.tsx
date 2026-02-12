@@ -277,6 +277,14 @@ export default function CalendarShell({
         completedSessions={completed}
         onCompletedUpdate={(updatedList) => setCompleted(updatedList)}
         onSessionDeleted={handleSessionDeleted}
+        onSessionUpdated={(updatedSession) => {
+          setLocalSessions((prev) =>
+            prev.map((s) => (s.id === updatedSession.id ? { ...s, details: updatedSession.details } : s))
+          );
+          setSelectedSession((prev) =>
+            prev?.id === updatedSession.id ? { ...prev, details: updatedSession.details } : prev
+          );
+        }}
       />
 
       <StravaActivityModal

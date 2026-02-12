@@ -545,6 +545,14 @@ export default function MobileCalendarView({
           onClose={() => setSelectedSession(null)}
           completedSessions={completedSessions}
           onCompletedUpdate={(updatedList) => setCompletedSessions(updatedList)}
+          onSessionUpdated={(updatedSession) => {
+            setSessionsState((prev) =>
+              prev.map((s) => (s.id === updatedSession.id ? { ...s, details: updatedSession.details } : s))
+            );
+            setSelectedSession((prev) =>
+              prev?.id === updatedSession.id ? { ...prev, details: updatedSession.details } : prev
+            );
+          }}
           onSessionDeleted={(sessionId) => {
             setSessionsState((prev) => prev.filter((s) => s.id !== sessionId));
             setCompletedSessions((prev) =>

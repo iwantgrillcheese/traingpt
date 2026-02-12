@@ -22,6 +22,7 @@ type Props = {
   completedSessions: CompletedSession[];
   onCompletedUpdate: (updated: CompletedSession[]) => void;
   onSessionDeleted?: (sessionId: string) => void;
+  onSessionUpdated?: (updated: Session) => void;
 };
 
 function useIsMobile(breakpointPx = 768) {
@@ -191,12 +192,15 @@ export default function SessionModal({
   completedSessions,
   onCompletedUpdate,
   onSessionDeleted,
+  onSessionUpdated,
 }: Props) {
   const isMobile = useIsMobile(768);
 
   const [loading, setLoading] = useState(false);
   const [output, setOutput] = useState<string | null>(session?.structured_workout || null);
   const [markingComplete, setMarkingComplete] = useState(false);
+  const [notesDraft, setNotesDraft] = useState('');
+  const [savingNotes, setSavingNotes] = useState(false);
 
   const isCompleted = useMemo(
     () =>
@@ -208,7 +212,57 @@ export default function SessionModal({
 
   useEffect(() => {
     setOutput(session?.structured_workout || null);
+    setNotesDraft(session?.details ?? '');
   }, [session?.id]);
+
+  const notesChanged = notesDraft !== (session?.details ?? '');
+
+  const handleApplyMood = (mood: string) => {
+    const current = notesDraft.trim();
+    const moodLine = `Mood: ${mood}`;
+    if (!current) {
+      setNotesDraft(`${moodLine}\n`);
+      return;
+    }
+
+    const lines = notesDraft.split('\n');
+    if (/^mood\s*:/i.test(lines[0] ?? '')) {
+      lines[0] = moodLine;
+      setNotesDraft(lines.join('\n'));
+      return;
+    }
+
+    setNotesDraft(`${moodLine}\n${notesDraft}`);
+  };
+
+  const handleSaveNotes = async () => {
+    if (!session || !notesChanged) return;
+    setSavingNotes(true);
+
+    try {
+      const cleanNotes = notesDraft.trim();
+      const { error } = await supabase
+        .from('sessions')
+        .update({ details: cleanNotes ? cleanNotes : null })
+        .eq('id', session.id);
+
+      if (error) {
+        console.error('Failed to save session notes:', error);
+        alert('Could not save notes. Please try again.');
+        return;
+      }
+
+      onSessionUpdated?.({
+        ...session,
+        details: cleanNotes ? cleanNotes : null,
+      });
+    } catch (err) {
+      console.error(err);
+      alert('Unexpected error saving notes.');
+    } finally {
+      setSavingNotes(false);
+    }
+  };
 
   const parsedWorkout = useMemo(() => parseWorkout(output), [output]);
 
@@ -485,14 +539,44 @@ export default function SessionModal({
                     </div>
                   )}
 
-                  {session.details ? (
-                    <div className="mt-4 rounded-xl border border-black/5 bg-zinc-50/70 p-3">
+                  <div className="mt-4 rounded-xl border border-black/5 bg-zinc-50/70 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-                        Session notes
+                        How did it feel?
                       </div>
-                      <div className="mt-1 text-[13px] leading-relaxed text-zinc-700">{session.details}</div>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {['Happy', 'Okay', 'Tired', 'Hard'].map((mood) => (
+                          <button
+                            key={mood}
+                            type="button"
+                            onClick={() => handleApplyMood(mood)}
+                            className="rounded-full border border-black/10 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100"
+                          >
+                            {mood}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  ) : null}
+
+                    <textarea
+                      value={notesDraft}
+                      onChange={(e) => setNotesDraft(e.target.value)}
+                      rows={4}
+                      placeholder="Add your notes about this session..."
+                      className="mt-2 w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-[13px] text-zinc-800 outline-none ring-0 placeholder:text-zinc-400 focus:border-zinc-400"
+                    />
+
+                    <div className="mt-2 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={handleSaveNotes}
+                        disabled={!notesChanged || savingNotes}
+                        className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[12px] font-semibold text-zinc-800 disabled:opacity-50"
+                      >
+                        {savingNotes ? 'Saving…' : 'Save notes'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
