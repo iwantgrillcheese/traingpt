@@ -9,6 +9,7 @@ import type { StravaActivity } from '@/types/strava';
 import mergeSessionsWithStrava, { MergedSession } from '@/utils/mergeSessionWithStrava';
 import Footer from '../components/footer';
 import RaceHubCard from '../components/race/RaceHubCard';
+import WeeklyIntentCard from '../components/race/WeeklyIntentCard';
 
 // Walkthrough
 import PostPlanWalkthrough from '../plan/components/PostPlanWalkthrough';
@@ -48,6 +49,25 @@ function deriveCurrentPhase(planPayload: any): string | null {
   }
 
   return latestPhase ?? (weeks[0]?.phase ? String(weeks[0].phase) : null);
+}
+
+function getWeekBounds(reference = new Date()) {
+  const start = new Date(reference);
+  const day = start.getDay();
+  const offset = day === 0 ? -6 : 1 - day;
+  start.setDate(start.getDate() + offset);
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+
+  return { start, end };
+}
+
+function formatWeekRange(start: Date, end: Date) {
+  const fmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
+  return `${fmt.format(start)} – ${fmt.format(end)}`;
 }
 
 export default function SchedulePage() {
@@ -305,6 +325,30 @@ export default function SchedulePage() {
     }
   }, [sessions, stravaActivities, userTimezone]);
 
+  const weeklyIntent = useMemo(() => {
+    const { start, end } = getWeekBounds();
+    const rangeLabel = formatWeekRange(start, end);
+
+    const weekSessions = sessions
+      .filter((session) => {
+        const d = new Date(session.date);
+        return !Number.isNaN(d.getTime()) && d >= start && d <= end;
+      })
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    const hardSessions = weekSessions.filter((s) => /tempo|threshold|interval|long|brick|race pace/i.test(s.title || ''));
+    const keySessions = (hardSessions.length ? hardSessions : weekSessions).slice(0, 3);
+
+    const bullets = keySessions.length
+      ? keySessions.map((s) => `${s.sport}: ${s.title}`)
+      : ['Set your race and generate a plan to see this week’s key focus sessions.'];
+
+    return {
+      weekRangeLabel: rangeLabel,
+      bullets,
+    };
+  }, [sessions]);
+
   const isLoggedOut = !authedUserId;
 
   const fetchLatestPlanContext = useCallback(async (): Promise<WalkthroughContext | null> => {
@@ -417,6 +461,14 @@ export default function SchedulePage() {
                 currentPhase={raceHub?.currentPhase}
                 saving={raceHubSaving}
                 onSave={handleRaceHubSave}
+              />
+
+              <WeeklyIntentCard
+                weekRangeLabel={weeklyIntent.weekRangeLabel}
+                phase={raceHub?.currentPhase}
+                bullets={weeklyIntent.bullets}
+                ctaHref="#"
+                ctaLabel="Open weekly coaching"
               />
             </div>
 
