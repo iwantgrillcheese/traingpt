@@ -3,10 +3,16 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase-client';
+import {
+  DEFAULT_FUELING_PREFERENCES,
+  loadFuelingPreferences,
+  saveFuelingPreferences,
+} from '@/lib/fueling-preferences';
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<any>(null);
   const [optIn, setOptIn] = useState<boolean>(true);
+  const [fuelingPreferences, setFuelingPreferences] = useState(DEFAULT_FUELING_PREFERENCES);
 
   const secondsToTimeString = (seconds: number) => {
     const min = Math.floor(seconds / 60);
@@ -74,6 +80,21 @@ export default function ProfilePage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    setFuelingPreferences(loadFuelingPreferences());
+  }, []);
+
+  const handleFuelingPreferenceUpdate = (
+    field: 'enabled' | 'bodyWeightKg' | 'bodyFatPct' | 'sweatRateLPerHour',
+    value: boolean | string
+  ) => {
+    setFuelingPreferences((prev) => {
+      const next = { ...prev, [field]: value } as typeof prev;
+      saveFuelingPreferences(next);
+      return next;
+    });
+  };
 
   const toggleOptIn = async () => {
     const {
@@ -276,6 +297,75 @@ export default function ProfilePage() {
 
         <section className="bg-white border rounded-xl p-6 shadow-sm">
           <h2 className="text-lg font-medium mb-2">Fueling</h2>
+          <p className="text-sm text-gray-600">
+            Set defaults for workout fueling guidance. You can still adjust these per-session from
+            your calendar.
+          </p>
+
+          <div className="mt-4 rounded-xl border border-black/10 bg-zinc-50/70 p-4">
+            <label className="flex items-center gap-3 text-sm text-zinc-800">
+              <input
+                type="checkbox"
+                checked={fuelingPreferences.enabled}
+                onChange={(e) => handleFuelingPreferenceUpdate('enabled', e.target.checked)}
+                className="h-4 w-4"
+              />
+              Enable fueling guidance by default
+            </label>
+
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div>
+                <label className="mb-1 block text-xs text-zinc-600">Body weight (kg)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={fuelingPreferences.bodyWeightKg}
+                  onChange={(e) => handleFuelingPreferenceUpdate('bodyWeightKg', e.target.value)}
+                  className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm"
+                  placeholder="70"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs text-zinc-600">Body fat % (optional)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="60"
+                  step="0.1"
+                  value={fuelingPreferences.bodyFatPct}
+                  onChange={(e) => handleFuelingPreferenceUpdate('bodyFatPct', e.target.value)}
+                  className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm"
+                  placeholder="18"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs text-zinc-600">Sweat rate L/hr (optional)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={fuelingPreferences.sweatRateLPerHour}
+                  onChange={(e) =>
+                    handleFuelingPreferenceUpdate('sweatRateLPerHour', e.target.value)
+                  }
+                  className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm"
+                  placeholder="0.8"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <Link
+              href="/fueling"
+              className="inline-flex rounded-md border border-black/10 px-4 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50 transition"
+            >
+              Open fueling shop guide
+            </Link>
+          </div>
           <p className="text-sm text-gray-600 mb-4">
             Want workout-specific nutrition guidance? Turn on fueling when generating a detailed
             session from your calendar.

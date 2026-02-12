@@ -7,6 +7,10 @@ import clsx from 'clsx';
 import { supabase } from '@/lib/supabase-client';
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
+import {
+  loadFuelingPreferences,
+  saveFuelingPreferences,
+} from '@/lib/fueling-preferences';
 
 type CompletedSession = {
   date: string;
@@ -308,6 +312,23 @@ export default function SessionModal({
       setSavingNotes(false);
     }
   };
+
+  useEffect(() => {
+    const defaults = loadFuelingPreferences();
+    setFuelingEnabled(defaults.enabled);
+    setBodyWeightKg(defaults.bodyWeightKg);
+    setBodyFatPct(defaults.bodyFatPct);
+    setSweatRateLPerHour(defaults.sweatRateLPerHour);
+  }, [session?.id]);
+
+  useEffect(() => {
+    saveFuelingPreferences({
+      enabled: fuelingEnabled,
+      bodyWeightKg,
+      bodyFatPct,
+      sweatRateLPerHour,
+    });
+  }, [fuelingEnabled, bodyWeightKg, bodyFatPct, sweatRateLPerHour]);
 
   const parsedWorkout = useMemo(() => parseWorkout(output), [output]);
 
@@ -676,6 +697,56 @@ export default function SessionModal({
                 </label>
 
                 {fuelingEnabled ? (
+                  <>
+                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <div>
+                        <label className="mb-1 block text-[12px] text-zinc-600">Body weight (kg)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          value={bodyWeightKg}
+                          onChange={(e) => setBodyWeightKg(e.target.value)}
+                          className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-[14px]"
+                          placeholder="70"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-[12px] text-zinc-600">Body fat % (optional)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="60"
+                          step="0.1"
+                          value={bodyFatPct}
+                          onChange={(e) => setBodyFatPct(e.target.value)}
+                          className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-[14px]"
+                          placeholder="18"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-[12px] text-zinc-600">Sweat rate L/hr (optional)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          value={sweatRateLPerHour}
+                          onChange={(e) => setSweatRateLPerHour(e.target.value)}
+                          className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-[14px]"
+                          placeholder="0.8"
+                        />
+                      </div>
+                    </div>
+
+                    <a
+                      href="/fueling"
+                      className="mt-3 inline-flex text-[12px] font-medium text-zinc-600 underline underline-offset-2 hover:text-zinc-900"
+                    >
+                      Open fueling shop guide
+                    </a>
+                  </>
                   <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div>
                       <label className="mb-1 block text-[12px] text-zinc-600">Body weight (kg)</label>

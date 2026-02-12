@@ -25,6 +25,7 @@ export default function FuelingPage() {
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-600">
           Use your detailed workout fueling targets to build a product list before key sessions.
+          Feed.com can handle fulfillment while TrainGPT handles the recommendations.
           Feed can handle fulfillment while TrainGPT handles the recommendations.
         </p>
 
@@ -39,11 +40,13 @@ export default function FuelingPage() {
 
         <div className="mt-6 flex flex-wrap items-center gap-3">
           <a
+            href="https://feed.com/"
             href="https://thefeed.com/"
             target="_blank"
             rel="noreferrer"
             className="inline-flex rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800 transition"
           >
+            Shop on Feed.com
             Shop on The Feed
           </a>
           <Link
