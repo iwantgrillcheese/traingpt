@@ -81,7 +81,7 @@ function Toolbar({
 }) {
   return (
     <div className="sticky top-0 z-30 border-b border-black/10 bg-white">
-      <div className="w-full px-6 lg:px-10">
+      <div className="w-full px-4 lg:px-6">
         <div className="flex h-14 items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="text-[15px] font-semibold tracking-tight text-zinc-950">
@@ -241,7 +241,7 @@ export default function CalendarShell({
       </div>
 
       {/* Desktop (CSS-controlled) */}
-      <div className="hidden md:block md:h-[100dvh] md:overflow-y-auto">
+      <div className="hidden md:block">
         <Toolbar
           currentMonth={currentMonth}
           onPrev={goToPrevMonth}
@@ -252,7 +252,7 @@ export default function CalendarShell({
         />
 
         {/* Full-width canvas */}
-        <div className="w-full px-6 py-5 lg:px-10">
+        <div className="w-full px-4 py-5 lg:px-6">
           <div className="w-full overflow-x-auto">
             <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
               <MonthGrid
