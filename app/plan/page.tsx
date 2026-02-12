@@ -1028,7 +1028,6 @@ export default function PlanPage() {
                       id === 'raceType'
                         ? quickMode
                           ? 'Choose your event (running or triathlon)'
-                          ? 'Choose your target race distance'
                           : 'Sprint, Olympic, 70.3, Ironman or running events'
                         : id === 'raceDate'
                         ? 'Your goal day'

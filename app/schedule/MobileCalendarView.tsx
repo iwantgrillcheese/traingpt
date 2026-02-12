@@ -513,55 +513,53 @@ export default function MobileCalendarView({
 
                   {/* Strava-only extras */}
                   {extras.map((a) => {
-                    {/* Strava-only extras */}
-                    {extras.map((a) => {
-                      const date = safeParseDate(a.start_date_local);
-                      const distance = a.distance ? `${(a.distance / 1609).toFixed(1)} mi` : '';
-                      const hr = a.average_heartrate ? `${Math.round(a.average_heartrate)} bpm` : '';
+                    const date = safeParseDate(a.start_date_local);
+                    const distance = a.distance ? `${(a.distance / 1609).toFixed(1)} mi` : '';
+                    const hr = a.average_heartrate ? `${Math.round(a.average_heartrate)} bpm` : '';
 
-                      return (
-                        <div
-                          key={a.id}
-                          className="px-4 py-4 flex items-center gap-3 rounded-2xl border border-black/5 bg-zinc-50"
-                        >
-                          <div className="shrink-0 h-10 w-10 rounded-xl bg-white border border-black/5 flex items-center justify-center">
-                            <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5 text-zinc-800">
-                              <path
-                                d="M12 4v12m0 0 4-4m-4 4-4-4"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                              <path
-                                d="M5 20h14"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                              />
-                            </svg>
+                    return (
+                      <div
+                        key={a.id}
+                        className="px-4 py-4 flex items-center gap-3 rounded-2xl border border-black/5 bg-zinc-50"
+                      >
+                        <div className="shrink-0 h-10 w-10 rounded-xl bg-white border border-black/5 flex items-center justify-center">
+                          <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5 text-zinc-800">
+                            <path
+                              d="M12 4v12m0 0 4-4m-4 4-4-4"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                            <path
+                              d="M5 20h14"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <div className="text-[14px] font-semibold text-zinc-950 truncate">
+                              {a.name || 'Unplanned Activity'}
+                            </div>
+                            <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black/5 text-zinc-600">
+                              Imported
+                            </span>
                           </div>
-
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <div className="text-[14px] font-semibold text-zinc-950 truncate">
-                                {a.name || 'Unplanned Activity'}
-                              </div>
-                              <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black/5 text-zinc-600">
-                                Imported
-                              </span>
-                            </div>
-                            <div className="mt-0.5 text-[13px] text-zinc-600 truncate">
-                              {format(date, 'EEE, MMM d')}
-                              {distance ? <span className="text-zinc-400">{`  •  `}</span> : null}
-                              {distance ? <span className="text-zinc-800">{distance}</span> : null}
-                              {hr ? <span className="text-zinc-400">{`  •  `}</span> : null}
-                              {hr ? <span className="text-zinc-800">{hr}</span> : null}
-                            </div>
+                          <div className="mt-0.5 text-[13px] text-zinc-600 truncate">
+                            {format(date, 'EEE, MMM d')}
+                            {distance ? <span className="text-zinc-400">{`  •  `}</span> : null}
+                            {distance ? <span className="text-zinc-800">{distance}</span> : null}
+                            {hr ? <span className="text-zinc-400">{`  •  `}</span> : null}
+                            {hr ? <span className="text-zinc-800">{hr}</span> : null}
                           </div>
                         </div>
-                      );
-                    })}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
