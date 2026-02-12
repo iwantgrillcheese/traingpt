@@ -138,6 +138,51 @@ function XIcon(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
+function getSportTheme(sportRaw?: string | null) {
+  const sport = String(sportRaw ?? '')
+    .trim()
+    .toLowerCase();
+
+  switch (sport) {
+    case 'swim':
+      return {
+        gradient: 'from-slate-600/90 to-sky-500/80',
+        softBg: 'bg-slate-50',
+        softBorder: 'border-slate-200',
+      };
+    case 'bike':
+      return {
+        gradient: 'from-zinc-700/90 to-zinc-500/80',
+        softBg: 'bg-zinc-50',
+        softBorder: 'border-zinc-200',
+      };
+    case 'run':
+      return {
+        gradient: 'from-emerald-700/90 to-teal-500/80',
+        softBg: 'bg-emerald-50/60',
+        softBorder: 'border-emerald-200',
+      };
+    case 'strength':
+      return {
+        gradient: 'from-violet-700/90 to-fuchsia-500/75',
+        softBg: 'bg-violet-50/60',
+        softBorder: 'border-violet-200',
+      };
+    case 'rest':
+      return {
+        gradient: 'from-zinc-500/90 to-zinc-400/80',
+        softBg: 'bg-zinc-50',
+        softBorder: 'border-zinc-200',
+      };
+    default:
+      return {
+        gradient: 'from-zinc-700/90 to-slate-500/80',
+        softBg: 'bg-zinc-50',
+        softBorder: 'border-zinc-200',
+      };
+  }
+}
+
 export default function SessionModal({
   session,
   stravaActivity,
@@ -295,10 +340,15 @@ export default function SessionModal({
   if (!session) return null;
 
   const formattedDate = format(parseISO(session.date), 'EEE, MMM d');
+  const sportTheme = getSportTheme(session.sport);
+  const plannedDuration =
+    typeof session.duration === 'number' && Number.isFinite(session.duration)
+      ? `${Math.round(session.duration)} min`
+      : null;
 
   const panelClass = isMobile
-    ? 'w-full max-w-none rounded-t-3xl bg-white shadow-2xl'
-    : 'w-full max-w-2xl rounded-2xl bg-white shadow-2xl';
+    ? 'w-full max-w-none rounded-t-3xl border border-black/10 bg-white shadow-[0_30px_80px_rgba(0,0,0,0.4)]'
+    : 'w-full max-w-3xl rounded-3xl border border-black/10 bg-white shadow-[0_35px_100px_rgba(0,0,0,0.38)]';
 
   return (
     <Dialog open={open} onClose={onClose} className="relative z-50">
@@ -326,42 +376,71 @@ export default function SessionModal({
 
           <div className={clsx(isMobile ? 'px-5 pb-5' : 'p-7', 'h-full flex flex-col')}>
             {/* Header */}
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <Dialog.Title className="text-[20px] font-semibold tracking-tight text-zinc-950">
-                  {session.title}
-                </Dialog.Title>
+            <div
+              className={clsx(
+                'rounded-2xl border px-4 py-4 sm:px-5 sm:py-5 text-white',
+                'bg-gradient-to-r',
+                sportTheme.gradient,
+                sportTheme.softBorder
+              )}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <Dialog.Title className="text-[22px] font-semibold tracking-tight text-white">
+                    {session.title}
+                  </Dialog.Title>
 
-                <div className="mt-1 flex items-center gap-2 text-[13px] text-zinc-600">
-                  <span>{formattedDate}</span>
-                  <span className="text-zinc-400">•</span>
-                  <span className="capitalize">{session.sport}</span>
-
-                  {isCompleted && (
-                    <>
-                      <span className="text-zinc-400">•</span>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-black/[0.04] px-2 py-0.5 text-[12px] font-semibold text-zinc-800">
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-white/90">
+                    <span className="rounded-full border border-white/30 bg-white/10 px-2.5 py-1 font-semibold">
+                      {formattedDate}
+                    </span>
+                    <span className="rounded-full border border-white/30 bg-white/10 px-2.5 py-1 font-semibold capitalize">
+                      {session.sport}
+                    </span>
+                    {isCompleted && (
+                      <span className="rounded-full border border-white/35 bg-white/15 px-2.5 py-1 font-semibold">
                         ✓ Completed
                       </span>
-                    </>
-                  )}
+                    )}
+                  </div>
                 </div>
+
+                <button
+                  onClick={onClose}
+                  className="shrink-0 rounded-full border border-white/25 bg-white/10 p-2 text-white/90 hover:bg-white/20"
+                  aria-label="Close"
+                >
+                  <XIcon className="h-5 w-5" />
+                </button>
               </div>
 
-              <button
-                onClick={onClose}
-                className="shrink-0 rounded-full p-2 text-zinc-500 hover:text-zinc-900 active:bg-black/[0.04]"
-                aria-label="Close"
-              >
-                <XIcon className="h-5 w-5" />
-              </button>
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <QuickStat label="Sport" value={session.sport || '—'} />
+                <QuickStat label="Planned" value={plannedDuration ?? '—'} />
+                <QuickStat
+                  label="Distance"
+                  value={
+                    stravaActivity?.distance != null
+                      ? `${(stravaActivity.distance / 1000).toFixed(1)} km`
+                      : '—'
+                  }
+                />
+                <QuickStat
+                  label="Duration"
+                  value={
+                    stravaActivity?.moving_time != null
+                      ? `${Math.floor(stravaActivity.moving_time / 60)}m`
+                      : '—'
+                  }
+                />
+              </div>
             </div>
 
             {/* Body */}
             <div className="mt-5 flex-1 overflow-auto pr-1">
               {/* Workout */}
-              <div className="rounded-2xl border border-black/5 bg-white">
-                <div className="px-4 pt-4 pb-3 border-b border-black/5">
+              <div className={clsx('rounded-2xl border bg-white', sportTheme.softBorder)}>
+                <div className={clsx('px-4 pt-4 pb-3 border-b', sportTheme.softBorder, sportTheme.softBg)}>
                   <div className="text-[12px] font-semibold tracking-wide text-zinc-500 uppercase">
                     Workout
                   </div>
@@ -376,16 +455,16 @@ export default function SessionModal({
                       <div className="h-3 w-2/3 rounded bg-black/[0.05]" />
                     </div>
                   ) : parsedWorkout.length ? (
-                    <div className="space-y-6">
+                    <div className="space-y-4">
                       {parsedWorkout.map((sec) => (
-                        <div key={sec.title}>
+                        <div key={sec.title} className="rounded-xl border border-black/5 bg-zinc-50/60 p-3">
                           <div className="text-[14px] font-semibold text-zinc-950">
                             {sec.title}
                           </div>
                           <ul className="mt-2 space-y-2">
                             {sec.items.map((it, idx) => (
                               <li key={idx} className="flex gap-2">
-                                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-400" />
+                                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-500" />
                                 <span className="text-[14px] leading-relaxed text-zinc-800">
                                   {it}
                                 </span>
@@ -405,6 +484,15 @@ export default function SessionModal({
                       </div>
                     </div>
                   )}
+
+                  {session.details ? (
+                    <div className="mt-4 rounded-xl border border-black/5 bg-zinc-50/70 p-3">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                        Session notes
+                      </div>
+                      <div className="mt-1 text-[13px] leading-relaxed text-zinc-700">{session.details}</div>
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
@@ -490,6 +578,15 @@ function Metric({ label, value }: { label: string; value: string }) {
     <div>
       <p className="text-[11px] tracking-wide text-zinc-500 uppercase mb-1">{label}</p>
       <p className="text-[16px] font-semibold text-zinc-950">{value}</p>
+    </div>
+  );
+}
+
+function QuickStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-white/25 bg-white/10 px-2.5 py-2">
+      <div className="text-[10px] font-semibold uppercase tracking-wide text-white/75">{label}</div>
+      <div className="mt-0.5 text-[13px] font-semibold text-white">{value}</div>
     </div>
   );
 }
