@@ -43,6 +43,7 @@
     "@types/react-dom": "^18.3.3",
     "autoprefixer": "^10.4.13",
     "eslint": "^8.0.0",
+    "eslint-config-next": "15.5.9",
     "postcss": "^8.4.18",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
@@ -58,10 +59,20 @@
     "verify": "yarn lint && yarn typecheck && yarn build"
   },
   "eslintConfig": {
-    "extends": ["next/core-web-vitals"]
+    "extends": [
+      "next/core-web-vitals"
+    ]
   },
   "browserslist": {
-    "production": [">0.2%", "not dead", "not op_mini all"],
-    "development": ["last 1 chrome version", "last 1 firefox version", "last 1 safari version"]
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
   }
 }
