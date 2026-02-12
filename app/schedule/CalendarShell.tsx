@@ -6,6 +6,7 @@ import MonthGrid from './MonthGrid';
 import MobileCalendarView from './MobileCalendarView';
 import SessionModal from './SessionModal';
 import StravaActivityModal from './StravaActivityModal';
+import AddSessionModalTP from './AddSessionModalTP';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
 import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
@@ -150,6 +151,7 @@ export default function CalendarShell({
 
   const [selectedSession, setSelectedSession] = useState<MergedSession | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<StravaActivity | null>(null);
+  const [addSessionDate, setAddSessionDate] = useState<Date | null>(null);
   const [currentMonth, setCurrentMonth] = useState<Date>(startOfMonth(new Date()));
 
   const [completed, setCompleted] = useState<CompletedSession[]>(completedSessions);
@@ -262,12 +264,20 @@ export default function CalendarShell({
                 stravaByDate={stravaByDate}
                 onSessionClick={(s) => setSelectedSession(s)}
                 onStravaActivityClick={(a) => setSelectedActivity(a)}
-                onSessionAdded={handleSessionAdded}
               />
             </DndContext>
           </div>
         </div>
       </div>
+
+      <button
+        type="button"
+        onClick={() => setAddSessionDate(new Date())}
+        className="fixed bottom-[calc(env(safe-area-inset-bottom)+16px)] right-4 z-30 hidden h-12 items-center justify-center rounded-full border border-black/10 bg-zinc-950 px-5 text-[14px] font-semibold text-white shadow-[0_14px_30px_rgba(0,0,0,0.25)] active:translate-y-[0.5px] md:inline-flex"
+        aria-label="Add session"
+      >
+        + Add session
+      </button>
 
       <SessionModal
         session={selectedSession}
@@ -277,6 +287,14 @@ export default function CalendarShell({
         completedSessions={completed}
         onCompletedUpdate={(updatedList) => setCompleted(updatedList)}
         onSessionDeleted={handleSessionDeleted}
+        onSessionUpdated={(updatedSession) => {
+          setLocalSessions((prev) =>
+            prev.map((s) => (s.id === updatedSession.id ? { ...s, details: updatedSession.details } : s))
+          );
+          setSelectedSession((prev) =>
+            prev?.id === updatedSession.id ? { ...prev, details: updatedSession.details } : prev
+          );
+        }}
       />
 
       <StravaActivityModal
@@ -284,6 +302,16 @@ export default function CalendarShell({
         open={!!selectedActivity}
         onClose={() => setSelectedActivity(null)}
         timezone={timezone}
+      />
+
+      <AddSessionModalTP
+        open={!!addSessionDate}
+        date={addSessionDate ?? new Date()}
+        onClose={() => setAddSessionDate(null)}
+        onAdded={(newSession: MergedSession) => {
+          handleSessionAdded(newSession);
+          setAddSessionDate(null);
+        }}
       />
     </main>
   );

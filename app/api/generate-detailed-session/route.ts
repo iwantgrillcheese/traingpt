@@ -33,7 +33,31 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { sessionId, date, title, details, sport, planId } = body ?? {};
+    const { sessionId, date, title, details, sport, planId, fueling } = body ?? {};
+
+    const fuelingEnabled = fueling?.enabled === true;
+    const fuelingContext = fuelingEnabled
+      ? {
+          bodyWeightKg:
+            typeof fueling?.bodyWeightKg === 'number' && Number.isFinite(fueling.bodyWeightKg)
+              ? fueling.bodyWeightKg
+              : null,
+          bodyFatPct:
+            typeof fueling?.bodyFatPct === 'number' && Number.isFinite(fueling.bodyFatPct)
+              ? fueling.bodyFatPct
+              : null,
+          workoutDurationMin:
+            typeof fueling?.workoutDurationMin === 'number' &&
+            Number.isFinite(fueling.workoutDurationMin)
+              ? fueling.workoutDurationMin
+              : null,
+          sweatRateLPerHour:
+            typeof fueling?.sweatRateLPerHour === 'number' &&
+            Number.isFinite(fueling.sweatRateLPerHour)
+              ? fueling.sweatRateLPerHour
+              : null,
+        }
+      : null;
 
     // You may have different required fields; keep this minimal but safe.
     if (!date || !title) {
@@ -48,6 +72,7 @@ Return concise, structured output:
 - Warmup (bullets)
 - Main Set (bullets)
 - Cooldown (bullets)
+- Fueling (bullets, only if fueling guidance is requested)
 No fluff.
 `.trim();
 
@@ -56,6 +81,22 @@ Date: ${date}
 Sport: ${sport ?? 'unknown'}
 Session: ${title}
 Details: ${details ?? ''}
+Fueling requested: ${fuelingEnabled ? 'yes' : 'no'}
+${
+  fuelingEnabled
+    ? `Fueling athlete context:
+- Body weight (kg): ${fuelingContext?.bodyWeightKg ?? 'not provided'}
+- Body fat (%): ${fuelingContext?.bodyFatPct ?? 'not provided'}
+- Planned duration (min): ${fuelingContext?.workoutDurationMin ?? 'not provided'}
+- Sweat rate (L/hr): ${fuelingContext?.sweatRateLPerHour ?? 'not provided'}
+
+If fueling is requested, add a Fueling section with:
+- Pre-workout fueling and hydration
+- During-workout carbs, fluids, and sodium targets
+- Post-workout recovery fueling
+Use ranges when precision is uncertain and clearly label assumptions.`
+    : ''
+}
 `.trim();
 
     const openai = getOpenAI();

@@ -22,6 +22,7 @@ type Props = {
   completedSessions: CompletedSession[];
   onCompletedUpdate: (updated: CompletedSession[]) => void;
   onSessionDeleted?: (sessionId: string) => void;
+  onSessionUpdated?: (updated: Session) => void;
 };
 
 function useIsMobile(breakpointPx = 768) {
@@ -83,9 +84,16 @@ function parseWorkout(raw: string | null): Array<{ title: string; items: string[
     const t = l.replace(/\*\*/g, '').trim().toLowerCase();
     if (t.endsWith(':') || t.endsWith('：')) {
       const base = t.replace(/[:：]$/g, '');
-      return ['warmup', 'main set', 'cooldown', 'notes', 'optional', 'recovery', 'drills'].includes(
-        base
-      );
+      return [
+        'warmup',
+        'main set',
+        'cooldown',
+        'notes',
+        'optional',
+        'recovery',
+        'drills',
+        'fueling',
+      ].includes(base);
     }
     return false;
   };
@@ -198,6 +206,15 @@ function extractPlannedMetrics(session: Session | null): { plannedDuration: stri
     .toLowerCase();
 
   const explicitDuration =
+  const sport = String(sportRaw ?? '').trim();
+  if (!sport) return '—';
+  return sport.charAt(0).toUpperCase() + sport.slice(1).toLowerCase();
+}
+
+function extractPlannedMetrics(session: Session) {
+  const combined = `${session.title ?? ''} ${session.details ?? ''}`;
+
+  const durationFromField =
     typeof session.duration === 'number' && Number.isFinite(session.duration)
       ? `${Math.round(session.duration)} min`
       : null;
@@ -215,6 +232,17 @@ function extractPlannedMetrics(session: Session | null): { plannedDuration: stri
   return {
     plannedDuration: explicitDuration ?? durationValue,
     plannedDistance: distanceValue,
+  const durationMatch =
+    combined.match(/\b(\d+(?:\.\d+)?)\s*(min|mins|minute|minutes)\b/i) ||
+    combined.match(/\b(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours)\b/i);
+
+  const distanceMatch = combined.match(
+    /\b(\d+(?:\.\d+)?)\s*(km|kilometer|kilometers|mi|mile|miles)\b/i
+  );
+
+  return {
+    plannedDuration: durationFromField ?? (durationMatch ? durationMatch[0] : null),
+    plannedDistance: distanceMatch ? distanceMatch[0] : null,
   };
 }
 
@@ -226,12 +254,19 @@ export default function SessionModal({
   completedSessions,
   onCompletedUpdate,
   onSessionDeleted,
+  onSessionUpdated,
 }: Props) {
   const isMobile = useIsMobile(768);
 
   const [loading, setLoading] = useState(false);
   const [output, setOutput] = useState<string | null>(session?.structured_workout || null);
   const [markingComplete, setMarkingComplete] = useState(false);
+  const [fuelingEnabled, setFuelingEnabled] = useState(false);
+  const [bodyWeightKg, setBodyWeightKg] = useState<string>('');
+  const [bodyFatPct, setBodyFatPct] = useState<string>('');
+  const [sweatRateLPerHour, setSweatRateLPerHour] = useState<string>('');
+  const [notesDraft, setNotesDraft] = useState('');
+  const [savingNotes, setSavingNotes] = useState(false);
 
   const isCompleted = useMemo(
     () =>
@@ -243,7 +278,63 @@ export default function SessionModal({
 
   useEffect(() => {
     setOutput(session?.structured_workout || null);
+    setNotesDraft(session?.details ?? '');
   }, [session?.id]);
+
+  useEffect(() => {
+    setFuelingEnabled(false);
+    setBodyWeightKg('');
+    setBodyFatPct('');
+    setSweatRateLPerHour('');
+  }, [session?.id]);
+  const notesChanged = notesDraft !== (session?.details ?? '');
+
+  const handleApplyMood = (mood: string) => {
+    const current = notesDraft.trim();
+    const moodLine = `Mood: ${mood}`;
+    if (!current) {
+      setNotesDraft(`${moodLine}\n`);
+      return;
+    }
+
+    const lines = notesDraft.split('\n');
+    if (/^mood\s*:/i.test(lines[0] ?? '')) {
+      lines[0] = moodLine;
+      setNotesDraft(lines.join('\n'));
+      return;
+    }
+
+    setNotesDraft(`${moodLine}\n${notesDraft}`);
+  };
+
+  const handleSaveNotes = async () => {
+    if (!session || !notesChanged) return;
+    setSavingNotes(true);
+
+    try {
+      const cleanNotes = notesDraft.trim();
+      const { error } = await supabase
+        .from('sessions')
+        .update({ details: cleanNotes ? cleanNotes : null })
+        .eq('id', session.id);
+
+      if (error) {
+        console.error('Failed to save session notes:', error);
+        alert('Could not save notes. Please try again.');
+        return;
+      }
+
+      onSessionUpdated?.({
+        ...session,
+        details: cleanNotes ? cleanNotes : null,
+      });
+    } catch (err) {
+      console.error(err);
+      alert('Unexpected error saving notes.');
+    } finally {
+      setSavingNotes(false);
+    }
+  };
 
   const parsedWorkout = useMemo(() => parseWorkout(output), [output]);
 
@@ -278,6 +369,16 @@ export default function SessionModal({
           sport: session.sport,
           date: session.date,
           details: session.details ?? '',
+          fueling: {
+            enabled: fuelingEnabled,
+            bodyWeightKg: bodyWeightKg ? Number(bodyWeightKg) : null,
+            bodyFatPct: bodyFatPct ? Number(bodyFatPct) : null,
+            workoutDurationMin:
+              typeof session.duration === 'number' && Number.isFinite(session.duration)
+                ? Math.round(session.duration)
+                : null,
+            sweatRateLPerHour: sweatRateLPerHour ? Number(sweatRateLPerHour) : null,
+          },
         }),
       });
 
@@ -428,7 +529,7 @@ export default function SessionModal({
                       {formattedDate}
                     </span>
                     <span className="rounded-full border border-white/30 bg-white/10 px-2.5 py-1 font-semibold capitalize">
-                      {session.sport}
+                      {formatSportLabel(session.sport)}
                     </span>
                     {isCompleted && (
                       <span className="rounded-full border border-white/35 bg-white/15 px-2.5 py-1 font-semibold">
@@ -462,6 +563,10 @@ export default function SessionModal({
                       : '—'
                   }
                 />
+                <QuickStat label="Sport" value={formatSportLabel(session.sport)} />
+                <QuickStat label="Planned" value={plannedDuration ?? '—'} />
+                <QuickStat label="Distance" value={plannedDistance ?? '—'} />
+                <QuickStat label="Duration" value={plannedDuration ?? '—'} />
               </div>
             </div>
 
@@ -522,6 +627,44 @@ export default function SessionModal({
                       <div className="mt-1 text-[13px] leading-relaxed text-zinc-700">{session.details}</div>
                     </div>
                   ) : null}
+                  <div className="mt-4 rounded-xl border border-black/5 bg-zinc-50/70 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                        How did it feel?
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {['Happy', 'Okay', 'Tired', 'Hard'].map((mood) => (
+                          <button
+                            key={mood}
+                            type="button"
+                            onClick={() => handleApplyMood(mood)}
+                            className="rounded-full border border-black/10 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100"
+                          >
+                            {mood}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <textarea
+                      value={notesDraft}
+                      onChange={(e) => setNotesDraft(e.target.value)}
+                      rows={4}
+                      placeholder="Add your notes about this session..."
+                      className="mt-2 w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-[13px] text-zinc-800 outline-none ring-0 placeholder:text-zinc-400 focus:border-zinc-400"
+                    />
+
+                    <div className="mt-2 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={handleSaveNotes}
+                        disabled={!notesChanged || savingNotes}
+                        className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[12px] font-semibold text-zinc-800 disabled:opacity-50"
+                      >
+                        {savingNotes ? 'Saving…' : 'Save notes'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -563,6 +706,62 @@ export default function SessionModal({
 
             {/* Footer */}
             <div className="mt-5 pt-4 border-t border-black/5">
+              <div className="mb-4 rounded-xl border border-black/10 bg-zinc-50/70 p-4">
+                <label className="flex items-center gap-3 text-[14px] text-zinc-800">
+                  <input
+                    type="checkbox"
+                    checked={fuelingEnabled}
+                    onChange={(e) => setFuelingEnabled(e.target.checked)}
+                    className="h-4 w-4"
+                  />
+                  Add fueling guidance to this workout
+                </label>
+
+                {fuelingEnabled ? (
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div>
+                      <label className="mb-1 block text-[12px] text-zinc-600">Body weight (kg)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={bodyWeightKg}
+                        onChange={(e) => setBodyWeightKg(e.target.value)}
+                        className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-[14px]"
+                        placeholder="70"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-[12px] text-zinc-600">Body fat % (optional)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="60"
+                        step="0.1"
+                        value={bodyFatPct}
+                        onChange={(e) => setBodyFatPct(e.target.value)}
+                        className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-[14px]"
+                        placeholder="18"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-[12px] text-zinc-600">Sweat rate L/hr (optional)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={sweatRateLPerHour}
+                        onChange={(e) => setSweatRateLPerHour(e.target.value)}
+                        className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-[14px]"
+                        placeholder="0.8"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
               <div className={clsx(isMobile ? 'grid gap-3' : 'flex items-center gap-3')}>
                 <button
                   onClick={handleGenerate}
