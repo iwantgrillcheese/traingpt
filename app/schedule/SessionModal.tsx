@@ -196,6 +196,20 @@ function getSportTheme(sportRaw?: string | null) {
 }
 
 function formatSportLabel(sportRaw?: string | null) {
+  const sport = String(sportRaw ?? '').trim().toLowerCase();
+  if (!sport) return '—';
+  return sport.charAt(0).toUpperCase() + sport.slice(1);
+}
+
+function extractPlannedMetrics(session: Session | null): { plannedDuration: string | null; plannedDistance: string | null } {
+  if (!session) return { plannedDuration: null, plannedDistance: null };
+
+  const text = [session.title, session.details, session.structured_workout]
+    .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
+    .join(' ')
+    .toLowerCase();
+
+  const explicitDuration =
   const sport = String(sportRaw ?? '').trim();
   if (!sport) return '—';
   return sport.charAt(0).toUpperCase() + sport.slice(1).toLowerCase();
@@ -209,6 +223,19 @@ function extractPlannedMetrics(session: Session) {
       ? `${Math.round(session.duration)} min`
       : null;
 
+  const durationMatch = text.match(/(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|min|mins|minute|minutes)\b/);
+  const durationValue = durationMatch
+    ? `${durationMatch[1]} ${durationMatch[2].startsWith('h') ? 'hr' : 'min'}`
+    : null;
+
+  const distanceMatch = text.match(/(\d+(?:\.\d+)?)\s*(km|kilometers?|kilometres?|mi|miles?|m)\b/);
+  const distanceValue = distanceMatch
+    ? `${distanceMatch[1]} ${distanceMatch[2].startsWith('k') ? 'km' : distanceMatch[2].startsWith('m') && distanceMatch[2] !== 'mi' ? 'm' : 'mi'}`
+    : null;
+
+  return {
+    plannedDuration: explicitDuration ?? durationValue,
+    plannedDistance: distanceValue,
   const durationMatch =
     combined.match(/\b(\d+(?:\.\d+)?)\s*(min|mins|minute|minutes)\b/i) ||
     combined.match(/\b(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours)\b/i);
@@ -472,6 +499,7 @@ export default function SessionModal({
   const formattedDate = format(parseISO(session.date), 'EEE, MMM d');
   const sportTheme = getSportTheme(session.sport);
   const { plannedDuration, plannedDistance } = extractPlannedMetrics(session);
+  const sportLabel = formatSportLabel(session.sport);
 
   const panelClass = isMobile
     ? 'w-full max-w-none rounded-t-3xl border border-black/10 bg-white shadow-[0_30px_80px_rgba(0,0,0,0.4)]'
@@ -542,6 +570,20 @@ export default function SessionModal({
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <QuickStat label="Sport" value={sportLabel} />
+                <QuickStat label="Planned duration" value={plannedDuration ?? '—'} />
+                <QuickStat
+                  label="Planned distance"
+                  value={plannedDistance ?? '—'}
+                />
+                <QuickStat
+                  label="Completed"
+                  value={
+                    stravaActivity?.moving_time != null
+                      ? `${Math.floor(stravaActivity.moving_time / 60)}m`
+                      : '—'
+                  }
+                />
                 <QuickStat label="Sport" value={formatSportLabel(session.sport)} />
                 <QuickStat label="Planned" value={plannedDuration ?? '—'} />
                 <QuickStat label="Distance" value={plannedDistance ?? '—'} />
