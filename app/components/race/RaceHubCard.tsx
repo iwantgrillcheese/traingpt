@@ -10,6 +10,8 @@ type RaceHubCardProps = {
   raceDate?: string | null;
   currentPhase?: string | null;
   readinessLabel?: string;
+  readinessScore?: number | null;
+  raceHubHref?: string;
   saving?: boolean;
   onSave?: (next: {
     raceType: string;
@@ -47,6 +49,8 @@ export default function RaceHubCard({
   raceDate,
   currentPhase,
   readinessLabel = 'Readiness coming soon',
+  readinessScore = null,
+  raceHubHref,
   saving = false,
   onSave,
 }: RaceHubCardProps) {
@@ -133,10 +137,31 @@ export default function RaceHubCard({
         </div>
 
         <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
-          <p className="text-xs uppercase tracking-wide text-gray-500">Readiness</p>
-          <p className="mt-1 text-sm font-semibold text-gray-900">{readinessLabel}</p>
+          <p className="flex items-center gap-1 text-xs uppercase tracking-wide text-gray-500">
+            Readiness
+            <span
+              title="Score based on adherence, consistency, and race proximity."
+              className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 text-[10px] font-semibold text-gray-500"
+            >
+              i
+            </span>
+          </p>
+          <p className="mt-1 text-sm font-semibold text-gray-900">
+            {readinessScore != null ? `${readinessScore}/100 · ${readinessLabel}` : readinessLabel}
+          </p>
         </div>
       </div>
+
+      {raceHubHref && (
+        <div className="mt-4">
+          <a
+            href={raceHubHref}
+            className="inline-flex items-center rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800"
+          >
+            Race Prep
+          </a>
+        </div>
+      )}
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">

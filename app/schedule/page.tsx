@@ -10,6 +10,7 @@ import mergeSessionsWithStrava, { MergedSession } from '@/utils/mergeSessionWith
 import Footer from '../components/footer';
 import RaceHubCard from '../components/race/RaceHubCard';
 import WeeklyIntentCard from '../components/race/WeeklyIntentCard';
+import { calculateReadiness } from '@/lib/readiness';
 
 // Walkthrough
 import PostPlanWalkthrough from '../plan/components/PostPlanWalkthrough';
@@ -355,6 +356,16 @@ export default function SchedulePage() {
     };
   }, [sessions]);
 
+  const readiness = useMemo(
+    () =>
+      calculateReadiness({
+        sessions,
+        completedSessions,
+        raceDate: raceHub?.raceDate,
+      }),
+    [sessions, completedSessions, raceHub?.raceDate]
+  );
+
   const isLoggedOut = !authedUserId;
 
   const fetchLatestPlanContext = useCallback(async (): Promise<WalkthroughContext | null> => {
@@ -465,6 +476,9 @@ export default function SchedulePage() {
                 raceType={raceHub?.raceType}
                 raceDate={raceHub?.raceDate}
                 currentPhase={raceHub?.currentPhase}
+                readinessScore={readiness.score}
+                readinessLabel={readiness.label}
+                raceHubHref="/race"
                 saving={raceHubSaving}
                 onSave={handleRaceHubSave}
               />

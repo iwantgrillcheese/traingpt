@@ -47,6 +47,7 @@ export default function CoachingClient() {
   const [completedSessions, setCompletedSessions] = useState<NormalizedCompletedSession[]>([]);
   const [stravaActivities, setStravaActivities] = useState<StravaActivity[]>([]);
   const [stravaConnected, setStravaConnected] = useState(false);
+  const [raceDate, setRaceDate] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -80,16 +81,24 @@ export default function CoachingClient() {
         if (cancelled) return;
         setUserId(user.id);
 
-        const [sessionsRes, completedRes, stravaRes, profileRes] = await Promise.all([
+        const [sessionsRes, completedRes, stravaRes, profileRes, latestPlanRes] = await Promise.all([
           supabase.from('sessions').select('*').eq('user_id', user.id),
           supabase.from('completed_sessions').select('*').eq('user_id', user.id),
           supabase.from('strava_activities').select('*').eq('user_id', user.id),
           supabase.from('profiles').select('strava_access_token').eq('id', user.id).single(),
+          supabase
+            .from('plans')
+            .select('race_date')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
         ]);
 
         if (sessionsRes.error) throw sessionsRes.error;
         if (completedRes.error) throw completedRes.error;
         if (stravaRes.error) throw stravaRes.error;
+        if (latestPlanRes.error) throw latestPlanRes.error;
 
         if (profileRes.error) {
           // don’t hard fail the whole page if profile lookup flakes
@@ -102,6 +111,7 @@ export default function CoachingClient() {
         setCompletedSessions(normalizeCompletedRows((completedRes.data ?? []) as CompletedSessionRow[]));
         setStravaActivities((stravaRes.data ?? []) as StravaActivity[]);
         setStravaConnected(!!profileRes.data?.strava_access_token);
+        setRaceDate((latestPlanRes.data as any)?.race_date ?? null);
       } catch (err: unknown) {
         console.error('[CoachingClient] fetch error', err);
         const msg =
@@ -154,6 +164,7 @@ export default function CoachingClient() {
       weeklyVolume={weeklyVolume}
       weeklySummary={weeklySummary}
       stravaConnected={stravaConnected}
+      raceDate={raceDate}
     />
   );
 }
