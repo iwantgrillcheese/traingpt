@@ -6,13 +6,30 @@ import { cookies } from 'next/headers';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+function getBaseUrl(req: Request): string {
+  const reqUrl = new URL(req.url);
+  return (
+    process.env.NEXT_PUBLIC_BASE_URL?.trim() ||
+    `${req.headers.get('x-forwarded-proto') ?? reqUrl.protocol.replace(':', '')}://${
+      req.headers.get('x-forwarded-host') ?? reqUrl.host
+    }`
+  );
+}
+
+function resolveReturnTo(raw: string | null): string {
+  if (!raw || !raw.startsWith('/')) return '/coaching?success=strava_connected';
+  return raw;
+}
+
 export async function GET(req: Request) {
   const supabase = createRouteHandlerClient({ cookies });
   const url = new URL(req.url);
   const code = url.searchParams.get('code');
+  const returnTo = resolveReturnTo(url.searchParams.get('state') ?? url.searchParams.get('returnTo'));
+  const baseUrl = getBaseUrl(req);
 
   if (!code) {
-    return NextResponse.redirect(`https://www.traingpt.co/coaching?error=missing_code`);
+    return NextResponse.redirect(`${baseUrl}/coaching?error=missing_code`);
   }
 
   try {
@@ -31,7 +48,7 @@ export async function GET(req: Request) {
 
     if (!tokenRes.ok) {
       console.error('[STRAVA_TOKEN_ERROR]', tokenData);
-      return NextResponse.redirect(`https://www.traingpt.co/coaching?error=strava_token_failed`);
+      return NextResponse.redirect(`${baseUrl}/coaching?error=strava_token_failed`);
     }
 
     const { access_token, refresh_token, expires_at, athlete } = tokenData;
@@ -42,7 +59,7 @@ export async function GET(req: Request) {
 
     if (!user?.id) {
       console.error('[NO_USER]', null);
-      return NextResponse.redirect(`https://www.traingpt.co/coaching?error=no_user_session`);
+      return NextResponse.redirect(`${baseUrl}/coaching?error=no_user_session`);
     }
 
     await supabase
@@ -56,15 +73,21 @@ export async function GET(req: Request) {
       .eq('id', user.id);
 
     // Trigger Strava sync after successful connection
-    await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/strava_sync`, {
+    await fetch(`${baseUrl}/api/strava_sync`, {
+      method: 'POST',
       headers: {
         Cookie: req.headers.get('cookie') ?? '',
       },
     });
 
-    return NextResponse.redirect(`https://www.traingpt.co/coaching?success=strava_connected`);
+    const redirectUrl = new URL(returnTo, baseUrl);
+    if (!redirectUrl.searchParams.has('success')) {
+      redirectUrl.searchParams.set('success', 'strava_connected');
+    }
+
+    return NextResponse.redirect(redirectUrl);
   } catch (err) {
     console.error('[STRAVA_CALLBACK_ERROR]', err);
-    return NextResponse.redirect(`https://www.traingpt.co/coaching?error=unexpected_error`);
+    return NextResponse.redirect(`${baseUrl}/coaching?error=unexpected_error`);
   }
 }

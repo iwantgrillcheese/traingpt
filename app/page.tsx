@@ -617,28 +617,38 @@ export default function Home() {
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [hasPlan, setHasPlan] = useState(false);
+  const [stravaConnected, setStravaConnected] = useState(false);
 
   useEffect(() => {
     let alive = true;
 
-    const loadPlanFlag = async (userId: string) => {
-      const { data: planData, error } = await supabase
-        .from('plans')
-        .select('id')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+    const loadUserState = async (userId: string) => {
+      const [planRes, profileRes] = await Promise.all([
+        supabase
+          .from('plans')
+          .select('id')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase.from('profiles').select('strava_access_token').eq('id', userId).maybeSingle(),
+      ]);
 
       if (!alive) return;
 
-      if (error) {
-        console.warn('[home] plan lookup error', error);
+      if (planRes.error) {
+        console.warn('[home] plan lookup error', planRes.error);
         setHasPlan(false);
-        return;
+      } else {
+        setHasPlan(!!planRes.data?.id);
       }
 
-      setHasPlan(!!planData?.id);
+      if (profileRes.error) {
+        console.warn('[home] profile lookup error', profileRes.error);
+        setStravaConnected(false);
+      } else {
+        setStravaConnected(!!profileRes.data?.strava_access_token);
+      }
     };
 
     const syncSession = async () => {
@@ -652,13 +662,17 @@ export default function Home() {
         setSession(nextSession);
         setAuthReady(true);
 
-        if (nextSession?.user?.id) await loadPlanFlag(nextSession.user.id);
-        else setHasPlan(false);
+        if (nextSession?.user?.id) await loadUserState(nextSession.user.id);
+        else {
+          setHasPlan(false);
+          setStravaConnected(false);
+        }
       } catch (e) {
         if (!alive) return;
         console.warn('[home] getSession threw', e);
         setSession(null);
         setHasPlan(false);
+        setStravaConnected(false);
         setAuthReady(true);
       }
     };
@@ -671,8 +685,11 @@ export default function Home() {
       setSession(s ?? null);
       setAuthReady(true);
 
-      if (s?.user?.id) loadPlanFlag(s.user.id);
-      else setHasPlan(false);
+      if (s?.user?.id) loadUserState(s.user.id);
+      else {
+        setHasPlan(false);
+        setStravaConnected(false);
+      }
     });
 
     const onFocus = () => syncSession();
@@ -691,8 +708,31 @@ export default function Home() {
     };
   }, []);
 
+  const stravaConnectHref = useMemo(() => {
+    const clientId = process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID;
+    if (!clientId) return '/settings';
+
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    if (!origin) return '/settings';
+
+    const callback = `${origin}/api/strava/callback`;
+    const returnTo = '/plan?source=strava';
+
+    return `https://www.strava.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(
+      callback
+    )}&scope=activity:read_all,profile:read_all&approval_prompt=auto&state=${encodeURIComponent(returnTo)}`;
+  }, []);
+
   const ctas = useMemo(() => {
     if (session && hasPlan) {
+      if (!stravaConnected) {
+        return {
+          primary: { label: 'View my schedule', href: '/schedule' },
+          secondary: { label: 'Connect Strava for smarter re-generation', href: stravaConnectHref },
+          tertiary: { label: 'See how it works', kind: 'scroll' as const },
+        };
+      }
+
       return {
         primary: { label: 'View my schedule', href: '/schedule' },
         secondary: { label: 'Re-generate my plan', href: '/plan?mode=regen' },
@@ -701,6 +741,13 @@ export default function Home() {
     }
 
     if (session) {
+      if (!stravaConnected) {
+        return {
+          primary: { label: 'Generate my plan', href: '/plan' },
+          secondary: { label: 'Connect Strava for smarter plan generation', href: stravaConnectHref },
+        };
+      }
+
       return {
         primary: { label: 'Generate my plan', href: '/plan' },
         secondary: { label: 'See how it works', kind: 'scroll' as const },
@@ -711,7 +758,7 @@ export default function Home() {
       primary: { label: 'Sign in to generate your plan', href: '/login' },
       secondary: { label: 'See how it works', kind: 'scroll' as const },
     };
-  }, [session, hasPlan]);
+  }, [session, hasPlan, stravaConnected, stravaConnectHref]);
 
   if (!authReady) {
     return (
@@ -732,9 +779,18 @@ export default function Home() {
     el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const handlePrimary = () => router.push((ctas.primary as any).href);
+  const handleCtaNavigation = (href: string) => {
+    if (href.startsWith('http')) {
+      window.location.href = href;
+      return;
+    }
+
+    router.push(href);
+  };
+
+  const handlePrimary = () => handleCtaNavigation((ctas.primary as any).href);
   const handleSecondary = () => {
-    if ('href' in ctas.secondary) router.push((ctas.secondary as any).href);
+    if ('href' in ctas.secondary) handleCtaNavigation((ctas.secondary as any).href);
     else scrollHowItWorks();
   };
 

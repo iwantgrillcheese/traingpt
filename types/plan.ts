@@ -31,6 +31,9 @@ export type UserParams = {
 
   // Preferences (optional)
   trainingPrefs?: TrainingPrefs;
+
+  // Optional Strava context for plan calibration
+  stravaHistorySummary?: string;
 };
 
 export type WeekMeta = {
