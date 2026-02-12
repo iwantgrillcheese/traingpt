@@ -15,6 +15,51 @@ type FieldConfig = {
   placeholder?: string;
 };
 
+type VoicePlanSummary = {
+  raceType: string;
+  raceDate: string;
+  experience: string;
+  goalTime: string;
+  concerns: string;
+  availability: string;
+  stravaBaseline: string;
+};
+
+type SpeechRecognitionEvent = Event & {
+  results: ArrayLike<{
+    isFinal: boolean;
+    0: {
+      transcript: string;
+    };
+  }>;
+};
+
+type SpeechRecognitionInstance = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+declare global {
+  interface Window {
+    webkitSpeechRecognition?: new () => SpeechRecognitionInstance;
+  }
+}
+
+const VOICE_PLAN_FIELDS: Array<{ key: keyof VoicePlanSummary; label: string; placeholder: string }> = [
+  { key: 'raceType', label: 'Race + target date', placeholder: 'First triathlon on Sept 14' },
+  { key: 'experience', label: 'Experience level', placeholder: 'Beginner, little swim history' },
+  { key: 'goalTime', label: 'Goal time / outcome', placeholder: 'Finish under 2:45' },
+  { key: 'concerns', label: 'Biggest worries', placeholder: 'Open-water anxiety and bike confidence' },
+  { key: 'availability', label: 'Availability', placeholder: '6–8 hours/week, long sessions on weekends' },
+  { key: 'stravaBaseline', label: 'Baseline notes', placeholder: 'Strava connected, mostly easy runs this month' },
+];
+
 const STEPS = [
   'Locking in your race goals and timeline…',
   'Scanning your notes like a seasoned coach…',
@@ -302,6 +347,21 @@ export default function PlanPage() {
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
   const [planReady, setPlanReady] = useState(false);
 
+  const [voiceSupported, setVoiceSupported] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState('');
+  const [voiceSummary, setVoiceSummary] = useState<VoicePlanSummary>({
+    raceType: '',
+    raceDate: '',
+    experience: '',
+    goalTime: '',
+    concerns: '',
+    availability: '',
+    stravaBaseline: '',
+  });
+
+  const speechRecognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+
   const runningTypes = useMemo(() => ['5k', '10k', 'Half Marathon', 'Marathon'], []);
   const isRunningPlan = runningTypes.includes(formData.raceType);
   const filteredLocalRaces = useMemo(() => {
@@ -336,6 +396,76 @@ export default function PlanPage() {
       pollTimerRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    setVoiceSupported(typeof window !== 'undefined' && !!window.webkitSpeechRecognition);
+
+    return () => {
+      speechRecognitionRef.current?.stop();
+      speechRecognitionRef.current = null;
+    };
+  }, []);
+
+  const parseVoiceSummary = (transcript: string): VoicePlanSummary => {
+    const sections = transcript
+      .split(/\n|\.(?=\s+[A-Z]|\s*$)/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+    return {
+      raceType: sections.find((part) => /triathlon|ironman|70\.3|olympic|sprint|marathon|5k|10k|race/i.test(part)) ?? '',
+      raceDate: sections.find((part) => /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d{1,2}[/-]\d{1,2}|\d{4})/i.test(part)) ?? '',
+      experience: sections.find((part) => /beginner|intermediate|advanced|first\s+triathlon|first\s+race/i.test(part)) ?? '',
+      goalTime: sections.find((part) => /goal|target|time|finish|sub-?\d/i.test(part)) ?? '',
+      concerns: sections.find((part) => /worr|concern|injury|swim|bike|run|confidence|anxiety/i.test(part)) ?? '',
+      availability: sections.find((part) => /hour|week|monday|tuesday|wednesday|thursday|friday|saturday|sunday|schedule|available/i.test(part)) ?? '',
+      stravaBaseline: sections.find((part) => /strava|baseline|history|load|recent/i.test(part)) ?? '',
+    };
+  };
+
+  const stopVoiceCapture = () => {
+    speechRecognitionRef.current?.stop();
+    setIsListening(false);
+  };
+
+  const startVoiceCapture = () => {
+    if (!voiceSupported || typeof window === 'undefined') return;
+
+    if (isListening) {
+      stopVoiceCapture();
+      return;
+    }
+
+    const RecognitionCtor = window.webkitSpeechRecognition;
+    if (!RecognitionCtor) return;
+
+    const recognition = new RecognitionCtor();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      const nextTranscript = Array.from(event.results)
+        .map((result) => result[0].transcript)
+        .join(' ')
+        .trim();
+
+      setVoiceTranscript(nextTranscript);
+      setVoiceSummary(parseVoiceSummary(nextTranscript));
+    };
+
+    recognition.onerror = () => {
+      setIsListening(false);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    speechRecognitionRef.current = recognition;
+    recognition.start();
+    setIsListening(true);
+  };
 
   /* -------------------- Loading Animation -------------------- */
   useEffect(() => {
@@ -547,6 +677,15 @@ export default function PlanPage() {
 
       setStatusLine(quickMode ? 'Analyzing your Strava history…' : 'Submitting your inputs…');
 
+      const voiceNote = VOICE_PLAN_FIELDS.map(({ key, label }) => {
+        const value = voiceSummary[key].trim();
+        return value ? `${label}: ${value}` : null;
+      })
+        .filter(Boolean)
+        .join('\n');
+
+      const mergedUserNote = [userNote.trim(), voiceNote].filter(Boolean).join('\n\n');
+
       let res: Response | null = null;
       let resText = '';
       let resJson: any = null;
@@ -560,6 +699,7 @@ export default function PlanPage() {
           },
           body: JSON.stringify({
             ...payload,
+            userNote: mergedUserNote,
             userNote: combinedUserNote,
             planType,
           }),
@@ -1103,6 +1243,57 @@ export default function PlanPage() {
                       >
                         {hasPlan ? 'Regenerate with full inputs' : 'Enter all inputs manually'}
                       </button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {!quickMode ? (
+                  <div className="mt-5 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">Voice plan designer (beta)</div>
+                        <p className="mt-1 text-xs text-gray-600">
+                          Speak your goal, concerns, target time, and baseline. We turn it into editable notes before generating.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={startVoiceCapture}
+                        disabled={!voiceSupported}
+                        className="inline-flex items-center justify-center rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-900 disabled:opacity-50"
+                      >
+                        {isListening ? 'Stop listening' : 'Start voice capture'}
+                      </button>
+                    </div>
+
+                    {!voiceSupported ? (
+                      <div className="mt-3 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-600">
+                        Voice capture currently supports Chromium-based browsers.
+                      </div>
+                    ) : null}
+
+                    {voiceTranscript ? (
+                      <div className="mt-3 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700">
+                        <span className="font-medium text-gray-900">Transcript:</span> {voiceTranscript}
+                      </div>
+                    ) : null}
+
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      {VOICE_PLAN_FIELDS.map(({ key, label, placeholder }) => (
+                        <label key={key} className="block">
+                          <span className="mb-1 block text-xs font-medium text-gray-700">{label}</span>
+                          <InputBase
+                            value={voiceSummary[key]}
+                            onChange={(e) =>
+                              setVoiceSummary((prev) => ({
+                                ...prev,
+                                [key]: e.target.value,
+                              }))
+                            }
+                            placeholder={placeholder}
+                          />
+                        </label>
+                      ))}
                     </div>
                   </div>
                 ) : null}
