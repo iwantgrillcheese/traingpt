@@ -410,23 +410,6 @@ export default function MobileCalendarView({
                   </div>
                 </div>
 
-                </div>
-
-                <div className="mt-4 grid grid-cols-3 gap-2">
-                  <div className="rounded-xl border border-black/5 bg-zinc-50 px-3 py-2">
-                    <div className="text-[11px] text-zinc-500">Sessions</div>
-                    <div className="text-[16px] font-semibold text-zinc-900">{sessions.length}</div>
-                  </div>
-                  <div className="rounded-xl border border-black/5 bg-zinc-50 px-3 py-2">
-                    <div className="text-[11px] text-zinc-500">Done</div>
-                    <div className="text-[16px] font-semibold text-zinc-900">{completedCount}</div>
-                  </div>
-                  <div className="rounded-xl border border-black/5 bg-zinc-50 px-3 py-2">
-                    <div className="text-[11px] text-zinc-500">Key work</div>
-                    <div className="text-[16px] font-semibold text-zinc-900">{keySessionCount}</div>
-                  </div>
-                </div>
-
                 <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-zinc-200">
                   <div
                     className="h-full rounded-full bg-zinc-900 transition-all"
