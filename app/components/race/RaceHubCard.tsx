@@ -1,13 +1,22 @@
 'use client';
 
+import { useMemo, useState } from 'react';
 import { differenceInCalendarDays, format, isValid, parseISO } from 'date-fns';
 
 type RaceHubCardProps = {
   raceName?: string | null;
+  raceLocation?: string | null;
   raceType?: string | null;
   raceDate?: string | null;
   currentPhase?: string | null;
   readinessLabel?: string;
+  saving?: boolean;
+  onSave?: (next: {
+    raceType: string;
+    raceDate: string;
+    raceName?: string;
+    raceLocation?: string;
+  }) => Promise<{ ok: boolean; message?: string }>;
 };
 
 function formatRaceDate(raceDate?: string | null) {
@@ -33,12 +42,64 @@ function getCountdownLabel(raceDate?: string | null) {
 
 export default function RaceHubCard({
   raceName,
+  raceLocation,
   raceType,
   raceDate,
   currentPhase,
   readinessLabel = 'Readiness coming soon',
+  saving = false,
+  onSave,
 }: RaceHubCardProps) {
-  const title = raceName?.trim() || raceType?.trim() || 'Race goal not set';
+  const [open, setOpen] = useState(false);
+  const [draftRaceType, setDraftRaceType] = useState(raceType?.trim() || '');
+  const [draftRaceDate, setDraftRaceDate] = useState(raceDate?.trim() || '');
+  const [draftRaceName, setDraftRaceName] = useState(raceName?.trim() || '');
+  const [draftRaceLocation, setDraftRaceLocation] = useState(raceLocation?.trim() || '');
+  const [inlineStatus, setInlineStatus] = useState<string | null>(null);
+  const [inlineError, setInlineError] = useState<string | null>(null);
+
+  const title = raceName?.trim() || raceType?.trim() || 'Set your target race';
+  const hasRaceSet = Boolean(raceType?.trim() && raceDate?.trim());
+
+  const raceTypeOptions = useMemo(
+    () => ['5K', '10K', 'Half Marathon', 'Marathon', 'Sprint Triathlon', 'Olympic Triathlon', '70.3', 'Ironman', 'Custom'],
+    []
+  );
+
+  const openEditor = () => {
+    setDraftRaceType(raceType?.trim() || '');
+    setDraftRaceDate(raceDate?.trim() || '');
+    setDraftRaceName(raceName?.trim() || '');
+    setDraftRaceLocation(raceLocation?.trim() || '');
+    setInlineStatus(null);
+    setInlineError(null);
+    setOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!onSave) return;
+
+    if (!draftRaceType || !draftRaceDate) {
+      setInlineError('Race type and race date are required.');
+      return;
+    }
+
+    setInlineError(null);
+    const result = await onSave({
+      raceType: draftRaceType,
+      raceDate: draftRaceDate,
+      raceName: draftRaceName,
+      raceLocation: draftRaceLocation,
+    });
+
+    if (!result.ok) {
+      setInlineError(result.message || 'Could not save race details.');
+      return;
+    }
+
+    setInlineStatus(result.message || 'Saved');
+    setOpen(false);
+  };
 
   return (
     <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -47,10 +108,21 @@ export default function RaceHubCard({
           <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Race Hub</p>
           <h2 className="mt-1 text-xl font-semibold text-gray-900">{title}</h2>
           <p className="mt-1 text-sm text-gray-600">{formatRaceDate(raceDate)}</p>
+          {!hasRaceSet && <p className="mt-2 text-sm font-medium text-amber-700">Set your target race</p>}
+          {inlineStatus && <p className="mt-2 text-sm font-medium text-emerald-700">{inlineStatus}</p>}
         </div>
 
-        <div className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-700">
-          {getCountdownLabel(raceDate)}
+        <div className="flex flex-col items-end gap-2">
+          <div className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-700">
+            {getCountdownLabel(raceDate)}
+          </div>
+          <button
+            type="button"
+            onClick={openEditor}
+            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+          >
+            {hasRaceSet ? 'Edit' : 'Set race'}
+          </button>
         </div>
       </div>
 
@@ -65,6 +137,97 @@ export default function RaceHubCard({
           <p className="mt-1 text-sm font-semibold text-gray-900">{readinessLabel}</p>
         </div>
       </div>
+
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900">Edit target race</h3>
+            <p className="mt-1 text-sm text-gray-600">Update your race details for planning and countdown.</p>
+
+            <div className="mt-4 space-y-3">
+              <label className="block text-sm">
+                <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">Race type</span>
+                <select
+                  value={raceTypeOptions.includes(draftRaceType) ? draftRaceType : 'Custom'}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setDraftRaceType(next === 'Custom' ? '' : next);
+                  }}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                >
+                  {raceTypeOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {(!raceTypeOptions.includes(draftRaceType) || draftRaceType === '') && (
+                <label className="block text-sm">
+                  <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">Custom race type</span>
+                  <input
+                    value={draftRaceType}
+                    onChange={(e) => setDraftRaceType(e.target.value)}
+                    placeholder="e.g. Trail 50K"
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  />
+                </label>
+              )}
+
+              <label className="block text-sm">
+                <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">Race date</span>
+                <input
+                  type="date"
+                  value={draftRaceDate}
+                  onChange={(e) => setDraftRaceDate(e.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                />
+              </label>
+
+              <label className="block text-sm">
+                <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">Race name (optional)</span>
+                <input
+                  value={draftRaceName}
+                  onChange={(e) => setDraftRaceName(e.target.value)}
+                  placeholder="e.g. LA Marathon"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                />
+              </label>
+
+              <label className="block text-sm">
+                <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">Location (optional)</span>
+                <input
+                  value={draftRaceLocation}
+                  onChange={(e) => setDraftRaceLocation(e.target.value)}
+                  placeholder="e.g. Los Angeles, CA"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                />
+              </label>
+
+              {inlineError && <p className="text-sm font-medium text-red-600">{inlineError}</p>}
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

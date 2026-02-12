@@ -21,9 +21,13 @@ type CompletedSession = {
 };
 
 type RaceHubState = {
+  planId?: string | null;
+  raceName?: string | null;
+  raceLocation?: string | null;
   raceType?: string | null;
   raceDate?: string | null;
   currentPhase?: string | null;
+  planPayload?: any;
 };
 
 function deriveCurrentPhase(planPayload: any): string | null {
@@ -58,6 +62,7 @@ export default function SchedulePage() {
   const [stravaActivities, setStravaActivities] = useState<StravaActivity[]>([]);
   const [completedSessions, setCompletedSessions] = useState<CompletedSession[]>([]);
   const [raceHub, setRaceHub] = useState<RaceHubState | null>(null);
+  const [raceHubSaving, setRaceHubSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -162,7 +167,7 @@ export default function SchedulePage() {
           supabase.from('completed_sessions').select('*').eq('user_id', user.id),
           supabase
             .from('plans')
-            .select('race_type, race_date, plan')
+            .select('id, race_type, race_date, plan')
             .eq('user_id', user.id)
             .order('created_at', { ascending: false })
             .limit(1)
@@ -186,10 +191,15 @@ export default function SchedulePage() {
         }));
 
         const latestPlan = latestPlanRes.data as any;
+        const params = latestPlan?.plan?.params ?? {};
         setRaceHub({
+          planId: latestPlan?.id ?? null,
           raceType: latestPlan?.race_type ?? null,
           raceDate: latestPlan?.race_date ?? null,
+          raceName: params?.raceName ?? null,
+          raceLocation: params?.raceLocation ?? null,
           currentPhase: deriveCurrentPhase(latestPlan?.plan),
+          planPayload: latestPlan?.plan ?? null,
         });
 
         setCompletedSessions(normalizedCompleted);
@@ -219,6 +229,68 @@ export default function SchedulePage() {
   const handleCompletedUpdate = useCallback((updated: CompletedSession[]) => {
     setCompletedSessions(updated);
   }, []);
+
+  const handleRaceHubSave = useCallback(
+    async (next: {
+      raceType: string;
+      raceDate: string;
+      raceName?: string;
+      raceLocation?: string;
+    }) => {
+      if (!authedUserId || !raceHub?.planId) {
+        return { ok: false, message: 'No active plan found yet. Generate a plan first.' };
+      }
+
+      try {
+        setRaceHubSaving(true);
+
+        const basePlan = raceHub?.planPayload && typeof raceHub.planPayload === 'object' ? raceHub.planPayload : {};
+        const nextParams = {
+          ...(basePlan as any).params,
+          raceName: next.raceName?.trim() || null,
+          raceLocation: next.raceLocation?.trim() || null,
+        };
+
+        const { error } = await supabase
+          .from('plans')
+          .update({
+            race_type: next.raceType,
+            race_date: next.raceDate,
+            plan: {
+              ...(basePlan as any),
+              params: nextParams,
+            },
+          })
+          .eq('id', raceHub.planId)
+          .eq('user_id', authedUserId);
+
+        if (error) throw error;
+
+        setRaceHub((prev) =>
+          prev
+            ? {
+                ...prev,
+                raceType: next.raceType,
+                raceDate: next.raceDate,
+                raceName: next.raceName?.trim() || null,
+                raceLocation: next.raceLocation?.trim() || null,
+                planPayload: {
+                  ...(basePlan as any),
+                  params: nextParams,
+                },
+              }
+            : prev
+        );
+
+        return { ok: true, message: 'Saved' };
+      } catch (e: any) {
+        return { ok: false, message: e?.message || 'Failed to save race details.' };
+      } finally {
+        setRaceHubSaving(false);
+      }
+    },
+    [authedUserId, raceHub]
+  );
 
   const { enrichedSessions, unmatchedActivities } = useMemo(() => {
     try {
@@ -338,9 +410,13 @@ export default function SchedulePage() {
           <>
             <div className="mx-auto w-full max-w-7xl px-4 pb-4">
               <RaceHubCard
+                raceName={raceHub?.raceName}
+                raceLocation={raceHub?.raceLocation}
                 raceType={raceHub?.raceType}
                 raceDate={raceHub?.raceDate}
                 currentPhase={raceHub?.currentPhase}
+                saving={raceHubSaving}
+                onSave={handleRaceHubSave}
               />
             </div>
 
