@@ -388,6 +388,18 @@ export async function POST(req: Request) {
 
     const todayISO = safeDateISO(new Date());
     const totalWeeks = computeTotalWeeks(todayISO, raceDateResolved);
+
+    if (totalWeeks < 6) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Need at least 6 weeks until race day for a safe structured plan. Use race-readiness mode for shorter timelines.',
+        },
+        { status: 400 }
+      );
+    }
+
     const planMeta = buildPlanMeta(totalWeeks, todayISO);
 
     console.log("[finalize-plan] generation started", {

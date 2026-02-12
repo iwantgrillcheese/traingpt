@@ -13,63 +13,26 @@ function unitSuffix(unit: "mi" | "km") {
   return unit === "km" ? "/km" : "/mi";
 }
 
-type RunReadiness = "true_beginner" | "base_built" | "advanced";
-
-
 function weekDateList(startDateISO: string) {
   const start = new Date(`${startDateISO}T00:00:00`);
   return Array.from({ length: 7 }, (_, i) => format(addDays(start, i), "yyyy-MM-dd"));
 }
 
-function inferReadiness(userParams: UserParams, prevSummary?: { prevWeeklyMin?: number }): RunReadiness {
-  const exp = (userParams.experience ?? "").toLowerCase();
-  const prevMin = prevSummary?.prevWeeklyMin ?? 0;
-
-  if (exp.includes("advanced")) return "advanced";
-  if (exp.includes("intermediate")) return prevMin >= 120 ? "base_built" : "true_beginner";
-  return prevMin >= 150 ? "base_built" : "true_beginner";
+function raceFamily(raceType?: string) {
+  const s = String(raceType ?? "").toLowerCase();
+  if (s.includes("marathon") || s.includes("26.2")) return "marathon";
+  if (s.includes("half") || s.includes("13.1")) return "half";
+  if (s.includes("10k")) return "10k";
+  if (s.includes("5k")) return "5k";
+  return "other";
 }
 
-function rampCaps(readiness: RunReadiness, weekIndex?: number) {
-  const i = typeof weekIndex === "number" ? weekIndex : 0;
-  const inRamp = i <= 2; // Weeks 1–3
-
-  if (readiness === "advanced") {
-    return {
-      inRamp: false,
-      maxSingleRunMin: 120,
-      maxLongRunMin: 150,
-      maxWeeklyMin: 500,
-      maxQualityDays: 2,
-      maxQualityMin: 90,
-      minRunsPerWeek: 5,
-      maxRunsPerWeek: 6,
-    };
-  }
-
-  if (readiness === "base_built") {
-    return {
-      inRamp,
-      maxSingleRunMin: inRamp ? 60 : 90,
-      maxLongRunMin: inRamp ? 75 : 120,
-      maxWeeklyMin: inRamp ? 220 : 380,
-      maxQualityDays: inRamp ? 1 : 2,
-      maxQualityMin: inRamp ? 25 : 60,
-      minRunsPerWeek: 4,
-      maxRunsPerWeek: 5,
-    };
-  }
-
-  return {
-    inRamp: true,
-    maxSingleRunMin: 45,
-    maxLongRunMin: 60,
-    maxWeeklyMin: 180,
-    maxQualityDays: 1,
-    maxQualityMin: 20,
-    minRunsPerWeek: 3,
-    maxRunsPerWeek: 4,
-  };
+function cycleMode(weeksToRace?: number | null) {
+  if (weeksToRace == null) return "normal";
+  if (weeksToRace < 4) return "race-readiness";
+  if (weeksToRace < 8) return "protective";
+  if (weeksToRace < 12) return "compressed";
+  return "normal";
 }
 
 export function buildRunningPrompt({
@@ -85,10 +48,14 @@ export function buildRunningPrompt({
   targets?: {
     targetWeeklyMin: number;
     targetLongRunMin: number;
+    minLongRunMin?: number;
     longRunMax: number;
     qualityDays: number;
     maxQualityMin: number;
+    maxSingleRunMin?: number;
     preferredLongRunDay: DayOfWeek;
+    raceFamily?: string;
+    weeksToRace?: number | null;
   };
   prevSummary?: {
     prevWeeklyMin?: number;
@@ -102,35 +69,16 @@ export function buildRunningPrompt({
   const paceSuffix = unitSuffix(paceUnit);
   const weekDates = weekDateList(weekMeta.startDate);
 
-  const readiness = inferReadiness(userParams, prevSummary);
-  const caps = rampCaps(readiness, index);
-
-  const requestedWeekly = targets?.targetWeeklyMin ?? 0;
-  const requestedLong = targets?.targetLongRunMin ?? 0;
-  const requestedLRMax = targets?.longRunMax ?? 0;
-  const requestedQualityDays = targets?.qualityDays ?? 0;
-  const requestedQualityMin = targets?.maxQualityMin ?? 0;
-
-  const effectiveWeeklyTarget =
-    requestedWeekly > 0 ? Math.min(requestedWeekly, caps.maxWeeklyMin) : caps.maxWeeklyMin;
-
-  const effectiveLongTarget =
-    requestedLong > 0 ? Math.min(requestedLong, caps.maxLongRunMin) : caps.maxLongRunMin;
-
-  const effectiveLongMax =
-    requestedLRMax > 0 ? Math.min(requestedLRMax, caps.maxLongRunMin) : caps.maxLongRunMin;
-
-  const effectiveQualityDays =
-    requestedQualityDays > 0 ? Math.min(requestedQualityDays, caps.maxQualityDays) : caps.maxQualityDays;
-
-  const effectiveQualityMin =
-    requestedQualityMin > 0 ? Math.min(requestedQualityMin, caps.maxQualityMin) : caps.maxQualityMin;
+  const raceKind = targets?.raceFamily ?? raceFamily(userParams.raceType);
+  const wtr = targets?.weeksToRace ?? null;
+  const mode = cycleMode(wtr);
 
   return `
 You are creating ${weekMeta.label} for a RUNNING plan.
 
 ## Athlete
 - Race: ${userParams.raceType}
+- Race family: ${raceKind}
 - Race Date: ${userParams.raceDate}
 - Experience: ${userParams.experience}
 - Max Weekly Hours: ${userParams.maxHours}
@@ -141,6 +89,8 @@ You are creating ${weekMeta.label} for a RUNNING plan.
 - Phase: ${weekMeta.phase}
 - Start Date: ${weekMeta.startDate}
 - Deload: ${weekMeta.deload ? "Yes" : "No"}
+- Weeks to race (approx): ${wtr ?? "unknown"}
+- Cycle mode: ${mode}
 
 ## Preferences
 - Long Run Day (MUST FOLLOW): ${dayName(longRunDay)} (${longRunDay})
@@ -155,57 +105,55 @@ You are creating ${weekMeta.label} for a RUNNING plan.
 - Previous weekly run minutes: ${prevSummary?.prevWeeklyMin ?? "unknown"}
 - Previous long run minutes: ${prevSummary?.prevLongRunMin ?? "unknown"}
 
-## Readiness (STRICT)
-- Run readiness tier: ${readiness}
-- Ramp mode: ${caps.inRamp ? "ON" : "OFF"}
+## Weekly Targets (STRICT)
+- Total running time: ${targets?.targetWeeklyMin ?? "unknown"} minutes (±5%)
+- Long run target: ${targets?.targetLongRunMin ?? "unknown"} minutes
+- Long run minimum floor: ${targets?.minLongRunMin ?? 0} minutes (if >0, do not go below)
+- Long run maximum: ${targets?.longRunMax ?? "unknown"} minutes
+- Max single run duration: ${targets?.maxSingleRunMin ?? "unknown"} minutes
+- Quality days: ≤ ${targets?.qualityDays ?? "unknown"}
+- Total quality minutes: ≤ ${targets?.maxQualityMin ?? "unknown"}
+- Longest run must land on preferred long run day
 
-## Safety Caps (HARD RULES — override targets if needed)
-- Max single run duration this week: ≤ ${caps.maxSingleRunMin}min
-- Max long run duration this week: ≤ ${caps.maxLongRunMin}min
-- Max total weekly run time this week: ≤ ${caps.maxWeeklyMin}min
-- Runs per week: ${caps.minRunsPerWeek}–${caps.maxRunsPerWeek} run days (do NOT exceed)
-- Quality days: ≤ ${caps.maxQualityDays} (and never back-to-back)
-- Total quality time: ≤ ${caps.maxQualityMin} minutes
+## Marathon-specific principles (STRICT when race family is marathon)
+- Long run is the backbone of the week and must be meaningfully developed outside taper.
+- In Build/Peak, include marathon-specific stimulus (e.g., marathon-pace block within medium/long run) where appropriate.
+- Do NOT undercook long runs in non-deload, non-taper weeks.
+- Keep intensity controlled: usually one primary quality workout plus optional lighter quality.
 
-## Weekly Targets (STRICT, but clamped by Safety Caps)
-- Total running time: ${effectiveWeeklyTarget} minutes (±5%)
-- Long run: ${effectiveLongTarget} minutes target (do not exceed ${effectiveLongMax} minutes)
-- Quality sessions: max ${effectiveQualityDays} days
-- Total quality time: ≤ ${effectiveQualityMin} minutes
-- No back-to-back hard run days
-- Avoid doubles (2 run sessions in one day) unless Experience is Advanced
-- Longest run (by duration) must land on Long Run Day
+## Short-cycle behavior by mode (STRICT)
+- normal (>=12 weeks): full progression pattern.
+- compressed (8-11 weeks): prioritize completion durability over aggressive speed gains.
+- protective (4-7 weeks): keep quality minimal, emphasize safe long-run continuity.
+- race-readiness (<4 weeks): no heavy build; include mostly taper/sharpening/recovery.
+
+## Safety + structure rules
+- No back-to-back hard run days.
+- Keep week polarized: mostly easy aerobic running.
+- Include at least one true recovery day ([] or ["Rest"]).
+- Avoid doubles unless Experience is Advanced.
+- Every run string MUST include a duration.
+- Keep exactly 7 date keys and no extras.
 
 ## Week Layout Requirements (STRICT)
 - You MUST return exactly these date keys and no others: ${weekDates.join(", ")}
-- Keep at least one full recovery day ([] or ["Rest"]).
-- Distribute running load across the week; avoid front-loading volume early in the week.
-- Long run should generally be 1.4x–2.2x an easy-day run duration (unless taper constraints require shorter).
-
-## Quality Guidance by Phase
-- Base: one light quality touch only (short tempo, strides, or gentle hills).
-- Build: one primary quality workout + optional secondary lighter stimulus.
-- Peak: quality is race-specific and controlled; maintain freshness for key sessions.
-- Taper: reduce volume and keep only brief sharpening.
-
-## True Beginner Rules (if readiness is true_beginner)
-- Weeks 1–3 must prioritize consistency, not volume.
-- Use run/walk option language if helpful (still include total duration).
-- No long tempos. Only short strides/hills once per week max.
+- Long run should be clearly labeled as long run.
+- Session wording should stay concise and parsable.
 
 ## Output format (REQUIRED)
-- Return ONLY valid JSON matching WeekJson schema.
-- Use date keys "YYYY-MM-DD" for the week starting at startDate (Mon→Sun).
-- Each date has an array of session strings.
-- Every RUN session string MUST include a duration: "45min", "1h", "2 hours", or "1:15".
-- Use em dash/en dash separators (— or –) between segments.
-- Prefer ending each session with "— Details".
-- Rest day should be [] OR ["Rest"].
+Return ONLY valid JSON matching WeekJson schema:
+{
+  "label": string,
+  "phase": string,
+  "startDate": "YYYY-MM-DD",
+  "deload": boolean,
+  "days": { "YYYY-MM-DD": string[] }
+}
 
-## Session writing examples (style + unit ${paceSuffix})
-- "🏃 Run — 35min easy (around 8:00–9:15${paceSuffix}) — Details"
-- "🏃 Run — 40min easy + 4x20s strides — Details"
-- "🏃 Long Run — 50min steady (around 8:00–9:00${paceSuffix}) — Details"
+Use style like:
+- "🏃 Run — 45min easy (around 8:00–9:15${paceSuffix}) — Details"
+- "🏃 Run — 55min tempo (15min warm-up, 20min @ tempo, 20min cool-down) — Details"
+- "🏃 Long Run — 1h 50min steady (last 20min moderate) — Details"
 
 Now generate the week so it satisfies ALL targets and rules.
 `.trim();

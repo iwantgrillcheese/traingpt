@@ -46,10 +46,14 @@ export async function generateWeek({
           ? {
               targetWeeklyMin: targets.targetWeeklyMin,
               targetLongRunMin: targets.targetLongRunMin,
+              minLongRunMin: targets.minLongRunMin,
               longRunMax: targets.longRunMax,
               qualityDays: targets.qualityDays,
               maxQualityMin: targets.maxQualityMin,
+              maxSingleRunMin: targets.maxSingleRunMin,
               preferredLongRunDay: (userParams.trainingPrefs?.longRunDay ?? 0) as DayOfWeek,
+              raceFamily: targets.raceFamily,
+              weeksToRace: targets.weeksToRace,
             }
           : undefined,
         prevSummary: {
@@ -96,9 +100,12 @@ export async function generateWeek({
       targets: {
         targetWeeklyMin: targets.targetWeeklyMin,
         targetLongRunMin: targets.targetLongRunMin,
+        minLongRunMin: targets.minLongRunMin,
         longRunMax: targets.longRunMax,
+        maxSingleRunMin: targets.maxSingleRunMin,
         qualityDays: targets.qualityDays,
         maxQualityMin: targets.maxQualityMin,
+        raceFamily: targets.raceFamily,
         preferredLongRunDay,
       },
       prevWeek,
@@ -115,9 +122,12 @@ export async function generateWeek({
         targets: {
           targetWeeklyMin: targets.targetWeeklyMin,
           targetLongRunMin: targets.targetLongRunMin,
+          minLongRunMin: targets.minLongRunMin,
           longRunMax: targets.longRunMax,
+          maxSingleRunMin: targets.maxSingleRunMin,
           qualityDays: targets.qualityDays,
           maxQualityMin: targets.maxQualityMin,
+          raceFamily: targets.raceFamily,
           preferredLongRunDay,
         },
         prevWeek,
@@ -141,7 +151,10 @@ Problems detected:
 
 Hard constraints:
 - Weekly minutes target: ${targets.targetWeeklyMin} (±5%)
-- Long run target: ${targets.targetLongRunMin} (must be within tolerance, and ≤ ${targets.longRunMax})
+- Long run target: ${targets.targetLongRunMin} (must be within tolerance)
+- Long run minimum floor: ${targets.minLongRunMin ?? 0}
+- Long run maximum: ${targets.longRunMax}
+- Max single run duration: ${targets.maxSingleRunMin ?? 'n/a'}
 - Hard days ≤ ${targets.qualityDays}
 - Total hard-run minutes ≤ ${targets.maxQualityMin}
 - Longest run must land on preferred long run day (${preferredLongRunDay})
