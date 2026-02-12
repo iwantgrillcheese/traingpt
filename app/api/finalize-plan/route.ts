@@ -156,9 +156,6 @@ function buildStravaHistorySummary(
   );
 
   const sportLines = sportSummaryParts.join(' | ');
-  const sportLines = topSports
-    .map(([sport, data]) => `${sport}: ${data.sessions} sessions, ${secondsToHMM(data.sec)}`)
-    .join(' | ');
 
   const recent = [...rows]
     .filter((row) => !!row.start_date)

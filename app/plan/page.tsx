@@ -613,21 +613,6 @@ export default function PlanPage() {
         return;
       }
 
-      const latestPlanQuery = supabase
-        .from('plans')
-        .select('id')
-        .eq('user_id', session.user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      const profileQuery = supabase
-        .from('profiles')
-        .select('strava_access_token')
-        .eq('id', session.user.id)
-        .maybeSingle();
-
-      const [planRes, profileRes] = await Promise.all([latestPlanQuery, profileQuery]);
       const sinceISO = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
 
       const [planRes, profileRes, stravaRes] = await Promise.all([

@@ -6,6 +6,7 @@ import clsx from 'clsx';
 import { useDroppable, useDraggable } from '@dnd-kit/core';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
+import AddSessionModalTP from './AddSessionModalTP';
 
 type CompletedSession = {
   date: string;
@@ -19,6 +20,7 @@ type Props = {
   isOutside: boolean;
   onSessionClick?: (session: MergedSession) => void;
   onStravaActivityClick?: (activity: StravaActivity) => void;
+  onSessionAdded?: (session: any) => void;
   completedSessions: CompletedSession[];
   extraActivities?: StravaActivity[];
 };
@@ -137,6 +139,7 @@ export default function DayCell({
   isOutside,
   onSessionClick,
   onStravaActivityClick,
+  onSessionAdded,
   completedSessions,
   extraActivities = [],
 }: Props) {
@@ -144,6 +147,7 @@ export default function DayCell({
 
   const { setNodeRef, isOver } = useDroppable({ id: dateStr });
   const [justDropped, setJustDropped] = useState(false);
+  const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
     if (!isOver) return;
