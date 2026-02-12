@@ -7,6 +7,10 @@ import clsx from 'clsx';
 import { supabase } from '@/lib/supabase-client';
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
+import {
+  loadFuelingPreferences,
+  saveFuelingPreferences,
+} from '@/lib/fueling-preferences';
 
 type CompletedSession = {
   date: string;
@@ -83,9 +87,16 @@ function parseWorkout(raw: string | null): Array<{ title: string; items: string[
     const t = l.replace(/\*\*/g, '').trim().toLowerCase();
     if (t.endsWith(':') || t.endsWith('：')) {
       const base = t.replace(/[:：]$/g, '');
-      return ['warmup', 'main set', 'cooldown', 'notes', 'optional', 'recovery', 'drills'].includes(
-        base
-      );
+      return [
+        'warmup',
+        'main set',
+        'cooldown',
+        'notes',
+        'optional',
+        'recovery',
+        'drills',
+        'fueling',
+      ].includes(base);
     }
     return false;
   };
@@ -197,6 +208,10 @@ export default function SessionModal({
   const [loading, setLoading] = useState(false);
   const [output, setOutput] = useState<string | null>(session?.structured_workout || null);
   const [markingComplete, setMarkingComplete] = useState(false);
+  const [fuelingEnabled, setFuelingEnabled] = useState(false);
+  const [bodyWeightKg, setBodyWeightKg] = useState<string>('');
+  const [bodyFatPct, setBodyFatPct] = useState<string>('');
+  const [sweatRateLPerHour, setSweatRateLPerHour] = useState<string>('');
 
   const isCompleted = useMemo(
     () =>
@@ -209,6 +224,23 @@ export default function SessionModal({
   useEffect(() => {
     setOutput(session?.structured_workout || null);
   }, [session?.id]);
+
+  useEffect(() => {
+    const defaults = loadFuelingPreferences();
+    setFuelingEnabled(defaults.enabled);
+    setBodyWeightKg(defaults.bodyWeightKg);
+    setBodyFatPct(defaults.bodyFatPct);
+    setSweatRateLPerHour(defaults.sweatRateLPerHour);
+  }, [session?.id]);
+
+  useEffect(() => {
+    saveFuelingPreferences({
+      enabled: fuelingEnabled,
+      bodyWeightKg,
+      bodyFatPct,
+      sweatRateLPerHour,
+    });
+  }, [fuelingEnabled, bodyWeightKg, bodyFatPct, sweatRateLPerHour]);
 
   const parsedWorkout = useMemo(() => parseWorkout(output), [output]);
 
@@ -243,6 +275,16 @@ export default function SessionModal({
           sport: session.sport,
           date: session.date,
           details: session.details ?? '',
+          fueling: {
+            enabled: fuelingEnabled,
+            bodyWeightKg: bodyWeightKg ? Number(bodyWeightKg) : null,
+            bodyFatPct: bodyFatPct ? Number(bodyFatPct) : null,
+            workoutDurationMin:
+              typeof session.duration === 'number' && Number.isFinite(session.duration)
+                ? Math.round(session.duration)
+                : null,
+            sweatRateLPerHour: sweatRateLPerHour ? Number(sweatRateLPerHour) : null,
+          },
         }),
       });
 
@@ -534,6 +576,71 @@ export default function SessionModal({
 
             {/* Footer */}
             <div className="mt-5 pt-4 border-t border-black/5">
+              <div className="mb-4 rounded-xl border border-black/10 bg-zinc-50/70 p-4">
+                <label className="flex items-center gap-3 text-[14px] text-zinc-800">
+                  <input
+                    type="checkbox"
+                    checked={fuelingEnabled}
+                    onChange={(e) => setFuelingEnabled(e.target.checked)}
+                    className="h-4 w-4"
+                  />
+                  Add fueling guidance to this workout
+                </label>
+
+                {fuelingEnabled ? (
+                  <>
+                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <div>
+                        <label className="mb-1 block text-[12px] text-zinc-600">Body weight (kg)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          value={bodyWeightKg}
+                          onChange={(e) => setBodyWeightKg(e.target.value)}
+                          className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-[14px]"
+                          placeholder="70"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-[12px] text-zinc-600">Body fat % (optional)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="60"
+                          step="0.1"
+                          value={bodyFatPct}
+                          onChange={(e) => setBodyFatPct(e.target.value)}
+                          className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-[14px]"
+                          placeholder="18"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-[12px] text-zinc-600">Sweat rate L/hr (optional)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          value={sweatRateLPerHour}
+                          onChange={(e) => setSweatRateLPerHour(e.target.value)}
+                          className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-[14px]"
+                          placeholder="0.8"
+                        />
+                      </div>
+                    </div>
+
+                    <a
+                      href="/fueling"
+                      className="mt-3 inline-flex text-[12px] font-medium text-zinc-600 underline underline-offset-2 hover:text-zinc-900"
+                    >
+                      Open fueling shop guide
+                    </a>
+                  </>
+                ) : null}
+              </div>
+
               <div className={clsx(isMobile ? 'grid gap-3' : 'flex items-center gap-3')}>
                 <button
                   onClick={handleGenerate}
