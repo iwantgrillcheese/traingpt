@@ -33,7 +33,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/seo-generated-posts.json data/used-keywords.json data/seo-keywords.json
+          # Keep daily churn small: only commit generated posts + used-keyword tracker.
+          git add data/seo-generated-posts.json data/used-keywords.json
           if git diff --staged --quiet; then
             echo "No content changes"
             exit 0
