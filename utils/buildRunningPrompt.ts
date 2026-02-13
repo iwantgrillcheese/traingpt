@@ -73,6 +73,14 @@ export function buildRunningPrompt({
   const wtr = targets?.weeksToRace ?? null;
   const mode = cycleMode(wtr);
 
+  const qualityRotation = (() => {
+    const i = index ?? 0;
+    if (weekMeta.phase === 'Base') return i % 2 === 0 ? 'hills/strides focus' : 'light tempo focus';
+    if (weekMeta.phase === 'Build') return i % 2 === 0 ? 'tempo/threshold focus' : 'intervals focus';
+    if (weekMeta.phase === 'Peak') return i % 2 === 0 ? 'race-pace focus' : 'interval sharpening focus';
+    return 'light sharpening focus';
+  })();
+
   return `
 You are creating ${weekMeta.label} for a RUNNING plan.
 
@@ -120,6 +128,7 @@ You are creating ${weekMeta.label} for a RUNNING plan.
 - In Build/Peak, include marathon-specific stimulus (e.g., marathon-pace block within medium/long run) where appropriate.
 - Do NOT undercook long runs in non-deload, non-taper weeks.
 - Keep intensity controlled: usually one primary quality workout plus optional lighter quality.
+- Quality workout type for this week should follow: ${qualityRotation} (avoid repeating same workout style every week).
 
 ## Short-cycle behavior by mode (STRICT)
 - normal (>=12 weeks): full progression pattern.
