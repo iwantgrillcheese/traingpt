@@ -708,31 +708,8 @@ export default function Home() {
     };
   }, []);
 
-  const stravaConnectHref = useMemo(() => {
-    const clientId = process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID;
-    if (!clientId) return '/settings';
-
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    if (!origin) return '/settings';
-
-    const callback = `${origin}/api/strava/callback`;
-    const returnTo = '/plan?source=strava';
-
-    return `https://www.strava.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(
-      callback
-    )}&scope=activity:read_all,profile:read_all&approval_prompt=auto&state=${encodeURIComponent(returnTo)}`;
-  }, []);
-
   const ctas = useMemo(() => {
     if (session && hasPlan) {
-      if (!stravaConnected) {
-        return {
-          primary: { label: 'View my schedule', href: '/schedule' },
-          secondary: { label: 'Connect Strava for smarter re-generation', href: stravaConnectHref },
-          tertiary: { label: 'See how it works', kind: 'scroll' as const },
-        };
-      }
-
       return {
         primary: { label: 'View my schedule', href: '/schedule' },
         secondary: { label: 'Re-generate my plan', href: '/plan?mode=regen' },
@@ -741,13 +718,6 @@ export default function Home() {
     }
 
     if (session) {
-      if (!stravaConnected) {
-        return {
-          primary: { label: 'Generate my plan', href: '/plan' },
-          secondary: { label: 'Connect Strava for smarter plan generation', href: stravaConnectHref },
-        };
-      }
-
       return {
         primary: { label: 'Generate my plan', href: '/plan' },
         secondary: { label: 'See how it works', kind: 'scroll' as const },
@@ -758,7 +728,7 @@ export default function Home() {
       primary: { label: 'Sign in to generate your plan', href: '/login' },
       secondary: { label: 'See how it works', kind: 'scroll' as const },
     };
-  }, [session, hasPlan, stravaConnected, stravaConnectHref]);
+  }, [session, hasPlan]);
 
   if (!authReady) {
     return (
@@ -820,7 +790,7 @@ export default function Home() {
               <Reveal>
                 <div className="flex flex-wrap gap-2">
                   <Pill>Instant plan generation</Pill>
-                  <Pill>Strava-connected tracking</Pill>
+                  <Pill>Adaptive training guidance</Pill>
                   <Pill>Mobile-first calendar</Pill>
                 </div>
               </Reveal>
@@ -833,8 +803,8 @@ export default function Home() {
 
               <Reveal delayMs={140}>
                 <p className="mt-4 text-lg text-white/70 leading-relaxed">
-                  Generate a complete endurance plan in minutes, then use your calendar + Strava data
-                  to stay on track and learn what’s working.
+                  Generate a complete endurance plan in minutes, then use your calendar and coaching
+                  workflow to stay on track and learn what’s working.
                 </p>
               </Reveal>
 
@@ -864,7 +834,7 @@ export default function Home() {
                   </span>
                   <span className="inline-flex items-center gap-2">
                     <span className="h-1 w-1 rounded-full bg-white/40" />
-                    Strava sync for real training
+                    Plan updates based on your progress
                   </span>
                   <span className="inline-flex items-center gap-2">
                     <span className="h-1 w-1 rounded-full bg-white/40" />
