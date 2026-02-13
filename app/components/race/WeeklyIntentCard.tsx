@@ -6,6 +6,8 @@ type WeeklyIntentCardProps = {
   bullets: string[];
   ctaHref?: string;
   ctaLabel?: string;
+  checkInHref?: string;
+  checkInLabel?: string;
 };
 
 export default function WeeklyIntentCard({
@@ -14,6 +16,8 @@ export default function WeeklyIntentCard({
   bullets,
   ctaHref = '#',
   ctaLabel = 'Open weekly coaching',
+  checkInHref,
+  checkInLabel = 'Start weekly check-in',
 }: WeeklyIntentCardProps) {
   return (
     <section className="mt-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -37,12 +41,23 @@ export default function WeeklyIntentCard({
         ))}
       </ul>
 
-      <a
-        href={ctaHref}
-        className="mt-4 inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-      >
-        {ctaLabel}
-      </a>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <a
+          href={ctaHref}
+          className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          {ctaLabel}
+        </a>
+
+        {checkInHref && (
+          <a
+            href={checkInHref}
+            className="inline-flex items-center rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800"
+          >
+            {checkInLabel}
+          </a>
+        )}
+      </div>
     </section>
   );
 }
