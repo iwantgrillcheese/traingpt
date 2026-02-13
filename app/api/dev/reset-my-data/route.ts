@@ -8,9 +8,14 @@ export const runtime = 'nodejs';
 const ALLOWED_EMAILS = ['me@cameronmcdiarmid.com'];
 
 function resetIsAllowedByEnv(): boolean {
-  const nodeOk = process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEV_RESET === 'true';
-  const vercelOk = process.env.VERCEL_ENV !== 'production' || process.env.ALLOW_DEV_RESET === 'true';
-  return nodeOk && vercelOk;
+  const forceAllow = process.env.ALLOW_DEV_RESET === 'true';
+  if (forceAllow) return true;
+
+  // Important: Next.js sets NODE_ENV=production on Vercel Preview too.
+  // So we allow non-production when either runtime env is non-prod.
+  const nodeNonProd = process.env.NODE_ENV !== 'production';
+  const vercelNonProd = process.env.VERCEL_ENV !== 'production';
+  return nodeNonProd || vercelNonProd;
 }
 
 export async function POST() {
@@ -28,7 +33,11 @@ export async function POST() {
 
     if (!resetIsAllowedByEnv()) {
       return NextResponse.json(
-        { ok: false, error: 'Forbidden in production environment' },
+        {
+          ok: false,
+          error:
+            'Forbidden in production environment. Use a Preview/dev deployment or set ALLOW_DEV_RESET=true explicitly.',
+        },
         { status: 403 }
       );
     }
