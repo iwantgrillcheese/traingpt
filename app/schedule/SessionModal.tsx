@@ -443,6 +443,10 @@ export default function SessionModal({
     setMarkingComplete(true);
 
     try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
       const res = await fetch('/api/schedule/mark-done', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -450,6 +454,7 @@ export default function SessionModal({
           session_date: session.date,
           session_title: session.title,
           undo: isCompleted,
+          clientUserId: user?.id ?? null,
         }),
       });
 

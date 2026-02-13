@@ -8,7 +8,15 @@ export async function POST(req: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { date, sport, title, duration, details } = await req.json()
+  const { date, sport, title, duration, details, clientUserId } = await req.json()
+
+  if (typeof clientUserId === 'string' && clientUserId && clientUserId !== user.id) {
+    console.error('[schedule/create-session] auth mismatch', {
+      cookieUserId: user.id,
+      clientUserId,
+    })
+    return NextResponse.json({ error: 'Authentication session mismatch. Please sign in again.' }, { status: 401 })
+  }
 
   const { data, error } = await supabase
     .from('sessions')
