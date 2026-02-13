@@ -11,6 +11,122 @@ import type { WeekMeta, UserParams, WeekJson, PlanType, DayOfWeek } from "@/type
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
+function toDayIndex(day?: string | null): number {
+  const s = String(day ?? "").toLowerCase();
+  const map: Record<string, number> = {
+    sunday: 0,
+    monday: 1,
+    tuesday: 2,
+    wednesday: 3,
+    thursday: 4,
+    friday: 5,
+    saturday: 6,
+  };
+  return map[s] ?? 1;
+}
+
+function isoDatesFromMonday(startDate: string): string[] {
+  const start = new Date(`${startDate}T00:00:00`);
+  const out: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    out.push(d.toISOString().slice(0, 10));
+  }
+  return out;
+}
+
+function buildDeterministicRunFallback(args: {
+  weekMeta: WeekMeta;
+  userParams: UserParams;
+  targets: {
+    targetWeeklyMin: number;
+    targetLongRunMin: number;
+    minLongRunMin?: number;
+    longRunMax: number;
+    qualityDays: number;
+    maxQualityMin: number;
+    preferredLongRunDay: DayOfWeek;
+  };
+}): WeekJson {
+  const { weekMeta, userParams, targets } = args;
+  const dates = isoDatesFromMonday(weekMeta.startDate);
+  const days: Record<string, string[]> = Object.fromEntries(dates.map((d) => [d, []]));
+
+  const restDayIdx = toDayIndex(userParams.restDay);
+  const longRunDow = Number(targets.preferredLongRunDay ?? 0);
+
+  const dayMeta = dates.map((iso) => {
+    const dow = new Date(`${iso}T00:00:00`).getDay();
+    return { iso, dow };
+  });
+
+  const longTarget = Math.max(
+    45,
+    Math.min(
+      targets.longRunMax,
+      Math.max(targets.targetLongRunMin, targets.minLongRunMin ?? 0)
+    )
+  );
+
+  const shouldAddQuality = targets.qualityDays > 0 && targets.maxQualityMin > 0;
+  const qualityMin = shouldAddQuality ? Math.min(20, targets.maxQualityMin) : 0;
+
+  const totalTarget = Math.max(longTarget + qualityMin + 60, targets.targetWeeklyMin);
+  let remaining = totalTarget - longTarget - qualityMin;
+
+  const easyRunSlots = dayMeta
+    .filter((d) => d.dow !== longRunDow && d.dow !== restDayIdx)
+    .map((d) => d.iso)
+    .slice(0, 3);
+
+  const easyMins = easyRunSlots.map((_, idx) => {
+    const slotsLeft = easyRunSlots.length - idx;
+    const v = Math.max(30, Math.round(remaining / slotsLeft));
+    remaining -= v;
+    return v;
+  });
+
+  // Rest day
+  const rest = dayMeta.find((d) => d.dow === restDayIdx)?.iso;
+  if (rest) days[rest] = ["Rest"];
+
+  // Long run on preferred day
+  const longDay = dayMeta.find((d) => d.dow === longRunDow)?.iso ?? dates[dates.length - 1];
+  days[longDay] = [`🏃 Long Run — ${longTarget}min steady aerobic — Details`];
+
+  // Optional single quality day (never adjacent to long run)
+  if (shouldAddQuality) {
+    const longIdx = dayMeta.findIndex((d) => d.iso === longDay);
+    const qualityCandidate = dayMeta.find((d, idx) => {
+      if (d.iso === longDay || d.iso === rest) return false;
+      if (Math.abs(idx - longIdx) <= 1) return false;
+      return true;
+    })?.iso;
+
+    if (qualityCandidate) {
+      days[qualityCandidate] = [
+        `🏃 Run — ${qualityMin}min quality (short strides within easy run) — Details`,
+      ];
+    }
+  }
+
+  // Easy runs fill remaining volume
+  easyRunSlots.forEach((iso, i) => {
+    if (days[iso]?.length) return;
+    const m = easyMins[i] ?? 35;
+    days[iso] = [`🏃 Run — ${m}min easy aerobic — Details`];
+  });
+
+  return {
+    label: weekMeta.label,
+    phase: weekMeta.phase,
+    startDate: weekMeta.startDate,
+    deload: weekMeta.deload,
+    days,
+  } as WeekJson;
+}
+
 export async function generateWeek({
   weekMeta,
   userParams,
@@ -203,7 +319,47 @@ Important: Every run must include duration and longest run must be on the prefer
       currentWeek = await callLLM(fix);
     }
 
-    // If still failing after rerolls, return the best candidate seen.
+    // If still failing after rerolls, never return a safety-invalid week.
+    const finalValidation = validateRunWeek({
+      week: bestWeek,
+      userParams,
+      weekMeta: { deload: weekMeta.deload },
+      targets: {
+        targetWeeklyMin: targets.targetWeeklyMin,
+        targetLongRunMin: targets.targetLongRunMin,
+        minLongRunMin: targets.minLongRunMin,
+        longRunMax: targets.longRunMax,
+        maxSingleRunMin: targets.maxSingleRunMin,
+        qualityDays: targets.qualityDays,
+        maxQualityMin: targets.maxQualityMin,
+        raceFamily: targets.raceFamily,
+        preferredLongRunDay,
+      },
+      prevWeek,
+    });
+
+    const finalSafetyErrors = finalValidation.errors.filter(isSafetyCriticalError);
+    if (finalSafetyErrors.length > 0) {
+      console.error('[generateWeek] using deterministic fallback due to unresolved safety errors', {
+        weekLabel: weekMeta.label,
+        topErrors: finalSafetyErrors.slice(0, 5),
+      });
+
+      return buildDeterministicRunFallback({
+        weekMeta,
+        userParams,
+        targets: {
+          targetWeeklyMin: targets.targetWeeklyMin,
+          targetLongRunMin: targets.targetLongRunMin,
+          minLongRunMin: targets.minLongRunMin,
+          longRunMax: targets.longRunMax,
+          qualityDays: targets.qualityDays,
+          maxQualityMin: targets.maxQualityMin,
+          preferredLongRunDay,
+        },
+      });
+    }
+
     return bestWeek;
   }
 
