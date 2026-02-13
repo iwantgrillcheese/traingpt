@@ -1,14 +1,12 @@
 'use client';
 
 import React from 'react';
-import { blogPosts } from '@/lib/blog-data';
+import { getAllBlogPosts } from '@/lib/blog-posts';
 import Link from 'next/link';
 import Image from 'next/image';
 
 export default function BlogHome() {
-  const sortedPosts = blogPosts.sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
+  const sortedPosts = getAllBlogPosts();
 
   const featured = sortedPosts[0];
   const secondary = sortedPosts.slice(1, 4);
