@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'fs';
 import path from 'path';
+import OpenAI from 'openai';
 
 const ROOT = process.cwd();
 const DATA_DIR = path.join(ROOT, 'data');
@@ -8,140 +9,81 @@ const KEYWORDS_PATH = path.join(DATA_DIR, 'seo-keywords.json');
 const USED_PATH = path.join(DATA_DIR, 'used-keywords.json');
 const POSTS_PATH = path.join(DATA_DIR, 'seo-generated-posts.json');
 
-const SEEDS = {
-  triathlon: [
-    'triathlon training plans','ironman training plans','70.3 training plans','beginner triathlon training','olympic triathlon training','sprint triathlon training','triathlon periodization','triathlon workouts','triathlon weekly schedule'
-  ],
-  running: [
-    'marathon training plans','half marathon training plans','beginner running plans','sub-3 marathon plans','sub-4 marathon plans','running periodization','running workouts','long run strategy','taper strategy','running pacing'
-  ],
-  cycling: ['FTP training plans','cycling training plans','bike workouts','zone 2 training cycling'],
-  swimming: ['swim training plan','swim workouts','triathlon swim tips'],
-  ai: ['AI running coach','AI triathlon coach','AI marathon training','personalized training plans','adaptive training plans'],
-};
-
-const LONG_TAIL_PREFIX = ['8 week','10 week','12 week','16 week','beginner','intermediate','advanced','masters','time-crunched'];
-const LONG_TAIL_SUFFIX = ['for beginners','for busy professionals','with weekly schedule','with pace guidance','with zone 2 focus','pdf','free template','with taper','with fueling strategy','with recovery days'];
-
 const HERO_TERMS = ['marathon training','triathlon training','running track workout','cycling endurance','open water swim'];
 
-function readJson(file, fallback) {
-  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; }
-}
-function writeJson(file, data) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify(data, null, 2) + '\n');
-}
-function slugify(s) {
-  return s.toLowerCase().replace(/[^a-z0-9\s-]/g, '').trim().replace(/\s+/g, '-').replace(/-+/g, '-');
-}
-function inferIntent(keyword) {
-  if (/plan|schedule|week/i.test(keyword)) return 'plan';
-  if (/vs|best|compare|comparison/i.test(keyword)) return 'comparison';
-  return 'informational';
-}
-function inferDifficulty(keyword) {
-  if (/ironman|marathon|ai coach|training plans/i.test(keyword)) return 'high';
-  if (/beginner|tips|workouts|strategy/i.test(keyword)) return 'low';
-  return 'medium';
-}
-
-function ensureKeywordBank() {
-  let bank = readJson(KEYWORDS_PATH, []);
-  if (bank.length > 200) return bank;
-
-  const seen = new Set();
-  const out = [];
-  for (const [category, seeds] of Object.entries(SEEDS)) {
-    for (const seed of seeds) {
-      const variants = new Set([seed]);
-      for (const p of LONG_TAIL_PREFIX) for (const s of LONG_TAIL_SUFFIX) variants.add(`${p} ${seed} ${s}`.trim());
-      for (const v of Array.from(variants).slice(0, 60)) {
-        const key = v.toLowerCase();
-        if (seen.has(key)) continue;
-        seen.add(key);
-        out.push({
-          keyword: v,
-          category,
-          intent: inferIntent(v),
-          difficulty: inferDifficulty(v),
-        });
-      }
-    }
-  }
-  bank = out;
-  writeJson(KEYWORDS_PATH, bank);
-  return bank;
-}
+const readJson = (file, fallback) => { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; } };
+const writeJson = (file, data) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify(data, null, 2) + '\n'); };
+const slugify = (s) => s.toLowerCase().replace(/[^a-z0-9\s-]/g, '').trim().replace(/\s+/g, '-').replace(/-+/g, '-');
 
 function estimateWordCount(markdown) {
   return markdown.replace(/[`#*\-|]/g, ' ').split(/\s+/).filter(Boolean).length;
 }
 
-function buildWeekTable() {
-  return `| Week | Focus | Key Workouts | Weekly Volume |
-|---|---|---|---|
-| 1 | Base setup | 1 quality + 1 long + easy runs | 4.5-6.0 hrs |
-| 2 | Aerobic build | Progress long run, add strides | 5.0-6.5 hrs |
-| 3 | Build | Tempo/threshold progression | 5.5-7.0 hrs |
-| 4 | Deload | Reduced volume and long run | 4.0-5.0 hrs |
-| 5 | Build | Specific endurance work | 6.0-7.5 hrs |
-| 6 | Peak prep | Long run specificity | 6.5-8.0 hrs |
-| 7 | Peak | Race-specific simulation | 7.0-8.5 hrs |
-| 8 | Taper | Freshen up and sharpen | 4.0-5.5 hrs |`;
+function validateArticle(post) {
+  const words = estimateWordCount(post.content || '');
+  const hasTable = /\|\s*Week\s*\|/i.test(post.content || '');
+  const hasFaq = /## FAQ/i.test(post.content || '');
+  const hasCta = /TrainGPT|generate a personalized plan|personalized plan/i.test(post.content || '');
+  const hasInternalLinks = (post.content?.match(/\]\(\/blog\//g) || []).length >= 1;
+  return { ok: words >= 1200 && hasTable && hasFaq && hasCta && hasInternalLinks, checks: { words, hasTable, hasFaq, hasCta, hasInternalLinks } };
 }
 
-function createArticle({ primary, secondary }) {
+function fallbackArticle({ primary, secondary }) {
   const title = primary.keyword[0].toUpperCase() + primary.keyword.slice(1);
-  const faq = secondary.map((k) => `### ${k}\nShort answer: tailor volume and intensity to your training history, then progress gradually.`).join('\n\n');
-
+  const faq = secondary.map((k) => `### ${k}\nTailor intensity and volume to your current training load, then progress weekly with recovery.`).join('\n\n');
   let content = `# ${title}
 
-If you're searching for **${primary.keyword}**, you likely want a plan that is practical, progressive, and realistic for your week-to-week life as an athlete.
+If you're searching for **${primary.keyword}**, this guide is designed to give you a practical, coach-level framework you can actually use.
 
 ## Who This Plan Is For
-This guide is for endurance athletes who want structure without guesswork, including beginners returning from inconsistency and experienced athletes trying to avoid plateaus.
+This plan is for endurance athletes who want clarity and structure without overtraining. It works for beginners who need guardrails and experienced athletes who want a more precise progression.
 
 ## Key Training Principles
-1. **Periodization:** Rotate base, build, peak, and taper blocks.
-2. **Volume control:** Increase total training load in manageable steps.
-3. **Intensity distribution:** Keep most sessions easy and place quality sessions deliberately.
-4. **Recovery:** Sleep, fueling, and down-weeks are part of performance.
+1. **Periodization:** split training into base, build, peak, and taper.
+2. **Volume progression:** increase gradually to avoid injury and excessive fatigue.
+3. **Intensity distribution:** most sessions easy, one to two key workouts each week.
+4. **Recovery discipline:** adaptation happens between sessions, not during them.
 
 ## The Training Plan
-Below is a sample framework you can adapt:
+| Week | Focus | Key Sessions | Weekly Volume |
+|---|---|---|---|
+| 1 | Base | 1 quality + 1 long + easy support runs | 4.5-6.0 hrs |
+| 2 | Base | Slight long-run progression + strides | 5.0-6.5 hrs |
+| 3 | Build | Threshold/tempo progression | 5.5-7.0 hrs |
+| 4 | Deload | Reduced load and reduced long run | 4.0-5.0 hrs |
+| 5 | Build | Specific endurance and race-pace work | 6.0-7.5 hrs |
+| 6 | Build/Peak | Long session specificity | 6.5-8.0 hrs |
+| 7 | Peak | Simulation and sharpening | 7.0-8.5 hrs |
+| 8 | Taper | Lower volume + freshness | 4.0-5.5 hrs |
 
-${buildWeekTable()}
-
-The exact week should be adjusted for race distance, current fitness, and available training hours.
+Weekly volume should be adjusted to your current baseline and recovery capacity.
 
 ## How to Customize the Plan
-- Start from your current weekly volume, not your dream volume.
-- Keep long-run/long-ride growth gradual.
-- Move sessions across the week to match your work/life rhythm.
-- Protect one recovery day after quality work.
+- Start from your current weekly average, not an aspirational number.
+- Keep hard days separated by easy or recovery days.
+- Move sessions around work/family constraints while preserving sequence.
+- Practice race fueling in long sessions, not only on race day.
 
 ## Common Mistakes
-- Doing too much intensity too often.
-- Treating taper as complete rest.
-- Ignoring nutrition and hydration practice.
-- Skipping easy days because they feel "too easy".
+- Stacking too much intensity in one week.
+- Making long runs too hard too often.
+- Skipping deload weeks.
+- Ignoring sleep and hydration.
 
 ## FAQ
 ${faq}
 
-See also: [AI triathlon coach](/blog/ai-triathlon-coach), [adaptive training plan](/blog/ai-vs-human-coach), [personalized marathon plan](/plan).
+Related reading: [AI triathlon coach](/blog/ai-triathlon-coach), [adaptive training plan](/blog/ai-vs-human-coach), [best triathlon training plan](/blog/best-triathlon-training-plan).
 
-Ready to personalize this? Use TrainGPT to generate a plan matched to your race date, experience, and weekly availability.`;
-
+Ready for your exact version? Use TrainGPT to generate a personalized plan for your race date, experience, and schedule.`;
   while (estimateWordCount(content) < 1250) {
-    content += `\n\n### Practical Coaching Notes\nConsistency over 8-16 weeks beats one perfect week. Keep easy days truly easy, and use workouts to build race-specific durability. Review each week: what felt sustainable, what felt excessive, and where recovery needs to improve. Repeat this loop to keep the plan adaptive and realistic.`;
+    content += '\n\n### Coaching Notes\nConsistency matters more than hero workouts. Keep easy runs easy, place quality intentionally, and review each week so your next week is better calibrated than the last.';
   }
 
   return {
     slug: slugify(primary.keyword),
     title,
-    description: `A practical coach-level guide to ${primary.keyword}, including periodization, weekly structure, and customization tips.`,
+    description: `A practical guide to ${primary.keyword}, including periodization, weekly structure, mistakes to avoid, and customization advice.`,
     tag: 'Training Tip',
     date: new Date().toISOString().slice(0, 10),
     image: '/tiles/podium-shot.jpg',
@@ -150,21 +92,76 @@ Ready to personalize this? Use TrainGPT to generate a plan matched to your race 
   };
 }
 
-function validateArticle(post) {
-  const words = estimateWordCount(post.content);
-  const hasTable = /\|\s*Week\s*\|/i.test(post.content);
-  const hasFaq = /## FAQ/i.test(post.content);
-  const hasCta = /TrainGPT|generate a plan|personalize/i.test(post.content);
-  const hasInternalLinks = (post.content.match(/\]\(\/blog\//g) || []).length >= 1;
+async function aiArticle({ primary, secondary }) {
+  if (!process.env.OPENAI_API_KEY) return null;
+  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const model = process.env.SEO_MODEL || 'gpt-5-mini';
 
-  return {
-    ok: words >= 1200 && hasTable && hasFaq && hasCta && hasInternalLinks,
-    checks: { words, hasTable, hasFaq, hasCta, hasInternalLinks },
-  };
+  const sys = 'You are an expert endurance coach and SEO writer. Return only valid JSON with keys: title, description, tag, content.';
+  const user = `Write a 1200-1800 word SEO article for TrainGPT.
+Primary keyword: ${primary.keyword}
+Secondary keywords: ${secondary.join(', ')}
+Required sections:
+1) H1 with primary keyword
+2) Intro that matches athlete intent
+3) Who This Plan Is For
+4) Key Training Principles
+5) The Training Plan (must include markdown week-by-week table with weekly volume)
+6) How to Customize the Plan
+7) Common Mistakes
+8) FAQ (3-5 questions from keyword variants)
+9) Soft CTA to generate personalized plan with TrainGPT
+Also include 2-3 internal links to /blog/* when natural.`;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), Number(process.env.SEO_OPENAI_TIMEOUT_MS || 30000));
+  try {
+    const resp = await client.chat.completions.create({
+      model,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: sys },
+        { role: 'user', content: user },
+      ],
+    }, { signal: controller.signal });
+
+    const raw = resp.choices?.[0]?.message?.content || '{}';
+    const parsed = JSON.parse(raw);
+    return {
+      slug: slugify(primary.keyword),
+      title: parsed.title || primary.keyword,
+      description: parsed.description || `Guide to ${primary.keyword}`,
+      tag: parsed.tag || 'Training Tip',
+      date: new Date().toISOString().slice(0, 10),
+      image: '/tiles/podium-shot.jpg',
+      heroImageKeyword: HERO_TERMS[Math.floor(Math.random() * HERO_TERMS.length)],
+      content: parsed.content || '',
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
-function run() {
-  const bank = ensureKeywordBank();
+async function buildArticleWithChecks({ primary, secondary }) {
+  let post = await aiArticle({ primary, secondary });
+  if (!post) post = fallbackArticle({ primary, secondary });
+
+  let v = validateArticle(post);
+  if (v.ok) return post;
+
+  // single regeneration pass (fallback) if AI result fails checks
+  post = fallbackArticle({ primary, secondary });
+  v = validateArticle(post);
+  if (!v.ok) throw new Error(`Article failed quality checks for ${primary.keyword}: ${JSON.stringify(v.checks)}`);
+  return post;
+}
+
+async function run() {
+  const bank = readJson(KEYWORDS_PATH, []);
+  if (!bank.length) throw new Error('seo-keywords.json is empty. Run yarn seo:init first.');
+
   const used = new Set(readJson(USED_PATH, []));
   const posts = readJson(POSTS_PATH, []);
 
@@ -177,10 +174,8 @@ function run() {
   for (let i = 0; i < picked.length; i++) {
     const primary = picked[i];
     const secondary = available.slice(i + 1, i + 5).map((k) => k.keyword);
-    const post = createArticle({ primary, secondary });
-    const validation = validateArticle(post);
-    if (!validation.ok) throw new Error(`Article failed validation for ${primary.keyword}: ${JSON.stringify(validation.checks)}`);
 
+    const post = await buildArticleWithChecks({ primary, secondary });
     created.push({ ...post, primaryKeyword: primary.keyword, secondaryKeywords: secondary });
     used.add(primary.keyword);
   }
@@ -188,7 +183,10 @@ function run() {
   writeJson(POSTS_PATH, [...posts, ...created]);
   writeJson(USED_PATH, Array.from(used));
 
-  console.log(JSON.stringify({ ok: true, created: created.map((p) => p.slug) }, null, 2));
+  console.log(JSON.stringify({ ok: true, created: created.map((p) => p.slug), mode: process.env.OPENAI_API_KEY ? 'ai+fallback' : 'fallback' }, null, 2));
 }
 
-run();
+run().catch((err) => {
+  console.error(err?.message || err);
+  process.exit(1);
+});
