@@ -502,12 +502,19 @@ export async function POST(req: Request) {
     const { error: delErr } = await supabase
       .from("sessions")
       .delete()
-      .eq("user_id", userId)
-      .eq("plan_id", planId);
+      .eq("user_id", userId);
 
-    if (delErr) console.error("[finalize-plan] delete sessions error", delErr);
+    if (delErr) {
+      console.error("[finalize-plan] delete sessions error", { userId, planId, delErr });
+      throw delErr;
+    }
 
     let sessionRows = convertPlanToSessions(userId, planId, generatedPlan);
+    console.log("[finalize-plan] session rows prepared", {
+      userId,
+      planId,
+      count: sessionRows.length,
+    });
 
     const seen = new Set<string>();
     sessionRows = sessionRows.filter((s) => {
@@ -522,6 +529,19 @@ export async function POST(req: Request) {
       if (insErr) {
         console.error("[finalize-plan] insert sessions error", insErr);
         console.error("[finalize-plan] insert sessions rows sample", sessionRows.slice(0, 3));
+        throw insErr;
+      }
+
+      const { count, error: countErr } = await supabase
+        .from("sessions")
+        .select("id", { head: true, count: "exact" })
+        .eq("user_id", userId)
+        .eq("plan_id", planId);
+
+      if (countErr) {
+        console.error("[finalize-plan] post-insert count error", countErr);
+      } else {
+        console.log("[finalize-plan] sessions persisted", { userId, planId, count });
       }
     }
 
