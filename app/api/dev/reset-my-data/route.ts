@@ -8,18 +8,17 @@ export const runtime = 'nodejs';
 const ALLOWED_EMAILS = ['me@cameronmcdiarmid.com', 'cameron.mcdiarmid@gmail.com'];
 
 function resetIsAllowedByEnv(): boolean {
-  const forceAllow = process.env.ALLOW_DEV_RESET === 'true';
-  if (forceAllow) return true;
-
-  // Important: Next.js sets NODE_ENV=production on Vercel Preview too.
-  // So we allow non-production when either runtime env is non-prod.
-  const nodeNonProd = process.env.NODE_ENV !== 'production';
-  const vercelNonProd = process.env.VERCEL_ENV !== 'production';
-  return nodeNonProd || vercelNonProd;
+  // Prod use is intentionally allowed for allowlisted users.
+  // Optional kill switch remains available.
+  if (process.env.DISABLE_DEV_RESET === 'true') return false;
+  return true;
 }
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
+    const body = await req.json().catch(() => ({}));
+    const confirm = typeof body?.confirm === 'string' ? body.confirm : '';
+
     const supabase = createRouteHandlerClient({ cookies });
 
     const {
@@ -35,14 +34,8 @@ export async function POST() {
       return NextResponse.json(
         {
           ok: false,
-          error:
-            'Forbidden in production environment. Use a Preview/dev deployment or set ALLOW_DEV_RESET=true explicitly.',
+          error: 'Reset endpoint is disabled by DISABLE_DEV_RESET=true',
           reason: 'env_guard',
-          env: {
-            nodeEnv: process.env.NODE_ENV,
-            vercelEnv: process.env.VERCEL_ENV,
-            allowDevReset: process.env.ALLOW_DEV_RESET === 'true',
-          },
         },
         { status: 403 }
       );
@@ -53,6 +46,13 @@ export async function POST() {
       return NextResponse.json(
         { ok: false, error: 'Forbidden', reason: 'email_not_allowlisted', email },
         { status: 403 }
+      );
+    }
+
+    if (confirm !== 'RESET') {
+      return NextResponse.json(
+        { ok: false, error: 'Confirmation required (confirm=RESET)' },
+        { status: 400 }
       );
     }
 

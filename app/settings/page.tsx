@@ -184,7 +184,11 @@ export default function ProfilePage() {
       setResetLoading(true);
       setResetMessage(null);
 
-      const res = await fetch('/api/dev/reset-my-data', { method: 'POST' });
+      const res = await fetch('/api/dev/reset-my-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: 'RESET' }),
+      });
       const json = await res.json().catch(() => ({}));
 
       if (!res.ok) {
