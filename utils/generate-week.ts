@@ -303,7 +303,32 @@ export async function generateWeek({
   }
 
   // First attempt
-  let currentWeek = await callLLM();
+  let currentWeek: WeekJson;
+  try {
+    currentWeek = await callLLM();
+  } catch (err: any) {
+    if (isRunPlan && targets) {
+      console.warn('[generateWeek] llm first-attempt failed, using deterministic fallback', {
+        weekLabel: weekMeta.label,
+        error: err?.message,
+      });
+      const preferredLongRunDay = (userParams.trainingPrefs?.longRunDay ?? 0) as DayOfWeek;
+      return buildDeterministicRunFallback({
+        weekMeta,
+        userParams,
+        targets: {
+          targetWeeklyMin: targets.targetWeeklyMin,
+          targetLongRunMin: targets.targetLongRunMin,
+          minLongRunMin: targets.minLongRunMin,
+          longRunMax: targets.longRunMax,
+          qualityDays: targets.qualityDays,
+          maxQualityMin: targets.maxQualityMin,
+          preferredLongRunDay,
+        },
+      });
+    }
+    throw err;
+  }
 
   // Running-only validation + rerolls
   if (isRunPlan && targets) {
@@ -393,7 +418,28 @@ You must regenerate and satisfy ALL constraints:
 
 Return complete JSON week object only, with all 7 day keys for the requested week.${previousWeekBlock}`;
 
-      currentWeek = await callLLM(fix);
+      try {
+        currentWeek = await callLLM(fix);
+      } catch (err: any) {
+        console.warn('[generateWeek] reroll failed, switching to deterministic fallback', {
+          weekLabel: weekMeta.label,
+          attempt: attempt + 1,
+          error: err?.message,
+        });
+        return buildDeterministicRunFallback({
+          weekMeta,
+          userParams,
+          targets: {
+            targetWeeklyMin: targets.targetWeeklyMin,
+            targetLongRunMin: targets.targetLongRunMin,
+            minLongRunMin: targets.minLongRunMin,
+            longRunMax: targets.longRunMax,
+            qualityDays: targets.qualityDays,
+            maxQualityMin: targets.maxQualityMin,
+            preferredLongRunDay,
+          },
+        });
+      }
     }
 
     // If still failing after rerolls, never return a safety-invalid week.
