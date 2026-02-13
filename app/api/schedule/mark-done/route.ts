@@ -5,7 +5,7 @@ import { cookies } from 'next/headers';
 
 export async function POST(req: Request) {
   const supabase = createRouteHandlerClient({ cookies });
-  const { session_date, session_title } = await req.json();
+  const { session_date, session_title, clientUserId } = await req.json();
 
   const {
     data: { session },
@@ -13,6 +13,14 @@ export async function POST(req: Request) {
 
   if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  if (typeof clientUserId === 'string' && clientUserId && clientUserId !== session.user.id) {
+    console.error('[schedule/mark-done] auth mismatch', {
+      cookieUserId: session.user.id,
+      clientUserId,
+    });
+    return NextResponse.json({ error: 'Authentication session mismatch. Please sign in again.' }, { status: 401 });
   }
 
   const { data: existing } = await supabase
