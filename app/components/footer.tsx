@@ -26,9 +26,9 @@ export default function Footer() {
         <div>
           <h3 className="text-xs font-semibold text-gray-400 uppercase mb-4">BLOG</h3>
           <ul className="space-y-2">
-            <li><Link href="/blog/brick-workouts">Brick Workouts</Link></li>
-            <li><Link href="/blog/consistency-vs-motivation">Consistency vs Motivation</Link></li>
-            <li><Link href="/blog/ai-training-engine">AI Coaching Engine</Link></li>
+            <li><Link href="/blog/ai-triathlon-coach">AI Triathlon Coach</Link></li>
+            <li><Link href="/blog/70-3-training-plan">70.3 Training Plan</Link></li>
+            <li><Link href="/blog/best-triathlon-training-plan">Best Triathlon Training Plan</Link></li>
           </ul>
         </div>
 
@@ -46,24 +46,12 @@ export default function Footer() {
             </a>
           </p>
           <div className="flex space-x-4 mt-4 text-gray-400">
-            <Link href="https://www.strava.com/athletes/44311272" aria-label="Strava">
-              <span className="hover:text-black">Strava</span>
-            </Link>
-            <Link href="https://youtube.com" aria-label="YouTube">
-              <span className="hover:text-black">YouTube</span>
-            </Link>
-            <Link href="https://www.linkedin.com/in/cameronmcdiarmid/" aria-label="LinkedIn">
-              <span className="hover:text-black">LinkedIn</span>
-            </Link>
-            <Link href="https://github.com" aria-label="GitHub">
-              <span className="hover:text-black">GitHub</span>
-            </Link>
-            <Link href="https://tiktok.com/xxxstrikerxxx" aria-label="TikTok">
-              <span className="hover:text-black">TikTok</span>
-            </Link>
-            <Link href="https://discord.com" aria-label="Discord">
-              <span className="hover:text-black">Discord</span>
-            </Link>
+            <a href="https://www.strava.com/athletes/44311272" target="_blank" rel="noreferrer" aria-label="Strava" className="hover:text-black">Strava</a>
+            <a href="https://youtube.com" target="_blank" rel="noreferrer" aria-label="YouTube" className="hover:text-black">YouTube</a>
+            <a href="https://www.linkedin.com/in/cameronmcdiarmid/" target="_blank" rel="noreferrer" aria-label="LinkedIn" className="hover:text-black">LinkedIn</a>
+            <a href="https://github.com" target="_blank" rel="noreferrer" aria-label="GitHub" className="hover:text-black">GitHub</a>
+            <a href="https://tiktok.com/xxxstrikerxxx" target="_blank" rel="noreferrer" aria-label="TikTok" className="hover:text-black">TikTok</a>
+            <a href="https://discord.com" target="_blank" rel="noreferrer" aria-label="Discord" className="hover:text-black">Discord</a>
           </div>
         </div>
       </div>
