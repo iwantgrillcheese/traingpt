@@ -135,6 +135,13 @@ export async function generateWeek({
 
       if (v.ok) return currentWeek;
 
+      console.warn('[generateWeek] validation reroll', {
+        weekLabel: weekMeta.label,
+        attempt: attempt + 1,
+        errorCount: v.errors.length,
+        topErrors: v.errors.slice(0, 3),
+      });
+
       if (v.errors.length < bestValidation.errors.length) {
         bestValidation = v;
         bestWeek = currentWeek;
