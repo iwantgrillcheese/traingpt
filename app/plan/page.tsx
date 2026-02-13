@@ -490,6 +490,7 @@ function PlanPageContent() {
 
     const POLL_INTERVAL_MS = 2500;
     const POLL_TIMEOUT_MS = 4 * 60 * 1000; // 4 minutes
+    let authedUserId: string | null = null;
 
     try {
       const {
@@ -498,6 +499,7 @@ function PlanPageContent() {
 
       const access_token = session?.access_token || null;
       const userId = session?.user?.id || null;
+      authedUserId = userId;
 
       if (!access_token) throw new Error('No Supabase access token found.');
       if (!userId) throw new Error('No user found.');
@@ -675,7 +677,11 @@ function PlanPageContent() {
         resJson = null;
       }
 
-      if (res && !res.ok) {
+      if (!res) {
+        throw new Error('Plan request timed out. Checking whether your plan saved…');
+      }
+
+      if (!res.ok) {
         throw new Error(resJson?.error || resText || 'Plan generation failed');
       }
 
@@ -689,6 +695,23 @@ function PlanPageContent() {
       console.error('❌ Finalize plan error:', err);
 
       const msg = err?.message || 'Something went wrong while generating your plan. Please try again.';
+
+      // Recovery path: if request timed out, check whether a new plan row exists and route anyway.
+      if (/timed out/i.test(msg) && authedUserId) {
+        const { data: latest } = await supabase
+          .from('plans')
+          .select('id,created_at')
+          .eq('user_id', authedUserId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (latest?.id) {
+          router.replace(`/schedule?walkthrough=1&planId=${encodeURIComponent(String(latest.id))}`);
+          router.refresh();
+          return;
+        }
+      }
 
       if (/still generating/i.test(msg)) {
         setNotice(msg);
