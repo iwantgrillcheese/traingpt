@@ -56,7 +56,9 @@
     "postbuild": "next-sitemap",
     "lint": "next lint",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "verify": "yarn lint && yarn typecheck && yarn build"
+    "verify": "yarn lint && yarn typecheck && yarn build",
+    "seo:daily": "node scripts/seo/daily-engine.mjs",
+    "seo:init": "node scripts/seo/init-keywords.mjs"
   },
   "eslintConfig": {
     "extends": [

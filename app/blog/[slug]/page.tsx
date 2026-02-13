@@ -1,7 +1,7 @@
 'use client';
 
 import { notFound } from 'next/navigation';
-import { blogPosts } from '../../../lib/blog-data';
+import { getAllBlogPosts } from '../../../lib/blog-posts';
 import { marked } from 'marked';
 
 // Next 15.5+ treats `params` as a Promise, so we destructure it async.
@@ -11,7 +11,7 @@ type PageProps = {
 
 export default async function BlogPostPage({ params }: PageProps) {
   const { slug } = await params; // unwrap the Promise
-  const post = blogPosts.find((p) => p.slug === slug);
+  const post = getAllBlogPosts().find((p) => p.slug === slug);
 
   if (!post) return notFound();
 

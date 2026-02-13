@@ -1,0 +1,42 @@
+name: SEO Daily Engine
+
+on:
+  schedule:
+    - cron: '17 14 * * *' # daily
+  workflow_dispatch:
+
+jobs:
+  seo_daily:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+
+      - name: Install
+        run: yarn install --frozen-lockfile
+
+      - name: Init keywords
+        run: yarn seo:init
+
+      - name: Run daily SEO engine
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SEO_MODEL: gpt-5-mini
+          SEO_OPENAI_TIMEOUT_MS: 30000
+        run: yarn seo:daily
+
+      - name: Commit generated content
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/seo-generated-posts.json data/used-keywords.json data/seo-keywords.json
+          if git diff --staged --quiet; then
+            echo "No content changes"
+            exit 0
+          fi
+          git commit -m "chore(seo): daily content generation"
+          git push
