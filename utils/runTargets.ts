@@ -205,7 +205,10 @@ export function computeRunTargets(args: {
   // Progression cap from previous long run.
   const prevLong = prev.longRunMin || 0;
   const maxStep = weekMeta.deload ? 0 : race === "marathon" ? 15 : 12;
-  const longRunProgressionCap = prevLong > 0 ? prevLong + maxStep : peakLongRunMin;
+  const longRunProgressionCap =
+    prevLong > 0
+      ? Math.max(prevLong + maxStep, minLongRunMin || 0)
+      : peakLongRunMin;
 
   // Single-run absolute cap for safety.
   const maxSingleRunMin =
@@ -221,7 +224,12 @@ export function computeRunTargets(args: {
   }
 
   targetLongRunMin = clamp(targetLongRunMin, 45, peakLongRunMin);
-  const longRunMax = clamp(Math.min(targetLongRunMin, longRunProgressionCap), 45, maxSingleRunMin);
+  const longRunMax = clamp(
+    Math.max(Math.min(targetLongRunMin, longRunProgressionCap), minLongRunMin || 0),
+    45,
+    maxSingleRunMin
+  );
+
 
   const qualityDays =
     weekMeta.phase === "Base" ? 1 :
