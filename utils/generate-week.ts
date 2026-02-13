@@ -56,67 +56,70 @@ function buildDeterministicRunFallback(args: {
   const restDayIdx = toDayIndex(userParams.restDay);
   const longRunDow = Number(targets.preferredLongRunDay ?? 0);
 
-  const dayMeta = dates.map((iso) => {
-    const dow = new Date(`${iso}T00:00:00`).getDay();
-    return { iso, dow };
-  });
+  const dayMeta = dates.map((iso, idx) => ({
+    iso,
+    idx,
+    dow: new Date(`${iso}T00:00:00`).getDay(),
+  }));
+
+  const restIso = dayMeta.find((d) => d.dow === restDayIdx)?.iso ?? dayMeta[0].iso;
+  const longIso = dayMeta.find((d) => d.dow === longRunDow)?.iso ?? dayMeta[6].iso;
+  const longIdx = dayMeta.findIndex((d) => d.iso === longIso);
 
   const longTarget = Math.max(
     45,
-    Math.min(
-      targets.longRunMax,
-      Math.max(targets.targetLongRunMin, targets.minLongRunMin ?? 0)
-    )
+    Math.min(targets.longRunMax, Math.max(targets.targetLongRunMin, targets.minLongRunMin ?? 0))
   );
 
-  const shouldAddQuality = targets.qualityDays > 0 && targets.maxQualityMin > 0;
-  const qualityMin = shouldAddQuality ? Math.min(20, targets.maxQualityMin) : 0;
+  let qualityMin = targets.qualityDays > 0 && targets.maxQualityMin > 0
+    ? Math.min(20, targets.maxQualityMin)
+    : 0;
 
-  const totalTarget = Math.max(longTarget + qualityMin + 60, targets.targetWeeklyMin);
-  let remaining = totalTarget - longTarget - qualityMin;
+  const easyCandidates = dayMeta.filter((d) => d.iso !== restIso && d.iso !== longIso);
+  const qualityIso =
+    qualityMin > 0
+      ? easyCandidates.find((d) => Math.abs(d.idx - longIdx) > 1)?.iso ?? null
+      : null;
 
-  const easyRunSlots = dayMeta
-    .filter((d) => d.dow !== longRunDow && d.dow !== restDayIdx)
-    .map((d) => d.iso)
-    .slice(0, 3);
+  const easyIsos = easyCandidates.filter((d) => d.iso !== qualityIso).map((d) => d.iso);
 
-  const easyMins = easyRunSlots.map((_, idx) => {
-    const slotsLeft = easyRunSlots.length - idx;
-    const v = Math.max(30, Math.round(remaining / slotsLeft));
-    remaining -= v;
-    return v;
-  });
+  const minEasy = 20;
+  const easyCount = Math.max(1, easyIsos.length);
 
-  // Rest day
-  const rest = dayMeta.find((d) => d.dow === restDayIdx)?.iso;
-  if (rest) days[rest] = ["Rest"];
-
-  // Long run on preferred day
-  const longDay = dayMeta.find((d) => d.dow === longRunDow)?.iso ?? dates[dates.length - 1];
-  days[longDay] = [`🏃 Long Run — ${longTarget}min steady aerobic — Details`];
-
-  // Optional single quality day (never adjacent to long run)
-  if (shouldAddQuality) {
-    const longIdx = dayMeta.findIndex((d) => d.iso === longDay);
-    const qualityCandidate = dayMeta.find((d, idx) => {
-      if (d.iso === longDay || d.iso === rest) return false;
-      if (Math.abs(idx - longIdx) <= 1) return false;
-      return true;
-    })?.iso;
-
-    if (qualityCandidate) {
-      days[qualityCandidate] = [
-        `🏃 Run — ${qualityMin}min quality (short strides within easy run) — Details`,
-      ];
-    }
+  // Keep total minutes exactly on target while preserving safety constraints.
+  let easyTotal = targets.targetWeeklyMin - longTarget - qualityMin;
+  if (easyTotal < easyCount * minEasy) {
+    qualityMin = 0;
+    easyTotal = targets.targetWeeklyMin - longTarget;
+  }
+  if (easyTotal < easyCount * minEasy) {
+    easyTotal = easyCount * minEasy;
   }
 
-  // Easy runs fill remaining volume
-  easyRunSlots.forEach((iso, i) => {
-    if (days[iso]?.length) return;
-    const m = easyMins[i] ?? 35;
+  const baseEasy = Math.floor(easyTotal / easyCount);
+  let remainder = easyTotal - baseEasy * easyCount;
+
+  days[restIso] = ["Rest"];
+  days[longIso] = [`🏃 Long Run — ${longTarget}min steady aerobic — Details`];
+
+  if (qualityIso && qualityMin > 0) {
+    days[qualityIso] = [
+      `🏃 Run — ${qualityMin}min quality (short controlled pickup set) — Details`,
+    ];
+  }
+
+  for (const iso of easyIsos) {
+    const m = baseEasy + (remainder > 0 ? 1 : 0);
+    if (remainder > 0) remainder -= 1;
     days[iso] = [`🏃 Run — ${m}min easy aerobic — Details`];
-  });
+  }
+
+  // Ensure exactly 7 keys and no empty arrays.
+  for (const iso of dates) {
+    if (!Array.isArray(days[iso]) || days[iso].length === 0) {
+      days[iso] = ["Rest"];
+    }
+  }
 
   return {
     label: weekMeta.label,
@@ -180,6 +183,58 @@ export async function generateWeek({
     : buildCoachPrompt({ userParams, weekMeta, index: weekIndex });
 
   const systemPrompt = isRunPlan ? RUNNING_SYSTEM_PROMPT : COACH_SYSTEM_PROMPT;
+
+  if (isRunPlan && targets) {
+    const deterministicFirst = process.env.RUNNING_DETERMINISTIC_FIRST !== "false";
+    if (deterministicFirst) {
+      const preferredLongRunDay = (userParams.trainingPrefs?.longRunDay ?? 0) as DayOfWeek;
+      const deterministicWeek = buildDeterministicRunFallback({
+        weekMeta,
+        userParams,
+        targets: {
+          targetWeeklyMin: targets.targetWeeklyMin,
+          targetLongRunMin: targets.targetLongRunMin,
+          minLongRunMin: targets.minLongRunMin,
+          longRunMax: targets.longRunMax,
+          qualityDays: targets.qualityDays,
+          maxQualityMin: targets.maxQualityMin,
+          preferredLongRunDay,
+        },
+      });
+
+      const deterministicValidation = validateRunWeek({
+        week: deterministicWeek,
+        userParams,
+        weekMeta: { deload: weekMeta.deload },
+        targets: {
+          targetWeeklyMin: targets.targetWeeklyMin,
+          targetLongRunMin: targets.targetLongRunMin,
+          minLongRunMin: targets.minLongRunMin,
+          longRunMax: targets.longRunMax,
+          maxSingleRunMin: targets.maxSingleRunMin,
+          qualityDays: targets.qualityDays,
+          maxQualityMin: targets.maxQualityMin,
+          raceFamily: targets.raceFamily,
+          preferredLongRunDay,
+        },
+        prevWeek,
+      });
+
+      if (deterministicValidation.ok) {
+        console.log('[generateWeek] deterministic week accepted', {
+          weekLabel: weekMeta.label,
+          targetWeeklyMin: targets.targetWeeklyMin,
+          targetLongRunMin: targets.targetLongRunMin,
+        });
+        return deterministicWeek;
+      }
+
+      console.warn('[generateWeek] deterministic week failed validation; falling back to LLM', {
+        weekLabel: weekMeta.label,
+        errors: deterministicValidation.errors.slice(0, 5),
+      });
+    }
+  }
 
   async function callLLM(extraFixText?: string): Promise<WeekJson> {
     const resp = await openai.chat.completions.create(
