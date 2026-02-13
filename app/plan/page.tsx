@@ -516,24 +516,31 @@ function PlanPageContent() {
       };
       const combinedUserNote = userNote.trim();
 
-      const checkPlanExists = async () => {
-        const { data, error: planErr } = await supabase
+      const checkPlanExists = async (expectedPlanId?: string | null) => {
+        const q = supabase
           .from('plans')
-          .select('id, created_at')
+          .select('id, created_at, race_type, race_date')
           .eq('user_id', userId)
           .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .limit(1);
+
+        const { data, error: planErr } = expectedPlanId
+          ? await q.eq('id', expectedPlanId).maybeSingle()
+          : await q.maybeSingle();
 
         if (planErr) return { exists: false, id: null as string | null };
-        return { exists: !!data?.id, id: (data?.id as string) ?? null };
+        return { exists: !!data?.id, id: (data?.id as string) ?? null, row: data ?? null };
       };
 
-      const checkSessionsReady = async () => {
-        const { count, error: countErr } = await supabase
+      const checkSessionsReady = async (expectedPlanId?: string | null) => {
+        const q = supabase
           .from('sessions')
           .select('id', { count: 'exact', head: true })
           .eq('user_id', userId);
+
+        const { count, error: countErr } = expectedPlanId
+          ? await q.eq('plan_id', expectedPlanId)
+          : await q;
 
         if (countErr) return { ready: false, count: 0 };
         return { ready: (count ?? 0) > 0, count: count ?? 0 };
@@ -563,7 +570,7 @@ function PlanPageContent() {
         };
       };
 
-      const pollUntilReady = async () => {
+      const pollUntilReady = async (expectedPlanId?: string | null) => {
         const startedAt = Date.now();
 
         if (pollTimerRef.current) clearInterval(pollTimerRef.current);
@@ -576,8 +583,8 @@ function PlanPageContent() {
             if (elapsed > 120_000) setProgress((p) => Math.max(p, 92));
 
             const [{ exists: planExists }, sessionsStatus] = await Promise.all([
-              checkPlanExists(),
-              checkSessionsReady(),
+              checkPlanExists(expectedPlanId),
+              checkSessionsReady(expectedPlanId),
             ]);
 
             if (planExists && !sessionsStatus.ready) {
@@ -668,14 +675,16 @@ function PlanPageContent() {
         resJson = null;
       }
 
-      if (res && !res.ok && resJson?.error) {
-        throw new Error(resJson.error);
+      if (res && !res.ok) {
+        throw new Error(resJson?.error || resText || 'Plan generation failed');
       }
+
+      const expectedPlanId = typeof resJson?.planId === 'string' ? resJson.planId : null;
 
       setStatusLine('Generating your plan…');
       setProgress((prev) => (prev < 20 ? 20 : prev));
 
-      await pollUntilReady();
+      await pollUntilReady(expectedPlanId);
     } catch (err: any) {
       console.error('❌ Finalize plan error:', err);
 
