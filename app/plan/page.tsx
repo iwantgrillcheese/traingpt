@@ -653,6 +653,7 @@ function PlanPageContent() {
             ...payload,
             userNote: mergedUserNote,
             planType,
+            clientUserId: userId,
           }),
         });
 

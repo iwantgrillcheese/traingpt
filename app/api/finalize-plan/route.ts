@@ -242,6 +242,7 @@ export async function POST(req: Request) {
       planType,
       preferencesText,
       paceUnit,
+      clientUserId,
     } = body ?? {};
 
     const supabase = createRouteHandlerClient({ cookies });
@@ -255,6 +256,21 @@ export async function POST(req: Request) {
     }
 
     const userId = user.id;
+
+    if (typeof clientUserId === 'string' && clientUserId && clientUserId !== userId) {
+      console.error('[finalize-plan] auth mismatch', {
+        cookieUserId: userId,
+        clientUserId,
+      });
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Authentication session mismatch. Please sign out and sign back in, then try again.',
+        },
+        { status: 401 }
+      );
+    }
 
     const { data: latestPlanRow } = await supabase
       .from("plans")
