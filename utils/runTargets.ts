@@ -202,10 +202,12 @@ export function computeRunTargets(args: {
     targetLongRunMin = Math.max(targetLongRunMin, minLongRunMin);
   }
 
-  // Progression cap from previous long run.
+  // Progression cap from previous long run (smoother early build, explicit deload reduction).
   const prevLong = prev.longRunMin || 0;
-  const maxStep = weekMeta.deload ? 0 : race === "marathon" ? 15 : 12;
-  const longRunProgressionCap = prevLong > 0 ? prevLong + maxStep : peakLongRunMin;
+  const isEarlyBlock = weekIndex <= 3;
+  const maxStep = weekMeta.deload ? 0 : race === "marathon" ? (isEarlyBlock ? 10 : 15) : 12;
+  const longRunProgressionCap =
+    prevLong > 0 ? Math.max(prevLong + maxStep, minLongRunMin || 0) : peakLongRunMin;
 
   // Single-run absolute cap for safety.
   const maxSingleRunMin =
@@ -213,10 +215,15 @@ export function computeRunTargets(args: {
     exp === "advanced" ? (race === "marathon" ? 230 : 170) :
     (race === "marathon" ? 200 : 140);
 
-  // Taper reductions
+  // Taper / deload reductions
   if (weekMeta.phase === "Taper") {
     const taperMult = wtr !== null && wtr <= 1 ? 0.45 : 0.62;
     targetLongRunMin = Math.round(targetLongRunMin * taperMult);
+    minLongRunMin = 0;
+  }
+
+  if (weekMeta.deload && prevLong > 0) {
+    targetLongRunMin = Math.min(targetLongRunMin, Math.max(45, Math.round(prevLong * 0.88)));
     minLongRunMin = 0;
   }
 
