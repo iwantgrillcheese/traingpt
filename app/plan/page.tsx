@@ -1021,20 +1021,6 @@ function PlanPageContent() {
               </div>
 
               <div className="px-5 sm:px-6 py-4">
-                <div className="mb-5 rounded-2xl border border-gray-200 bg-gray-50 p-4">
-                  <div className="text-sm font-medium text-gray-900">Need help choosing a race?</div>
-                  <p className="mt-1 text-xs text-gray-600">
-                    Open the race finder page to browse events by location, then bring your pick back here.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => router.push('/races')}
-                    className="mt-3 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                  >
-                    Open race finder
-                  </button>
-                </div>
-
                 <div className="divide-y divide-gray-100">
                   {visibleBeginnerFields.map(({ id, label, type, options, placeholder }) => {
                     const required = !['bikeFTP', 'runPace', 'swimPace', 'restDay', 'paceUnit'].includes(
