@@ -132,6 +132,7 @@ export function computeRunTargets(args: {
   const maxHours = Number(userParams.maxHours || 0);
   const baseFromAvailability = Math.round(clamp(maxHours, 3, 14) * 60 * 0.78);
   const baseFromPrev = prev.totalMin > 0 ? prev.totalMin : baseFromAvailability;
+  const isTrueBeginner = exp === "beginner" && (prev.totalMin || 0) < 150;
 
   const deloadMult = weekMeta.deload ? 0.82 : 1;
   const phaseMult =
@@ -159,6 +160,19 @@ export function computeRunTargets(args: {
   const expKey = (exp in weeklyCeilingByExp ? exp : "unknown") as keyof typeof weeklyCeilingByExp;
   let targetWeeklyMin = Math.round(baseFromPrev * (weekMeta.deload ? 1 : 1 + rampPct) * phaseMult * deloadMult);
   targetWeeklyMin = clamp(targetWeeklyMin, weeklyFloorByExp[expKey], weeklyCeilingByExp[expKey]);
+
+  // Early marathon ramp safety (weeks 1-3 unless athlete already has high run volume).
+  const rampMode = race === "marathon" && weekIndex <= 2 && (prev.totalMin <= 280 || weekMeta.phase === "Base");
+  if (rampMode) {
+    const rampWeeklyCapByExp =
+      exp === "advanced"
+        ? clamp(Math.max(prev.totalMin + 30, 300), 300, 420)
+        : exp === "intermediate"
+          ? clamp(Math.max(prev.totalMin + 25, 220), 220, 340)
+          : clamp(Math.max(prev.totalMin + 20, 150), 150, 280);
+
+    targetWeeklyMin = Math.min(targetWeeklyMin, rampWeeklyCapByExp);
+  }
 
   // Marathon-specific long run progression, with short-cycle safety modes.
   const marathonPeakByExp = {
@@ -202,6 +216,12 @@ export function computeRunTargets(args: {
     targetLongRunMin = Math.max(targetLongRunMin, minLongRunMin);
   }
 
+  if (race === "marathon" && weekIndex <= 2 && (prev.totalMin <= 280 || weekMeta.phase === "Base")) {
+    const rampLongCap = exp === "advanced" ? 120 : exp === "intermediate" ? 110 : 95;
+    targetLongRunMin = Math.min(targetLongRunMin, rampLongCap);
+    minLongRunMin = Math.min(minLongRunMin, rampLongCap);
+  }
+
   // Progression cap from previous long run.
   const prevLong = prev.longRunMin || 0;
   const maxStep = weekMeta.deload ? 0 : race === "marathon" ? 15 : 12;
@@ -211,10 +231,14 @@ export function computeRunTargets(args: {
       : peakLongRunMin;
 
   // Single-run absolute cap for safety.
-  const maxSingleRunMin =
+  let maxSingleRunMin =
     exp === "beginner" ? (race === "marathon" ? 165 : 110) :
     exp === "advanced" ? (race === "marathon" ? 230 : 170) :
     (race === "marathon" ? 200 : 140);
+
+  if (race === "marathon" && weekIndex <= 2 && (prev.totalMin <= 280 || weekMeta.phase === "Base")) {
+    maxSingleRunMin = exp === "advanced" ? 90 : exp === "intermediate" ? 85 : 75;
+  }
 
   // Taper reductions
   if (weekMeta.phase === "Taper") {
