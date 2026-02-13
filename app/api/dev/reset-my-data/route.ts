@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 
 export const runtime = 'nodejs';
 
-const ALLOWED_EMAILS = ['me@cameronmcdiarmid.com'];
+const ALLOWED_EMAILS = ['me@cameronmcdiarmid.com', 'cameron.mcdiarmid@gmail.com'];
 
 function resetIsAllowedByEnv(): boolean {
   const forceAllow = process.env.ALLOW_DEV_RESET === 'true';
@@ -37,6 +37,12 @@ export async function POST() {
           ok: false,
           error:
             'Forbidden in production environment. Use a Preview/dev deployment or set ALLOW_DEV_RESET=true explicitly.',
+          reason: 'env_guard',
+          env: {
+            nodeEnv: process.env.NODE_ENV,
+            vercelEnv: process.env.VERCEL_ENV,
+            allowDevReset: process.env.ALLOW_DEV_RESET === 'true',
+          },
         },
         { status: 403 }
       );
@@ -44,7 +50,10 @@ export async function POST() {
 
     const email = (user.email || '').toLowerCase();
     if (!ALLOWED_EMAILS.includes(email)) {
-      return NextResponse.json({ ok: false, error: 'Forbidden' }, { status: 403 });
+      return NextResponse.json(
+        { ok: false, error: 'Forbidden', reason: 'email_not_allowlisted', email },
+        { status: 403 }
+      );
     }
 
     const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
