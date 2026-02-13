@@ -490,31 +490,6 @@ export default function SchedulePage() {
           <div className="text-center py-10 text-zinc-400">Please sign in to view your schedule.</div>
         ) : (
           <>
-            <div className="mx-auto w-full max-w-7xl px-4 pb-4">
-              <RaceHubCard
-                raceName={raceHub?.raceName}
-                raceLocation={raceHub?.raceLocation}
-                raceType={raceHub?.raceType}
-                raceDate={raceHub?.raceDate}
-                currentPhase={raceHub?.currentPhase}
-                readinessScore={readiness.score}
-                readinessLabel={readiness.label}
-                raceHubHref="/race"
-                saving={raceHubSaving}
-                onSave={handleRaceHubSave}
-              />
-
-              <WeeklyIntentCard
-                weekRangeLabel={weeklyIntent.weekRangeLabel}
-                phase={raceHub?.currentPhase}
-                bullets={weeklyIntent.bullets}
-                ctaHref={weeklyIntent.coachingHref}
-                ctaLabel="Open weekly coaching"
-                checkInHref={weeklyIntent.checkInHref}
-                checkInLabel="Start weekly check-in"
-              />
-            </div>
-
             <div className="relative left-1/2 w-screen -translate-x-1/2">
               <CalendarShell
                 sessions={enrichedSessions}

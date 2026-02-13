@@ -115,28 +115,11 @@ You are creating ${weekMeta.label} for a RUNNING plan.
 - Total quality minutes: ≤ ${targets?.maxQualityMin ?? "unknown"}
 - Longest run must land on preferred long run day
 
-## Weekly Template (DEFAULT)
-Use this as the default structure unless deload=true. Shift days to honor preferred rest day + preferred long-run day.
-- Rest day: Rest OR 30-45min easy
-- Quality day: one workout day (intervals/tempo/hills by phase)
-- Medium-long aerobic: 55-80min (skip only for true beginners)
-- 2-3 short easy runs: usually 30-55min
-- One easy day should include strides (e.g., 6x20s)
-- Long run on preferred long-run day
-
-## Monotony Guardrails (HARD RULES)
-- No more than 2 runs >=70min, unless phase=Peak AND experience=Advanced AND previous weekly minutes >=320.
-- No more than 2 consecutive runs >=60min.
-- Do not repeat the same 5-minute duration bucket more than 2 times in the week.
-- Long run must be <=35% of weekly minutes and <= long run cap.
-- Quality day must be followed by an easier day (recovery/easy/rest).
-
 ## Marathon-specific principles (STRICT when race family is marathon)
 - Long run is the backbone of the week and must be meaningfully developed outside taper.
 - In Build/Peak, include marathon-specific stimulus (e.g., marathon-pace block within medium/long run) where appropriate.
 - Do NOT undercook long runs in non-deload, non-taper weeks.
 - Keep intensity controlled: usually one primary quality workout plus optional lighter quality.
-- Weeks 1-3 are ramp mode unless previous weekly run volume is already high.
 
 ## Short-cycle behavior by mode (STRICT)
 - normal (>=12 weeks): full progression pattern.
