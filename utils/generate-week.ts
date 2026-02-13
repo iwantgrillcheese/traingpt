@@ -71,58 +71,48 @@ function buildDeterministicRunFallback(args: {
     Math.min(targets.longRunMax, Math.max(targets.targetLongRunMin, targets.minLongRunMin ?? 0))
   );
 
-  // one quality day max in fallback to keep safety high
-  const qualityMin = targets.qualityDays > 0 && targets.maxQualityMin > 0
+  let qualityMin = targets.qualityDays > 0 && targets.maxQualityMin > 0
     ? Math.min(20, targets.maxQualityMin)
     : 0;
 
-  const candidates = dayMeta.filter((d) => d.iso !== restIso && d.iso !== longIso);
-  const qualityIso = qualityMin > 0
-    ? candidates.find((d) => Math.abs(d.idx - longIdx) > 1)?.iso ?? null
-    : null;
+  const easyCandidates = dayMeta.filter((d) => d.iso !== restIso && d.iso !== longIso);
+  const qualityIso =
+    qualityMin > 0
+      ? easyCandidates.find((d) => Math.abs(d.idx - longIdx) > 1)?.iso ?? null
+      : null;
 
-  const mediumIso = candidates
-    .filter((d) => d.iso !== qualityIso)
-    .sort((a, b) => Math.abs(a.idx - longIdx) - Math.abs(b.idx - longIdx))[0]?.iso ?? null;
+  const easyIsos = easyCandidates.filter((d) => d.iso !== qualityIso).map((d) => d.iso);
 
-  const easyIsos = candidates.filter((d) => d.iso !== qualityIso && d.iso !== mediumIso).map((d) => d.iso);
-
-  const mediumMin = mediumIso ? Math.max(55, Math.min(80, Math.round(longTarget * 0.65))) : 0;
-
-  let easyTotal = targets.targetWeeklyMin - longTarget - qualityMin - mediumMin;
+  const minEasy = 20;
   const easyCount = Math.max(1, easyIsos.length);
-  const minEasy = 30;
-  if (easyTotal < easyCount * minEasy) easyTotal = easyCount * minEasy;
 
-  const preferredEasyPattern = [35, 45, 50, 40, 55];
-  const easyMins = easyIsos.map((_, i) => preferredEasyPattern[i % preferredEasyPattern.length]);
-  const currentEasy = easyMins.reduce((a, b) => a + b, 0);
-  let delta = easyTotal - currentEasy;
-  for (let i = 0; i < easyMins.length && delta !== 0; i++) {
-    const step = delta > 0 ? 5 : -5;
-    const next = Math.max(minEasy, Math.min(60, easyMins[i] + step));
-    delta -= next - easyMins[i];
-    easyMins[i] = next;
+  // Keep total minutes exactly on target while preserving safety constraints.
+  let easyTotal = targets.targetWeeklyMin - longTarget - qualityMin;
+  if (easyTotal < easyCount * minEasy) {
+    qualityMin = 0;
+    easyTotal = targets.targetWeeklyMin - longTarget;
+  }
+  if (easyTotal < easyCount * minEasy) {
+    easyTotal = easyCount * minEasy;
   }
 
+  const baseEasy = Math.floor(easyTotal / easyCount);
+  let remainder = easyTotal - baseEasy * easyCount;
+
   days[restIso] = ["Rest"];
-  days[longIso] = [`🏃 Long Run — ${longTarget}min steady aerobic (last 15min moderate) — Details`];
+  days[longIso] = [`🏃 Long Run — ${longTarget}min steady aerobic — Details`];
 
   if (qualityIso && qualityMin > 0) {
     days[qualityIso] = [
-      `🏃 Run — ${qualityMin}min quality (controlled intervals, not all-out) — Details`,
+      `🏃 Run — ${qualityMin}min quality (short controlled pickup set) — Details`,
     ];
   }
 
-  if (mediumIso && mediumMin > 0) {
-    days[mediumIso] = [`🏃 Run — ${mediumMin}min medium-long easy aerobic — Details`];
+  for (const iso of easyIsos) {
+    const m = baseEasy + (remainder > 0 ? 1 : 0);
+    if (remainder > 0) remainder -= 1;
+    days[iso] = [`🏃 Run — ${m}min easy aerobic — Details`];
   }
-
-  easyIsos.forEach((iso, i) => {
-    const m = easyMins[i] ?? 40;
-    const withStrides = i === 0 ? ' + 6x20s strides' : '';
-    days[iso] = [`🏃 Run — ${m}min easy aerobic${withStrides} — Details`];
-  });
 
   // Ensure exactly 7 keys and no empty arrays.
   for (const iso of dates) {
@@ -247,42 +237,25 @@ export async function generateWeek({
   }
 
   async function callLLM(extraFixText?: string): Promise<WeekJson> {
-    const timeoutMs = Number(process.env.OPENAI_WEEK_TIMEOUT_MS || 20000);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-    let resp: Awaited<ReturnType<typeof openai.chat.completions.create>>;
-    try {
-      resp = await openai.chat.completions.create(
-        stripUnsupportedParams({
-          model,
-          top_p: 1,
-          response_format: { type: "json_object" },
-          messages: [
-            { role: "system", content: systemPrompt },
-            {
-              role: "user",
-              content: extraFixText ? `${userMsg}\n\n## Fix Required\n${extraFixText}` : userMsg,
-            },
-          ],
-        }),
-        { signal: controller.signal }
-      );
-    } catch (err: any) {
-      if (err?.name === 'AbortError') {
-        throw new Error(`OPENAI_WEEK_TIMEOUT_${timeoutMs}ms`);
-      }
-      throw err;
-    } finally {
-      clearTimeout(timer);
-    }
+    const resp = await openai.chat.completions.create(
+      stripUnsupportedParams({
+        model,
+        top_p: 1,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: systemPrompt },
+          {
+            role: "user",
+            content: extraFixText ? `${userMsg}\n\n## Fix Required\n${extraFixText}` : userMsg,
+          },
+        ],
+      })
+    );
 
     const content = resp.choices[0]?.message?.content ?? "{}";
     try {
       return JSON.parse(content) as WeekJson;
     } catch {
-      const repairController = new AbortController();
-      const repairTimer = setTimeout(() => repairController.abort(), timeoutMs);
       const repairResp = await openai.chat.completions.create(
         stripUnsupportedParams({
           model,
@@ -294,9 +267,8 @@ export async function generateWeek({
               content: `${userMsg}\n\nReturn ONLY valid JSON. No prose, no markdown, no code fences.`,
             },
           ],
-        }),
-        { signal: repairController.signal }
-      ).finally(() => clearTimeout(repairTimer));
+        })
+      );
       const repaired = repairResp.choices[0]?.message?.content ?? "{}";
       return JSON.parse(repaired) as WeekJson;
     }
@@ -356,12 +328,19 @@ export async function generateWeek({
       if (v.ok) return currentWeek;
 
       const safetyCritical = v.errors.filter(isSafetyCriticalError);
+      if (safetyCritical.length === 0) {
+        console.warn('[generateWeek] accepting non-critical validation drift', {
+          weekLabel: weekMeta.label,
+          errorCount: v.errors.length,
+          topErrors: v.errors.slice(0, 3),
+        });
+        return currentWeek;
+      }
 
       console.warn('[generateWeek] validation reroll', {
         weekLabel: weekMeta.label,
         attempt: attempt + 1,
         errorCount: v.errors.length,
-        safetyCriticalCount: safetyCritical.length,
         topErrors: v.errors.slice(0, 3),
       });
 
@@ -375,12 +354,11 @@ export async function generateWeek({
         ? `\nPrevious week snapshot (for continuity):\n${JSON.stringify(prevWeek, null, 2)}`
         : "";
 
-      const fix = `CORRECTION: your previous output violated hard rules.
-
-Failures:
+      const fix = `Regenerate the week to satisfy ALL Weekly Targets and rules.
+Problems detected:
 - ${topIssues.join("\n- ")}
 
-You must regenerate and satisfy ALL constraints:
+Hard constraints:
 - Weekly minutes target: ${targets.targetWeeklyMin} (±5%)
 - Long run target: ${targets.targetLongRunMin} (must be within tolerance)
 - Long run minimum floor: ${targets.minLongRunMin ?? 0}
@@ -389,9 +367,9 @@ You must regenerate and satisfy ALL constraints:
 - Hard days ≤ ${targets.qualityDays}
 - Total hard-run minutes ≤ ${targets.maxQualityMin}
 - Longest run must land on preferred long run day (${preferredLongRunDay})
-- Respect monotony guards (duration variety, no excessive long sessions)
 
-Return complete JSON week object only, with all 7 day keys for the requested week.${previousWeekBlock}`;
+Return complete JSON week object only, with all 7 day keys for the requested week.
+Important: Every run must include duration and longest run must be on the preferred long run day.${previousWeekBlock}`;
 
       currentWeek = await callLLM(fix);
     }
@@ -415,7 +393,7 @@ Return complete JSON week object only, with all 7 day keys for the requested wee
       prevWeek,
     });
 
-    const finalSafetyErrors = finalValidation.errors;
+    const finalSafetyErrors = finalValidation.errors.filter(isSafetyCriticalError);
     if (finalSafetyErrors.length > 0) {
       console.error('[generateWeek] using deterministic fallback due to unresolved safety errors', {
         weekLabel: weekMeta.label,
