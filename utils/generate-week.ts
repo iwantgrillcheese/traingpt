@@ -82,25 +82,7 @@ export async function generateWeek({
     );
 
     const content = resp.choices[0]?.message?.content ?? "{}";
-    try {
-      return JSON.parse(content) as WeekJson;
-    } catch {
-      const repairResp = await openai.chat.completions.create(
-        stripUnsupportedParams({
-          model,
-          response_format: { type: "json_object" },
-          messages: [
-            { role: "system", content: systemPrompt },
-            {
-              role: "user",
-              content: `${userMsg}\n\nReturn ONLY valid JSON. No prose, no markdown, no code fences.`,
-            },
-          ],
-        })
-      );
-      const repaired = repairResp.choices[0]?.message?.content ?? "{}";
-      return JSON.parse(repaired) as WeekJson;
-    }
+    return JSON.parse(content) as WeekJson;
   }
 
   // First attempt
@@ -131,11 +113,8 @@ export async function generateWeek({
 
     if (bestValidation.ok) return bestWeek;
 
-    const isSafetyCriticalError = (msg: string) =>
-      /missing duration|back-to-back hard|longest run is not scheduled|exceeds maxSingleRunMin|exceeds max|below minimum floor/i.test(msg);
-
-    // Give the model a limited number of correction attempts and keep the best candidate by error count.
-    for (let attempt = 0; attempt < 2; attempt++) {
+    // Give the model multiple correction attempts and keep the best candidate by error count.
+    for (let attempt = 0; attempt < 5; attempt++) {
       const v = validateRunWeek({
         week: currentWeek,
         userParams,
@@ -155,16 +134,6 @@ export async function generateWeek({
       });
 
       if (v.ok) return currentWeek;
-
-      const safetyCritical = v.errors.filter(isSafetyCriticalError);
-      if (safetyCritical.length === 0) {
-        console.warn('[generateWeek] accepting non-critical validation drift', {
-          weekLabel: weekMeta.label,
-          errorCount: v.errors.length,
-          topErrors: v.errors.slice(0, 3),
-        });
-        return currentWeek;
-      }
 
       console.warn('[generateWeek] validation reroll', {
         weekLabel: weekMeta.label,
