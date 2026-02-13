@@ -10,6 +10,14 @@ const USED_PATH = path.join(DATA_DIR, 'used-keywords.json');
 const POSTS_PATH = path.join(DATA_DIR, 'seo-generated-posts.json');
 
 const HERO_TERMS = ['marathon training','triathlon training','running track workout','cycling endurance','open water swim'];
+const IMAGE_POOL = [
+  '/tiles/podium-shot.jpg',
+  '/tiles/blurred-bike-race.jpg',
+  '/tiles/swim-pack-blackwhite.jpg',
+  '/tiles/canyon-blue-bike.jpg',
+  '/tiles/tt-bike-field.jpg',
+  '/tiles/aerial-swim-line.jpg'
+];
 
 const readJson = (file, fallback) => { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; } };
 const writeJson = (file, data) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify(data, null, 2) + '\n'); };
@@ -19,19 +27,42 @@ function estimateWordCount(markdown) {
   return markdown.replace(/[`#*\-|]/g, ' ').split(/\s+/).filter(Boolean).length;
 }
 
-function validateArticle(post) {
+function jaccard(a, b) {
+  const sa = new Set((a || '').toLowerCase().split(/\W+/).filter(Boolean));
+  const sb = new Set((b || '').toLowerCase().split(/\W+/).filter(Boolean));
+  const inter = [...sa].filter((x) => sb.has(x)).length;
+  const union = new Set([...sa, ...sb]).size;
+  return union ? inter / union : 0;
+}
+
+function validateArticle(post, existingPosts = []) {
   const words = estimateWordCount(post.content || '');
   const hasTable = /\|\s*Week\s*\|/i.test(post.content || '');
   const hasFaq = /## FAQ/i.test(post.content || '');
   const hasCta = /TrainGPT|generate a personalized plan|personalized plan/i.test(post.content || '');
   const hasInternalLinks = (post.content?.match(/\]\(\/blog\//g) || []).length >= 1;
-  return { ok: words >= 1200 && hasTable && hasFaq && hasCta && hasInternalLinks, checks: { words, hasTable, hasFaq, hasCta, hasInternalLinks } };
+  const maxSimilarity = existingPosts.length
+    ? Math.max(...existingPosts.map((p) => jaccard(post.content || '', p.content || '')))
+    : 0;
+
+  return {
+    ok: words >= 1200 && hasTable && hasFaq && hasCta && hasInternalLinks && maxSimilarity < 0.75,
+    checks: { words, hasTable, hasFaq, hasCta, hasInternalLinks, maxSimilarity },
+  };
 }
 
-function fallbackArticle({ primary, secondary }) {
+function fallbackArticle({ primary, secondary, variant = 0 }) {
   const title = primary.keyword[0].toUpperCase() + primary.keyword.slice(1);
   const faq = secondary.map((k) => `### ${k}\nTailor intensity and volume to your current training load, then progress weekly with recovery.`).join('\n\n');
+  const introVariants = [
+    `If you're searching for **${primary.keyword}**, this guide is designed to give you a practical, coach-level framework you can actually use.`,
+    `Athletes looking for **${primary.keyword}** usually need two things: structure and adaptability. This article gives you both.`,
+    `A good answer to **${primary.keyword}** should balance science with real-life constraints. Here's a plan that does that.`
+  ];
+
   let content = `# ${title}
+
+${introVariants[variant % introVariants.length]}
 
 If you're searching for **${primary.keyword}**, this guide is designed to give you a practical, coach-level framework you can actually use.
 
@@ -86,7 +117,7 @@ Ready for your exact version? Use TrainGPT to generate a personalized plan for y
     description: `A practical guide to ${primary.keyword}, including periodization, weekly structure, mistakes to avoid, and customization advice.`,
     tag: 'Training Tip',
     date: new Date().toISOString().slice(0, 10),
-    image: '/tiles/podium-shot.jpg',
+    image: IMAGE_POOL[variant % IMAGE_POOL.length],
     heroImageKeyword: HERO_TERMS[Math.floor(Math.random() * HERO_TERMS.length)],
     content,
   };
@@ -144,16 +175,20 @@ Also include 2-3 internal links to /blog/* when natural.`;
   }
 }
 
-async function buildArticleWithChecks({ primary, secondary }) {
+async function buildArticleWithChecks({ primary, secondary, existingPosts, variant }) {
   let post = await aiArticle({ primary, secondary });
-  if (!post) post = fallbackArticle({ primary, secondary });
+  if (post) {
+    post.image = IMAGE_POOL[variant % IMAGE_POOL.length];
+  } else {
+    post = fallbackArticle({ primary, secondary, variant });
+  }
 
-  let v = validateArticle(post);
+  let v = validateArticle(post, existingPosts);
   if (v.ok) return post;
 
-  // single regeneration pass (fallback) if AI result fails checks
-  post = fallbackArticle({ primary, secondary });
-  v = validateArticle(post);
+  // regeneration pass with alternate fallback variant
+  post = fallbackArticle({ primary, secondary, variant: variant + 1 });
+  v = validateArticle(post, existingPosts);
   if (!v.ok) throw new Error(`Article failed quality checks for ${primary.keyword}: ${JSON.stringify(v.checks)}`);
   return post;
 }
@@ -175,7 +210,12 @@ async function run() {
     const primary = picked[i];
     const secondary = available.slice(i + 1, i + 5).map((k) => k.keyword);
 
-    const post = await buildArticleWithChecks({ primary, secondary });
+    const post = await buildArticleWithChecks({
+      primary,
+      secondary,
+      existingPosts: [...posts, ...created],
+      variant: posts.length + created.length + i,
+    });
     created.push({ ...post, primaryKeyword: primary.keyword, secondaryKeywords: secondary });
     used.add(primary.keyword);
   }
