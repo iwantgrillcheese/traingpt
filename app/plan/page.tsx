@@ -682,9 +682,6 @@ function PlanPageContent() {
       }
 
       if (!res.ok) {
-        if (res.status === 524 || /Error code 524|A timeout occurred/i.test(resText)) {
-          throw new Error('Plan request timed out at edge. Checking whether your plan saved…');
-        }
         throw new Error(resJson?.error || resText || 'Plan generation failed');
       }
 

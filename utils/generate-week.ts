@@ -215,7 +215,7 @@ export async function generateWeek({
       const deterministicValidation = validateRunWeek({
         week: deterministicWeek,
         userParams,
-        weekMeta: { deload: weekMeta.deload, phase: weekMeta.phase },
+        weekMeta: { deload: weekMeta.deload },
         targets: {
           targetWeeklyMin: targets.targetWeeklyMin,
           targetLongRunMin: targets.targetLongRunMin,
@@ -230,20 +230,19 @@ export async function generateWeek({
         prevWeek,
       });
 
-      if (!deterministicValidation.ok) {
-        console.warn('[generateWeek] deterministic week has validation drift; returning deterministic to avoid long-running retries', {
-          weekLabel: weekMeta.label,
-          topErrors: deterministicValidation.errors.slice(0, 5),
-        });
-      } else {
+      if (deterministicValidation.ok) {
         console.log('[generateWeek] deterministic week accepted', {
           weekLabel: weekMeta.label,
           targetWeeklyMin: targets.targetWeeklyMin,
           targetLongRunMin: targets.targetLongRunMin,
         });
+        return deterministicWeek;
       }
 
-      return deterministicWeek;
+      console.warn('[generateWeek] deterministic week failed validation; falling back to LLM', {
+        weekLabel: weekMeta.label,
+        errors: deterministicValidation.errors.slice(0, 5),
+      });
     }
   }
 
