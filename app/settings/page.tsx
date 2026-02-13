@@ -13,6 +13,11 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<any>(null);
   const [optIn, setOptIn] = useState<boolean>(true);
   const [fuelingPreferences, setFuelingPreferences] = useState(DEFAULT_FUELING_PREFERENCES);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
+
+  const canShowResetDataButton =
+    (profile?.email || '').toLowerCase() === 'me@cameronmcdiarmid.com';
 
   const secondsToTimeString = (seconds: number) => {
     const min = Math.floor(seconds / 60);
@@ -169,6 +174,35 @@ export default function ProfilePage() {
 
     const { url } = await res.json();
     if (url) window.location.href = url;
+  };
+
+  const handleResetMyData = async () => {
+    const typed = window.prompt('Type RESET to wipe your training data.');
+    if (typed !== 'RESET') return;
+
+    try {
+      setResetLoading(true);
+      setResetMessage(null);
+
+      const res = await fetch('/api/dev/reset-my-data', { method: 'POST' });
+      const json = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setResetMessage(json?.error || 'Reset failed');
+        return;
+      }
+
+      const deleted = json?.deleted || {};
+      setResetMessage(
+        `Reset complete. plans=${deleted.plans ?? 0}, sessions=${deleted.sessions ?? 0}, completed=${deleted.completed_sessions ?? 0}, strava=${deleted.strava_activities ?? 0}`
+      );
+
+      window.location.href = '/plan';
+    } catch (err: any) {
+      setResetMessage(err?.message || 'Reset failed');
+    } finally {
+      setResetLoading(false);
+    }
   };
 
   if (!profile) return <div className="text-center py-20 text-gray-500">Loading profile...</div>;
@@ -377,6 +411,24 @@ export default function ProfilePage() {
             Open fueling shop guide
           </Link>
         </section>
+
+        {canShowResetDataButton && (
+          <section className="bg-amber-50 border border-amber-200 rounded-xl p-6 shadow-sm">
+            <h2 className="text-lg font-medium text-amber-800 mb-2">Dev Tools</h2>
+            <p className="text-sm text-amber-700 mb-4">
+              Reset your training data (plans, sessions, completed sessions, Strava activities) for
+              fresh testing. You will be asked to type RESET.
+            </p>
+            <button
+              onClick={handleResetMyData}
+              disabled={resetLoading}
+              className="px-5 py-2 text-sm rounded-full bg-amber-600 text-white hover:bg-amber-700 transition disabled:opacity-60"
+            >
+              {resetLoading ? 'Resetting…' : 'Reset my training data'}
+            </button>
+            {resetMessage && <p className="mt-3 text-sm text-amber-800">{resetMessage}</p>}
+          </section>
+        )}
 
         {/* Danger Zone */}
         <section className="bg-red-50 border border-red-200 rounded-xl p-6 shadow-sm">
