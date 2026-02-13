@@ -182,28 +182,42 @@ export default function SchedulePage() {
           // Don't block schedule load
         }
 
-        const [sessionsRes, stravaRes, completedRes, latestPlanRes] = await Promise.all([
-          supabase.from('sessions').select('*').eq('user_id', user.id),
+        const { data: latestPlanRow, error: latestPlanErr } = await supabase
+          .from('plans')
+          .select('id, race_type, race_date, plan')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const latestPlan = latestPlanRow as any;
+
+        if (latestPlanErr) throw latestPlanErr;
+
+        const latestPlanId = (latestPlan as any)?.id ?? null;
+
+        const [sessionsRes, stravaRes, completedRes] = await Promise.all([
+          latestPlanId
+            ? supabase.from('sessions').select('*').eq('user_id', user.id).eq('plan_id', latestPlanId)
+            : supabase.from('sessions').select('*').eq('user_id', user.id),
           supabase.from('strava_activities').select('*').eq('user_id', user.id),
           supabase.from('completed_sessions').select('*').eq('user_id', user.id),
-          supabase
-            .from('plans')
-            .select('id, race_type, race_date, plan')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle(),
         ]);
 
         if (sessionsRes.error) throw sessionsRes.error;
         if (stravaRes.error) throw stravaRes.error;
         if (completedRes.error) throw completedRes.error;
-        if (latestPlanRes.error) throw latestPlanRes.error;
 
         if (cancelled) return;
 
         setSessions((sessionsRes.data ?? []) as Session[]);
         setStravaActivities((stravaRes.data ?? []) as StravaActivity[]);
+
+        console.log('[schedule] loaded latest plan sessions', {
+          userId: user.id,
+          planId: latestPlanId,
+          sessionCount: (sessionsRes.data ?? []).length,
+        });
 
         const normalizedCompleted: CompletedSession[] = (completedRes.data ?? []).map((c: any) => ({
           date: c.date || c.session_date,
@@ -211,7 +225,6 @@ export default function SchedulePage() {
           strava_id: c.strava_id,
         }));
 
-        const latestPlan = latestPlanRes.data as any;
         const params = latestPlan?.plan?.params ?? {};
         setRaceHub({
           planId: latestPlan?.id ?? null,
