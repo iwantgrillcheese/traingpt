@@ -220,10 +220,36 @@ async function run() {
     used.add(primary.keyword);
   }
 
-  writeJson(POSTS_PATH, [...posts, ...created]);
+  const nextPosts = [...posts, ...created];
+  writeJson(POSTS_PATH, nextPosts);
   writeJson(USED_PATH, Array.from(used));
 
-  console.log(JSON.stringify({ ok: true, created: created.map((p) => p.slug), mode: process.env.OPENAI_API_KEY ? 'ai+fallback' : 'fallback' }, null, 2));
+  const BASE_URL = process.env.SEO_SITE_URL || 'https://traingpt.co';
+  const newUrls = created.map((p) => `${BASE_URL}/blog/${p.slug}`);
+
+  const sitemapUrl = `${BASE_URL}/sitemap.xml`;
+  const sitemapRes = await fetch(sitemapUrl, { method: 'GET' });
+  if (!sitemapRes.ok) throw new Error(`Sitemap fetch failed: ${sitemapRes.status}`);
+  const sitemapText = await sitemapRes.text();
+
+  const missing = newUrls.filter((u) => !sitemapText.includes(u));
+  if (missing.length > 0) {
+    throw new Error(`Indexing health check failed: missing URLs in sitemap: ${missing.join(', ')}`);
+  }
+
+  const pingUrl = `https://www.google.com/ping?sitemap=${encodeURIComponent(sitemapUrl)}`;
+  const pingRes = await fetch(pingUrl, { method: 'GET' });
+  if (!pingRes.ok) throw new Error(`Google sitemap ping failed: ${pingRes.status}`);
+
+  console.log(JSON.stringify({
+    ok: true,
+    created: created.map((p) => p.slug),
+    urls: newUrls,
+    sitemapUrl,
+    sitemapContainsAllNewUrls: true,
+    sitemapPingStatus: pingRes.status,
+    mode: process.env.OPENAI_API_KEY ? 'ai+fallback' : 'fallback'
+  }, null, 2));
 }
 
 run().catch((err) => {
