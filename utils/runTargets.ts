@@ -186,20 +186,48 @@ export function computeRunTargets(args: {
 
   let targetLongRunMin = Math.round(targetWeeklyMin * longPct);
 
-  // Floor by time-to-race for marathon realism (except taper/deload).
+  // Marathon floors: meaningful long runs, but proportional in early weeks.
   let minLongRunMin = 0;
   if (race === "marathon" && !weekMeta.deload && weekMeta.phase !== "Taper") {
-    if (wtr === null || wtr > 12) {
-      minLongRunMin = exp === "beginner" ? 90 : exp === "advanced" ? 120 : 105;
-    } else if (wtr > 8) {
-      minLongRunMin = exp === "beginner" ? 110 : exp === "advanced" ? 145 : 130;
-    } else if (wtr > 3) {
-      minLongRunMin = exp === "beginner" ? 100 : exp === "advanced" ? 135 : 120;
+    const baseLoad = prev.totalMin > 0 ? prev.totalMin : targetWeeklyMin;
+    const early = weekIndex <= 3;
+
+    const earlyMinByExp = exp === "beginner" ? 75 : exp === "advanced" ? 95 : 85;
+    const earlyMaxByExp = exp === "beginner" ? 95 : exp === "advanced" ? 125 : 110;
+
+    const buildMinByExp = exp === "beginner" ? 95 : exp === "advanced" ? 125 : 110;
+    const peakTargetByExp = exp === "beginner" ? 180 : exp === "advanced" ? 210 : 195; // ~20mi reachable
+
+    if (early) {
+      minLongRunMin = clamp(Math.round(baseLoad * 0.28), earlyMinByExp, earlyMaxByExp);
+    } else {
+      minLongRunMin = clamp(Math.round(baseLoad * 0.30), buildMinByExp, peakTargetByExp);
+      if (wtr !== null && wtr <= 6 && wtr > 2) {
+        const lateBuildFloor = exp === "beginner" ? 120 : exp === "advanced" ? 155 : 140;
+        minLongRunMin = Math.max(minLongRunMin, lateBuildFloor);
+      }
     }
   }
 
   if (minLongRunMin > 0) {
     targetLongRunMin = Math.max(targetLongRunMin, minLongRunMin);
+  }
+
+  // Keep long run proportionate to weekly load (phase-aware caps).
+  if (race === "marathon") {
+    const maxPct =
+      weekMeta.phase === "Peak"
+        ? exp === "beginner"
+          ? 0.40
+          : exp === "advanced"
+            ? 0.43
+            : 0.41
+        : exp === "beginner"
+          ? 0.33
+          : exp === "advanced"
+            ? 0.37
+            : 0.35;
+    targetLongRunMin = Math.min(targetLongRunMin, Math.round(targetWeeklyMin * maxPct));
   }
 
   // Progression cap from previous long run (smoother early build, explicit deload reduction).
