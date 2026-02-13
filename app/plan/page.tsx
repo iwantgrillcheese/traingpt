@@ -281,7 +281,7 @@ function PlanPageContent() {
     estimatedLthr: number | null;
     estimatedRunPace: string | null;
   } | null>(null);
-  const [quickMode, setQuickMode] = useState(true);
+  const quickMode = false;
 
   const [progress, setProgress] = useState(0);
   const [stepIndex, setStepIndex] = useState(0);
@@ -634,16 +634,9 @@ function PlanPageContent() {
         });
       };
 
-      setStatusLine(quickMode ? 'Analyzing your Strava history…' : 'Submitting your inputs…');
+      setStatusLine('Submitting your inputs…');
 
-      const voiceNote = VOICE_PLAN_FIELDS.map(({ key, label }) => {
-        const value = voiceSummary[key].trim();
-        return value ? `${label}: ${value}` : null;
-      })
-        .filter(Boolean)
-        .join('\n');
-
-      const mergedUserNote = [userNote.trim(), voiceNote].filter(Boolean).join('\n\n');
+      const mergedUserNote = userNote.trim();
 
       let res: Response | null = null;
       let resText = '';
@@ -1024,15 +1017,7 @@ function PlanPageContent() {
                   </div>
                 </div>
 
-                {hasPlan && !quickMode ? (
-                  <button
-                    type="button"
-                    onClick={() => setQuickMode(true)}
-                    className="shrink-0 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                  >
-                    Use Strava-led quick regenerate
-                  </button>
-                ) : null}
+                {null}
               </div>
 
               <div className="px-5 sm:px-6 py-4">
@@ -1146,7 +1131,7 @@ function PlanPageContent() {
 
                       <button
                         type="button"
-                        onClick={() => setQuickMode(false)}
+                        onClick={() => {}}
                         className="inline-flex items-center justify-center rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                       >
                         {hasPlan ? 'Regenerate with full inputs' : 'Enter all inputs manually'}
@@ -1155,56 +1140,7 @@ function PlanPageContent() {
                   </div>
                 ) : null}
 
-                {!quickMode ? (
-                  <div className="mt-5 rounded-2xl border border-gray-200 bg-gray-50 p-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">Voice plan designer (beta)</div>
-                        <p className="mt-1 text-xs text-gray-600">
-                          Speak your goal, concerns, target time, and baseline. We turn it into editable notes before generating.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={startVoiceCapture}
-                        disabled={!voiceSupported}
-                        className="inline-flex items-center justify-center rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-900 disabled:opacity-50"
-                      >
-                        {isListening ? 'Stop listening' : 'Start voice capture'}
-                      </button>
-                    </div>
-
-                    {!voiceSupported ? (
-                      <div className="mt-3 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-600">
-                        Voice capture currently supports Chromium-based browsers.
-                      </div>
-                    ) : null}
-
-                    {voiceTranscript ? (
-                      <div className="mt-3 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700">
-                        <span className="font-medium text-gray-900">Transcript:</span> {voiceTranscript}
-                      </div>
-                    ) : null}
-
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      {VOICE_PLAN_FIELDS.map(({ key, label, placeholder }) => (
-                        <label key={key} className="block">
-                          <span className="mb-1 block text-xs font-medium text-gray-700">{label}</span>
-                          <InputBase
-                            value={voiceSummary[key]}
-                            onChange={(e) =>
-                              setVoiceSummary((prev) => ({
-                                ...prev,
-                                [key]: e.target.value,
-                              }))
-                            }
-                            placeholder={placeholder}
-                          />
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
+                {null}
 
                 {/* Optional note */}
                 {!quickMode ? <div className="mt-4">

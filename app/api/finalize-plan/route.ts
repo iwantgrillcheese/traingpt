@@ -310,27 +310,11 @@ export async function POST(req: Request) {
 
     const planTypeResolved: PlanType = planType ?? "triathlon";
 
-    let stravaRows: StravaHistoryRow[] = [];
-    const sinceISO = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
-    const { data, error: stravaErr } = await supabase
-      .from('strava_activities')
-      .select(
-        'sport_type,moving_time,distance,start_date,average_heartrate,max_heartrate,weighted_average_watts,average_watts,average_speed'
-      )
-      .eq('user_id', userId)
-      .gte('start_date', sinceISO)
-      .order('start_date', { ascending: false })
-      .limit(500);
-
-    if (stravaErr) {
-      console.warn('[finalize-plan] strava history lookup failed', stravaErr);
-    } else {
-      stravaRows = data ?? [];
-    }
-
-    const hasStravaHistory = stravaRows.length > 0;
-    const inferredAbility = inferAbilityFromStrava(stravaRows);
-    const inferredBaselines = computeStravaBaselines(stravaRows);
+    // Strava-based auto-calibration intentionally disabled for now (manual inputs only).
+    const inferredBaselines = {
+      estimatedFtp: null as number | null,
+      estimatedRunThresholdPacePerKm: null as string | null,
+    };
 
     const raceDateResolved = (() => {
       const raw = typeof raceDate === 'string' ? raceDate.trim() : '';
@@ -354,24 +338,21 @@ export async function POST(req: Request) {
         ? experience.trim()
         : typeof latestPlanParams?.experience === 'string' && latestPlanParams.experience.trim()
           ? latestPlanParams.experience.trim()
-          : hasStravaHistory
-            ? inferredAbility.experience
-            : '';
+          : '';
 
     const maxHoursResolved = (() => {
       const raw = Number(maxHours);
       if (Number.isFinite(raw) && raw > 0) return raw;
       const latestRaw = Number(latestPlanParams?.maxHours);
       if (Number.isFinite(latestRaw) && latestRaw > 0) return latestRaw;
-      return hasStravaHistory ? inferredAbility.maxHours : Number.NaN;
+      return Number.NaN;
     })();
 
     if (!experienceResolved || !Number.isFinite(maxHoursResolved)) {
       return NextResponse.json(
         {
           ok: false,
-          error:
-            'Please connect Strava (recommended for quick start) or enter experience + weekly time to generate your plan.',
+          error: 'Please enter experience and weekly training hours to generate your plan.',
         },
         { status: 400 }
       );
@@ -384,7 +365,7 @@ export async function POST(req: Request) {
           ? latestPlanParams.restDay
           : 'Monday';
 
-    const stravaHistorySummary = buildStravaHistorySummary(stravaRows);
+    const stravaHistorySummary = undefined;
 
     const bikeFtpResolved = Number.isFinite(ftpNormalized as number)
       ? (ftpNormalized as number)
