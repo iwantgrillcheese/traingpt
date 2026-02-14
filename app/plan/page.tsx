@@ -92,21 +92,14 @@ function Row({
   children: React.ReactNode;
 }) {
   return (
-    <div className="py-3 flex items-start justify-between gap-3 sm:gap-4">
-      <div className="min-w-0 pr-2">
+    <div className="py-3 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_260px] sm:gap-4 sm:items-start">
+      <div className="min-w-0 pr-0 sm:pr-2">
         <div className="text-sm font-medium text-gray-900">{label}</div>
         {hint ? (
           <div className="mt-0.5 text-xs text-gray-500 break-words">{hint}</div>
         ) : null}
       </div>
-
-      {/* CRITICAL MOBILE FIX:
-          - allow this flex child to shrink (min-w-0)
-          - on mobile, don't force a hard pixel width (use w-full + max-w)
-          - on sm+, use a stable width */}
-      <div className="min-w-0 flex-1 max-w-[58%] sm:flex-none sm:w-[260px] sm:max-w-none">
-        {children}
-      </div>
+      <div className="min-w-0 w-full">{children}</div>
     </div>
   );
 }
@@ -116,7 +109,7 @@ function InputBase(props: React.InputHTMLAttributes<HTMLInputElement>) {
     <input
       {...props}
       className={[
-        'w-full max-w-full min-w-0 rounded-full border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 shadow-sm outline-none',
+        'w-full max-w-full min-w-0 rounded-xl border border-gray-200 bg-white px-4 py-3 text-base sm:text-sm text-gray-900 shadow-sm outline-none',
         'focus:border-gray-300 focus:ring-2 focus:ring-gray-100',
         'placeholder:text-gray-400',
         props.className ?? '',
@@ -130,7 +123,7 @@ function SelectBase(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
     <select
       {...props}
       className={[
-        'w-full max-w-full min-w-0 rounded-full border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 shadow-sm outline-none',
+        'w-full max-w-full min-w-0 rounded-xl border border-gray-200 bg-white px-4 py-3 text-base sm:text-sm text-gray-900 shadow-sm outline-none',
         'focus:border-gray-300 focus:ring-2 focus:ring-gray-100',
         'appearance-none',
         props.className ?? '',
