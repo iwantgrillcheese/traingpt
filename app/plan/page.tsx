@@ -674,9 +674,14 @@ function PlanPageContent() {
     } catch (err: any) {
       console.error('❌ Finalize plan error:', err);
 
-      const msg = err?.message || 'Something went wrong while generating your plan. Please try again.';
+      const rawMsg = err?.message || 'Something went wrong while generating your plan. Please try again.';
+      const isHtmlBlob = /<!doctype html>|<html|cloudflare|error code 524|a timeout occurred/i.test(rawMsg);
+      const msg =
+        isHtmlBlob || rawMsg.length > 280
+          ? 'Plan generation timed out before the app got a clean response. Please open Schedule and refresh in ~30 seconds.'
+          : rawMsg;
 
-      if (/still generating/i.test(msg)) {
+      if (/still generating|timed out|timeout|edge/i.test(msg)) {
         setNotice(msg);
         setError('');
       } else {
