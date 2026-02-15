@@ -66,7 +66,7 @@ function estimateWordCount(markdown) {
   return markdown.replace(/[`#*\-|]/g, ' ').split(/\s+/).filter(Boolean).length;
 }
 
-function topUpToMinWords(content, minWords = 1200) {
+function topUpToMinWords(content, minWords = 1200, seed = 0, keyword = 'training plan') {
   const blocks = [
     'Training quality improves when each session has a single clear intent. Write that intent before you start: aerobic durability, threshold development, neuromuscular speed, or recovery. This prevents mixed-intensity drift and makes post-session analysis meaningful. Athletes who train with clear intent progress faster because they can compare session execution week over week and detect fatigue early rather than guessing based on motivation alone.',
     'Weekly planning should start with constraints, not ambition. Map work obligations, sleep windows, and family commitments first. Then place your key sessions into realistic slots that preserve warm-up quality and recovery time. Supporting sessions can move around those anchors. This sequence produces plans that survive real life and reduces the all-or-nothing pattern that often causes training inconsistency.',
@@ -78,14 +78,16 @@ function topUpToMinWords(content, minWords = 1200) {
     'Execution review closes the coaching loop. After each week, capture what was planned, what was done, and what quality looked like. Then decide one change for next week: adjust volume, shift intensity, or improve recovery behavior. This tiny feedback cycle turns a generic plan into a personalized, adaptive system over multiple blocks.'
   ];
 
+  const start = Math.abs(seed) % blocks.length;
   let idx = 0;
   while (estimateWordCount(content) < minWords && idx < blocks.length) {
-    content += `\n\n### Coaching Implementation ${idx + 1}\n${blocks[idx]}`;
+    const pick = blocks[(start + idx) % blocks.length].replaceAll('training', keyword);
+    content += `\n\n### Coaching Implementation ${idx + 1}\n${pick}`;
     idx += 1;
   }
 
   if (estimateWordCount(content) < minWords) {
-    content += `\n\n## Extended FAQ and Execution Playbook
+    content += `\n\n## Extended FAQ and Execution Playbook for ${keyword}
 ### How hard should easy days feel?
 Easy sessions should feel controlled enough that conversation is possible. If you need long recoveries after an easy day, it likely was not easy enough and should be adjusted downward.
 
@@ -210,8 +212,7 @@ Related reading: [AI triathlon coach](/blog/ai-triathlon-coach), [adaptive train
 
 Ready for your exact version? Use TrainGPT to generate a personalized plan for your race date, experience, and schedule.`;
   if (estimateWordCount(content) < 1250) {
-    content += LONG_APPENDIX;
-    content = topUpToMinWords(content, 1250);
+    content = topUpToMinWords(content, 1250, variant, primary.keyword);
   }
 
   return {
@@ -309,12 +310,24 @@ async function run() {
   const available = bank.filter((k) => !used.has(k.keyword));
   if (available.length < 3) throw new Error('Not enough unused keywords in seo-keywords.json');
 
+  const isWeekPlan = (kw) => /^\d+\s*week\b/i.test(kw || '');
+  const keywordPool = [
+    ...available.filter((k) => !isWeekPlan(k.keyword)),
+    ...available.filter((k) => isWeekPlan(k.keyword)),
+  ];
+
   const created = [];
   let cursor = 0;
   const maxAttempts = Number(process.env.SEO_MAX_ATTEMPTS || 80);
-  while (created.length < 3 && cursor < available.length && cursor < maxAttempts) {
-    const primary = available[cursor];
-    const secondary = available.slice(cursor + 1, cursor + 5).map((k) => k.keyword);
+  let weekPlanCount = 0;
+  while (created.length < 3 && cursor < keywordPool.length && cursor < maxAttempts) {
+    const primary = keywordPool[cursor];
+    if (isWeekPlan(primary.keyword) && weekPlanCount >= 1) {
+      cursor += 1;
+      continue;
+    }
+
+    const secondary = keywordPool.slice(cursor + 1, cursor + 5).map((k) => k.keyword);
 
     try {
       const post = await buildArticleWithChecks({
@@ -325,6 +338,7 @@ async function run() {
       });
       created.push({ ...post, primaryKeyword: primary.keyword, secondaryKeywords: secondary });
       used.add(primary.keyword);
+      if (isWeekPlan(primary.keyword)) weekPlanCount += 1;
     } catch (err) {
       console.warn(`Skipping keyword due to quality failure: ${primary.keyword}`);
     }
