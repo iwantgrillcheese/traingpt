@@ -2,7 +2,8 @@ name: SEO Post-Deploy Index Check
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
       - data/seo-generated-posts.json
 
@@ -17,21 +18,18 @@ jobs:
         with:
           fetch-depth: 2
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Detect newly added blog URLs
-        id: detect
+      - name: Verify new URLs appear in sitemap, then ping Google
+        shell: bash
         run: |
+          set -euo pipefail
+
           node <<'NODE'
           const fs = require('fs');
           const { execSync } = require('child_process');
 
           function readJsonAt(ref, file) {
             try {
-              const raw = execSync(`git show ${ref}:${file}`, { encoding: 'utf8' });
-              return JSON.parse(raw);
+              return JSON.parse(execSync(`git show ${ref}:${file}`, { encoding: 'utf8' }));
             } catch {
               return [];
             }
@@ -42,20 +40,17 @@ jobs:
           const prev = readJsonAt('HEAD^', file);
           const prevSlugs = new Set(prev.map((p) => p.slug).filter(Boolean));
           const added = curr.filter((p) => p?.slug && !prevSlugs.has(p.slug));
-
-          const base = 'https://traingpt.co';
-          const urls = added.map((p) => `${base}/blog/${p.slug}`);
+          const urls = added.map((p) => `https://traingpt.co/blog/${p.slug}`);
 
           fs.writeFileSync('new-urls.txt', urls.join('\n') + (urls.length ? '\n' : ''));
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, `count=${urls.length}\n`);
-
-          console.log(urls.length ? `Detected ${urls.length} new URL(s)` : 'No new URLs detected');
+          console.log(`Detected ${urls.length} new URL(s).`);
           NODE
 
-      - name: Wait for deploy and verify sitemap has new URLs
-        if: ${{ steps.detect.outputs.count != '0' }}
-        run: |
-          set -euo pipefail
+          if [ ! -s new-urls.txt ]; then
+            echo "No new URLs detected; nothing to verify."
+            exit 0
+          fi
+
           SITEMAP_URL="https://traingpt.co/sitemap.xml"
 
           for attempt in $(seq 1 15); do
@@ -67,27 +62,22 @@ jobs:
               [ -z "$url" ] && continue
               if ! printf '%s' "$SITEMAP_CONTENT" | grep -Fq "$url"; then
                 echo "Missing: $url"
-                missing=$((missing+1))
+                missing=$((missing + 1))
               fi
             done < new-urls.txt
 
             if [ "$missing" -eq 0 ]; then
               echo "All new URLs found in sitemap."
-              exit 0
+              break
             fi
 
-            echo "Still missing $missing URL(s); waiting 60s..."
+            if [ "$attempt" -eq 15 ]; then
+              echo "Sitemap did not include all new URLs within retry window."
+              exit 1
+            fi
+
             sleep 60
           done
 
-          echo "Sitemap did not include all new URLs within retry window."
-          exit 1
-
-      - name: Ping sitemap to Google
-        if: ${{ steps.detect.outputs.count != '0' }}
-        run: |
           curl -fsSL "https://www.google.com/ping?sitemap=https%3A%2F%2Ftraingpt.co%2Fsitemap.xml" >/dev/null
           echo "Sitemap ping sent."
-
-      - name: Summary
-        run: echo "New URLs found: ${{ steps.detect.outputs.count }}"
