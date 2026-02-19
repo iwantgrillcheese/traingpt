@@ -1,0 +1,106 @@
+name: SEO Post-Deploy Index Check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - data/seo-generated-posts.json
+
+permissions:
+  contents: read
+
+jobs:
+  index_check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Detect newly added blog URLs
+        id: urls
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const { execSync } = require('child_process');
+
+          function readJsonAt(ref, file) {
+            try {
+              const raw = execSync(`git show ${ref}:${file}`, { encoding: 'utf8' });
+              return JSON.parse(raw);
+            } catch {
+              return [];
+            }
+          }
+
+          const file = 'data/seo-generated-posts.json';
+          const curr = readJsonAt('HEAD', file);
+          const prev = readJsonAt('HEAD^', file);
+
+          const prevSlugs = new Set(prev.map((p) => p.slug).filter(Boolean));
+          const added = curr.filter((p) => p?.slug && !prevSlugs.has(p.slug));
+
+          const base = process.env.SEO_SITE_URL || 'https://traingpt.co';
+          const urls = added.map((p) => `${base}/blog/${p.slug}`);
+
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `count=${urls.length}\n`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `urls_json=${JSON.stringify(urls)}\n`);
+
+          console.log('Added URLs:', urls.length ? urls.join(', ') : '(none)');
+          NODE
+
+      - name: Wait for deploy + verify sitemap includes new URLs
+        if: steps.urls.outputs.count != '0'
+        env:
+          URLS_JSON: ${{ steps.urls.outputs.urls_json }}
+          SEO_SITE_URL: https://traingpt.co
+        run: |
+          node <<'NODE'
+          const urls = JSON.parse(process.env.URLS_JSON || '[]');
+          const site = process.env.SEO_SITE_URL || 'https://traingpt.co';
+          const sitemapUrl = `${site}/sitemap.xml`;
+
+          const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+          async function fetchText(url) {
+            const res = await fetch(url, { method: 'GET' });
+            if (!res.ok) throw new Error(`Fetch failed ${res.status} for ${url}`);
+            return res.text();
+          }
+
+          let missing = [...urls];
+          for (let attempt = 1; attempt <= 15; attempt++) {
+            const text = await fetchText(sitemapUrl);
+            missing = urls.filter((u) => !text.includes(u));
+            if (!missing.length) {
+              console.log(`Sitemap caught up on attempt ${attempt}.`);
+              break;
+            }
+            console.log(`Attempt ${attempt}: still missing ${missing.length} URL(s). Waiting 60s...`);
+            await sleep(60_000);
+          }
+
+          if (missing.length) {
+            console.error('Still missing from sitemap:', missing.join(', '));
+            process.exit(1);
+          }
+          NODE
+
+      - name: Ping sitemap to Google
+        if: steps.urls.outputs.count != '0'
+        run: |
+          curl -fsSL "https://www.google.com/ping?sitemap=$(python3 - <<'PY'
+import urllib.parse
+print(urllib.parse.quote('https://traingpt.co/sitemap.xml', safe=''))
+PY
+)" >/dev/null
+          echo "Sitemap ping sent."
+
+      - name: Summary
+        run: |
+          echo "New URLs found: ${{ steps.urls.outputs.count }}"
+          echo "Done."
