@@ -17,12 +17,8 @@ jobs:
         with:
           fetch-depth: 2
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
       - name: Detect newly added blog URLs
-        id: urls
+        id: detect
         run: |
           node <<'NODE'
           const fs = require('fs');
@@ -30,8 +26,7 @@ jobs:
 
           function readJsonAt(ref, file) {
             try {
-              const raw = execSync(`git show ${ref}:${file}`, { encoding: 'utf8' });
-              return JSON.parse(raw);
+              return JSON.parse(execSync(`git show ${ref}:${file}`, { encoding: 'utf8' }));
             } catch {
               return [];
             }
@@ -40,67 +35,54 @@ jobs:
           const file = 'data/seo-generated-posts.json';
           const curr = readJsonAt('HEAD', file);
           const prev = readJsonAt('HEAD^', file);
-
           const prevSlugs = new Set(prev.map((p) => p.slug).filter(Boolean));
           const added = curr.filter((p) => p?.slug && !prevSlugs.has(p.slug));
 
-          const base = process.env.SEO_SITE_URL || 'https://traingpt.co';
+          const base = 'https://traingpt.co';
           const urls = added.map((p) => `${base}/blog/${p.slug}`);
 
+          fs.writeFileSync('new-urls.txt', urls.join('\n') + (urls.length ? '\n' : ''));
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `count=${urls.length}\n`);
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, `urls_json=${JSON.stringify(urls)}\n`);
 
-          console.log('Added URLs:', urls.length ? urls.join(', ') : '(none)');
+          console.log(urls.length ? `Detected ${urls.length} new URL(s)` : 'No new URLs detected');
           NODE
 
-      - name: Wait for deploy + verify sitemap includes new URLs
-        if: steps.urls.outputs.count != '0'
-        env:
-          URLS_JSON: ${{ steps.urls.outputs.urls_json }}
-          SEO_SITE_URL: https://traingpt.co
+      - name: Wait for deploy and verify sitemap has new URLs
+        if: ${{ steps.detect.outputs.count != '0' }}
         run: |
-          node <<'NODE'
-          const urls = JSON.parse(process.env.URLS_JSON || '[]');
-          const site = process.env.SEO_SITE_URL || 'https://traingpt.co';
-          const sitemapUrl = `${site}/sitemap.xml`;
+          set -euo pipefail
+          SITEMAP_URL="https://traingpt.co/sitemap.xml"
 
-          const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+          for attempt in $(seq 1 15); do
+            echo "Attempt $attempt: checking sitemap..."
+            SITEMAP_CONTENT=$(curl -fsSL "$SITEMAP_URL")
 
-          async function fetchText(url) {
-            const res = await fetch(url, { method: 'GET' });
-            if (!res.ok) throw new Error(`Fetch failed ${res.status} for ${url}`);
-            return res.text();
-          }
+            missing=0
+            while IFS= read -r url; do
+              [ -z "$url" ] && continue
+              if ! printf '%s' "$SITEMAP_CONTENT" | grep -Fq "$url"; then
+                echo "Missing: $url"
+                missing=$((missing+1))
+              fi
+            done < new-urls.txt
 
-          let missing = [...urls];
-          for (let attempt = 1; attempt <= 15; attempt++) {
-            const text = await fetchText(sitemapUrl);
-            missing = urls.filter((u) => !text.includes(u));
-            if (!missing.length) {
-              console.log(`Sitemap caught up on attempt ${attempt}.`);
-              break;
-            }
-            console.log(`Attempt ${attempt}: still missing ${missing.length} URL(s). Waiting 60s...`);
-            await sleep(60_000);
-          }
+            if [ "$missing" -eq 0 ]; then
+              echo "All new URLs found in sitemap."
+              exit 0
+            fi
 
-          if (missing.length) {
-            console.error('Still missing from sitemap:', missing.join(', '));
-            process.exit(1);
-          }
-          NODE
+            echo "Still missing $missing URL(s); waiting 60s..."
+            sleep 60
+          done
+
+          echo "Sitemap did not include all new URLs within retry window."
+          exit 1
 
       - name: Ping sitemap to Google
-        if: steps.urls.outputs.count != '0'
+        if: ${{ steps.detect.outputs.count != '0' }}
         run: |
-          curl -fsSL "https://www.google.com/ping?sitemap=$(python3 - <<'PY'
-import urllib.parse
-print(urllib.parse.quote('https://traingpt.co/sitemap.xml', safe=''))
-PY
-)" >/dev/null
+          curl -fsSL "https://www.google.com/ping?sitemap=https%3A%2F%2Ftraingpt.co%2Fsitemap.xml" >/dev/null
           echo "Sitemap ping sent."
 
       - name: Summary
-        run: |
-          echo "New URLs found: ${{ steps.urls.outputs.count }}"
-          echo "Done."
+        run: echo "New URLs found: ${{ steps.detect.outputs.count }}"
