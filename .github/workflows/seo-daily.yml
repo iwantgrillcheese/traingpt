@@ -27,6 +27,9 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SEO_MODEL: gpt-5-mini
           SEO_OPENAI_TIMEOUT_MS: 30000
+          # URLs cannot appear in the live sitemap until after commit+deploy.
+          # Keep generation non-blocking here.
+          SEO_SKIP_INDEX_CHECK: "true"
         run: yarn seo:daily
 
       - name: Commit generated content
