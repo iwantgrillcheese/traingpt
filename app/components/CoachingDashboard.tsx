@@ -251,218 +251,170 @@ const [chatPrefill, setChatPrefill] = useState<string>('');
     return `${sign}${formatMinutes(abs)} vs prior`;
   }, [deltaMinutes]);
 
-  // A simple “fitness score” header value: we’ll let FitnessPanel be the source of truth later.
-  // For tonight: show a neutral trend signal derived from time volume change.
-  const fitnessTrend = useMemo(() => {
-    if (Math.abs(deltaMinutes) < 30) return { label: 'Stable', tone: 'neutral' as const };
-    if (deltaMinutes > 0) return { label: 'Trending up', tone: 'up' as const };
-    return { label: 'Trending down', tone: 'down' as const };
-  }, [deltaMinutes]);
-
   const coachActions = [
     { id: 'stall', title: 'Why did my fitness stall?', subtitle: 'Diagnose volume, intensity, recovery.' },
     { id: 'focus', title: 'What should I focus on next?', subtitle: 'One clear priority for the next block.' },
     { id: 'balance', title: 'Is my training balanced?', subtitle: 'Sport mix + consistency check.' },
   ] as const;
 
+  const daysToRace = useMemo(() => {
+    if (!raceDate) return null;
+    const d = safeParseDate(raceDate);
+    if (!d) return null;
+    const diff = Math.ceil((startOfDay(d).getTime() - startOfDay(new Date()).getTime()) / (1000 * 60 * 60 * 24));
+    return diff;
+  }, [raceDate]);
+
+  const statusLabel = useMemo(() => {
+    if (readiness.score >= 80) return 'Stable Progression';
+    if (readiness.score >= 65) return 'Productive Strain';
+    if (readiness.score >= 45) return 'Load Softening';
+    if (readiness.score >= 30) return 'Recovery Deficit';
+    return 'Under-Stimulated';
+  }, [readiness.score]);
+
+  const primaryRecommendation = useMemo(() => {
+    if (adherencePct < 60) return 'Nail session consistency before adding intensity this week.';
+    if (deltaMinutes < -60) return 'Recover 24h, then re-establish your key quality session.';
+    if (deltaMinutes > 90) return 'Hold load steady for 3 days and protect sleep.';
+    return 'Maintain this rhythm and execute one high-quality key session.';
+  }, [adherencePct, deltaMinutes]);
+
   return (
-    <div className="relative mt-10 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+    <div className="relative mt-10 rounded-2xl border border-zinc-800 bg-[#0b0d10] p-6 text-zinc-100 shadow-[0_10px_40px_rgba(0,0,0,0.35)]">
       <StravaConnectBanner stravaConnected={stravaConnected} />
 
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h2 className="text-xl font-semibold text-gray-900">Performance</h2>
-          <p className="mt-1 text-sm text-gray-500">
-            <span className="font-medium text-gray-700">{label}</span>
-            <span className="mx-2 text-gray-300">•</span>
-            <span className="text-gray-500">Window</span>
-          </p>
-        </div>
-
-        <div className="flex flex-col items-end gap-2">
-          <div
-            className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-right"
-            title="Score based on adherence, consistency, and race proximity."
-          >
-            <div className="text-[11px] uppercase tracking-wide text-gray-500">Readiness</div>
-            <div className="text-sm font-semibold text-gray-900">{readiness.score}/100 · {readiness.label}</div>
+      <section className="rounded-2xl border border-zinc-800 bg-[#101318] p-5 md:p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Performance</p>
+            <h2 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-100">{statusLabel}</h2>
+            <p className="mt-2 max-w-xl text-sm text-zinc-400">{primaryRecommendation}</p>
           </div>
-
-          {/* Mobile primary action */}
           <button
             onClick={() => {
               setChatPrefill('');
               setChatOpen(true);
             }}
-            className="md:hidden inline-flex items-center justify-center rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-gray-800"
+            className="inline-flex items-center justify-center rounded-full border border-zinc-700 bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-white"
           >
             Ask coach
           </button>
         </div>
 
+        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="rounded-xl border border-zinc-800 bg-[#0b0d10] p-3">
+            <div className="text-[11px] uppercase tracking-wide text-zinc-500">Phase</div>
+            <div className="mt-1 text-sm font-semibold text-zinc-100">{label}</div>
+          </div>
+          <div className="rounded-xl border border-zinc-800 bg-[#0b0d10] p-3">
+            <div className="text-[11px] uppercase tracking-wide text-zinc-500">Days to race</div>
+            <div className="mt-1 text-sm font-semibold text-zinc-100">{daysToRace == null ? '—' : Math.max(daysToRace, 0)}</div>
+          </div>
+          <div className="rounded-xl border border-zinc-800 bg-[#0b0d10] p-3">
+            <div className="text-[11px] uppercase tracking-wide text-zinc-500">Status</div>
+            <div className="mt-1 text-sm font-semibold text-zinc-100">{statusLabel}</div>
+          </div>
+          <div className="rounded-xl border border-zinc-800 bg-[#0b0d10] p-3">
+            <div className="text-[11px] uppercase tracking-wide text-zinc-500">Readiness</div>
+            <div className="mt-1 text-sm font-semibold text-zinc-100">{readiness.score}/100</div>
+          </div>
+        </div>
+      </section>
 
-      </div>
-
-      {/* Window selector + KPI row */}
-      <div className="mt-5 flex flex-col gap-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 p-1">
+      <section className="mt-5 rounded-xl border border-zinc-800 bg-[#101318] p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="inline-flex items-center rounded-full border border-zinc-700 bg-[#0b0d10] p-1">
             {(['L7', 'L30', 'L90', 'M6', 'Y1'] as WindowKey[]).map((k) => (
               <button
                 key={k}
                 onClick={() => setWindowKey(k)}
                 className={clsx(
                   'rounded-full px-3 py-1.5 text-xs font-medium transition',
-                  k === windowKey
-                    ? 'bg-white text-gray-900 shadow-sm border border-gray-200'
-                    : 'text-gray-600 hover:text-gray-900'
+                  k === windowKey ? 'bg-zinc-200 text-zinc-900' : 'text-zinc-400 hover:text-zinc-200'
                 )}
               >
                 {windowLabel(k)}
               </button>
             ))}
           </div>
-
-          <div className="text-xs text-gray-500">
-            {format(start, 'MMM d')} → {format(end, 'MMM d')}
-          </div>
+          <div className="text-xs text-zinc-500">{format(start, 'MMM d')} → {format(end, 'MMM d')}</div>
         </div>
 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <div className="rounded-xl border border-gray-200 bg-white p-4">
-            <div className="text-xs text-gray-500">Training time</div>
-            <div className="mt-1 text-base font-semibold text-gray-900">{formatMinutes(completedMinutes)}</div>
-            <div className="mt-1 text-xs text-gray-500">{deltaLabel}</div>
+          <div className="rounded-lg border border-zinc-800 bg-[#0b0d10] p-3">
+            <div className="text-xs text-zinc-500">Training time</div>
+            <div className="mt-1 text-base font-semibold text-zinc-100">{formatMinutes(completedMinutes)}</div>
+            <div className="mt-1 text-xs text-zinc-500">{deltaLabel}</div>
           </div>
-
-          <div className="rounded-xl border border-gray-200 bg-white p-4">
-            <div className="text-xs text-gray-500">Sessions</div>
-            <div className="mt-1 text-base font-semibold text-gray-900">{completedCount}</div>
-            <div className="mt-1 text-xs text-gray-500">{plannedCount} planned</div>
+          <div className="rounded-lg border border-zinc-800 bg-[#0b0d10] p-3">
+            <div className="text-xs text-zinc-500">Sessions</div>
+            <div className="mt-1 text-base font-semibold text-zinc-100">{completedCount}</div>
+            <div className="mt-1 text-xs text-zinc-500">{plannedCount} planned</div>
           </div>
-
-          <div className="rounded-xl border border-gray-200 bg-white p-4">
-            <div className="text-xs text-gray-500">Consistency</div>
-            <div
-              className={clsx(
-                'mt-1 text-base font-semibold',
-                adherencePct >= 85 ? 'text-gray-900' : adherencePct >= 60 ? 'text-gray-900' : 'text-gray-900'
-              )}
-            >
-              {adherencePct}%
-            </div>
-            <div className="mt-1 text-xs text-gray-500">of planned time</div>
+          <div className="rounded-lg border border-zinc-800 bg-[#0b0d10] p-3">
+            <div className="text-xs text-zinc-500">Consistency</div>
+            <div className="mt-1 text-base font-semibold text-zinc-100">{adherencePct}%</div>
+            <div className="mt-1 text-xs text-zinc-500">of planned time</div>
           </div>
-
-          <div className="rounded-xl border border-gray-200 bg-white p-4">
-            <div className="text-xs text-gray-500">Fitness</div>
-            <div className="mt-1 text-base font-semibold text-gray-900">{fitnessTrend.label}</div>
-            <div
-              className={clsx(
-                'mt-1 text-xs',
-                fitnessTrend.tone === 'up'
-                  ? 'text-emerald-700'
-                  : fitnessTrend.tone === 'down'
-                  ? 'text-rose-700'
-                  : 'text-gray-500'
-              )}
-            >
-              Based on training load change
-            </div>
+          <div className="rounded-lg border border-zinc-800 bg-[#0b0d10] p-3">
+            <div className="text-xs text-zinc-500">Load state</div>
+            <div className="mt-1 text-base font-semibold text-zinc-100">{statusLabel}</div>
+            <div className="mt-1 text-xs text-zinc-500">Coach-grade interpretation</div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* HERO: FitnessPanel */}
-      <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-4 md:p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900">Fitness trend</h3>
-            <p className="mt-1 text-xs text-gray-500">
-              Uses completed Strava sessions when available.
-            </p>
-          </div>
-
-          {/* Desktop coach entry */}
-          <button
-  onClick={() => {
-    setChatPrefill('');
-    setChatOpen(true);
-  }}
-  className="hidden md:inline-flex items-center rounded-full border border-gray-200 bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
->
-  Ask coach
-</button>
-
-
-        </div>
-
+      <section className="mt-5 rounded-2xl border border-zinc-800 bg-[#101318] p-4 md:p-6">
+        <h3 className="text-sm font-semibold text-zinc-100">Fitness trend</h3>
+        <p className="mt-1 text-xs text-zinc-500">Uses completed Strava sessions when available.</p>
         <div className="mt-4">
-          <FitnessPanel
-  sessions={sessions}
-  completedSessions={completedSessions as any}
-  stravaActivities={stravaActivities}
-  windowDays={WINDOW_DAYS[windowKey]}
-/>
-
+          <FitnessPanel sessions={sessions} completedSessions={completedSessions as any} stravaActivities={stravaActivities} windowDays={WINDOW_DAYS[windowKey]} />
         </div>
 
-        {/* Coach actions (replaces chat box UI) */}
         <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-3">
           {coachActions.map((a) => (
             <button
               key={a.id}
               onClick={() => {
-  setChatPrefill(a.title);
-  setChatOpen(true);
-}}
-              className="group rounded-2xl border border-gray-200 bg-white p-4 text-left hover:bg-gray-50 transition"
+                setChatPrefill(a.title);
+                setChatOpen(true);
+              }}
+              className="group rounded-2xl border border-zinc-800 bg-[#0b0d10] p-4 text-left hover:bg-[#141820] transition"
             >
-              <div className="text-sm font-semibold text-gray-900">{a.title}</div>
-              <div className="mt-1 text-xs text-gray-500">{a.subtitle}</div>
-              <div className="mt-3 inline-flex items-center text-xs font-medium text-gray-700 group-hover:text-gray-900">
-                Open analysis <span className="ml-1">→</span>
-              </div>
+              <div className="text-sm font-semibold text-zinc-100">{a.title}</div>
+              <div className="mt-1 text-xs text-zinc-500">{a.subtitle}</div>
+              <div className="mt-3 inline-flex items-center text-xs font-medium text-zinc-400 group-hover:text-zinc-200">Open analysis <span className="ml-1">→</span></div>
             </button>
           ))}
         </div>
-      </div>
+      </section>
 
-      {/* Secondary: Details (collapsed) */}
       <div className="mt-6">
         <button
           onClick={() => setShowDetails((s) => !s)}
-          className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 text-left hover:bg-gray-50"
+          className="flex w-full items-center justify-between rounded-xl border border-zinc-800 bg-[#101318] px-4 py-3 text-left hover:bg-[#141820]"
         >
           <div>
-            <div className="text-sm font-semibold text-gray-900">Training details</div>
-            <div className="mt-0.5 text-xs text-gray-500">
-              Consistency + weekly recap (optional)
-            </div>
+            <div className="text-sm font-semibold text-zinc-100">Training details</div>
+            <div className="mt-0.5 text-xs text-zinc-500">Consistency + weekly recap (optional)</div>
           </div>
-          <div className="text-sm text-gray-500">{showDetails ? '–' : '+'}</div>
+          <div className="text-sm text-zinc-500">{showDetails ? '–' : '+'}</div>
         </button>
 
         {showDetails ? (
           <div className="mt-3 grid grid-cols-1 gap-6 md:grid-cols-2">
-            <div className="rounded-2xl border border-gray-200 bg-white p-4">
+            <div className="rounded-2xl border border-zinc-800 bg-[#101318] p-4">
               <WeeklySummaryPanel weeklySummary={weeklySummary} viewMode="week" />
             </div>
-            <div className="rounded-2xl border border-gray-200 bg-white p-4">
+            <div className="rounded-2xl border border-zinc-800 bg-[#101318] p-4">
               <CompliancePanel weeklySummary={weeklySummary} viewMode="week" />
             </div>
           </div>
         ) : null}
       </div>
-      
 
-      <CoachChatModal
-  open={chatOpen}
-  onClose={() => setChatOpen(false)}
-  prefill={chatPrefill}
-/>
-
+      <CoachChatModal open={chatOpen} onClose={() => setChatOpen(false)} prefill={chatPrefill} />
     </div>
   );
 }
