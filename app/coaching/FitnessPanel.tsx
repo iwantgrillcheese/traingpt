@@ -96,7 +96,7 @@ export default function FitnessPanel({ stravaActivities = [], windowDays = 90 }:
         </button>
       </div>
 
-      <div className="mt-3 rounded-lg border border-zinc-800 bg-[#101318] px-3 py-2 text-sm text-zinc-300">{interpretation}</div>
+      <div className="mt-3 rounded-lg border border-emerald-900/40 bg-[#101318] px-3 py-2 text-sm text-zinc-300">{interpretation}</div>
 
       {showInfo ? (
         <div className="mt-3 rounded-lg border border-zinc-800 bg-[#101318] p-3 text-xs leading-relaxed text-zinc-400">
@@ -112,8 +112,8 @@ export default function FitnessPanel({ stravaActivities = [], windowDays = 90 }:
               {
                 label: 'Fitness',
                 data: fitness,
-                borderColor: '#E5E7EB',
-                backgroundColor: 'rgba(229,231,235,0.08)',
+                borderColor: '#D4D4D8',
+                backgroundColor: 'rgba(212,212,216,0.07)',
                 fill: true,
                 tension: 0.22,
                 pointRadius: 0,
@@ -122,8 +122,8 @@ export default function FitnessPanel({ stravaActivities = [], windowDays = 90 }:
               {
                 label: 'Fatigue',
                 data: fatigue,
-                borderColor: 'rgba(161,161,170,0.75)',
-                backgroundColor: 'rgba(161,161,170,0.05)',
+                borderColor: 'rgba(161,161,170,0.62)',
+                backgroundColor: 'rgba(161,161,170,0.04)',
                 fill: true,
                 tension: 0.22,
                 pointRadius: 0,
