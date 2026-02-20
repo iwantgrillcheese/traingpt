@@ -7,6 +7,7 @@ import type { StravaActivity } from '@/types/strava';
 import CompliancePanel from '@/app/coaching/CompliancePanel';
 import WeeklySummaryPanel from '@/app/coaching/WeeklySummaryPanel';
 import FitnessPanel from '@/app/coaching/FitnessPanel';
+import WeeklyPriorityBlock from '@/app/coaching/WeeklyPriorityBlock';
 import StravaConnectBanner from '@/app/components/StravaConnectBanner';
 import CoachChatModal from '@/app/components/CoachChatModal';
 import {
@@ -251,11 +252,6 @@ const [chatPrefill, setChatPrefill] = useState<string>('');
     return `${sign}${formatMinutes(abs)} vs prior`;
   }, [deltaMinutes]);
 
-  const coachActions = [
-    { id: 'stall', title: 'Why did my fitness stall?', subtitle: 'Diagnose volume, intensity, recovery.' },
-    { id: 'focus', title: 'What should I focus on next?', subtitle: 'One clear priority for the next block.' },
-    { id: 'balance', title: 'Is my training balanced?', subtitle: 'Sport mix + consistency check.' },
-  ] as const;
 
   const daysToRace = useMemo(() => {
     if (!raceDate) return null;
@@ -372,23 +368,12 @@ const [chatPrefill, setChatPrefill] = useState<string>('');
           <FitnessPanel sessions={sessions} completedSessions={completedSessions as any} stravaActivities={stravaActivities} windowDays={WINDOW_DAYS[windowKey]} />
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-3">
-          {coachActions.map((a) => (
-            <button
-              key={a.id}
-              onClick={() => {
-                setChatPrefill(a.title);
-                setChatOpen(true);
-              }}
-              className="group rounded-2xl border border-zinc-800 bg-[#0b0d10] p-4 text-left hover:bg-[#141820] transition"
-            >
-              <div className="text-sm font-semibold text-zinc-100">{a.title}</div>
-              <div className="mt-1 text-xs text-zinc-500">{a.subtitle}</div>
-              <div className="mt-3 inline-flex items-center text-xs font-medium text-zinc-400 group-hover:text-zinc-200">Open analysis <span className="ml-1">→</span></div>
-            </button>
-          ))}
-        </div>
       </section>
+
+      <WeeklyPriorityBlock
+        title="One lever for this week"
+        body={primaryRecommendation}
+      />
 
       <div className="mt-6">
         <button
