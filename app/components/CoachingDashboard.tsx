@@ -276,16 +276,24 @@ const [chatPrefill, setChatPrefill] = useState<string>('');
     return 'Maintain this rhythm and execute one high-quality key session.';
   }, [adherencePct, deltaMinutes]);
 
+  const statusToneClass = useMemo(() => {
+    if (statusLabel === 'Stable Progression') return 'text-emerald-300';
+    if (statusLabel === 'Productive Strain') return 'text-amber-300';
+    if (statusLabel === 'Load Softening') return 'text-sky-300';
+    if (statusLabel === 'Recovery Deficit') return 'text-rose-300';
+    return 'text-zinc-300';
+  }, [statusLabel]);
+
   return (
-    <div className="relative mt-10 rounded-2xl border border-zinc-800 bg-[#0b0d10] p-6 text-zinc-100 shadow-[0_10px_40px_rgba(0,0,0,0.35)]">
+    <div className="relative mt-10 rounded-2xl border border-zinc-800 bg-[#0b0d10] p-5 md:p-7 text-zinc-100 shadow-[0_10px_40px_rgba(0,0,0,0.35)]">
       <StravaConnectBanner stravaConnected={stravaConnected} />
 
       <section className="rounded-2xl border border-zinc-800 bg-[#101318] p-5 md:p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Performance</p>
-            <h2 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-100">{statusLabel}</h2>
-            <p className="mt-2 max-w-xl text-sm text-zinc-400">{primaryRecommendation}</p>
+            <h2 className="mt-2 text-3xl md:text-4xl font-semibold tracking-tight text-zinc-100">{statusLabel}</h2>
+            <p className="mt-3 max-w-xl text-sm leading-relaxed text-zinc-400">{primaryRecommendation}</p>
           </div>
           <button
             onClick={() => {
@@ -309,7 +317,7 @@ const [chatPrefill, setChatPrefill] = useState<string>('');
           </div>
           <div className="rounded-xl border border-zinc-800 bg-[#0b0d10] p-3">
             <div className="text-[11px] uppercase tracking-wide text-zinc-500">Status</div>
-            <div className="mt-1 text-sm font-semibold text-zinc-100">{statusLabel}</div>
+            <div className={`mt-1 text-sm font-semibold ${statusToneClass}`}>{statusLabel}</div>
           </div>
           <div className="rounded-xl border border-zinc-800 bg-[#0b0d10] p-3">
             <div className="text-[11px] uppercase tracking-wide text-zinc-500">Readiness</div>
@@ -361,7 +369,7 @@ const [chatPrefill, setChatPrefill] = useState<string>('');
         </div>
       </section>
 
-      <section className="mt-5 rounded-2xl border border-zinc-800 bg-[#101318] p-4 md:p-6">
+      <section className="mt-6 rounded-2xl border border-zinc-800 bg-[#101318] p-4 md:p-6">
         <h3 className="text-sm font-semibold text-zinc-100">Fitness trend</h3>
         <p className="mt-1 text-xs text-zinc-500">Uses completed Strava sessions when available.</p>
         <div className="mt-4">
