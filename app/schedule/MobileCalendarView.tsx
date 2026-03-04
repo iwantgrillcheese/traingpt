@@ -275,13 +275,13 @@ export default function MobileCalendarView({
         <div className="pt-[env(safe-area-inset-top)]" />
         <div className="px-5 py-3">
           <div className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: '#B0ADA5' }}>Schedule</div>
-          <div className="text-[26px] font-bold tracking-[-0.02em]" style={{ color: '#18170F' }}>Weekly Flow</div>
         </div>
       </div>
 
       <div className="px-4 pb-28 pt-4 space-y-5">
         {Object.entries(groupedByWeek).map(([weekLabel, { sessions, extras, start, end }]) => {
           const isCollapsed = collapsedWeeks[weekLabel];
+          const isCurrentWeek = isWithinInterval(today, { start, end });
           const rangeLabel = `${format(start, 'MMM d')} – ${format(end, 'MMM d')}`;
           const completedCount = sessions.filter((session) =>
             completedSessions.some(
@@ -479,32 +479,26 @@ export default function MobileCalendarView({
                       </div>
                     );
                   })}
+
+                  {isCurrentWeek && (
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setAddSessionDate(getDefaultAddDate())}
+                        className="w-full inline-flex h-11 items-center justify-center rounded-xl text-[14px] font-semibold text-white"
+                        style={{ background: '#18170F' }}
+                        aria-label="Add session"
+                      >
+                        + Add session
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           );
         })}
 
-
-        <button
-          type="button"
-          onClick={() => setAddSessionDate(getDefaultAddDate())}
-          className="fixed bottom-[calc(env(safe-area-inset-bottom)+14px)] right-4 z-30 inline-flex h-12 items-center justify-center rounded-full px-5 text-[14px] font-semibold text-white shadow-[0_14px_30px_rgba(0,0,0,0.25)] active:translate-y-[0.5px] md:hidden"
-          style={{ background: '#18170F' }}
-          aria-label="Add session"
-        >
-          + Add session
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setAddSessionDate(getDefaultAddDate())}
-          className="fixed right-4 z-40 inline-flex h-12 items-center justify-center rounded-full px-5 text-[14px] font-semibold text-white shadow-[0_14px_30px_rgba(0,0,0,0.25)] active:translate-y-[0.5px] md:hidden"
-          style={{ background: '#18170F', bottom: 'max(calc(env(safe-area-inset-bottom) + 16px), 88px)' }}
-          aria-label="Add session"
-        >
-          + Add session
-        </button>
 
         <SessionModal
           session={selectedSession}
