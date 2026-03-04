@@ -1,26 +1,33 @@
 // app/login/page.tsx
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase-client';
 
 export default function LoginPage() {
   const router = useRouter();
+  const [next, setNext] = useState('/plan');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const nextParam = new URLSearchParams(window.location.search).get('next');
+    if (nextParam) setNext(nextParam);
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (data?.session) {
-        router.push('/plan');
+        router.push(next);
       }
     });
-  }, []);
+  }, [router, next]);
 
   const signInWithGoogle = async () => {
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `https://traingpt.co/auth/callback`,
+        redirectTo: `https://traingpt.co/auth/callback?next=${encodeURIComponent(next)}`,
       },
     });
   };

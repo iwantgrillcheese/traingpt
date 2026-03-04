@@ -310,8 +310,11 @@ function PlanPageContent() {
   useEffect(() => {
     const raceType = searchParams?.get('raceType');
     const raceDate = searchParams?.get('raceDate');
+    const experience = searchParams?.get('experience');
+    const maxHours = searchParams?.get('maxHours');
+    const restDay = searchParams?.get('restDay');
 
-    if (!raceType && !raceDate) return;
+    if (!raceType && !raceDate && !experience && !maxHours && !restDay) return;
 
     setFormData((prev) => ({
       ...prev,
@@ -319,6 +322,9 @@ function PlanPageContent() {
       raceDate: /^\d{4}-\d{2}-\d{2}$/.test(raceDate?.trim() ?? '')
         ? (raceDate as string)
         : prev.raceDate,
+      experience: experience?.trim() || prev.experience,
+      maxHours: maxHours?.trim() || prev.maxHours,
+      restDay: restDay?.trim() || prev.restDay,
     }));
   }, [searchParams]);
 
