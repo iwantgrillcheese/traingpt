@@ -8,7 +8,6 @@ import {
   startOfWeek,
   differenceInCalendarWeeks,
   isWithinInterval,
-  isBefore,
   endOfWeek,
 } from 'date-fns';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -241,10 +240,10 @@ export default function MobileCalendarView({
   }, [sortedSessions, extraStravaMap]);
 
   useEffect(() => {
-    const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
     const initial: Record<string, boolean> = {};
-    Object.entries(groupedByWeek).forEach(([label, { start }]) => {
-      if (isBefore(start, currentWeekStart)) initial[label] = true;
+    Object.entries(groupedByWeek).forEach(([label, { start, end }]) => {
+      const isCurrentWeek = isWithinInterval(today, { start, end });
+      initial[label] = !isCurrentWeek;
     });
     setCollapsedWeeks((prev) => ({ ...initial, ...prev }));
   }, [groupedByWeek, today]);
@@ -282,8 +281,6 @@ export default function MobileCalendarView({
 
       <div className="px-4 pb-28 pt-4 space-y-5">
         {Object.entries(groupedByWeek).map(([weekLabel, { sessions, extras, start, end }]) => {
-          const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
-          const isPast = isBefore(start, currentWeekStart);
           const isCollapsed = collapsedWeeks[weekLabel];
           const rangeLabel = `${format(start, 'MMM d')} – ${format(end, 'MMM d')}`;
           const completedCount = sessions.filter((session) =>
@@ -310,15 +307,13 @@ export default function MobileCalendarView({
                     <div className="text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: '#B0ADA5' }}>{rangeLabel}</div>
                     <h2 className="mt-1 text-[22px] font-bold tracking-[-0.015em]" style={{ color: '#18170F' }}>{weekLabel}</h2>
                   </div>
-                  {isPast && (
-                    <button
-                      onClick={() => setCollapsedWeeks((prev) => ({ ...prev, [weekLabel]: !prev[weekLabel] }))}
-                      className="rounded-full border px-3 py-1.5 text-[12px] font-medium"
-                      style={{ borderColor: '#F0EEE9', color: '#8A8880' }}
-                    >
-                      {isCollapsed ? 'Expand' : 'Collapse'}
-                    </button>
-                  )}
+                  <button
+                    onClick={() => setCollapsedWeeks((prev) => ({ ...prev, [weekLabel]: !prev[weekLabel] }))}
+                    className="rounded-full border px-3 py-1.5 text-[12px] font-medium"
+                    style={{ borderColor: '#F0EEE9', color: '#8A8880' }}
+                  >
+                    {isCollapsed ? 'Expand' : 'Collapse'}
+                  </button>
                 </div>
 
                 <div className="grid grid-cols-3 px-[18px] pb-4">
@@ -496,6 +491,16 @@ export default function MobileCalendarView({
           onClick={() => setAddSessionDate(getDefaultAddDate())}
           className="fixed bottom-[calc(env(safe-area-inset-bottom)+14px)] right-4 z-30 inline-flex h-12 items-center justify-center rounded-full px-5 text-[14px] font-semibold text-white shadow-[0_14px_30px_rgba(0,0,0,0.25)] active:translate-y-[0.5px] md:hidden"
           style={{ background: '#18170F' }}
+          aria-label="Add session"
+        >
+          + Add session
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setAddSessionDate(getDefaultAddDate())}
+          className="fixed right-4 z-40 inline-flex h-12 items-center justify-center rounded-full px-5 text-[14px] font-semibold text-white shadow-[0_14px_30px_rgba(0,0,0,0.25)] active:translate-y-[0.5px] md:hidden"
+          style={{ background: '#18170F', bottom: 'max(calc(env(safe-area-inset-bottom) + 16px), 88px)' }}
           aria-label="Add session"
         >
           + Add session
