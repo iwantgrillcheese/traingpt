@@ -275,7 +275,6 @@ export default function MobileCalendarView({
         <div className="pt-[env(safe-area-inset-top)]" />
         <div className="px-5 py-3">
           <div className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: '#B0ADA5' }}>Schedule</div>
-          <div className="text-[26px] font-bold tracking-[-0.02em]" style={{ color: '#18170F' }}>Weekly Flow</div>
         </div>
       </div>
 
