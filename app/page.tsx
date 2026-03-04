@@ -797,14 +797,14 @@ export default function Home() {
 
               <Reveal delayMs={80}>
                 <h1 className="mt-6 text-4xl md:text-5xl font-semibold tracking-tight leading-[1.05] text-white">
-                  Training plans that feel like a platform.
+                  Training plans built for real endurance blocks.
                 </h1>
               </Reveal>
 
               <Reveal delayMs={140}>
                 <p className="mt-4 text-lg text-white/70 leading-relaxed">
                   Generate a complete endurance plan in minutes, then use your calendar and coaching
-                  workflow to stay on track and learn what’s working.
+                  tools to stay consistent and keep training moving.
                 </p>
               </Reveal>
 
@@ -1063,6 +1063,54 @@ export default function Home() {
                   {ctas.primary.label}
                 </button>
               </div>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ---------------- TRAINING SUPPORT ---------------- */}
+      <section className="bg-white">
+        <div className="max-w-6xl mx-auto px-6 py-14 md:py-16">
+          <Reveal>
+            <BandTitle
+              eyebrow="Training support"
+              title="Training support beyond the plan"
+              desc="TrainGPT also includes tools designed to support the rest of your training process. Athletes can explore fueling guidance, review training patterns, and adjust workouts when schedules change. The goal is to make the entire training process easier to manage from one place."
+            />
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ---------------- AI COACH (secondary) ---------------- */}
+      <section className="bg-white">
+        <div className="max-w-6xl mx-auto px-6 pb-14 md:pb-16">
+          <Reveal>
+            <div className="rounded-3xl border border-gray-200 bg-gray-50 p-8 md:p-10">
+              <h3 className="text-2xl font-semibold tracking-tight text-gray-900">
+                Ask questions about your training
+              </h3>
+              <p className="mt-3 text-gray-600 leading-relaxed max-w-3xl">
+                If questions come up during your training block, the built-in coach can help explain workouts or provide guidance. Because it understands your plan, the responses stay relevant to your training.
+              </p>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ---------------- FINAL CTA ---------------- */}
+      <section className="bg-white">
+        <div className="max-w-6xl mx-auto px-6 pb-16 md:pb-20">
+          <Reveal>
+            <div className="rounded-3xl border border-gray-200 bg-white p-8 md:p-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+              <h3 className="text-2xl font-semibold tracking-tight text-gray-900">
+                Start your next training block with a plan
+              </h3>
+              <button
+                onClick={handlePrimary}
+                className="bg-black text-white px-6 py-3 rounded-full text-sm font-medium hover:bg-gray-800 w-full md:w-auto"
+              >
+                Create Your Training Plan
+              </button>
             </div>
           </Reveal>
         </div>
