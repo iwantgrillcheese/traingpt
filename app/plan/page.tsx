@@ -312,9 +312,13 @@ function PlanPageContent() {
     const raceDate = searchParams?.get('raceDate');
     const experience = searchParams?.get('experience');
     const maxHours = searchParams?.get('maxHours');
-    const restDay = searchParams?.get('restDay');
+    const restDay = searchParams?.get('restDay') || searchParams?.get('advancedRestDay');
+    const bikeFTP = searchParams?.get('bikeFTP');
+    const runPace = searchParams?.get('runPace');
+    const swimPace = searchParams?.get('swimPace');
+    const userNoteParam = searchParams?.get('userNote');
 
-    if (!raceType && !raceDate && !experience && !maxHours && !restDay) return;
+    if (!raceType && !raceDate && !experience && !maxHours && !restDay && !bikeFTP && !runPace && !swimPace && !userNoteParam) return;
 
     setFormData((prev) => ({
       ...prev,
@@ -325,7 +329,14 @@ function PlanPageContent() {
       experience: experience?.trim() || prev.experience,
       maxHours: maxHours?.trim() || prev.maxHours,
       restDay: restDay?.trim() || prev.restDay,
+      bikeFTP: bikeFTP?.trim() || prev.bikeFTP,
+      runPace: runPace?.trim() || prev.runPace,
+      swimPace: swimPace?.trim() || prev.swimPace,
     }));
+
+    if (userNoteParam?.trim()) {
+      setUserNote(userNoteParam.trim());
+    }
   }, [searchParams]);
 
   const stravaConnectHref = useMemo(() => {
