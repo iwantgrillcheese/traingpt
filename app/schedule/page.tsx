@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase-client';
 import CalendarShell from './CalendarShell';
@@ -11,6 +11,7 @@ import Footer from '../components/footer';
 import RaceHubCard from '../components/race/RaceHubCard';
 import WeeklyIntentCard from '../components/race/WeeklyIntentCard';
 import { calculateReadiness } from '@/lib/readiness';
+import { track } from '@/lib/analytics/posthog-client';
 
 // Walkthrough
 import PostPlanWalkthrough from '../plan/components/PostPlanWalkthrough';
@@ -86,6 +87,7 @@ export default function SchedulePage() {
   const [raceHubSaving, setRaceHubSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const scheduleViewTrackedRef = useRef(false);
 
   // Walkthrough state
   const [walkthroughContext, setWalkthroughContext] = useState<WalkthroughContext | null>(null);
@@ -259,6 +261,16 @@ export default function SchedulePage() {
       sub?.subscription?.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (loading || !authedUserId || scheduleViewTrackedRef.current) return;
+
+    const width = typeof window !== 'undefined' ? window.innerWidth : 1280;
+    const view = width < 768 ? 'mobile' : width < 1100 ? 'month' : 'desktop';
+
+    track('schedule_viewed', { view });
+    scheduleViewTrackedRef.current = true;
+  }, [loading, authedUserId]);
 
   const handleCompletedUpdate = useCallback((updated: CompletedSession[]) => {
     setCompletedSessions(updated);

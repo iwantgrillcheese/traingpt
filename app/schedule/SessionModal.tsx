@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Dialog } from '@headlessui/react';
 import { format, parseISO } from 'date-fns';
 import clsx from 'clsx';
@@ -11,6 +11,7 @@ import {
   loadFuelingPreferences,
   saveFuelingPreferences,
 } from '@/lib/fueling-preferences';
+import { track } from '@/lib/analytics/posthog-client';
 
 type CompletedSession = {
   date: string;
@@ -254,6 +255,7 @@ export default function SessionModal({
   const [sweatRateLPerHour, setSweatRateLPerHour] = useState<string>('');
   const [notesDraft, setNotesDraft] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
+  const trackedSessionOpenRef = useRef<string | null>(null);
 
   const isCompleted = useMemo(
     () =>
@@ -285,6 +287,19 @@ export default function SessionModal({
       document.body.style.overflow = previousOverflow;
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !session?.id) return;
+    if (trackedSessionOpenRef.current === session.id) return;
+
+    track('session_opened', {
+      sport: session.sport || 'unknown',
+      date: session.date || null,
+      is_planned: Boolean((session as any)?.plan_id || session.structured_workout || session.title),
+    });
+
+    trackedSessionOpenRef.current = session.id;
+  }, [open, session?.id, session?.sport, session?.date, stravaActivity]);
 
   const notesChanged = notesDraft !== (session?.details ?? '');
 

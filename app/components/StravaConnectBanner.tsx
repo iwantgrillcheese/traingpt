@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { track } from '@/lib/analytics/posthog-client';
 
 type Props = {
   stravaConnected: boolean;
@@ -26,6 +27,7 @@ export default function StravaConnectBanner({ stravaConnected }: Props) {
         alert('Strava sync failed.');
       } else {
         console.log(`✅ Synced ${data.inserted} activities`);
+        track('strava_sync_completed', { activities_imported: Number(data?.inserted ?? 0) });
         setSuccess(true);
         setTimeout(() => setSuccess(false), 3000); // hide after 3s
       }
@@ -91,6 +93,7 @@ export default function StravaConnectBanner({ stravaConnected }: Props) {
         </div>
         <a
           href={connectUrl}
+          onClick={() => track('strava_connect_clicked')}
           className="rounded bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600"
         >
           Connect
