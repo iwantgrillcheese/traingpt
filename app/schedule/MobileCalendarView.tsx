@@ -581,15 +581,6 @@ export default function MobileCalendarView({
           );
         })}
 
-        <button
-          type="button"
-          onClick={() => setAddSessionDate(getDefaultAddDate())}
-          className="fixed bottom-[calc(env(safe-area-inset-bottom)+16px)] right-4 z-30 inline-flex h-12 items-center justify-center rounded-full border border-black/10 bg-zinc-950 px-5 text-[14px] font-semibold text-white shadow-[0_14px_30px_rgba(0,0,0,0.25)] active:translate-y-[0.5px] md:hidden"
-          aria-label="Add session"
-        >
-          + Add session
-        </button>
-
         <SessionModal
           session={selectedSession}
           stravaActivity={selectedSession?.stravaActivity}
