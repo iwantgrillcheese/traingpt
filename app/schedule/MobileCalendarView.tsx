@@ -8,7 +8,6 @@ import {
   startOfWeek,
   differenceInCalendarWeeks,
   isWithinInterval,
-  isBefore,
   endOfWeek,
 } from 'date-fns';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -91,99 +90,9 @@ function isKeySession(title: string) {
 
 const EMPTY_STRAVA: StravaActivity[] = [];
 
-/**
- * Premium monochrome sport icons (inline SVGs).
- * - All icons use currentColor.
- * - Subtle + consistent to avoid pastel identity noise.
- */
-function SportIcon({
-  sport,
-  className,
-}: {
-  sport: ReturnType<typeof inferSport>;
-  className?: string;
-}) {
-  switch (sport) {
-    case 'bike':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
-          <path
-            d="M5.5 18.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Zm13 0a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z"
-            stroke="currentColor"
-            strokeWidth="1.8"
-          />
-          <path
-            d="M8.3 15.2 10.8 8h3.2l2.4 7.2M10.2 8 8 8m8 0h-2"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      );
-    case 'run':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
-          <path
-            d="M14.3 6.2a1.8 1.8 0 1 0-3.6 0 1.8 1.8 0 0 0 3.6 0Z"
-            stroke="currentColor"
-            strokeWidth="1.8"
-          />
-          <path
-            d="M11.3 21.2l2.2-4.3m-1.1-5.8 2.2 2.2 3.4.7M8.6 20.7l1.9-4.1-1.6-3.1 2.2-4.1 3.1 1.2"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      );
-    case 'swim':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
-          <path
-            d="M8 9.2c1.7-1.6 3.6-2.2 5.8-1.8l2.2.4"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-          />
-          <path
-            d="M3.5 16.6c1.7 0 1.7-1.2 3.4-1.2s1.7 1.2 3.4 1.2 1.7-1.2 3.4-1.2 1.7 1.2 3.4 1.2 1.7-1.2 3.4-1.2"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-          />
-          <path
-            d="M13.9 6.2a1.4 1.4 0 1 0-2.8 0 1.4 1.4 0 0 0 2.8 0Z"
-            stroke="currentColor"
-            strokeWidth="1.8"
-          />
-        </svg>
-      );
-    case 'strength':
-      return (
-        <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
-          <path
-            d="M7 10v4m10-4v4M9 9h6M9 15h6"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-          />
-          <path
-            d="M5.5 9.8V14.2M18.5 9.8V14.2"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-          />
-        </svg>
-      );
-    default:
-      return (
-        <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
-          <path d="M12 12h.01" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-        </svg>
-      );
-  }
+function SportIcon({ sport }: { sport: ReturnType<typeof inferSport>; className?: string }) {
+  const label = sport === 'bike' ? 'B' : sport === 'run' ? 'R' : sport === 'swim' ? 'S' : sport === 'strength' ? 'ST' : '•';
+  return <span className="text-[12px] font-bold tracking-[0.02em]">{label}</span>;
 }
 
 function ChevronIcon(props: React.SVGProps<SVGSVGElement>) {
@@ -331,10 +240,10 @@ export default function MobileCalendarView({
   }, [sortedSessions, extraStravaMap]);
 
   useEffect(() => {
-    const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
     const initial: Record<string, boolean> = {};
-    Object.entries(groupedByWeek).forEach(([label, { start }]) => {
-      if (isBefore(start, currentWeekStart)) initial[label] = true;
+    Object.entries(groupedByWeek).forEach(([label, { start, end }]) => {
+      const isCurrentWeek = isWithinInterval(today, { start, end });
+      initial[label] = !isCurrentWeek;
     });
     setCollapsedWeeks((prev) => ({ ...initial, ...prev }));
   }, [groupedByWeek, today]);
@@ -372,8 +281,6 @@ export default function MobileCalendarView({
 
       <div className="px-4 pb-28 pt-4 space-y-5">
         {Object.entries(groupedByWeek).map(([weekLabel, { sessions, extras, start, end }]) => {
-          const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
-          const isPast = isBefore(start, currentWeekStart);
           const isCollapsed = collapsedWeeks[weekLabel];
           const rangeLabel = `${format(start, 'MMM d')} – ${format(end, 'MMM d')}`;
           const completedCount = sessions.filter((session) =>
@@ -400,15 +307,13 @@ export default function MobileCalendarView({
                     <div className="text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: '#B0ADA5' }}>{rangeLabel}</div>
                     <h2 className="mt-1 text-[22px] font-bold tracking-[-0.015em]" style={{ color: '#18170F' }}>{weekLabel}</h2>
                   </div>
-                  {isPast && (
-                    <button
-                      onClick={() => setCollapsedWeeks((prev) => ({ ...prev, [weekLabel]: !prev[weekLabel] }))}
-                      className="rounded-full border px-3 py-1.5 text-[12px] font-medium"
-                      style={{ borderColor: '#F0EEE9', color: '#8A8880' }}
-                    >
-                      {isCollapsed ? 'Expand' : 'Collapse'}
-                    </button>
-                  )}
+                  <button
+                    onClick={() => setCollapsedWeeks((prev) => ({ ...prev, [weekLabel]: !prev[weekLabel] }))}
+                    className="rounded-full border px-3 py-1.5 text-[12px] font-medium"
+                    style={{ borderColor: '#F0EEE9', color: '#8A8880' }}
+                  >
+                    {isCollapsed ? 'Expand' : 'Collapse'}
+                  </button>
                 </div>
 
                 <div className="grid grid-cols-3 px-[18px] pb-4">
@@ -586,6 +491,16 @@ export default function MobileCalendarView({
           onClick={() => setAddSessionDate(getDefaultAddDate())}
           className="fixed bottom-[calc(env(safe-area-inset-bottom)+14px)] right-4 z-30 inline-flex h-12 items-center justify-center rounded-full px-5 text-[14px] font-semibold text-white shadow-[0_14px_30px_rgba(0,0,0,0.25)] active:translate-y-[0.5px] md:hidden"
           style={{ background: '#18170F' }}
+          aria-label="Add session"
+        >
+          + Add session
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setAddSessionDate(getDefaultAddDate())}
+          className="fixed right-4 z-40 inline-flex h-12 items-center justify-center rounded-full px-5 text-[14px] font-semibold text-white shadow-[0_14px_30px_rgba(0,0,0,0.25)] active:translate-y-[0.5px] md:hidden"
+          style={{ background: '#18170F', bottom: 'max(calc(env(safe-area-inset-bottom) + 16px), 88px)' }}
           aria-label="Add session"
         >
           + Add session
