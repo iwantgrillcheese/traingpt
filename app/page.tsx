@@ -772,334 +772,184 @@ export default function Home() {
         onSchedule={() => router.push('/schedule')}
       />
 
-      {/* ---------------- HERO BAND (dark, premium, TP-esque) ---------------- */}
-      <section id="home" className="relative overflow-hidden bg-[#070A12] pt-16 scroll-mt-24">
-        {/* Background: subtle “enterprise” glow */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute -top-44 left-1/2 -translate-x-1/2 h-[740px] w-[1180px] rounded-full bg-white/10 blur-3xl opacity-60 animate-pulse" />
-          <div className="absolute top-28 right-[-200px] h-[460px] w-[460px] rounded-full bg-white/10 blur-3xl opacity-55" />
-          <div className="absolute top-72 left-[-220px] h-[460px] w-[460px] rounded-full bg-white/10 blur-3xl opacity-45" />
-
-          {/* subtle “shine” overlay */}
-          <div className="absolute inset-0 bg-gradient-to-b from-white/5 via-transparent to-transparent opacity-70" />
-        </div>
-
-        <div className="relative max-w-6xl mx-auto px-6 pt-10 pb-16">
+      {/* 1) HERO */}
+      <section id="home" className="bg-white pt-16 md:pt-20 scroll-mt-24">
+        <div className="max-w-6xl mx-auto px-6 py-12 md:py-16">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
             <div className="lg:col-span-6">
               <Reveal>
-                <div className="flex flex-wrap gap-2">
-                  <Pill>Instant plan generation</Pill>
-                  <Pill>Adaptive training guidance</Pill>
-                  <Pill>Mobile-first calendar</Pill>
-                </div>
-              </Reveal>
-
-              <Reveal delayMs={80}>
-                <h1 className="mt-6 text-4xl md:text-5xl font-semibold tracking-tight leading-[1.05] text-white">
-                  Training plans built for real endurance blocks.
+                <h1 className="text-4xl md:text-5xl font-semibold tracking-tight leading-[1.05] text-gray-900">
+                  A smarter training plan for your next triathlon
                 </h1>
-              </Reveal>
-
-              <Reveal delayMs={140}>
-                <p className="mt-4 text-lg text-white/70 leading-relaxed">
-                  Generate a complete endurance plan in minutes, then use your calendar and coaching
-                  tools to stay consistent and keep training moving.
+                <p className="mt-4 text-lg text-gray-600 leading-relaxed max-w-2xl">
+                  TrainGPT builds a personalized swim, bike, and run training plan based on your race, your schedule, and your experience level. Your workouts stay organized in a simple training calendar and automatically sync with your Strava activities.
                 </p>
               </Reveal>
 
-              <Reveal delayMs={200}>
-                <div className="mt-6 flex flex-col sm:flex-row gap-3">
-                  <button
-                    onClick={handlePrimary}
-                    className="bg-white text-gray-900 px-6 py-3 rounded-full text-sm font-medium hover:bg-white/90"
-                  >
-                    {ctas.primary.label}
-                  </button>
-
-                  <button
-                    onClick={handleSecondary}
-                    className="bg-transparent text-white px-6 py-3 rounded-full text-sm font-medium border border-white/20 hover:bg-white/5"
-                  >
-                    {ctas.secondary.label}
-                  </button>
-                </div>
-              </Reveal>
-
-              <Reveal delayMs={260}>
-                <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-white/60">
-                  <span className="inline-flex items-center gap-2">
-                    <span className="h-1 w-1 rounded-full bg-white/40" />
-                    Plan → calendar → completion
-                  </span>
-                  <span className="inline-flex items-center gap-2">
-                    <span className="h-1 w-1 rounded-full bg-white/40" />
-                    Plan updates based on your progress
-                  </span>
-                  <span className="inline-flex items-center gap-2">
-                    <span className="h-1 w-1 rounded-full bg-white/40" />
-                    Detailed workouts when you want them
-                  </span>
-                </div>
-              </Reveal>
-            </div>
-
-            <div className="lg:col-span-6">
-              <Reveal delayMs={180}>
-                <ProductPreviewPanel />
-              </Reveal>
-            </div>
-          </div>
-
-          <div className="mt-12">
-            <ShineDivider dark />
-          </div>
-        </div>
-      </section>
-
-      {/* ---------------- PLAN BUILDER BAND (white) ---------------- */}
-      <section className="bg-white">
-        <div className="max-w-6xl mx-auto px-6 py-16">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
-            <div className="lg:col-span-5">
-              <Reveal>
-                <BandTitle
-                  eyebrow="Start here"
-                  title="Instant plan generation—built around your race."
-                  desc="Pick a race, a date, and your available hours. Get a week-by-week plan you can actually execute."
-                />
-              </Reveal>
-
-              <Reveal delayMs={120}>
-                <div className="mt-6">
-                  <LogoPills />
-                  <p className="mt-3 text-sm text-gray-500">
-                    Strava integration helps you compare planned vs completed over time.
-                  </p>
-                </div>
-              </Reveal>
-            </div>
-
-            <div className="lg:col-span-7">
               <Reveal delayMs={100}>
-                <GeneratorCard
-                  onPrimary={handlePrimary}
-                  primaryLabel={ctas.primary.label}
-                  onSecondary={handleSecondary}
-                  secondaryLabel={ctas.secondary.label}
-                  onTertiary={ctas.tertiary?.kind === 'scroll' ? scrollHowItWorks : undefined}
-                  tertiaryLabel={ctas.tertiary?.label}
-                />
-              </Reveal>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ---------------- ECOSYSTEM BAND (dark) ---------------- */}
-      <section id="features" className="bg-[#070A12] scroll-mt-24">
-        <div className="max-w-6xl mx-auto px-6 py-16">
-          <Reveal>
-            <BandTitle
-              dark
-              eyebrow="The system"
-              title="A complete training workflow—not just a plan file."
-              desc="Plans are only useful if you can execute them. TrainGPT is built around calendar-first execution and real training data."
-            />
-          </Reveal>
-
-          <Reveal delayMs={120}>
-            <div className="mt-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <DarkCard
-                title="Plan"
-                desc="Generate a week-by-week structure aligned to your race date and time budget."
-              />
-              <DarkCard
-                title="Calendar"
-                desc="See sessions at a glance, stay oriented, and keep the next workout obvious."
-              />
-              <DarkCard
-                title="Track"
-                desc="Sync Strava workouts and compare planned vs completed automatically."
-              />
-              <DarkCard
-                title="Detail"
-                desc="Generate structured warmup/main/cooldown when you want more specificity."
-              />
-            </div>
-          </Reveal>
-
-          <div className="mt-14">
-            <ShineDivider dark />
-          </div>
-        </div>
-      </section>
-
-      {/* ---------------- STRAVA BAND (white) ---------------- */}
-      <section id="strava" className="bg-white scroll-mt-24">
-        <div className="max-w-6xl mx-auto px-6 py-16">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
-            <div className="lg:col-span-5">
-              <Reveal>
-                <BandTitle
-                  eyebrow="Strava sync"
-                  title="Your real training is the source of truth."
-                  desc="When connected, completed workouts flow into TrainGPT so you can track consistency and compare planned vs completed."
-                />
-              </Reveal>
-
-              <Reveal delayMs={140}>
-                <div className="mt-6">
+                <div className="mt-7 flex flex-col sm:flex-row gap-3">
                   <button
                     onClick={handlePrimary}
                     className="bg-black text-white px-6 py-3 rounded-full text-sm font-medium hover:bg-gray-800"
                   >
-                    {ctas.primary.label}
+                    Create Your Training Plan
+                  </button>
+                  <button
+                    onClick={scrollHowItWorks}
+                    className="bg-white text-gray-900 px-6 py-3 rounded-full text-sm font-medium border border-gray-200 hover:bg-gray-50"
+                  >
+                    See How It Works
                   </button>
                 </div>
               </Reveal>
             </div>
 
-            <div className="lg:col-span-7">
+            <div className="lg:col-span-6">
               <Reveal delayMs={120}>
-                <div className="rounded-3xl border border-gray-200 bg-gray-50 p-8 md:p-10 transition-transform duration-200 hover:-translate-y-0.5">
-                  <div className="text-sm font-semibold text-gray-900">How it flows</div>
-                  <p className="mt-2 text-sm text-gray-600 leading-relaxed">
-                    Strava activities → matched to your calendar → marked complete → reflected in weekly totals.
-                  </p>
-
-                  <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div className="rounded-2xl border border-gray-200 bg-white p-4">
-                      <div className="text-xs text-gray-500">1</div>
-                      <div className="mt-1 text-sm font-semibold text-gray-900">Connect Strava</div>
-                      <div className="mt-1 text-sm text-gray-600">Import recent workouts automatically.</div>
-                    </div>
-                    <div className="rounded-2xl border border-gray-200 bg-white p-4">
-                      <div className="text-xs text-gray-500">2</div>
-                      <div className="mt-1 text-sm font-semibold text-gray-900">Match + track</div>
-                      <div className="mt-1 text-sm text-gray-600">
-                        Compare planned sessions vs completed training.
+                <div className="rounded-3xl border border-gray-200 bg-gray-50 p-6 md:p-8">
+                  <div className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Training calendar mockup</div>
+                  <div className="mt-4 grid grid-cols-7 gap-2">
+                    {Array.from({ length: 14 }).map((_, i) => (
+                      <div key={i} className="h-10 rounded-xl border border-gray-200 bg-white relative overflow-hidden">
+                        <div
+                          className={`absolute bottom-2 left-2 h-1.5 rounded-full ${i % 3 === 0 ? 'w-6 bg-blue-300' : i % 3 === 1 ? 'w-7 bg-emerald-300' : 'w-5 bg-orange-300'}`}
+                        />
                       </div>
-                    </div>
-                    <div className="rounded-2xl border border-gray-200 bg-white p-4">
-                      <div className="text-xs text-gray-500">3</div>
-                      <div className="mt-1 text-sm font-semibold text-gray-900">Learn + adjust</div>
-                      <div className="mt-1 text-sm text-gray-600">
-                        Stay consistent and refine over time.
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 flex flex-wrap gap-2">
-                    <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-gray-700">
-                      Planned vs Completed
-                    </span>
-                    <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-gray-700">
-                      Weekly volume
-                    </span>
-                    <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-gray-700">
-                      Consistency signals
-                    </span>
+                    ))}
                   </div>
                 </div>
               </Reveal>
             </div>
           </div>
-
-          <div className="mt-16">
-            <ShineDivider />
-          </div>
         </div>
       </section>
 
-      {/* ---------------- HOW IT WORKS (white, tightened) ---------------- */}
+      <section className="bg-gray-50 h-px" />
+
+      {/* 2) INSTANT PLAN GENERATION */}
       <section id="how-it-works" className="bg-white scroll-mt-24">
-        <div className="max-w-6xl mx-auto px-6 py-16">
+        <div className="max-w-6xl mx-auto px-6 py-14 md:py-16">
           <Reveal>
             <BandTitle
-              eyebrow="How it works"
-              title="A plan you can follow—and adapt."
-              desc="Start with clear weekly structure. Generate detailed workouts only when you want more precision."
+              eyebrow="Instant plan generation"
+              title="Build a full training plan in seconds"
+              desc="Tell TrainGPT your race date, experience level, and weekly training time. The system generates a structured swim, bike, and run plan designed around your goal race. Each week includes balanced training volume, long sessions, recovery weeks, and brick workouts. This gives athletes a clear structure to follow without needing to piece together training plans manually."
             />
           </Reveal>
 
           <Reveal delayMs={120}>
-            <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FeatureCard
-                title="Week-by-week structure"
-                desc="A realistic weekly plan built around your race date, experience, and available time."
-              />
-              <FeatureCard
-                title="Instant plan generation"
-                desc="Generate your full plan quickly—then re-generate whenever life changes or goals shift."
-              />
-              <FeatureCard
-                title="Calendar-first UX"
-                desc="See sessions at a glance, check them off, and keep the next workout obvious."
-              />
-              <FeatureCard
-                title="Detailed workouts on demand"
-                desc="Tap any session to generate warmup, main set, and cooldown—short, structured, and specific."
-              />
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-3">
+              {['Race', 'Plan', 'Calendar'].map((step, idx) => (
+                <div key={step} className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
+                  <div className="text-xs text-gray-500">{idx + 1}</div>
+                  <div className="mt-1 text-base font-semibold text-gray-900">{step}</div>
+                </div>
+              ))}
             </div>
           </Reveal>
+        </div>
+      </section>
 
-          <Reveal delayMs={180}>
-            <div className="mt-14 rounded-3xl border border-gray-200 bg-gray-50 p-8 md:p-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 transition-transform duration-200 hover:-translate-y-0.5">
-              <div>
-                <h3 className="text-2xl font-semibold tracking-tight text-gray-900">
-                  Get structure instantly. Add detail only when you want it.
-                </h3>
-                <p className="mt-2 text-gray-600">
-                  Start with a clear weekly framework, then generate a detailed workout for any session.
-                </p>
+      <section className="bg-gray-50 h-px" />
+
+      {/* 3) TRAINING CALENDAR */}
+      <section id="features" className="bg-white scroll-mt-24">
+        <div className="max-w-6xl mx-auto px-6 py-14 md:py-16">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+            <div className="lg:col-span-6">
+              <Reveal>
+                <BandTitle
+                  eyebrow="Training calendar"
+                  title="Know exactly what to train each day"
+                  desc="Your entire training block lives in a clean, simple calendar. Each day shows the session for that workout, including duration and intensity. This removes the guesswork and makes it easier to stay consistent throughout the season."
+                />
+              </Reveal>
+            </div>
+            <div className="lg:col-span-6">
+              <Reveal delayMs={120}>
+                <div className="rounded-3xl border border-gray-200 bg-gray-50 p-6">
+                  <div className="grid grid-cols-2 gap-3">
+                    {['Swim · 45 min', 'Bike · 75 min', 'Run · 50 min', 'Brick · 60 min'].map((x, i) => (
+                      <div key={x} className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700">
+                        <span className={`mr-2 inline-block h-2 w-2 rounded-full ${i % 3 === 0 ? 'bg-blue-300' : i % 3 === 1 ? 'bg-emerald-300' : 'bg-orange-300'}`} />
+                        {x}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Reveal>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-gray-50 h-px" />
+
+      {/* 4) STRAVA */}
+      <section id="strava" className="bg-white scroll-mt-24">
+        <div className="max-w-6xl mx-auto px-6 py-14 md:py-16">
+          <Reveal>
+            <BandTitle
+              eyebrow="Strava integration"
+              title="Your real workouts sync automatically"
+              desc="TrainGPT connects with Strava so completed workouts appear alongside your planned sessions. You can see how your training compares to the plan and track weekly volume across swim, bike, and run. This keeps your training organized without requiring manual logging."
+            />
+          </Reveal>
+
+          <Reveal delayMs={120}>
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
+                <div className="text-sm font-semibold text-gray-900">Planned</div>
+                <div className="mt-3 space-y-2 text-sm text-gray-600">
+                  <div>Swim · 2 sessions</div>
+                  <div>Bike · 3 sessions</div>
+                  <div>Run · 3 sessions</div>
+                </div>
               </div>
-
-              <div className="w-full md:w-auto">
-                <button
-                  onClick={handlePrimary}
-                  className="bg-black text-white px-6 py-3 rounded-full text-sm font-medium hover:bg-gray-800 w-full md:w-auto"
-                >
-                  {ctas.primary.label}
-                </button>
+              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
+                <div className="text-sm font-semibold text-gray-900">Completed</div>
+                <div className="mt-3 space-y-2 text-sm text-gray-600">
+                  <div>Swim · 2 sessions</div>
+                  <div>Bike · 2 sessions</div>
+                  <div>Run · 3 sessions</div>
+                </div>
               </div>
             </div>
           </Reveal>
         </div>
       </section>
 
-      {/* ---------------- TRAINING SUPPORT ---------------- */}
+      <section className="bg-gray-50 h-px" />
+
+      {/* 5) SECONDARY TOOLS */}
       <section className="bg-white">
         <div className="max-w-6xl mx-auto px-6 py-14 md:py-16">
           <Reveal>
             <BandTitle
-              eyebrow="Training support"
+              eyebrow="Secondary tools"
               title="Training support beyond the plan"
-              desc="TrainGPT also includes tools designed to support the rest of your training process. Athletes can explore fueling guidance, review training patterns, and adjust workouts when schedules change. The goal is to make the entire training process easier to manage from one place."
+              desc="TrainGPT also includes tools designed to support the rest of your training process. Athletes can explore fueling guidance, review training patterns, and adjust workouts when schedules change."
             />
           </Reveal>
-        </div>
-      </section>
 
-      {/* ---------------- AI COACH (secondary) ---------------- */}
-      <section className="bg-white">
-        <div className="max-w-6xl mx-auto px-6 pb-14 md:pb-16">
-          <Reveal>
-            <div className="rounded-3xl border border-gray-200 bg-gray-50 p-8 md:p-10">
-              <h3 className="text-2xl font-semibold tracking-tight text-gray-900">
+          <Reveal delayMs={120}>
+            <div className="mt-8 rounded-3xl border border-gray-200 bg-gray-50 p-8 md:p-10">
+              <h3 className="text-xl md:text-2xl font-semibold tracking-tight text-gray-900">
                 Ask questions about your training
               </h3>
               <p className="mt-3 text-gray-600 leading-relaxed max-w-3xl">
-                If questions come up during your training block, the built-in coach can help explain workouts or provide guidance. Because it understands your plan, the responses stay relevant to your training.
+                If questions come up during your training block, the built-in coach can help explain workouts or provide guidance based on your plan.
               </p>
             </div>
           </Reveal>
         </div>
       </section>
 
-      {/* ---------------- FINAL CTA ---------------- */}
+      <section className="bg-gray-50 h-px" />
+
+      {/* 6) FINAL CTA */}
       <section className="bg-white">
-        <div className="max-w-6xl mx-auto px-6 pb-16 md:pb-20">
+        <div className="max-w-6xl mx-auto px-6 py-14 md:py-16">
           <Reveal>
             <div className="rounded-3xl border border-gray-200 bg-white p-8 md:p-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
               <h3 className="text-2xl font-semibold tracking-tight text-gray-900">
