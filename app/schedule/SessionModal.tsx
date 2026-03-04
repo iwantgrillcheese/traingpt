@@ -150,14 +150,6 @@ function XIcon(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
-function getSportColor(sportRaw?: string | null) {
-  const sport = String(sportRaw ?? '').trim().toLowerCase();
-  if (sport === 'bike') return '#0D9488';
-  if (sport === 'swim') return '#2563EB';
-  if (sport === 'run') return '#EA580C';
-  return '#6B7280';
-}
-
 function getSportTheme(sportRaw?: string | null) {
   const sport = String(sportRaw ?? '')
     .trim()
@@ -207,6 +199,14 @@ function formatSportLabel(sportRaw?: string | null) {
   const sport = String(sportRaw ?? '').trim().toLowerCase();
   if (!sport) return '—';
   return sport.charAt(0).toUpperCase() + sport.slice(1);
+}
+
+function cleanSessionTitle(title?: string | null) {
+  return String(title ?? '')
+    .replace(/\s+[—–-]\s+/g, ' ')
+    .replace(/[—–]/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 function extractPlannedMetrics(session: Session | null): { plannedDuration: string | null; plannedDistance: string | null } {
@@ -498,12 +498,11 @@ export default function SessionModal({
 
   const formattedDate = format(parseISO(session.date), 'EEE, MMM d');
   const sportTheme = getSportTheme(session.sport);
-  const sportColor = getSportColor(session.sport);
   const { plannedDuration, plannedDistance } = extractPlannedMetrics(session);
   const sportLabel = formatSportLabel(session.sport);
 
   const panelClass = isMobile
-    ? 'w-full max-w-[390px] rounded-t-[20px] border border-black/10 bg-white shadow-[0_-4px_32px_rgba(0,0,0,0.1)] h-[85vh] max-h-[85vh] overflow-hidden'
+    ? 'w-full max-w-none rounded-t-3xl border border-black/10 bg-white shadow-[0_30px_80px_rgba(0,0,0,0.4)] h-[85vh] max-h-[85vh] overflow-hidden'
     : 'w-full max-w-3xl rounded-3xl border border-black/10 bg-white shadow-[0_35px_100px_rgba(0,0,0,0.38)] h-[85vh] max-h-[85vh] overflow-hidden';
 
   return (
@@ -520,39 +519,38 @@ export default function SessionModal({
           className={panelClass}
           style={isMobile ? { paddingBottom: 'env(safe-area-inset-bottom)' } : undefined}
         >
-          {isMobile ? <div style={{ height: 3, background: sportColor }} /> : null}
           {isMobile && (
             <div className="pt-3 pb-2 flex justify-center">
-              <div className="h-1 w-8 rounded-full" style={{ background: '#E8E6E1' }} />
+              <div className="h-1 w-10 rounded-full bg-black/10" />
             </div>
           )}
 
           <div className={clsx(isMobile ? 'px-5 pb-5' : 'p-7', 'h-full min-h-0 flex flex-col')}>
-            <div className={clsx('h-full min-h-0 rounded-2xl border bg-white', sportTheme.softBorder, 'flex flex-col')}>
+            <div className={clsx('h-full min-h-0 rounded-2xl border bg-gradient-to-b from-white/70 via-white/40 to-white/20', sportTheme.softBorder, 'flex flex-col')}>
             {/* Header */}
             <div
               className={clsx(
-                'sticky top-0 z-20 border-b px-4 py-4 sm:px-5 sm:py-5',
-                isMobile ? 'bg-white text-zinc-900' : 'bg-gradient-to-r text-white',
-                !isMobile ? sportTheme.gradient : '',
+                'sticky top-0 z-20 border-b px-4 py-4 sm:px-5 sm:py-5 text-white',
+                'bg-gradient-to-r',
+                sportTheme.gradient,
                 sportTheme.softBorder
               )}
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <Dialog.Title className={clsx('text-[22px] font-semibold tracking-tight', isMobile ? 'text-[#18170F]' : 'text-white')}>
-                    {session.title}
+                  <Dialog.Title className="text-[22px] font-semibold tracking-tight text-white">
+                    {cleanSessionTitle(session.title)}
                   </Dialog.Title>
 
-                  <div className={clsx('mt-2 flex flex-wrap items-center gap-2 text-[12px]', isMobile ? 'text-[#8A8880]' : 'text-white/90')}>
-                    <span className={clsx('rounded-full px-2.5 py-1 font-semibold', isMobile ? 'border border-[#F0EEE9] bg-[#F9F8F5]' : 'border border-white/30 bg-white/10')}>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-white/90">
+                    <span className="rounded-full border border-white/30 bg-white/10 px-2.5 py-1 font-semibold">
                       {formattedDate}
                     </span>
-                    <span className={clsx('rounded-full px-2.5 py-1 font-semibold capitalize', isMobile ? 'border border-[#F0EEE9] bg-[#F9F8F5]' : 'border border-white/30 bg-white/10')}>
+                    <span className="rounded-full border border-white/30 bg-white/10 px-2.5 py-1 font-semibold capitalize">
                       {formatSportLabel(session.sport)}
                     </span>
                     {isCompleted && (
-                      <span className={clsx('rounded-full px-2.5 py-1 font-semibold', isMobile ? 'border border-[#F0EEE9] bg-[#F9F8F5]' : 'border border-white/35 bg-white/15')}>
+                      <span className="rounded-full border border-white/35 bg-white/15 px-2.5 py-1 font-semibold">
                         ✓ Completed
                       </span>
                     )}
@@ -561,12 +559,7 @@ export default function SessionModal({
 
                 <button
                   onClick={onClose}
-                  className={clsx(
-                    'shrink-0 rounded-lg border p-2',
-                    isMobile
-                      ? 'border-[#F0EEE9] bg-[#F4F2ED] text-[#8A8880] hover:bg-[#ECE9E2]'
-                      : 'border-white/25 bg-white/10 text-white/90 hover:bg-white/20'
-                  )}
+                  className="shrink-0 rounded-full border border-white/25 bg-white/10 p-2 text-white/90 hover:bg-white/20"
                   aria-label="Close"
                 >
                   <XIcon className="h-5 w-5" />
@@ -813,7 +806,7 @@ export default function SessionModal({
                       : 'border-black/10 bg-white text-zinc-900'
                   )}
                 >
-                  {markingComplete ? 'Saving…' : isCompleted ? 'Undo completion' : 'Mark complete'}
+                  {markingComplete ? 'Saving…' : isCompleted ? 'Undo completion' : 'Mark as done'}
                 </button>
 
                 {isUserCreatedSession ? (

@@ -69,6 +69,15 @@ function deriveDetail(title: string) {
   return '';
 }
 
+
+function cleanSessionTitle(title: string) {
+  return (title || '')
+    .replace(/\s+[—–-]\s+/g, ' ')
+    .replace(/[—–]/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 function isKeySession(title: string) {
   const t = (title || '').toLowerCase();
   return (
@@ -355,20 +364,9 @@ export default function MobileCalendarView({
     <div className="min-h-[100dvh] text-zinc-950" style={{ background: '#F4F2ED' }}>
       <div className="sticky top-0 z-20 border-b" style={{ background: '#F4F2ED', borderColor: '#F0EEE9' }}>
         <div className="pt-[env(safe-area-inset-top)]" />
-        <div className="px-5 py-3 flex items-end justify-between">
-          <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: '#B0ADA5' }}>Schedule</div>
-            <div className="text-[26px] font-bold tracking-[-0.02em]" style={{ color: '#18170F' }}>Weekly Flow</div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setAddSessionDate(getDefaultAddDate())}
-            className="rounded-[10px] px-4 py-2 text-[13px] font-semibold text-white"
-            style={{ background: '#18170F' }}
-          >
-            + Add
-          </button>
+        <div className="px-5 py-3">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: '#B0ADA5' }}>Schedule</div>
+          <div className="text-[26px] font-bold tracking-[-0.02em]" style={{ color: '#18170F' }}>Weekly Flow</div>
         </div>
       </div>
 
@@ -449,16 +447,17 @@ export default function MobileCalendarView({
                 <div className="mt-3 space-y-2.5">
                   <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                     {sessions.map((session, idx) => {
-                      const title = session.title || session.stravaActivity?.name || 'Unnamed Session';
+                      const rawTitle = session.title || session.stravaActivity?.name || 'Unnamed Session';
+                      const title = cleanSessionTitle(rawTitle);
                       const date = safeParseDate(session.date);
 
                       const completed = completedSessions.some(
                         (c) => c.date === session.date && c.session_title === session.title
                       );
 
-                      const sport = inferSport(title);
-                      const detail = deriveDetail(title);
-                      const key = isKeySession(title);
+                      const sport = inferSport(rawTitle);
+                      const detail = deriveDetail(rawTitle);
+                      const key = isKeySession(rawTitle);
                       const type = TYPE_STYLES[sport] || TYPE_STYLES.other;
                       const duration = sessionDurationLabel(session);
                       const meta = `${format(date, 'EEE, MMM d')} · ${session.details || detail || sportLabelFromType(sport)}`;
@@ -580,6 +579,17 @@ export default function MobileCalendarView({
             </div>
           );
         })}
+
+
+        <button
+          type="button"
+          onClick={() => setAddSessionDate(getDefaultAddDate())}
+          className="fixed bottom-[calc(env(safe-area-inset-bottom)+14px)] right-4 z-30 inline-flex h-12 items-center justify-center rounded-full px-5 text-[14px] font-semibold text-white shadow-[0_14px_30px_rgba(0,0,0,0.25)] active:translate-y-[0.5px] md:hidden"
+          style={{ background: '#18170F' }}
+          aria-label="Add session"
+        >
+          + Add session
+        </button>
 
         <SessionModal
           session={selectedSession}
