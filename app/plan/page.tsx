@@ -6,7 +6,6 @@ import Footer from '../components/footer';
 import { supabase } from '@/lib/supabase-client';
 import PostPlanWalkthrough from './components/PostPlanWalkthrough';
 import type { WalkthroughContext } from '@/types/coachGuides';
-import { track } from '@/lib/analytics/posthog-client';
 
 export const dynamic = 'force-dynamic';
 
@@ -284,7 +283,6 @@ function PlanPageContent() {
 
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number | null>(null);
-  const stravaSourceTrackedRef = useRef(false);
 
   // Walkthrough state (still supported for manual open, but we redirect on success)
   const [walkthroughContext, setWalkthroughContext] = useState<WalkthroughContext | null>(null);
@@ -314,9 +312,13 @@ function PlanPageContent() {
     const raceDate = searchParams?.get('raceDate');
     const experience = searchParams?.get('experience');
     const maxHours = searchParams?.get('maxHours');
-    const restDay = searchParams?.get('restDay');
+    const restDay = searchParams?.get('restDay') || searchParams?.get('advancedRestDay');
+    const bikeFTP = searchParams?.get('bikeFTP');
+    const runPace = searchParams?.get('runPace');
+    const swimPace = searchParams?.get('swimPace');
+    const userNoteParam = searchParams?.get('userNote');
 
-    if (!raceType && !raceDate && !experience && !maxHours && !restDay) return;
+    if (!raceType && !raceDate && !experience && !maxHours && !restDay && !bikeFTP && !runPace && !swimPace && !userNoteParam) return;
 
     setFormData((prev) => ({
       ...prev,
@@ -327,14 +329,14 @@ function PlanPageContent() {
       experience: experience?.trim() || prev.experience,
       maxHours: maxHours?.trim() || prev.maxHours,
       restDay: restDay?.trim() || prev.restDay,
+      bikeFTP: bikeFTP?.trim() || prev.bikeFTP,
+      runPace: runPace?.trim() || prev.runPace,
+      swimPace: swimPace?.trim() || prev.swimPace,
     }));
-  }, [searchParams]);
 
-  useEffect(() => {
-    const source = searchParams?.get('source');
-    if (source !== 'strava' || stravaSourceTrackedRef.current) return;
-    stravaSourceTrackedRef.current = true;
-    track('strava_oauth_success');
+    if (userNoteParam?.trim()) {
+      setUserNote(userNoteParam.trim());
+    }
   }, [searchParams]);
 
   const stravaConnectHref = useMemo(() => {
@@ -488,15 +490,6 @@ function PlanPageContent() {
   const handleFinalize = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    const generationStartedAt = Date.now();
-    track('plan_generation_started', {
-      race_type: formData.raceType || null,
-      race_date: formData.raceDate || null,
-      experience: formData.experience || null,
-      max_hours: formData.maxHours || null,
-      rest_day: formData.restDay || null,
-    });
-
     setLoading(true);
     setError('');
     setNotice('');
@@ -621,15 +614,6 @@ function PlanPageContent() {
               setLoading(false);
               setPlanReady(true);
 
-              track('plan_generation_completed', {
-                race_type: formData.raceType || null,
-                race_date: formData.raceDate || null,
-                experience: formData.experience || null,
-                max_hours: formData.maxHours || null,
-                rest_day: formData.restDay || null,
-                generation_time_ms: Date.now() - generationStartedAt,
-              });
-
               // Fetch plan context (optional planId passthrough)
               let ctx = await fetchLatestPlanContext();
               if (!ctx) {
@@ -706,11 +690,6 @@ function PlanPageContent() {
       await pollUntilReady(expectedPlanId);
     } catch (err: any) {
       console.error('❌ Finalize plan error:', err);
-
-      track('plan_generation_failed', {
-        error_type: err?.message ? String(err.message).slice(0, 120) : 'unknown_error',
-        generation_time_ms: Date.now() - generationStartedAt,
-      });
 
       const rawMsg = err?.message || 'Something went wrong while generating your plan. Please try again.';
       const isHtmlBlob = /<!doctype html>|<html|cloudflare|error code 524|a timeout occurred/i.test(rawMsg);
@@ -789,13 +768,6 @@ function PlanPageContent() {
       }
 
       setStravaConnected(!!profileRes.data?.strava_access_token);
-
-      const source = searchParams?.get('source');
-      if (source === 'strava' && stravaSourceTrackedRef.current) {
-        track('strava_sync_completed', {
-          activities_imported: stravaRes.data?.length ?? 0,
-        });
-      }
 
       if (stravaRes.data?.length) {
         const rows = stravaRes.data;
@@ -1152,7 +1124,6 @@ function PlanPageContent() {
                       ) : (
                         <a
                           href={stravaConnectHref}
-                          onClick={() => track('strava_connect_clicked')}
                           className="inline-flex items-center justify-center rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-100"
                         >
                           Connect Strava
