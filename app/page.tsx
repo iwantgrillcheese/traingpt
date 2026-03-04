@@ -708,27 +708,13 @@ export default function Home() {
     };
   }, []);
 
-  const ctas = useMemo(() => {
-    if (session && hasPlan) {
-      return {
-        primary: { label: 'View my schedule', href: '/schedule' },
-        secondary: { label: 'Re-generate my plan', href: '/plan?mode=regen' },
-        tertiary: { label: 'See how it works', kind: 'scroll' as const },
-      };
-    }
-
-    if (session) {
-      return {
-        primary: { label: 'Generate my plan', href: '/plan' },
-        secondary: { label: 'See how it works', kind: 'scroll' as const },
-      };
-    }
-
-    return {
-      primary: { label: 'Sign in to generate your plan', href: '/login' },
-      secondary: { label: 'See how it works', kind: 'scroll' as const },
-    };
-  }, [session, hasPlan]);
+  const [generatorInputs, setGeneratorInputs] = useState({
+    raceType: '70.3',
+    raceDate: '',
+    experience: 'Intermediate',
+    maxHours: '8',
+    restDay: '',
+  });
 
   if (!authReady) {
     return (
@@ -749,20 +735,27 @@ export default function Home() {
     el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const handleCtaNavigation = (href: string) => {
-    if (href.startsWith('http')) {
-      window.location.href = href;
+  const buildPlanPath = () => {
+    const params = new URLSearchParams();
+    if (generatorInputs.raceType) params.set('raceType', generatorInputs.raceType);
+    if (generatorInputs.raceDate) params.set('raceDate', generatorInputs.raceDate);
+    if (generatorInputs.experience) params.set('experience', generatorInputs.experience);
+    if (generatorInputs.maxHours) params.set('maxHours', generatorInputs.maxHours);
+    if (generatorInputs.restDay) params.set('restDay', generatorInputs.restDay);
+    return `/plan?${params.toString()}`;
+  };
+
+  const handlePrimary = () => {
+    const planPath = buildPlanPath();
+    if (authed) {
+      router.push(planPath);
       return;
     }
 
-    router.push(href);
+    router.push(`/login?next=${encodeURIComponent(planPath)}`);
   };
 
-  const handlePrimary = () => handleCtaNavigation((ctas.primary as any).href);
-  const handleSecondary = () => {
-    if ('href' in ctas.secondary) handleCtaNavigation((ctas.secondary as any).href);
-    else scrollHowItWorks();
-  };
+  const handleSecondary = () => scrollHowItWorks();
 
   return (
     <div className="min-h-screen bg-white text-gray-900">
@@ -782,7 +775,7 @@ export default function Home() {
                   A smarter training plan for your next triathlon
                 </h1>
                 <p className="mt-4 text-lg text-gray-600 leading-relaxed max-w-2xl">
-                  TrainGPT builds a personalized swim, bike, and run training plan based on your race, your schedule, and your experience level. Your workouts stay organized in a simple training calendar and automatically sync with your Strava activities.
+                  Built around your race date, experience, and weekly availability. TrainGPT creates a structured plan and syncs your completed workouts automatically with Strava.
                 </p>
               </Reveal>
 
@@ -806,17 +799,59 @@ export default function Home() {
 
             <div className="lg:col-span-6">
               <Reveal delayMs={120}>
-                <div className="rounded-3xl border border-gray-200 bg-gray-50 p-6 md:p-8">
-                  <div className="text-xs font-semibold uppercase tracking-[0.1em] text-gray-500">Training calendar mockup</div>
-                  <div className="mt-4 grid grid-cols-7 gap-2">
-                    {Array.from({ length: 14 }).map((_, i) => (
-                      <div key={i} className="h-10 rounded-xl border border-gray-200 bg-white relative overflow-hidden">
-                        <div
-                          className={`absolute bottom-2 left-2 h-1.5 rounded-full ${i % 3 === 0 ? 'w-6 bg-blue-300' : i % 3 === 1 ? 'w-7 bg-emerald-300' : 'w-5 bg-orange-300'}`}
-                        />
-                      </div>
-                    ))}
+                <div className="rounded-3xl border border-gray-200 bg-white p-6 md:p-8 shadow-sm">
+                  <div className="text-sm font-semibold text-gray-900">Plan generator</div>
+                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <select
+                      value={generatorInputs.raceType}
+                      onChange={(e) => setGeneratorInputs((p) => ({ ...p, raceType: e.target.value }))}
+                      className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
+                    >
+                      <option>Sprint</option>
+                      <option>Olympic</option>
+                      <option>70.3</option>
+                      <option>Ironman</option>
+                    </select>
+                    <input
+                      type="date"
+                      value={generatorInputs.raceDate}
+                      onChange={(e) => setGeneratorInputs((p) => ({ ...p, raceDate: e.target.value }))}
+                      className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
+                    />
+                    <select
+                      value={generatorInputs.experience}
+                      onChange={(e) => setGeneratorInputs((p) => ({ ...p, experience: e.target.value }))}
+                      className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
+                    >
+                      <option>Beginner</option>
+                      <option>Intermediate</option>
+                      <option>Advanced</option>
+                    </select>
+                    <input
+                      type="number"
+                      min={1}
+                      max={25}
+                      placeholder="Weekly training hours"
+                      value={generatorInputs.maxHours}
+                      onChange={(e) => setGeneratorInputs((p) => ({ ...p, maxHours: e.target.value }))}
+                      className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
+                    />
+                    <select
+                      value={generatorInputs.restDay}
+                      onChange={(e) => setGeneratorInputs((p) => ({ ...p, restDay: e.target.value }))}
+                      className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 sm:col-span-2"
+                    >
+                      <option value="">Rest day (optional)</option>
+                      <option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option>
+                    </select>
                   </div>
+                  <button
+                    onClick={handlePrimary}
+                    className="mt-4 w-full bg-black text-white px-5 py-3 rounded-full text-sm font-medium hover:bg-gray-800"
+                  >
+                    Generate my plan
+                  </button>
+                  <p className="mt-2 text-xs text-gray-500">You’ll log in before we generate your plan.</p>
                 </div>
               </Reveal>
             </div>
@@ -921,24 +956,31 @@ export default function Home() {
 
       <section className="bg-gray-50 h-px" />
 
-      {/* 5) SECONDARY TOOLS */}
+      {/* 5) FUELING + TRAINING TOOLS */}
       <section className="bg-white">
         <div className="max-w-6xl mx-auto px-6 py-14 md:py-16">
           <Reveal>
             <BandTitle
-              eyebrow="Secondary tools"
+              eyebrow="Fueling + training tools"
               title="Training support beyond the plan"
-              desc="TrainGPT also includes tools designed to support the rest of your training process. Athletes can explore fueling guidance, review training patterns, and adjust workouts when schedules change."
+              desc="TrainGPT also includes tools designed to support the rest of your training process. Athletes can explore fueling guidance, review training patterns, and adjust workouts when schedules change. The goal is to make the entire training process easier to manage from one place."
             />
           </Reveal>
+        </div>
+      </section>
 
-          <Reveal delayMs={120}>
-            <div className="mt-8 rounded-3xl border border-gray-200 bg-gray-50 p-8 md:p-10">
+      <section className="bg-gray-50 h-px" />
+
+      {/* 6) AI COACH */}
+      <section className="bg-white">
+        <div className="max-w-6xl mx-auto px-6 py-14 md:py-16">
+          <Reveal>
+            <div className="rounded-3xl border border-gray-200 bg-gray-50 p-8 md:p-10">
               <h3 className="text-xl md:text-2xl font-semibold tracking-tight text-gray-900">
                 Ask questions about your training
               </h3>
               <p className="mt-3 text-gray-600 leading-relaxed max-w-3xl">
-                If questions come up during your training block, the built-in coach can help explain workouts or provide guidance based on your plan.
+                If questions come up during your training block, the built-in coach can help explain workouts or provide guidance. Because it understands your plan, the responses stay relevant to your training.
               </p>
             </div>
           </Reveal>
@@ -947,31 +989,33 @@ export default function Home() {
 
       <section className="bg-gray-50 h-px" />
 
-      {/* 6) FINAL CTA */}
+      {/* 7) BLOG PREVIEW */}
+      <div id="blog" className="max-w-6xl mx-auto px-6 py-10 scroll-mt-24">
+        <Reveal>
+          <BlogPreview />
+        </Reveal>
+      </div>
+
+      <section className="bg-gray-50 h-px" />
+
+      {/* 8) FINAL CTA */}
       <section className="bg-white">
         <div className="max-w-6xl mx-auto px-6 py-14 md:py-16">
           <Reveal>
             <div className="rounded-3xl border border-gray-200 bg-white p-8 md:p-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
               <h3 className="text-2xl font-semibold tracking-tight text-gray-900">
-                Start your next training block with a plan
+                Start your next training block with a plan built for you.
               </h3>
               <button
                 onClick={handlePrimary}
                 className="bg-black text-white px-6 py-3 rounded-full text-sm font-medium hover:bg-gray-800 w-full md:w-auto"
               >
-                Create Your Training Plan
+                Create your training plan
               </button>
             </div>
           </Reveal>
         </div>
       </section>
-
-      {/* Blog + footer */}
-      <div id="blog" className="max-w-6xl mx-auto px-6 pb-10 scroll-mt-24">
-        <Reveal>
-          <BlogPreview />
-        </Reveal>
-      </div>
 
       <Footer />
     </div>
