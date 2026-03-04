@@ -714,7 +714,13 @@ export default function Home() {
     experience: 'Intermediate',
     maxHours: '8',
     restDay: '',
+    userNote: '',
+    bikeFTP: '',
+    runPace: '',
+    swimPace: '',
+    advancedRestDay: '',
   });
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
 
   if (!authReady) {
     return (
@@ -742,6 +748,11 @@ export default function Home() {
     if (generatorInputs.experience) params.set('experience', generatorInputs.experience);
     if (generatorInputs.maxHours) params.set('maxHours', generatorInputs.maxHours);
     if (generatorInputs.restDay) params.set('restDay', generatorInputs.restDay);
+    if (generatorInputs.userNote) params.set('userNote', generatorInputs.userNote);
+    if (generatorInputs.bikeFTP) params.set('bikeFTP', generatorInputs.bikeFTP);
+    if (generatorInputs.runPace) params.set('runPace', generatorInputs.runPace);
+    if (generatorInputs.swimPace) params.set('swimPace', generatorInputs.swimPace);
+    if (generatorInputs.advancedRestDay) params.set('advancedRestDay', generatorInputs.advancedRestDay);
     return `/plan?${params.toString()}`;
   };
 
@@ -799,52 +810,140 @@ export default function Home() {
 
             <div className="lg:col-span-6">
               <Reveal delayMs={120}>
-                <div className="rounded-3xl border border-gray-200 bg-white p-6 md:p-8 shadow-sm">
-                  <div className="text-sm font-semibold text-gray-900">Plan generator</div>
-                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <select
-                      value={generatorInputs.raceType}
-                      onChange={(e) => setGeneratorInputs((p) => ({ ...p, raceType: e.target.value }))}
-                      className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
-                    >
-                      <option>Sprint</option>
-                      <option>Olympic</option>
-                      <option>70.3</option>
-                      <option>Ironman</option>
-                    </select>
-                    <input
-                      type="date"
-                      value={generatorInputs.raceDate}
-                      onChange={(e) => setGeneratorInputs((p) => ({ ...p, raceDate: e.target.value }))}
-                      className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
-                    />
-                    <select
-                      value={generatorInputs.experience}
-                      onChange={(e) => setGeneratorInputs((p) => ({ ...p, experience: e.target.value }))}
-                      className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
-                    >
-                      <option>Beginner</option>
-                      <option>Intermediate</option>
-                      <option>Advanced</option>
-                    </select>
-                    <input
-                      type="number"
-                      min={1}
-                      max={25}
-                      placeholder="Weekly training hours"
-                      value={generatorInputs.maxHours}
-                      onChange={(e) => setGeneratorInputs((p) => ({ ...p, maxHours: e.target.value }))}
-                      className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
-                    />
-                    <select
-                      value={generatorInputs.restDay}
-                      onChange={(e) => setGeneratorInputs((p) => ({ ...p, restDay: e.target.value }))}
-                      className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 sm:col-span-2"
-                    >
-                      <option value="">Rest day (optional)</option>
-                      <option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option>
-                    </select>
+                <div className="rounded-3xl border border-gray-200 bg-white p-5 md:p-6 shadow-sm">
+                  <div className="text-base font-semibold text-gray-900">Build your training plan</div>
+
+                  <div className="mt-4 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <label className="space-y-1">
+                        <span className="text-xs font-medium uppercase tracking-wide text-gray-500">Race</span>
+                        <select
+                          value={generatorInputs.raceType}
+                          onChange={(e) => setGeneratorInputs((p) => ({ ...p, raceType: e.target.value }))}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
+                        >
+                          <option>Sprint</option>
+                          <option>Olympic</option>
+                          <option>70.3</option>
+                          <option>Ironman</option>
+                        </select>
+                      </label>
+
+                      <label className="space-y-1">
+                        <span className="text-xs font-medium uppercase tracking-wide text-gray-500">Race date</span>
+                        <input
+                          type="date"
+                          value={generatorInputs.raceDate}
+                          onChange={(e) => setGeneratorInputs((p) => ({ ...p, raceDate: e.target.value }))}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
+                        />
+                      </label>
+
+                      <label className="space-y-1">
+                        <span className="text-xs font-medium uppercase tracking-wide text-gray-500">Experience level</span>
+                        <select
+                          value={generatorInputs.experience}
+                          onChange={(e) => setGeneratorInputs((p) => ({ ...p, experience: e.target.value }))}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
+                        >
+                          <option>Beginner</option>
+                          <option>Intermediate</option>
+                          <option>Advanced</option>
+                        </select>
+                      </label>
+
+                      <label className="space-y-1">
+                        <span className="text-xs font-medium uppercase tracking-wide text-gray-500">Weekly training hours</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={25}
+                          placeholder="8"
+                          value={generatorInputs.maxHours}
+                          onChange={(e) => setGeneratorInputs((p) => ({ ...p, maxHours: e.target.value }))}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
+                        />
+                      </label>
+
+                      <label className="space-y-1 sm:col-span-2">
+                        <span className="text-xs font-medium uppercase tracking-wide text-gray-500">Rest day</span>
+                        <select
+                          value={generatorInputs.restDay}
+                          onChange={(e) => setGeneratorInputs((p) => ({ ...p, restDay: e.target.value }))}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
+                        >
+                          <option value="">Rest day (optional)</option>
+                          <option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <label className="space-y-1 block">
+                      <span className="text-xs font-medium uppercase tracking-wide text-gray-500">Optional coaching notes</span>
+                      <textarea
+                        rows={3}
+                        value={generatorInputs.userNote}
+                        onChange={(e) => setGeneratorInputs((p) => ({ ...p, userNote: e.target.value }))}
+                        placeholder="I prefer long rides on Saturdays and long runs on Sundays. I’m targeting sub-5 at Santa Cruz."
+                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
+                      />
+                    </label>
+
+                    <div className="rounded-xl border border-gray-200 bg-gray-50/60 px-3 py-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setShowAdvancedSettings((v) => !v)}
+                        className="w-full flex items-center justify-between text-sm font-medium text-gray-800"
+                      >
+                        <span>Advanced training settings</span>
+                        <span className="text-gray-500">{showAdvancedSettings ? 'Hide' : 'Show'}</span>
+                      </button>
+
+                      {showAdvancedSettings ? (
+                        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <label className="space-y-1">
+                            <span className="text-xs font-medium uppercase tracking-wide text-gray-500">Bike FTP</span>
+                            <input
+                              type="number"
+                              value={generatorInputs.bikeFTP}
+                              onChange={(e) => setGeneratorInputs((p) => ({ ...p, bikeFTP: e.target.value }))}
+                              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
+                            />
+                          </label>
+                          <label className="space-y-1">
+                            <span className="text-xs font-medium uppercase tracking-wide text-gray-500">Run threshold pace</span>
+                            <input
+                              type="text"
+                              value={generatorInputs.runPace}
+                              onChange={(e) => setGeneratorInputs((p) => ({ ...p, runPace: e.target.value }))}
+                              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
+                            />
+                          </label>
+                          <label className="space-y-1">
+                            <span className="text-xs font-medium uppercase tracking-wide text-gray-500">Swim threshold pace</span>
+                            <input
+                              type="text"
+                              value={generatorInputs.swimPace}
+                              onChange={(e) => setGeneratorInputs((p) => ({ ...p, swimPace: e.target.value }))}
+                              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
+                            />
+                          </label>
+                          <label className="space-y-1">
+                            <span className="text-xs font-medium uppercase tracking-wide text-gray-500">Preferred rest day</span>
+                            <select
+                              value={generatorInputs.advancedRestDay}
+                              onChange={(e) => setGeneratorInputs((p) => ({ ...p, advancedRestDay: e.target.value, restDay: e.target.value || p.restDay }))}
+                              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
+                            >
+                              <option value="">None</option>
+                              <option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option>
+                            </select>
+                          </label>
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
+
                   <button
                     onClick={handlePrimary}
                     className="mt-4 w-full bg-black text-white px-5 py-3 rounded-full text-sm font-medium hover:bg-gray-800"
