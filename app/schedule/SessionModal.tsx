@@ -201,6 +201,14 @@ function formatSportLabel(sportRaw?: string | null) {
   return sport.charAt(0).toUpperCase() + sport.slice(1);
 }
 
+function cleanSessionTitle(title?: string | null) {
+  return String(title ?? '')
+    .replace(/\s+[—–-]\s+/g, ' ')
+    .replace(/[—–]/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 function extractPlannedMetrics(session: Session | null): { plannedDuration: string | null; plannedDistance: string | null } {
   if (!session) return { plannedDuration: null, plannedDistance: null };
 
@@ -531,7 +539,7 @@ export default function SessionModal({
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <Dialog.Title className="text-[22px] font-semibold tracking-tight text-white">
-                    {session.title}
+                    {cleanSessionTitle(session.title)}
                   </Dialog.Title>
 
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-white/90">
