@@ -199,12 +199,34 @@ function sportLabelFromType(sport: ReturnType<typeof inferSport>) {
   return 'Session';
 }
 
-function sportToneClasses(sport: ReturnType<typeof inferSport>) {
-  if (sport === 'bike') return 'bg-zinc-100 text-zinc-700 border-zinc-200';
-  if (sport === 'run') return 'bg-zinc-900 text-zinc-100 border-zinc-800';
-  if (sport === 'swim') return 'bg-zinc-200 text-zinc-700 border-zinc-300';
-  if (sport === 'strength') return 'bg-zinc-800 text-zinc-100 border-zinc-700';
-  return 'bg-zinc-100 text-zinc-700 border-zinc-200';
+const TYPE_STYLES: Record<string, { color: string; bg: string }> = {
+  bike: { color: '#0D9488', bg: '#F0FAFA' },
+  swim: { color: '#2563EB', bg: '#EFF6FF' },
+  run: { color: '#EA580C', bg: '#FFF7ED' },
+  strength: { color: '#6B7280', bg: '#F3F4F6' },
+  other: { color: '#6B7280', bg: '#F3F4F6' },
+};
+
+function sessionDurationLabel(session: EnrichedSession) {
+  const fromField = (session as any)?.duration;
+  if (typeof fromField === 'number' && Number.isFinite(fromField)) {
+    if (fromField >= 60) {
+      const h = Math.floor(fromField / 60);
+      const m = Math.round(fromField % 60);
+      return m ? `${h}hr ${m}min` : `${h}hr`;
+    }
+    return `${Math.round(fromField)}min`;
+  }
+
+  const t = `${session.title || ''} ${session.details || ''}`;
+  const hrMatch = t.match(/(\d+(?:\.\d+)?)\s*(hr|hour|hours)/i);
+  if (hrMatch) {
+    const h = Number(hrMatch[1]);
+    if (Number.isFinite(h)) return h % 1 === 0 ? `${h}hr` : `${h}hr`;
+  }
+  const minMatch = t.match(/(\d{1,3})\s*min/i);
+  if (minMatch) return `${minMatch[1]}min`;
+  return '45min';
 }
 
 export default function MobileCalendarView({
@@ -330,27 +352,27 @@ export default function MobileCalendarView({
   }
 
   return (
-    <div className="bg-zinc-100 min-h-[100dvh] text-zinc-950">
-      {/* Sticky top bar */}
-      <div className="sticky top-0 z-20 bg-zinc-100/95 backdrop-blur border-b border-black/5">
+    <div className="min-h-[100dvh] text-zinc-950" style={{ background: '#F4F2ED' }}>
+      <div className="sticky top-0 z-20 border-b" style={{ background: '#F4F2ED', borderColor: '#F0EEE9' }}>
         <div className="pt-[env(safe-area-inset-top)]" />
-        <div className="px-4 py-3 flex items-center justify-between">
+        <div className="px-5 py-3 flex items-end justify-between">
           <div>
-            <div className="text-[12px] tracking-wide text-zinc-500 uppercase">Schedule</div>
-            <div className="text-[20px] font-semibold tracking-tight text-zinc-950">Weekly Flow</div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: '#B0ADA5' }}>Schedule</div>
+            <div className="text-[26px] font-bold tracking-[-0.02em]" style={{ color: '#18170F' }}>Weekly Flow</div>
           </div>
 
           <button
             type="button"
             onClick={() => setAddSessionDate(getDefaultAddDate())}
-            className="h-9 rounded-md border border-black/10 bg-white px-3 text-[13px] font-medium text-zinc-700 shadow-sm"
+            className="rounded-[10px] px-4 py-2 text-[13px] font-semibold text-white"
+            style={{ background: '#18170F' }}
           >
             + Add
           </button>
         </div>
       </div>
 
-      <div className="px-4 pb-28 pt-4 space-y-6">
+      <div className="px-4 pb-28 pt-4 space-y-5">
         {Object.entries(groupedByWeek).map(([weekLabel, { sessions, extras, start, end }]) => {
           const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
           const isPast = isBefore(start, currentWeekStart);
@@ -374,54 +396,59 @@ export default function MobileCalendarView({
               }}
               className="scroll-mt-24"
             >
-              <div className="rounded-2xl border border-black/5 bg-white/90 shadow-[0_10px_30px_rgba(0,0,0,0.06)] p-4">
-                <div className="flex items-start justify-between gap-3">
+              <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                <div className="px-[18px] pt-[18px] pb-[14px] flex items-start justify-between gap-3">
                   <div>
-                    <div className="text-[12px] uppercase tracking-wide text-zinc-500">{rangeLabel}</div>
-                    <h2 className="text-[20px] font-semibold tracking-tight text-zinc-950 mt-1">
-                      {weekLabel}
-                    </h2>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: '#B0ADA5' }}>{rangeLabel}</div>
+                    <h2 className="mt-1 text-[22px] font-bold tracking-[-0.015em]" style={{ color: '#18170F' }}>{weekLabel}</h2>
                   </div>
-
                   {isPast && (
                     <button
-                      onClick={() =>
-                        setCollapsedWeeks((prev) => ({ ...prev, [weekLabel]: !prev[weekLabel] }))
-                      }
-                      className="rounded-full border border-black/10 px-3 py-1.5 text-[12px] font-medium text-zinc-700"
+                      onClick={() => setCollapsedWeeks((prev) => ({ ...prev, [weekLabel]: !prev[weekLabel] }))}
+                      className="rounded-full border px-3 py-1.5 text-[12px] font-medium"
+                      style={{ borderColor: '#F0EEE9', color: '#8A8880' }}
                     >
                       {isCollapsed ? 'Expand' : 'Collapse'}
                     </button>
                   )}
                 </div>
 
-                <div className="mt-4 grid grid-cols-3 gap-2">
-                  <div className="rounded-xl border border-black/5 bg-zinc-50 px-3 py-2">
-                    <div className="text-[11px] text-zinc-500">Sessions</div>
-                    <div className="text-[16px] font-semibold text-zinc-900">{sessions.length}</div>
-                  </div>
-                  <div className="rounded-xl border border-black/5 bg-zinc-50 px-3 py-2">
-                    <div className="text-[11px] text-zinc-500">Done</div>
-                    <div className="text-[16px] font-semibold text-zinc-900">{completedCount}</div>
-                  </div>
-                  <div className="rounded-xl border border-black/5 bg-zinc-50 px-3 py-2">
-                    <div className="text-[11px] text-zinc-500">Key work</div>
-                    <div className="text-[16px] font-semibold text-zinc-900">{keySessionCount}</div>
-                  </div>
+                <div className="grid grid-cols-3 px-[18px] pb-4">
+                  {[
+                    ['Sessions', String(sessions.length), '#18170F'],
+                    ['Done', String(completedCount), completedCount > 0 ? '#0D9488' : '#C0BDB5'],
+                    ['Key work', String(keySessionCount), '#18170F'],
+                  ].map(([label, value, color], idx) => (
+                    <div
+                      key={label}
+                      className="py-0"
+                      style={{
+                        borderRight: idx < 2 ? '1px solid #F0EEE9' : 'none',
+                        paddingRight: idx < 2 ? 16 : 0,
+                        paddingLeft: idx > 0 ? 16 : 0,
+                      }}
+                    >
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: '#B0ADA5' }}>{label}</div>
+                      <div className="mt-1 text-[28px] font-bold leading-none" style={{ color }}>{value}</div>
+                    </div>
+                  ))}
                 </div>
 
-                <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-zinc-200">
-                  <div
-                    className="h-full rounded-full bg-zinc-900 transition-all"
-                    style={{ width: `${completionRate}%` }}
-                  />
+                <div className="px-[18px] pb-[18px]">
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.08em]" style={{ color: '#B0ADA5' }}>Progress</span>
+                    <span className="text-[10px] font-bold" style={{ color: '#B0ADA5' }}>{completionRate}%</span>
+                  </div>
+                  <div className="h-[4px] w-full overflow-hidden rounded-full" style={{ background: '#F0EEE9' }}>
+                    <div className="h-full rounded-full transition-all" style={{ width: `${completionRate}%`, background: '#18170F' }} />
+                  </div>
                 </div>
               </div>
 
               {!isCollapsed && (
                 <div className="mt-3 space-y-2.5">
-                  <div className="rounded-2xl overflow-hidden border border-black/5 bg-white shadow-[0_14px_35px_rgba(0,0,0,0.08)]">
-                    {sessions.map((session) => {
+                  <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                    {sessions.map((session, idx) => {
                       const title = session.title || session.stravaActivity?.name || 'Unnamed Session';
                       const date = safeParseDate(session.date);
 
@@ -432,83 +459,71 @@ export default function MobileCalendarView({
                       const sport = inferSport(title);
                       const detail = deriveDetail(title);
                       const key = isKeySession(title);
-
-                      const sportLabel = sportLabelFromType(sport);
+                      const type = TYPE_STYLES[sport] || TYPE_STYLES.other;
+                      const duration = sessionDurationLabel(session);
+                      const meta = `${format(date, 'EEE, MMM d')} · ${session.details || detail || sportLabelFromType(sport)}`;
 
                       return (
                         <button
                           key={session.id}
                           onClick={() => setSelectedSession(session)}
-                          className={[
-                            'relative w-full text-left px-4 py-4 flex items-center gap-3 transition border-b border-black/5 last:border-b-0',
-                            'active:bg-black/[0.03] hover:bg-zinc-50',
-                            completed ? 'opacity-70' : 'opacity-100',
-                          ].join(' ')}
+                          className="w-full text-left flex items-center gap-[14px] px-4 py-[14px] transition"
+                          style={{
+                            borderBottom: idx === sessions.length - 1 ? 'none' : '1px solid #F0EEE9',
+                            background: '#fff',
+                            opacity: completed ? 0.4 : 1,
+                          }}
                         >
-                          {/* Key-session accent bar */}
-                          {key && (
-                            <span
-                              className="absolute left-0 top-0 bottom-0 w-[2px] bg-zinc-500"
-                              aria-hidden="true"
-                            />
-                          )}
-
                           <div
-                            className={[
-                              'shrink-0 h-10 w-10 rounded-xl border flex items-center justify-center',
-                              sportToneClasses(sport),
-                            ].join(' ')}
+                            className="relative shrink-0 h-[44px] w-[44px] rounded-[12px] flex items-center justify-center"
+                            style={{ background: completed ? '#F0EEE9' : type.bg, color: completed ? '#C0BDB5' : type.color }}
                           >
-                            <SportIcon sport={sport} className="h-5 w-5" />
+                            {key ? (
+                              <span
+                                style={{
+                                  position: 'absolute',
+                                  top: -2,
+                                  right: -2,
+                                  width: 8,
+                                  height: 8,
+                                  borderRadius: '50%',
+                                  background: type.color,
+                                  border: '1.5px solid #fff',
+                                }}
+                              />
+                            ) : null}
+                            <SportIcon sport={sport} className="h-[22px] w-[22px]" />
                           </div>
-
 
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <div className="text-[15px] font-semibold text-zinc-950 truncate">
-                                {title}
-                              </div>
-
-                              {completed && (
-                                <span className="shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-700">
-                                  Done
-                                </span>
-                              )}
+                            <div className="text-[15px] font-semibold leading-[1.3]" style={{ color: '#18170F' }}>
+                              {title}
                             </div>
-
-                            <div className="mt-1 text-[13px] text-zinc-600 truncate">
-                              <span className="rounded-full border border-black/10 px-1.5 py-0.5 text-[11px] font-medium text-zinc-700">
-                                {sportLabel}
-                              </span>
-                              <span className="text-zinc-400">{'  •  '}</span>
-                              <span>{format(date, 'EEE, MMM d')}</span>
-                              {detail ? (
-                                <>
-                                  <span className="text-zinc-400">{'  •  '}</span>
-                                  <span className="text-zinc-800">{detail}</span>
-                                </>
-                              ) : null}
+                            <div className="mt-[2px] text-[13px] font-medium" style={{ color: type.color }}>
+                              {detail || sportLabelFromType(sport)}
+                            </div>
+                            <div className="mt-[2px] text-[12px] font-normal" style={{ color: '#A8A49C' }}>
+                              {meta}
                             </div>
                           </div>
 
-                          <ChevronIcon className="w-4 h-4 shrink-0 text-black/25" />
+                          <div className="shrink-0 flex flex-col items-end gap-1">
+                            {completed ? (
+                              <div className="h-[22px] w-[22px] rounded-full flex items-center justify-center" style={{ background: '#E8F5E9' }}>
+                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                                  <path d="M2 6l3 3 5-5" stroke="#4CAF50" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              </div>
+                            ) : (
+                              <ChevronIcon className="h-4 w-4" style={{ color: '#D4D1CA' }} />
+                            )}
+                            <span className="text-[11px] font-medium" style={{ color: '#C0BDB5' }}>{duration}</span>
+                          </div>
                         </button>
                       );
                     })}
 
-                    {Array.from(new Set(sessions.map((s) => normalizeDate(safeParseDate(s.date))).filter(Boolean)))
-                      .sort()
-                      .map((dateKey) => (
-                        <div key={`add-${dateKey}`} className="px-4 py-2.5 border-b border-black/5 last:border-b-0">
-                          <button
-                            type="button"
-                            onClick={() => setAddSessionDate(safeParseDate(dateKey))}
-                            className="inline-flex w-full items-center justify-center rounded-xl border border-dashed border-black/20 bg-zinc-50 px-3 py-2 text-[13px] font-medium text-zinc-600 hover:text-zinc-900"
-                          >
-                            + Add session for {format(safeParseDate(dateKey), 'EEE, MMM d')}
-                          </button>
-                        </div>
-                      ))}
+
                   </div>
 
                   {/* Strava-only extras */}
@@ -542,14 +557,14 @@ export default function MobileCalendarView({
 
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <div className="text-[14px] font-semibold text-zinc-950 truncate">
+                            <div className="text-[14px] font-semibold text-zinc-950">
                               {a.name || 'Unplanned Activity'}
                             </div>
                             <span className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-black/5 text-zinc-600">
                               Imported
                             </span>
                           </div>
-                          <div className="mt-0.5 text-[13px] text-zinc-600 truncate">
+                          <div className="mt-0.5 text-[13px] text-zinc-600">
                             {format(date, 'EEE, MMM d')}
                             {distance ? <span className="text-zinc-400">{`  •  `}</span> : null}
                             {distance ? <span className="text-zinc-800">{distance}</span> : null}
