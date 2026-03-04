@@ -1,0 +1,114 @@
+name: SEO Index Backfill
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "How many days back to include"
+        required: false
+        default: "30"
+      maxUrls:
+        description: "Maximum URLs to backfill"
+        required: false
+        default: "200"
+
+permissions:
+  contents: read
+
+jobs:
+  backfill_index:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build backfill URL list from generated posts
+        id: build
+        shell: bash
+        run: |
+          set -euo pipefail
+          DAYS="${{ github.event.inputs.days || '30' }}"
+          MAX_URLS="${{ github.event.inputs.maxUrls || '200' }}"
+          SITE="https://traingpt.co"
+
+          python3 <<'PY'
+          import json, os
+          from datetime import datetime, timedelta, timezone
+
+          days = int(os.environ.get('DAYS', '30'))
+          max_urls = int(os.environ.get('MAX_URLS', '200'))
+          site = os.environ.get('SITE', 'https://traingpt.co')
+
+          with open('data/seo-generated-posts.json', 'r', encoding='utf-8') as f:
+            posts = json.load(f)
+
+          cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+          picked = []
+
+          for p in reversed(posts):
+            slug = p.get('slug')
+            date_s = (p.get('date') or '').strip()
+            if not slug:
+              continue
+
+            include = False
+            if date_s:
+              try:
+                dt = datetime.fromisoformat(date_s.replace('Z', '+00:00'))
+                if dt.tzinfo is None:
+                  dt = dt.replace(tzinfo=timezone.utc)
+                include = dt >= cutoff
+              except Exception:
+                include = True
+            else:
+              include = True
+
+            if include:
+              picked.append(f"{site}/blog/{slug}")
+            if len(picked) >= max_urls:
+              break
+
+          picked = list(dict.fromkeys(picked))
+
+          with open('backfill-urls.txt', 'w', encoding='utf-8') as f:
+            for u in picked:
+              f.write(u + '\n')
+
+          print(f"Backfill URL count: {len(picked)}")
+          PY
+
+          COUNT=$(wc -l < backfill-urls.txt | tr -d ' ')
+          echo "count=${COUNT}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify URLs are in sitemap
+        if: ${{ steps.build.outputs.count != '0' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          SITEMAP_URL="https://traingpt.co/sitemap.xml"
+          SITEMAP_CONTENT=$(curl -fsSL "$SITEMAP_URL")
+
+          missing=0
+          while IFS= read -r url; do
+            [ -z "$url" ] && continue
+            if ! printf '%s' "$SITEMAP_CONTENT" | grep -Fq "$url"; then
+              echo "Missing from sitemap: $url"
+              missing=$((missing + 1))
+            fi
+          done < backfill-urls.txt
+
+          if [ "$missing" -gt 0 ]; then
+            echo "Found $missing missing URL(s) in sitemap."
+            exit 1
+          fi
+
+          echo "All backfill URLs are present in sitemap."
+
+      - name: Ping sitemap to Google
+        if: ${{ steps.build.outputs.count != '0' }}
+        run: |
+          curl -fsSL "https://www.google.com/ping?sitemap=https%3A%2F%2Ftraingpt.co%2Fsitemap.xml" >/dev/null
+          echo "Sitemap ping sent for backfill set."
+
+      - name: Summary
+        run: |
+          echo "Backfill URLs checked: ${{ steps.build.outputs.count }}"
