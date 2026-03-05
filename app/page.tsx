@@ -722,18 +722,6 @@ export default function Home() {
   });
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
 
-  if (!authReady) {
-    return (
-      <div className="min-h-screen flex flex-col justify-center items-center bg-white text-gray-500">
-        <div className="w-12 h-12 mb-4 relative">
-          <div className="absolute inset-0 rounded-full border-4 border-gray-200" />
-          <div className="absolute inset-0 rounded-full border-4 border-t-black border-b-transparent animate-spin" />
-        </div>
-        <p className="text-sm">Checking session...</p>
-      </div>
-    );
-  }
-
   const authed = !!session;
 
   const scrollHowItWorks = () => {
