@@ -55,15 +55,42 @@ export default function CoachingClient() {
   useEffect(() => {
     let cancelled = false;
 
-    async function fetchAll() {
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    async function fetchAll(attempt = 0) {
       try {
         setLoading(true);
         setLoadError(null);
 
         const {
+          data: { session },
+          error: sessionErr,
+        } = await supabase.auth.getSession();
+
+        if (sessionErr) throw sessionErr;
+
+        if (!session?.user) {
+          if (!cancelled) {
+            setUserId(null);
+            setSessions([]);
+            setCompletedSessions([]);
+            setStravaActivities([]);
+            setStravaConnected(false);
+            setLoading(false);
+          }
+          return;
+        }
+
+        const {
           data: { user },
           error: userErr,
         } = await supabase.auth.getUser();
+
+        const msg = userErr?.message?.toLowerCase() ?? '';
+        if (msg.includes('auth session missing') && attempt < 1) {
+          await sleep(350);
+          return fetchAll(attempt + 1);
+        }
 
         if (userErr) throw userErr;
 
@@ -74,6 +101,7 @@ export default function CoachingClient() {
             setCompletedSessions([]);
             setStravaActivities([]);
             setStravaConnected(false);
+            setLoading(false);
           }
           return;
         }
@@ -153,7 +181,17 @@ export default function CoachingClient() {
     );
   }
 
-  if (!userId || !weeklySummary) return null;
+  if (!userId) {
+    return <div className="p-6 text-sm text-zinc-500">Please sign in to view coaching.</div>;
+  }
+
+  if (!weeklySummary) {
+    return (
+      <div className="p-6 text-sm text-zinc-500">
+        No coaching summary yet — generate a plan or sync workouts and refresh.
+      </div>
+    );
+  }
 
   return (
     <CoachingDashboard
