@@ -6,6 +6,7 @@ import Footer from '../components/footer';
 import { supabase } from '@/lib/supabase-client';
 import PostPlanWalkthrough from './components/PostPlanWalkthrough';
 import type { WalkthroughContext } from '@/types/coachGuides';
+import { track } from '@/lib/analytics/posthog-client';
 
 export const dynamic = 'force-dynamic';
 
@@ -303,6 +304,7 @@ function PlanPageContent() {
   });
 
   const speechRecognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const stravaSourceTrackedRef = useRef(false);
 
   const runningTypes = useMemo(() => ['5k', '10k', 'Half Marathon', 'Marathon'], []);
   const isRunningPlan = runningTypes.includes(formData.raceType);
@@ -337,6 +339,13 @@ function PlanPageContent() {
     if (userNoteParam?.trim()) {
       setUserNote(userNoteParam.trim());
     }
+  }, [searchParams]);
+
+  useEffect(() => {
+    const source = searchParams?.get('source');
+    if (source !== 'strava' || stravaSourceTrackedRef.current) return;
+    stravaSourceTrackedRef.current = true;
+    track('strava_oauth_success');
   }, [searchParams]);
 
   const stravaConnectHref = useMemo(() => {
@@ -490,6 +499,15 @@ function PlanPageContent() {
   const handleFinalize = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
+    const generationStartedAt = Date.now();
+    track('plan_generation_started', {
+      race_type: formData.raceType || null,
+      race_date: formData.raceDate || null,
+      experience: formData.experience || null,
+      max_hours: formData.maxHours || null,
+      rest_day: formData.restDay || null,
+    });
+
     setLoading(true);
     setError('');
     setNotice('');
@@ -614,6 +632,15 @@ function PlanPageContent() {
               setLoading(false);
               setPlanReady(true);
 
+              track('plan_generation_completed', {
+                race_type: formData.raceType || null,
+                race_date: formData.raceDate || null,
+                experience: formData.experience || null,
+                max_hours: formData.maxHours || null,
+                rest_day: formData.restDay || null,
+                generation_time_ms: Date.now() - generationStartedAt,
+              });
+
               // Fetch plan context (optional planId passthrough)
               let ctx = await fetchLatestPlanContext();
               if (!ctx) {
@@ -690,6 +717,11 @@ function PlanPageContent() {
       await pollUntilReady(expectedPlanId);
     } catch (err: any) {
       console.error('❌ Finalize plan error:', err);
+
+      track('plan_generation_failed', {
+        error_type: err?.message ? String(err.message).slice(0, 120) : 'unknown_error',
+        generation_time_ms: Date.now() - generationStartedAt,
+      });
 
       const rawMsg = err?.message || 'Something went wrong while generating your plan. Please try again.';
       const isHtmlBlob = /<!doctype html>|<html|cloudflare|error code 524|a timeout occurred/i.test(rawMsg);
@@ -769,6 +801,11 @@ function PlanPageContent() {
 
       setStravaConnected(!!profileRes.data?.strava_access_token);
 
+      const source = searchParams?.get('source');
+      if (source === 'strava' && stravaSourceTrackedRef.current) {
+        track('strava_sync_completed', { activities_imported: stravaRes.data?.length ?? 0 });
+      }
+
       if (stravaRes.data?.length) {
         const rows = stravaRes.data;
         const totalHours = rows.reduce((acc, row: any) => acc + ((row.moving_time ?? 0) / 3600), 0);
@@ -823,7 +860,7 @@ function PlanPageContent() {
     };
 
     checkSessionAndPlan();
-  }, []);
+  }, [searchParams]);
 
   /* -------------------- Field Configs -------------------- */
   const beginnerFields: FieldConfig[] = [
@@ -1124,6 +1161,7 @@ function PlanPageContent() {
                       ) : (
                         <a
                           href={stravaConnectHref}
+                          onClick={() => track('strava_connect_clicked')}
                           className="inline-flex items-center justify-center rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-100"
                         >
                           Connect Strava
