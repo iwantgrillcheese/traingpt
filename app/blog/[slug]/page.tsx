@@ -39,7 +39,7 @@ export default async function BlogPostPage({ params }: PageProps) {
 
   if (!post) return notFound();
 
-  const htmlContent = marked.parse(post.content);
+  const htmlContent = await marked.parse(post.content);
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-16 text-gray-800">
