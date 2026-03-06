@@ -696,7 +696,7 @@ export default function SessionModal({
                       isCompleted ? 'border-black/10 bg-black/[0.03] text-zinc-900' : 'border-black/10 bg-white text-zinc-900'
                     )}
                   >
-                    {markingComplete ? 'Saving…' : doneLockedByStrava ? 'Completed via Strava' : isCompleted ? 'Mark as not done' : 'Mark complete'}
+                    {markingComplete ? 'Saving…' : doneLockedByStrava ? 'Completed via Strava' : isCompleted ? 'Mark as not done' : 'Mark as Done'}
                   </button>
                   <button
                     onClick={handleMarkAsSkipped}
@@ -706,7 +706,7 @@ export default function SessionModal({
                       isSkipped ? 'border-black/10 bg-black/[0.03] text-zinc-900' : 'border-black/10 bg-white text-zinc-900'
                     )}
                   >
-                    {markingComplete ? 'Saving…' : isSkipped ? 'Unskip session' : 'Skip session'}
+                    {markingComplete ? 'Saving…' : isSkipped ? 'Unskip Session' : 'Skip Session'}
                   </button>
                 </div>
               </div>
@@ -722,7 +722,7 @@ export default function SessionModal({
                     disabled={loading}
                     className={clsx('rounded-xl bg-gradient-to-r text-white text-[14px] font-semibold px-4 py-2.5 disabled:opacity-60 active:translate-y-[0.5px]', sportTheme.gradient)}
                   >
-                    {loading ? 'Generating…' : parsedWorkout.length ? 'Regenerate' : 'Generate'}
+                    {loading ? 'Generating…' : parsedWorkout.length ? 'Generate Detailed Workout' : 'Generate Detailed Workout'}
                   </button>
                 </div>
               </div>

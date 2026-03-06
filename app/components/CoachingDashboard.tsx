@@ -4,8 +4,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
-import CompliancePanel from '@/app/coaching/CompliancePanel';
-import WeeklySummaryPanel from '@/app/coaching/WeeklySummaryPanel';
 import FitnessPanel from '@/app/coaching/FitnessPanel';
 import StravaConnectBanner from '@/app/components/StravaConnectBanner';
 import CoachChatModal from '@/app/components/CoachChatModal';
@@ -133,7 +131,6 @@ export default function CoachingDashboard({
 const [chatOpen, setChatOpen] = useState(false);
 const [chatPrefill, setChatPrefill] = useState<string>(initialPrompt);
   const [windowKey, setWindowKey] = useState<WindowKey>('L30');
-  const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {
     if (initialPrompt) setChatOpen(true);
@@ -309,15 +306,12 @@ const [chatPrefill, setChatPrefill] = useState<string>(initialPrompt);
     <div className="relative mt-10 rounded-2xl border border-zinc-800 bg-[#0b0d10] p-6 text-zinc-100 shadow-[0_10px_40px_rgba(0,0,0,0.35)]">
       <StravaConnectBanner stravaConnected={stravaConnected} />
 
-      <section className="rounded-2xl border border-zinc-800 bg-[#101318] p-5 md:p-6">
+      <section className="rounded-2xl border border-zinc-800 bg-[#101318] p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Performance</p>
-            <h2 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-100">{statusLabel}</h2>
-            <p className="mt-2 max-w-xl text-sm text-zinc-400">{primaryRecommendation}</p>
-            <p className="mt-1 max-w-xl text-xs text-zinc-500">
-              Based on {completedCount} completed vs {plannedCount} planned sessions ({adherencePct}% consistency) in {windowLabel(windowKey)}.
-            </p>
+            <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">Weekly Focus</p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-100">{primaryRecommendation}</h2>
+            <p className="mt-2 text-sm text-zinc-400">Status: {statusLabel}</p>
           </div>
           <button
             onClick={() => {
@@ -330,47 +324,50 @@ const [chatPrefill, setChatPrefill] = useState<string>(initialPrompt);
           </button>
         </div>
 
-        <div className="mt-5 rounded-xl border border-zinc-800 bg-[#0b0d10] p-3">
+        <div className="mt-5 rounded-xl bg-[#0b0d10] p-4">
           <div className="text-[11px] uppercase tracking-wide text-zinc-500">Context brief</div>
-          <div className="mt-2 grid grid-cols-1 gap-2 text-xs text-zinc-300 md:grid-cols-3">
+          <div className="mt-2 grid grid-cols-1 gap-1 text-sm text-zinc-300 md:grid-cols-2">
             <div><span className="text-zinc-500">Race goal:</span> {contextualBrief.raceGoal || 'Not set'}</div>
-            <div><span className="text-zinc-500">Week / phase:</span> {contextualBrief.weekLabel} · {contextualBrief.weekPhase}</div>
-            <div><span className="text-zinc-500">Selected session:</span> {contextualBrief.sessionTitle ? `${contextualBrief.sessionTitle} (${contextualBrief.sessionDate || 'date n/a'})` : 'None (opened without session context)'}</div>
-            <div><span className="text-zinc-500">Completion:</span> {contextualBrief.completionState ?? 'planned'}</div>
-            <div><span className="text-zinc-500">Recent completed (14d):</span> {contextualBrief.recentCompleted ?? '—'}</div>
-            <div><span className="text-zinc-500">Recent missed (14d):</span> {contextualBrief.recentMissed ?? '—'}</div>
+            <div><span className="text-zinc-500">Training phase:</span> {contextualBrief.weekPhase}</div>
+            <div><span className="text-zinc-500">This week:</span> {contextualBrief.weekLabel}</div>
+            <div><span className="text-zinc-500">Selected session:</span> {contextualBrief.sessionTitle ? `${contextualBrief.sessionTitle} (${contextualBrief.sessionDate || 'date n/a'})` : 'None selected'}</div>
           </div>
         </div>
 
-        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
-          <div className="rounded-xl border border-zinc-800 bg-[#0b0d10] p-3">
-            <div className="text-[11px] uppercase tracking-wide text-zinc-500">Phase</div>
-            <div className="mt-1 text-sm font-semibold text-zinc-100">{label}</div>
+        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="rounded-xl bg-[#0b0d10] p-4">
+            <div className="text-xs text-zinc-500">Plan adherence</div>
+            <div className="mt-1 text-2xl font-semibold text-zinc-100">{adherencePct}%</div>
+            <div className="mt-2 h-1.5 w-full rounded-full bg-zinc-800">
+              <div className="h-1.5 rounded-full bg-zinc-200" style={{ width: `${Math.min(100, adherencePct)}%` }} />
+            </div>
+            <div className="mt-2 text-xs text-zinc-500">{completedCount} completed · {plannedCount} planned</div>
           </div>
-          <div className="rounded-xl border border-zinc-800 bg-[#0b0d10] p-3">
-            <div className="text-[11px] uppercase tracking-wide text-zinc-500">Days to race</div>
-            <div className="mt-1 text-sm font-semibold text-zinc-100">{daysToRace == null ? '—' : Math.max(daysToRace, 0)}</div>
+
+          <div className="rounded-xl bg-[#0b0d10] p-4">
+            <div className="text-xs text-zinc-500">Weekly volume</div>
+            <div className="mt-1 text-2xl font-semibold text-zinc-100">{formatMinutes(completedMinutes)}</div>
+            <div className="mt-2 text-xs text-zinc-500">{deltaLabel}</div>
           </div>
-          <div className="rounded-xl border border-zinc-800 bg-[#0b0d10] p-3">
-            <div className="text-[11px] uppercase tracking-wide text-zinc-500">Status</div>
-            <div className="mt-1 text-sm font-semibold text-zinc-100">{statusLabel}</div>
-          </div>
-          <div className="rounded-xl border border-zinc-800 bg-[#0b0d10] p-3">
-            <div className="text-[11px] uppercase tracking-wide text-zinc-500">Readiness</div>
-            <div className="mt-1 text-sm font-semibold text-zinc-100">{readiness.score}/100</div>
+
+          <div className="rounded-xl bg-[#0b0d10] p-4">
+            <div className="text-xs text-zinc-500">Plan status</div>
+            <div className="mt-1 text-2xl font-semibold text-zinc-100">{daysToRace == null ? '—' : `${Math.max(daysToRace, 0)}d`}</div>
+            <div className="mt-2 text-xs text-zinc-500">to race day</div>
           </div>
         </div>
       </section>
 
-      <section className="mt-5 rounded-xl border border-zinc-800 bg-[#101318] p-4">
+      <section className="mt-5 rounded-2xl border border-zinc-800 bg-[#101318] p-5">
         <div className="mb-3 flex items-center justify-between gap-3">
-          <div className="inline-flex items-center rounded-full border border-zinc-700 bg-[#0b0d10] p-1">
-            {(['L7', 'L30', 'L90', 'M6', 'Y1'] as WindowKey[]).map((k) => (
+          <h3 className="text-sm font-semibold text-zinc-100">Coach guidance</h3>
+          <div className="inline-flex items-center rounded-full bg-[#0b0d10] p-1">
+            {(['L7', 'L30', 'L90'] as WindowKey[]).map((k) => (
               <button
                 key={k}
                 onClick={() => setWindowKey(k)}
                 className={clsx(
-                  'rounded-full px-3 py-1.5 text-xs font-medium transition',
+                  'rounded-full px-3 py-1 text-xs font-medium transition',
                   k === windowKey ? 'bg-zinc-200 text-zinc-900' : 'text-zinc-400 hover:text-zinc-200'
                 )}
               >
@@ -378,41 +375,9 @@ const [chatPrefill, setChatPrefill] = useState<string>(initialPrompt);
               </button>
             ))}
           </div>
-          <div className="text-xs text-zinc-500">{format(start, 'MMM d')} → {format(end, 'MMM d')}</div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <div className="rounded-lg border border-zinc-800 bg-[#0b0d10] p-3">
-            <div className="text-xs text-zinc-500">Training time</div>
-            <div className="mt-1 text-base font-semibold text-zinc-100">{formatMinutes(completedMinutes)}</div>
-            <div className="mt-1 text-xs text-zinc-500">{deltaLabel}</div>
-          </div>
-          <div className="rounded-lg border border-zinc-800 bg-[#0b0d10] p-3">
-            <div className="text-xs text-zinc-500">Sessions</div>
-            <div className="mt-1 text-base font-semibold text-zinc-100">{completedCount}</div>
-            <div className="mt-1 text-xs text-zinc-500">{plannedCount} planned</div>
-          </div>
-          <div className="rounded-lg border border-zinc-800 bg-[#0b0d10] p-3">
-            <div className="text-xs text-zinc-500">Consistency</div>
-            <div className="mt-1 text-base font-semibold text-zinc-100">{adherencePct}%</div>
-            <div className="mt-1 text-xs text-zinc-500">of planned time</div>
-          </div>
-          <div className="rounded-lg border border-zinc-800 bg-[#0b0d10] p-3">
-            <div className="text-xs text-zinc-500">Load state</div>
-            <div className="mt-1 text-base font-semibold text-zinc-100">{statusLabel}</div>
-            <div className="mt-1 text-xs text-zinc-500">Coach-grade interpretation</div>
-          </div>
-        </div>
-      </section>
-
-      <section className="mt-5 rounded-2xl border border-zinc-800 bg-[#101318] p-4 md:p-6">
-        <h3 className="text-sm font-semibold text-zinc-100">Fitness trend</h3>
-        <p className="mt-1 text-xs text-zinc-500">Uses completed Strava sessions when available.</p>
-        <div className="mt-4">
-          <FitnessPanel sessions={sessions} completedSessions={completedSessions as any} stravaActivities={stravaActivities} windowDays={WINDOW_DAYS[windowKey]} />
-        </div>
-
-        <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
           {coachActions.map((a) => (
             <button
               key={a.id}
@@ -433,39 +398,22 @@ const [chatPrefill, setChatPrefill] = useState<string>(initialPrompt);
                 setChatPrefill(prompt);
                 setChatOpen(true);
               }}
-              className="group rounded-2xl border border-zinc-800 bg-[#0b0d10] p-4 text-left hover:bg-[#141820] transition"
+              className="rounded-xl bg-[#0b0d10] p-3 text-left hover:bg-[#141820] transition"
             >
-              <div className="text-sm font-semibold text-zinc-100">{a.title}</div>
+              <div className="text-sm font-medium text-zinc-100">{a.title}</div>
               <div className="mt-1 text-xs text-zinc-500">{a.subtitle}</div>
-              <div className="mt-3 inline-flex items-center text-xs font-medium text-zinc-400 group-hover:text-zinc-200">Open analysis <span className="ml-1">→</span></div>
             </button>
           ))}
         </div>
       </section>
 
-      <div className="mt-6">
-        <button
-          onClick={() => setShowDetails((s) => !s)}
-          className="flex w-full items-center justify-between rounded-xl border border-zinc-800 bg-[#101318] px-4 py-3 text-left hover:bg-[#141820]"
-        >
-          <div>
-            <div className="text-sm font-semibold text-zinc-100">Training details</div>
-            <div className="mt-0.5 text-xs text-zinc-500">Consistency + weekly recap (optional)</div>
-          </div>
-          <div className="text-sm text-zinc-500">{showDetails ? '–' : '+'}</div>
-        </button>
-
-        {showDetails ? (
-          <div className="mt-3 grid grid-cols-1 gap-6 md:grid-cols-2">
-            <div className="rounded-2xl border border-zinc-800 bg-[#101318] p-4">
-              <WeeklySummaryPanel weeklySummary={weeklySummary} viewMode="week" />
-            </div>
-            <div className="rounded-2xl border border-zinc-800 bg-[#101318] p-4">
-              <CompliancePanel weeklySummary={weeklySummary} viewMode="week" />
-            </div>
-          </div>
-        ) : null}
-      </div>
+      <section className="mt-5 rounded-2xl border border-zinc-800 bg-[#101318] p-5">
+        <h3 className="text-sm font-semibold text-zinc-100">Training trend</h3>
+        <p className="mt-1 text-xs text-zinc-500">Supporting visual for recent load and consistency.</p>
+        <div className="mt-4">
+          <FitnessPanel sessions={sessions} completedSessions={completedSessions as any} stravaActivities={stravaActivities} windowDays={WINDOW_DAYS[windowKey]} />
+        </div>
+      </section>
 
       <CoachChatModal open={chatOpen} onClose={() => setChatOpen(false)} prefill={chatPrefill} />
     </div>
