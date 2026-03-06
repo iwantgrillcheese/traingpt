@@ -12,6 +12,13 @@ import RaceHubCard from '../components/race/RaceHubCard';
 import WeeklyIntentCard from '../components/race/WeeklyIntentCard';
 import { calculateReadiness } from '@/lib/readiness';
 import { track } from '@/lib/analytics/posthog-client';
+import {
+  conciseSessionLabel,
+  formatSessionDateLabel,
+  formatWeekPhaseHeader,
+  getNextUpcomingSession,
+  getTodaysPrimarySession,
+} from './session-utils';
 
 // Walkthrough
 import PostPlanWalkthrough from '../plan/components/PostPlanWalkthrough';
@@ -400,6 +407,23 @@ export default function SchedulePage() {
     [sessions, completedSessions, raceHub?.raceDate]
   );
 
+  const scheduleSummary = useMemo(() => {
+    const todayPrimary = getTodaysPrimarySession(enrichedSessions as any, new Date());
+    const nextUpcoming = getNextUpcomingSession(enrichedSessions as any, new Date());
+    const { start, end } = getWeekBounds();
+    const weekRange = formatWeekRange(start, end);
+
+    return {
+      weekPhase: formatWeekPhaseHeader(weekRange, raceHub?.currentPhase ?? null),
+      todayLabel: todayPrimary
+        ? `${conciseSessionLabel(todayPrimary.title, todayPrimary.sport)} • ${formatSessionDateLabel(todayPrimary.date)}`
+        : 'No workout scheduled today',
+      nextLabel: nextUpcoming
+        ? `${conciseSessionLabel(nextUpcoming.title, nextUpcoming.sport)} • ${formatSessionDateLabel(nextUpcoming.date)}`
+        : 'No upcoming sessions yet',
+    };
+  }, [enrichedSessions, raceHub?.currentPhase]);
+
   const isLoggedOut = !authedUserId;
 
   const fetchLatestPlanContext = useCallback(async (): Promise<WalkthroughContext | null> => {
@@ -519,6 +543,9 @@ export default function SchedulePage() {
                 timezone={userTimezone}
                 onOpenWalkthrough={openWalkthrough}
                 walkthroughLoading={walkthroughLoading}
+                todaySummary={scheduleSummary.todayLabel}
+                nextSummary={scheduleSummary.nextLabel}
+                weekPhaseSummary={scheduleSummary.weekPhase}
               />
             </div>
           </>

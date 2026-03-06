@@ -7,6 +7,7 @@ import { useDroppable, useDraggable } from '@dnd-kit/core';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
 import AddSessionModalTP from './AddSessionModalTP';
+import { conciseSessionLabel } from './session-utils';
 
 type CompletedSession = {
   date: string;
@@ -214,7 +215,7 @@ export default function DayCell({
             const detailLine = rest.join(': ').trim();
 
             const baseTitle = stripLeadingEmoji((labelLine || rawTitle).trim() || 'Untitled');
-            const titleLine = isRest ? 'Rest Day' : baseTitle || 'Untitled';
+            const titleLine = isRest ? 'Rest Day' : conciseSessionLabel(baseTitle || 'Untitled', sport);
 
             const theme = sportTheme(sport);
 
