@@ -32,6 +32,9 @@ type CalendarShellProps = {
   extraStravaActivities: StravaActivity[];
   onCompletedUpdate?: (updated: CompletedSession[]) => void;
   timezone?: string;
+  todaySummary?: string;
+  nextSummary?: string;
+  weekPhaseSummary?: string;
 
   onOpenWalkthrough?: () => void;
   walkthroughLoading?: boolean;
@@ -144,6 +147,9 @@ export default function CalendarShell({
   extraStravaActivities = [],
   onCompletedUpdate,
   timezone = 'America/Los_Angeles',
+  todaySummary,
+  nextSummary,
+  weekPhaseSummary,
   onOpenWalkthrough,
   walkthroughLoading,
 }: CalendarShellProps) {
@@ -269,6 +275,19 @@ export default function CalendarShell({
     <main className="min-h-[100dvh] w-full bg-zinc-50 pb-[env(safe-area-inset-bottom)]">
       {/* Mobile (CSS-controlled) */}
       <div className="md:hidden">
+        <div className="px-4 pt-3 pb-1 space-y-2 bg-zinc-50">
+          {weekPhaseSummary ? (
+            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-zinc-500">{weekPhaseSummary}</div>
+          ) : null}
+          <div className="rounded-xl border border-black/10 bg-white px-3 py-2">
+            <div className="text-[10px] uppercase tracking-wide text-zinc-500">Today</div>
+            <div className="mt-1 text-[13px] font-medium text-zinc-900">{todaySummary ?? 'No workout scheduled today'}</div>
+          </div>
+          <div className="rounded-xl border border-black/10 bg-white px-3 py-2">
+            <div className="text-[10px] uppercase tracking-wide text-zinc-500">Next</div>
+            <div className="mt-1 text-[13px] font-medium text-zinc-900">{nextSummary ?? 'No upcoming sessions yet'}</div>
+          </div>
+        </div>
         <MobileCalendarView
           sessions={localSessions as any}
           completedSessions={completed}
@@ -287,6 +306,23 @@ export default function CalendarShell({
           onOpenWalkthrough={onOpenWalkthrough}
           walkthroughLoading={walkthroughLoading}
         />
+
+        <div className="w-full px-4 pt-4 lg:px-6">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-xl border border-black/10 bg-white px-3 py-2">
+              <div className="text-[10px] uppercase tracking-wide text-zinc-500">Week</div>
+              <div className="mt-1 text-[13px] font-medium text-zinc-900">{weekPhaseSummary ?? 'Current week'}</div>
+            </div>
+            <div className="rounded-xl border border-black/10 bg-white px-3 py-2">
+              <div className="text-[10px] uppercase tracking-wide text-zinc-500">Today</div>
+              <div className="mt-1 text-[13px] font-medium text-zinc-900">{todaySummary ?? 'No workout scheduled today'}</div>
+            </div>
+            <div className="rounded-xl border border-black/10 bg-white px-3 py-2">
+              <div className="text-[10px] uppercase tracking-wide text-zinc-500">Next</div>
+              <div className="mt-1 text-[13px] font-medium text-zinc-900">{nextSummary ?? 'No upcoming sessions yet'}</div>
+            </div>
+          </div>
+        </div>
 
         {/* Full-width canvas */}
         <div className="w-full px-4 py-5 lg:px-6">

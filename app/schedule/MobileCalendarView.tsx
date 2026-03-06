@@ -14,6 +14,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import SessionModal from './SessionModal';
 import AddSessionModalTP from './AddSessionModalTP';
 import type { Session } from '@/types/session';
+import { conciseSessionLabel } from './session-utils';
 import type { StravaActivity } from '@/types/strava';
 
 type EnrichedSession = Session & { stravaActivity?: StravaActivity };
@@ -239,6 +240,27 @@ export default function MobileCalendarView({
     return weekMap;
   }, [sortedSessions, extraStravaMap]);
 
+  const orderedWeeks = useMemo(() => {
+    const todayMs = startOfWeek(today, { weekStartsOn: 1 }).getTime();
+    return Object.entries(groupedByWeek).sort(([, a], [, b]) => {
+      const aMs = a.start.getTime();
+      const bMs = b.start.getTime();
+
+      const bucket = (ms: number) => {
+        if (ms === todayMs) return 0;
+        if (ms > todayMs) return 1;
+        return 2;
+      };
+
+      const ab = bucket(aMs);
+      const bb = bucket(bMs);
+      if (ab !== bb) return ab - bb;
+
+      if (ab === 2) return bMs - aMs;
+      return aMs - bMs;
+    });
+  }, [groupedByWeek, today]);
+
   useEffect(() => {
     const initial: Record<string, boolean> = {};
     Object.entries(groupedByWeek).forEach(([label, { start, end }]) => {
@@ -279,7 +301,7 @@ export default function MobileCalendarView({
       </div>
 
       <div className="px-4 pb-28 pt-4 space-y-5">
-        {Object.entries(groupedByWeek).map(([weekLabel, { sessions, extras, start, end }]) => {
+        {orderedWeeks.map(([weekLabel, { sessions, extras, start, end }]) => {
           const isCollapsed = collapsedWeeks[weekLabel];
           const isCurrentWeek = isWithinInterval(today, { start, end });
           const rangeLabel = `${format(start, 'MMM d')} – ${format(end, 'MMM d')}`;
@@ -353,7 +375,7 @@ export default function MobileCalendarView({
                   <div className="rounded-2xl overflow-hidden" style={{ background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                     {sessions.map((session, idx) => {
                       const rawTitle = session.title || session.stravaActivity?.name || 'Unnamed Session';
-                      const title = cleanSessionTitle(rawTitle);
+                      const title = conciseSessionLabel(cleanSessionTitle(rawTitle), session.sport);
                       const date = safeParseDate(session.date);
 
                       const completed = completedSessions.some(
