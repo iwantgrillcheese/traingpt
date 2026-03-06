@@ -1,4 +1,3 @@
-// /app/api/schedule/mark-done/route.ts
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
@@ -16,10 +15,6 @@ export async function POST(req: Request) {
   }
 
   if (typeof clientUserId === 'string' && clientUserId && clientUserId !== session.user.id) {
-    console.error('[schedule/mark-done] auth mismatch', {
-      cookieUserId: session.user.id,
-      clientUserId,
-    });
     return NextResponse.json({ error: 'Authentication session mismatch. Please sign in again.' }, { status: 401 });
   }
 
@@ -38,29 +33,27 @@ export async function POST(req: Request) {
       .eq('session_title', session_title);
 
     if (deleteError) {
-      console.error(deleteError);
       return NextResponse.json({ error: deleteError.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, completed: false });
+    return NextResponse.json({ success: true, skipped: false });
   }
 
-  const { error: insertError } = await supabase.from('completed_sessions').upsert(
+  const { error: upsertError } = await supabase.from('completed_sessions').upsert(
     {
       user_id: session.user.id,
       date: session_date,
       session_title,
-      status: 'done',
+      status: 'skipped',
     },
     {
       onConflict: 'user_id,date,session_title',
     }
   );
 
-  if (insertError) {
-    console.error(insertError);
-    return NextResponse.json({ error: insertError.message }, { status: 500 });
+  if (upsertError) {
+    return NextResponse.json({ error: upsertError.message }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, completed: true });
+  return NextResponse.json({ success: true, skipped: true });
 }

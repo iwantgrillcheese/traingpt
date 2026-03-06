@@ -14,7 +14,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import SessionModal from './SessionModal';
 import AddSessionModalTP from './AddSessionModalTP';
 import type { Session } from '@/types/session';
-import { conciseSessionLabel } from './session-utils';
+import { conciseSessionLabel, getCompletionStatus } from './session-utils';
 import type { StravaActivity } from '@/types/strava';
 
 type EnrichedSession = Session & { stravaActivity?: StravaActivity };
@@ -23,6 +23,7 @@ type CompletedSession = {
   date: string;
   session_title: string;
   strava_id?: string;
+  status?: 'done' | 'skipped';
 };
 
 export type MobileCalendarViewProps = {
@@ -184,6 +185,14 @@ export default function MobileCalendarView({
     return [...sessionsState].filter((s) => !!s.date).sort((a, b) => a.date.localeCompare(b.date));
   }, [sessionsState]);
 
+  const completionStatusByKey = useMemo(() => {
+    const map = new Map<string, 'done' | 'skipped'>();
+    completedSessions.forEach((c) => {
+      map.set(`${c.date}::${c.session_title}`, c.status === 'skipped' ? 'skipped' : 'done');
+    });
+    return map;
+  }, [completedSessions]);
+
   const sessionDates = useMemo(
     () => new Set(sortedSessions.map((s) => normalizeDate(safeParseDate(s.date)))),
     [sortedSessions]
@@ -305,11 +314,11 @@ export default function MobileCalendarView({
           const isCollapsed = collapsedWeeks[weekLabel];
           const isCurrentWeek = isWithinInterval(today, { start, end });
           const rangeLabel = `${format(start, 'MMM d')} – ${format(end, 'MMM d')}`;
-          const completedCount = sessions.filter((session) =>
-            completedSessions.some(
-              (c) => c.date === session.date && c.session_title === session.title
-            )
-          ).length;
+          const completedCount = sessions.filter((session) => {
+            if (session.stravaActivity) return true;
+            const status = completionStatusByKey.get(`${session.date}::${session.title}`);
+            return status === 'done';
+          }).length;
           const keySessionCount = sessions.filter((session) => isKeySession(session.title || '')).length;
           const completionRate = sessions.length
             ? Math.round((completedCount / sessions.length) * 100)
@@ -378,9 +387,10 @@ export default function MobileCalendarView({
                       const title = conciseSessionLabel(cleanSessionTitle(rawTitle), session.sport);
                       const date = safeParseDate(session.date);
 
-                      const completed = completedSessions.some(
-                        (c) => c.date === session.date && c.session_title === session.title
-                      );
+                      const status = completionStatusByKey.get(`${session.date}::${session.title}`);
+                      const hasStravaMatch = Boolean(session.stravaActivity);
+                      const completed = hasStravaMatch || status === 'done';
+                      const skipped = !hasStravaMatch && status === 'skipped';
 
                       const sport = inferSport(rawTitle);
                       const detail = deriveDetail(rawTitle);
@@ -397,7 +407,7 @@ export default function MobileCalendarView({
                           style={{
                             borderBottom: idx === sessions.length - 1 ? 'none' : '1px solid #F0EEE9',
                             background: '#fff',
-                            opacity: completed ? 0.4 : 1,
+                            opacity: completed ? 0.4 : skipped ? 0.65 : 1,
                           }}
                         >
                           <div
@@ -440,6 +450,8 @@ export default function MobileCalendarView({
                                   <path d="M2 6l3 3 5-5" stroke="#4CAF50" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                                 </svg>
                               </div>
+                            ) : skipped ? (
+                              <span className="text-[10px] font-semibold" style={{ color: '#A8A49C' }}>Skipped</span>
                             ) : (
                               <ChevronIcon className="h-4 w-4" style={{ color: '#D4D1CA' }} />
                             )}

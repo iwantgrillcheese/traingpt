@@ -17,6 +17,7 @@ type CompletedSession = {
   date: string;
   session_title: string;
   strava_id?: string;
+  status?: 'done' | 'skipped';
 };
 
 type Props = {
@@ -257,13 +258,16 @@ export default function SessionModal({
   const [savingNotes, setSavingNotes] = useState(false);
   const trackedSessionOpenRef = useRef<string | null>(null);
 
-  const isCompleted = useMemo(
-    () =>
-      completedSessions.some(
-        (s) => s.date === session?.date && s.session_title === session?.title
-      ),
-    [completedSessions, session?.date, session?.title]
-  );
+  const manualStatus = useMemo<'done' | 'skipped' | null>(() => {
+    const match = completedSessions.find(
+      (s) => s.date === session?.date && s.session_title === session?.title
+    );
+    if (!match) return null;
+    return match.status === 'skipped' ? 'skipped' : 'done';
+  }, [completedSessions, session?.date, session?.title]);
+
+  const isCompleted = Boolean(stravaActivity) || manualStatus === 'done';
+  const isSkipped = !stravaActivity && manualStatus === 'skipped';
 
   useEffect(() => {
     setOutput(session?.structured_workout || null);
@@ -461,60 +465,75 @@ export default function SessionModal({
     }
   };
 
-  const handleMarkAsDone = async () => {
+  const applyLocalStatus = (nextStatus: 'done' | 'skipped' | null) => {
+    if (!session) return completedSessions;
+
+    const base = completedSessions.filter(
+      (s) => s.date !== session.date || s.session_title !== session.title
+    );
+
+    if (!nextStatus) return base;
+
+    return [
+      ...base,
+      {
+        date: session.date,
+        session_title: session.title,
+        strava_id: toStravaIdString(session, stravaActivity),
+        status: nextStatus,
+      },
+    ];
+  };
+
+  const updateStatus = async (mode: 'done' | 'skipped') => {
     if (!session) return;
     setMarkingComplete(true);
+
+    const previousList = completedSessions;
+    const shouldUndo = mode === 'done' ? manualStatus === 'done' : isSkipped;
+    const optimisticNext = applyLocalStatus(shouldUndo ? null : mode);
+    onCompletedUpdate(optimisticNext);
 
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      const res = await fetch('/api/schedule/mark-done', {
+      const endpoint = mode === 'done' ? '/api/schedule/mark-done' : '/api/schedule/mark-skip';
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           session_date: session.date,
           session_title: session.title,
-          undo: isCompleted,
+          undo: shouldUndo,
           clientUserId: user?.id ?? null,
         }),
       });
 
       const payload = await res.json().catch(() => ({} as any));
       if (!res.ok) {
+        onCompletedUpdate(previousList);
         const msg = payload?.error || 'Failed to update session status.';
-        console.error('Failed to mark done:', msg);
+        console.error('Failed to update status:', msg);
         alert(msg);
         return;
       }
 
-      const newEntry: CompletedSession = {
-        date: session.date,
-        session_title: session.title,
-        strava_id: toStravaIdString(session, stravaActivity),
-      };
-
-      const serverCompleted = payload?.completed === true;
-      const newCompletedList: CompletedSession[] = serverCompleted
-        ? [
-            ...completedSessions.filter(
-              (s) => s.date !== session.date || s.session_title !== session.title
-            ),
-            newEntry,
-          ]
-        : completedSessions.filter(
-            (s) => s.date !== session.date || s.session_title !== session.title
-          );
-
-      onCompletedUpdate(newCompletedList);
+      const serverActive = mode === 'done' ? payload?.completed === true : payload?.skipped === true;
+      const confirmed = applyLocalStatus(serverActive ? mode : null);
+      onCompletedUpdate(confirmed);
     } catch (err) {
+      onCompletedUpdate(previousList);
       console.error(err);
-      alert('Unexpected error updating session.');
+      alert('Unexpected error updating session status.');
     } finally {
       setMarkingComplete(false);
     }
   };
+
+  const handleMarkAsDone = async () => updateStatus('done');
+  const handleMarkAsSkipped = async () => updateStatus('skipped');
 
   if (!session) return null;
 
@@ -522,6 +541,7 @@ export default function SessionModal({
   const sportTheme = getSportTheme(session.sport);
   const { plannedDuration, plannedDistance } = extractPlannedMetrics(session);
   const sportLabel = formatSportLabel(session.sport);
+  const doneLockedByStrava = Boolean(stravaActivity) && manualStatus !== 'done';
 
   const panelClass = isMobile
     ? 'w-full max-w-none rounded-t-3xl border border-black/10 bg-white shadow-[0_30px_80px_rgba(0,0,0,0.4)] h-[85vh] max-h-[85vh] overflow-hidden'
@@ -574,6 +594,11 @@ export default function SessionModal({
                     {isCompleted && (
                       <span className="rounded-full border border-white/35 bg-white/15 px-2.5 py-1 font-semibold">
                         ✓ Completed
+                      </span>
+                    )}
+                    {isSkipped && (
+                      <span className="rounded-full border border-white/35 bg-white/15 px-2.5 py-1 font-semibold">
+                        Skipped
                       </span>
                     )}
                   </div>
@@ -825,15 +850,34 @@ export default function SessionModal({
 
                 <button
                   onClick={handleMarkAsDone}
-                  disabled={markingComplete}
+                  disabled={markingComplete || doneLockedByStrava}
                   className={clsx(
-                    'w-full rounded-xl border text-[14px] font-semibold px-4 py-3 active:translate-y-[0.5px]',
+                    'w-full rounded-xl border text-[14px] font-semibold px-4 py-3 active:translate-y-[0.5px] disabled:opacity-60',
                     isCompleted
                       ? 'border-black/10 bg-black/[0.03] text-zinc-900'
                       : 'border-black/10 bg-white text-zinc-900'
                   )}
                 >
-                  {markingComplete ? 'Saving…' : isCompleted ? 'Mark as not done' : 'Mark complete'}
+                  {markingComplete
+                    ? 'Saving…'
+                    : doneLockedByStrava
+                      ? 'Completed via Strava'
+                      : isCompleted
+                        ? 'Mark as not done'
+                        : 'Mark complete'}
+                </button>
+
+                <button
+                  onClick={handleMarkAsSkipped}
+                  disabled={markingComplete || doneLockedByStrava}
+                  className={clsx(
+                    'w-full rounded-xl border text-[14px] font-semibold px-4 py-3 active:translate-y-[0.5px]',
+                    isSkipped
+                      ? 'border-black/10 bg-black/[0.03] text-zinc-900'
+                      : 'border-black/10 bg-white text-zinc-900'
+                  )}
+                >
+                  {markingComplete ? 'Saving…' : isSkipped ? 'Unskip session' : 'Skip session'}
                 </button>
 
                 {isUserCreatedSession ? (

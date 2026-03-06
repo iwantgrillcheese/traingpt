@@ -7,12 +7,13 @@ import { useDroppable, useDraggable } from '@dnd-kit/core';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
 import AddSessionModalTP from './AddSessionModalTP';
-import { conciseSessionLabel } from './session-utils';
+import { conciseSessionLabel, getCompletionStatus } from './session-utils';
 
 type CompletedSession = {
   date: string;
   session_title: string;
   strava_id?: string;
+  status?: 'done' | 'skipped';
 };
 
 type Props = {
@@ -157,13 +158,6 @@ export default function DayCell({
     return () => clearTimeout(timer);
   }, [isOver]);
 
-  const completedSessionKeys = useMemo(() => {
-    return new Set(completedSessions.map((c) => `${c.date}::${c.session_title}`));
-  }, [completedSessions]);
-
-  const isSessionCompleted = (session: MergedSession) =>
-    completedSessionKeys.has(`${session.date}::${session.title}`);
-
   const header = useMemo(() => {
     const dayNum = format(date, 'd');
     const dayWk = format(date, 'EEE');
@@ -209,7 +203,12 @@ export default function DayCell({
 
             const isRest = rawTitleLower.includes('rest day') || sport === 'rest';
             const isStravaMatch = !!s.stravaActivity;
-            const isCompleted = isSessionCompleted(s) || isStravaMatch;
+            const completionStatus = getCompletionStatus(
+              { date: s.date, title: s.title, stravaActivity: s.stravaActivity },
+              completedSessions
+            );
+            const isCompleted = completionStatus === 'done';
+            const isSkipped = completionStatus === 'skipped';
 
             const [labelLine, ...rest] = rawTitle.split(': ');
             const detailLine = rest.join(': ').trim();
@@ -230,7 +229,8 @@ export default function DayCell({
                   className={clsx(
                     'w-full overflow-hidden rounded-lg border border-black/10 bg-white text-left shadow-[0_1px_2px_rgba(0,0,0,0.06)]',
                     'hover:border-black/20 hover:shadow-[0_4px_10px_rgba(0,0,0,0.08)] transition-all',
-                    (isStravaMatch || isCompleted) && 'ring-1 ring-black/5'
+                    (isStravaMatch || isCompleted) && 'ring-1 ring-black/5',
+                    isSkipped && 'opacity-70'
                   )}
                   title={rawTitle}
                 >
@@ -259,6 +259,9 @@ export default function DayCell({
                           ) : null}
                           {!isStravaMatch && isCompleted ? (
                             <span className={clsx('inline-flex text-[11px] font-semibold', theme.text)}>✓ Done</span>
+                          ) : null}
+                          {isSkipped ? (
+                            <span className="inline-flex text-[11px] font-semibold text-zinc-500">Skipped</span>
                           ) : null}
                         </div>
                       </div>
