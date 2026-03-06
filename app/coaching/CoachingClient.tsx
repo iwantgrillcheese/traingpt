@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import CoachingDashboard from '../components/CoachingDashboard';
 import type { Session as TrainSession } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
@@ -8,6 +9,8 @@ import { getWeeklySummary, type WeeklySummary } from '@/utils/getWeeklySummary';
 import { getWeeklyVolume } from '@/utils/getWeeklyVolume';
 import { supabase } from '@/lib/supabase-client';
 import { useStravaAutoSync } from '../hooks/useStravaAutoSync';
+import { decodeCoachingContext } from '@/lib/coaching/context';
+import type { CoachingContextPayload } from '@/types/coaching-context';
 
 type CompletedSessionRow = {
   id?: string;
@@ -40,6 +43,13 @@ function normalizeCompletedRows(rows: CompletedSessionRow[]): NormalizedComplete
 
 export default function CoachingClient() {
   useStravaAutoSync();
+  const searchParams = useSearchParams();
+
+  const initialPrompt = searchParams?.get('q') ?? '';
+  const initialContext: CoachingContextPayload | null = useMemo(
+    () => decodeCoachingContext(searchParams?.get('ctx')),
+    [searchParams]
+  );
 
   const [userId, setUserId] = useState<string | null>(null);
 
@@ -203,6 +213,8 @@ export default function CoachingClient() {
       weeklySummary={weeklySummary}
       stravaConnected={stravaConnected}
       raceDate={raceDate}
+      initialPrompt={initialPrompt}
+      initialContext={initialContext}
     />
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { startOfMonth, subMonths, addMonths, format } from 'date-fns';
+import { startOfMonth, subMonths, addMonths, format, startOfWeek, endOfWeek, parseISO, subDays, isAfter } from 'date-fns';
 import MonthGrid from './MonthGrid';
 import MobileCalendarView from './MobileCalendarView';
 import SessionModal from './SessionModal';
@@ -36,6 +36,7 @@ type CalendarShellProps = {
   todaySummary?: string;
   nextSummary?: string;
   weekPhaseSummary?: string;
+  raceGoal?: string | null;
 
   onOpenWalkthrough?: () => void;
   walkthroughLoading?: boolean;
@@ -151,6 +152,7 @@ export default function CalendarShell({
   todaySummary,
   nextSummary,
   weekPhaseSummary,
+  raceGoal,
   onOpenWalkthrough,
   walkthroughLoading,
 }: CalendarShellProps) {
@@ -215,6 +217,39 @@ export default function CalendarShell({
   const goToPrevMonth = () => setCurrentMonth((m) => subMonths(m, 1));
   const goToNextMonth = () => setCurrentMonth((m) => addMonths(m, 1));
   const goToToday = () => setCurrentMonth(startOfMonth(new Date()));
+
+  const weekLabel = useMemo(() => {
+    const now = new Date();
+    const ws = startOfWeek(now, { weekStartsOn: 1 });
+    const we = endOfWeek(now, { weekStartsOn: 1 });
+    return `${format(ws, 'MMM d')}–${format(we, 'MMM d')}`;
+  }, []);
+
+  const recentExecution = useMemo(() => {
+    const cutoff = subDays(new Date(), 14);
+    const completedKeys = new Set(
+      completed
+        .filter((c) => (c.status ?? 'done') === 'done')
+        .map((c) => `${c.date}::${c.session_title}`)
+    );
+
+    const recentCompleted = localSessions.filter((s) => {
+      if (!s.date || !s.title) return false;
+      const d = parseISO(s.date);
+      if (!isAfter(d, cutoff)) return false;
+      return Boolean((s as any).stravaActivity) || completedKeys.has(`${s.date}::${s.title}`);
+    }).length;
+
+    const recentMissed = localSessions.filter((s) => {
+      if (!s.date || !s.title) return false;
+      const d = parseISO(s.date);
+      if (isAfter(d, new Date()) || !isAfter(d, cutoff)) return false;
+      const done = Boolean((s as any).stravaActivity) || completedKeys.has(`${s.date}::${s.title}`);
+      return !done;
+    }).length;
+
+    return { recentCompleted, recentMissed };
+  }, [localSessions, completed]);
 
   const handleSessionAdded = (newSession: any) => {
     setLocalSessions((prev) => [...prev, newSession]);
@@ -294,6 +329,8 @@ export default function CalendarShell({
           completedSessions={completed}
           stravaActivities={extraStravaActivities}
           onSessionDeleted={handleSessionDeleted}
+          weekPhase={weekPhaseSummary ?? null}
+          raceGoal={raceGoal ?? null}
         />
       </div>
 
@@ -371,6 +408,11 @@ export default function CalendarShell({
         onClose={() => setSelectedSession(null)}
         completedSessions={completed}
         onCompletedUpdate={(updatedList) => setCompleted(updatedList)}
+        weekLabel={weekLabel}
+        weekPhase={weekPhaseSummary ?? null}
+        raceGoal={raceGoal ?? null}
+        recentCompleted={recentExecution.recentCompleted}
+        recentMissed={recentExecution.recentMissed}
         onSessionDeleted={handleSessionDeleted}
         onSessionUpdated={(updatedSession) => {
           setLocalSessions((prev) =>

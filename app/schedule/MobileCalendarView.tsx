@@ -9,6 +9,8 @@ import {
   differenceInCalendarWeeks,
   isWithinInterval,
   endOfWeek,
+  subDays,
+  isAfter,
 } from 'date-fns';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import SessionModal from './SessionModal';
@@ -31,6 +33,8 @@ export type MobileCalendarViewProps = {
   completedSessions: CompletedSession[];
   stravaActivities?: StravaActivity[];
   onSessionDeleted?: (sessionId: string) => void;
+  weekPhase?: string | null;
+  raceGoal?: string | null;
 };
 
 function safeParseDate(input: string | Date): Date {
@@ -154,6 +158,8 @@ export default function MobileCalendarView({
   completedSessions: initialCompleted,
   stravaActivities = EMPTY_STRAVA,
   onSessionDeleted,
+  weekPhase,
+  raceGoal,
 }: MobileCalendarViewProps) {
   const [selectedSession, setSelectedSession] = useState<EnrichedSession | null>(null);
   const [addSessionDate, setAddSessionDate] = useState<Date | null>(null);
@@ -192,6 +198,33 @@ export default function MobileCalendarView({
     });
     return map;
   }, [completedSessions]);
+
+  const recentExecution = useMemo(() => {
+    const cutoff = subDays(new Date(), 14);
+    const recentCompleted = sessionsState.filter((s) => {
+      if (!s.date || !s.title) return false;
+      const d = safeParseDate(s.date);
+      if (!isAfter(d, cutoff)) return false;
+      const status = getCompletionStatus(
+        { date: s.date, title: s.title, stravaActivity: s.stravaActivity },
+        completedSessions
+      );
+      return status === 'done';
+    }).length;
+
+    const recentMissed = sessionsState.filter((s) => {
+      if (!s.date || !s.title) return false;
+      const d = safeParseDate(s.date);
+      if (isAfter(d, new Date()) || !isAfter(d, cutoff)) return false;
+      const status = getCompletionStatus(
+        { date: s.date, title: s.title, stravaActivity: s.stravaActivity },
+        completedSessions
+      );
+      return status === 'planned';
+    }).length;
+
+    return { recentCompleted, recentMissed };
+  }, [sessionsState, completedSessions]);
 
   const sessionDates = useMemo(
     () => new Set(sortedSessions.map((s) => normalizeDate(safeParseDate(s.date)))),
@@ -541,6 +574,11 @@ export default function MobileCalendarView({
           onClose={() => setSelectedSession(null)}
           completedSessions={completedSessions}
           onCompletedUpdate={(updatedList) => setCompletedSessions(updatedList)}
+          weekLabel={format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'MMM d') + '–' + format(endOfWeek(new Date(), { weekStartsOn: 1 }), 'MMM d')}
+          weekPhase={weekPhase ?? null}
+          raceGoal={raceGoal ?? null}
+          recentCompleted={recentExecution.recentCompleted}
+          recentMissed={recentExecution.recentMissed}
           onSessionUpdated={(updatedSession) => {
             setSessionsState((prev) =>
               prev.map((s) => (s.id === updatedSession.id ? { ...s, details: updatedSession.details } : s))
