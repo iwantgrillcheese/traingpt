@@ -235,6 +235,24 @@ function extractPlannedMetrics(session: Session | null): { plannedDuration: stri
   };
 }
 
+function extractObjective(session: Session | null) {
+  if (!session) return 'Execute with steady effort and clean form.';
+  const detail = String(session.details ?? '').trim();
+  if (!detail) return 'Execute with steady effort and clean form.';
+  const firstSentence = detail.split(/(?<=[.!?])\s+/)[0]?.trim();
+  return firstSentence || 'Execute with steady effort and clean form.';
+}
+
+function extractWorkoutTitle(raw: string | null) {
+  const lines = String(raw ?? '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const explicit = lines.find((l) => /^workout\s*title\s*:/i.test(l));
+  if (explicit) return explicit.replace(/^workout\s*title\s*:/i, '').trim();
+  return null;
+}
+
 export default function SessionModal({
   session,
   stravaActivity,
@@ -371,7 +389,22 @@ export default function SessionModal({
     });
   }, [fuelingEnabled, bodyWeightKg, bodyFatPct, sweatRateLPerHour]);
 
-  const parsedWorkout = useMemo(() => parseWorkout(output), [output]);
+  const parsedWorkout = useMemo(() => {
+    const sections = parseWorkout(output);
+    const rank = (title: string) => {
+      const t = title.toLowerCase();
+      if (t.includes('warm')) return 1;
+      if (t.includes('main')) return 2;
+      if (t.includes('cool')) return 3;
+      return 10;
+    };
+    const preferred = sections.filter((s) => {
+      const t = s.title.toLowerCase();
+      return t.includes('warm') || t.includes('main') || t.includes('cool');
+    });
+    const base = preferred.length ? preferred : sections;
+    return [...base].sort((a, b) => rank(a.title) - rank(b.title));
+  }, [output]);
 
   const isUserCreatedSession = useMemo(() => {
     if (!session) return false;
@@ -491,8 +524,7 @@ export default function SessionModal({
 
     const previousList = completedSessions;
     const shouldUndo = mode === 'done' ? manualStatus === 'done' : isSkipped;
-    const optimisticNext = applyLocalStatus(shouldUndo ? null : mode);
-    onCompletedUpdate(optimisticNext);
+    onCompletedUpdate(applyLocalStatus(shouldUndo ? null : mode));
 
     try {
       const {
@@ -515,18 +547,17 @@ export default function SessionModal({
       if (!res.ok) {
         onCompletedUpdate(previousList);
         const msg = payload?.error || 'Failed to update session status.';
-        console.error('Failed to update status:', msg);
+        console.error('Failed to update session status:', msg);
         alert(msg);
         return;
       }
 
       const serverActive = mode === 'done' ? payload?.completed === true : payload?.skipped === true;
-      const confirmed = applyLocalStatus(serverActive ? mode : null);
-      onCompletedUpdate(confirmed);
+      onCompletedUpdate(applyLocalStatus(serverActive ? mode : null));
     } catch (err) {
       onCompletedUpdate(previousList);
       console.error(err);
-      alert('Unexpected error updating session status.');
+      alert('Unexpected error updating session.');
     } finally {
       setMarkingComplete(false);
     }
@@ -541,6 +572,8 @@ export default function SessionModal({
   const sportTheme = getSportTheme(session.sport);
   const { plannedDuration, plannedDistance } = extractPlannedMetrics(session);
   const sportLabel = formatSportLabel(session.sport);
+  const objective = extractObjective(session);
+  const workoutTitle = extractWorkoutTitle(output) ?? cleanSessionTitle(session.title);
   const doneLockedByStrava = Boolean(stravaActivity) && manualStatus !== 'done';
 
   const panelClass = isMobile
@@ -636,8 +669,55 @@ export default function SessionModal({
               className="min-h-0 max-h-full flex-1 overflow-y-scroll overscroll-contain px-3 py-3 sm:px-4"
               style={{ WebkitOverflowScrolling: 'touch' }}
             >
+              <div className={clsx('rounded-2xl border bg-white p-4', sportTheme.softBorder)}>
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Objective</div>
+                <div className="mt-1 text-[15px] font-medium leading-relaxed text-zinc-900">{objective}</div>
+              </div>
+
+              <div className={clsx('mt-4 rounded-2xl border bg-white p-4', sportTheme.softBorder)}>
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Completion</div>
+                <div className={clsx(isMobile ? 'mt-3 grid gap-2' : 'mt-3 grid grid-cols-2 gap-2')}>
+                  <button
+                    onClick={handleMarkAsDone}
+                    disabled={markingComplete || doneLockedByStrava}
+                    className={clsx(
+                      'rounded-xl border text-[14px] font-semibold px-4 py-3 active:translate-y-[0.5px] disabled:opacity-60',
+                      isCompleted ? 'border-black/10 bg-black/[0.03] text-zinc-900' : 'border-black/10 bg-white text-zinc-900'
+                    )}
+                  >
+                    {markingComplete ? 'Saving…' : doneLockedByStrava ? 'Completed via Strava' : isCompleted ? 'Mark as not done' : 'Mark complete'}
+                  </button>
+                  <button
+                    onClick={handleMarkAsSkipped}
+                    disabled={markingComplete || doneLockedByStrava}
+                    className={clsx(
+                      'rounded-xl border text-[14px] font-semibold px-4 py-3 active:translate-y-[0.5px] disabled:opacity-60',
+                      isSkipped ? 'border-black/10 bg-black/[0.03] text-zinc-900' : 'border-black/10 bg-white text-zinc-900'
+                    )}
+                  >
+                    {markingComplete ? 'Saving…' : isSkipped ? 'Unskip session' : 'Skip session'}
+                  </button>
+                </div>
+              </div>
+
+              <div className={clsx('mt-4 rounded-2xl border bg-white p-4', sportTheme.softBorder)}>
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Detailed workout</div>
+                    <div className="mt-1 text-[13px] text-zinc-600">Generate clear execution steps for this session.</div>
+                  </div>
+                  <button
+                    onClick={handleGenerate}
+                    disabled={loading}
+                    className={clsx('rounded-xl bg-gradient-to-r text-white text-[14px] font-semibold px-4 py-2.5 disabled:opacity-60 active:translate-y-[0.5px]', sportTheme.gradient)}
+                  >
+                    {loading ? 'Generating…' : parsedWorkout.length ? 'Regenerate' : 'Generate'}
+                  </button>
+                </div>
+              </div>
+
               {/* Workout */}
-              <div className={clsx('rounded-2xl border backdrop-blur-sm', sportTheme.softBorder, sportTheme.softBg)}>
+              <div className={clsx('mt-4 rounded-2xl border backdrop-blur-sm', sportTheme.softBorder, sportTheme.softBg)}>
                 <div className={clsx('px-4 pt-4 pb-3 border-b', sportTheme.softBorder, sportTheme.softBg)}>
                   <div className="flex items-center justify-between gap-2">
                     <div className="text-[12px] font-semibold tracking-wide text-zinc-500 uppercase">
@@ -649,7 +729,8 @@ export default function SessionModal({
                   </div>
                 </div>
 
-                <div className="px-4 py-4">
+                <div className="px-4 py-4 min-h-[220px]">
+                  <div className="mb-3 text-[15px] font-semibold text-zinc-900">{workoutTitle}</div>
                   {loading ? (
                     <div className="space-y-3">
                       <div className="h-4 w-40 rounded bg-black/[0.06]" />
@@ -747,6 +828,12 @@ export default function SessionModal({
                   </div>
 
                   <div className="px-4 py-4 grid grid-cols-2 gap-4">
+                    {(stravaActivity as any)?.start_date_local && (
+                      <Metric
+                        label="Completed at"
+                        value={format(new Date((stravaActivity as any).start_date_local), 'MMM d, h:mm a')}
+                      />
+                    )}
                     {stravaActivity.distance != null && (
                       <Metric
                         label="Distance"
@@ -771,6 +858,30 @@ export default function SessionModal({
                   </div>
                 </div>
               )}
+
+              <div className={clsx('mt-4 rounded-2xl border bg-white p-4', sportTheme.softBorder)}>
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Coaching actions</div>
+                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {[
+                    'Explain This Workout',
+                    'How Hard Should This Feel?',
+                    'I Missed This Session',
+                    'Can I Shorten This Today?',
+                    'What Matters Most Here?',
+                  ].map((label) => {
+                    const prompt = `${label}\n\nSession: ${session.title}\nDate: ${session.date}\nSport: ${session.sport ?? 'unknown'}\nDetails: ${session.details ?? ''}\nStructured workout: ${output ?? ''}`;
+                    return (
+                      <a
+                        key={label}
+                        href={`/coaching?q=${encodeURIComponent(prompt)}`}
+                        className="rounded-lg border border-black/10 bg-white px-3 py-2 text-[13px] font-medium text-zinc-800 hover:bg-zinc-50"
+                      >
+                        {label}
+                      </a>
+                    );
+                  })}
+                </div>
+              </div>
 
               {/* Footer */}
             <div className={clsx('mt-4 border-t pt-4 pb-3 px-1 sm:px-0', sportTheme.softBorder, sportTheme.softBg)}>
@@ -840,46 +951,6 @@ export default function SessionModal({
               </div>
 
               <div className={clsx(isMobile ? 'grid gap-3' : 'flex items-center gap-3')}>
-                <button
-                  onClick={handleGenerate}
-                  disabled={loading}
-                  className={clsx('w-full rounded-xl bg-gradient-to-r text-white text-[14px] font-semibold px-4 py-3 disabled:opacity-50 active:translate-y-[0.5px]', sportTheme.gradient)}
-                >
-                  {loading ? 'Generating…' : parsedWorkout.length ? 'Regenerate workout' : 'Generate workout'}
-                </button>
-
-                <button
-                  onClick={handleMarkAsDone}
-                  disabled={markingComplete || doneLockedByStrava}
-                  className={clsx(
-                    'w-full rounded-xl border text-[14px] font-semibold px-4 py-3 active:translate-y-[0.5px] disabled:opacity-60',
-                    isCompleted
-                      ? 'border-black/10 bg-black/[0.03] text-zinc-900'
-                      : 'border-black/10 bg-white text-zinc-900'
-                  )}
-                >
-                  {markingComplete
-                    ? 'Saving…'
-                    : doneLockedByStrava
-                      ? 'Completed via Strava'
-                      : isCompleted
-                        ? 'Mark as not done'
-                        : 'Mark complete'}
-                </button>
-
-                <button
-                  onClick={handleMarkAsSkipped}
-                  disabled={markingComplete || doneLockedByStrava}
-                  className={clsx(
-                    'w-full rounded-xl border text-[14px] font-semibold px-4 py-3 active:translate-y-[0.5px]',
-                    isSkipped
-                      ? 'border-black/10 bg-black/[0.03] text-zinc-900'
-                      : 'border-black/10 bg-white text-zinc-900'
-                  )}
-                >
-                  {markingComplete ? 'Saving…' : isSkipped ? 'Unskip session' : 'Skip session'}
-                </button>
-
                 {isUserCreatedSession ? (
                   <button
                     onClick={handleDeleteSession}

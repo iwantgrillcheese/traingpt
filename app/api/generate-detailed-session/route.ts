@@ -68,13 +68,20 @@ export async function POST(req: Request) {
     // --- Build prompt (keep yours if you already have one) ---
     const systemPrompt = `
 You are a world-class endurance coach. Generate a detailed workout for the athlete.
-Return concise, structured output:
-- Workout Title
-- Warmup (bullets)
-- Main Set (bullets)
-- Cooldown (bullets)
-- Fueling (bullets, only if fueling guidance is requested)
-No fluff.
+Return concise, structured output in exactly this layout:
+Workout Title: <one line>
+Warmup:
+- <bullet>
+Main Set:
+- <bullet>
+Cooldown:
+- <bullet>
+Fueling:
+- <bullet> (only if fueling guidance is requested)
+Rules:
+- Keep bullets short and practical.
+- No motivational filler.
+- No long paragraphs.
 `.trim();
 
     const userPrompt = `

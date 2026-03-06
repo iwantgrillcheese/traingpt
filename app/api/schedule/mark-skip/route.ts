@@ -22,9 +22,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 });
   }
 
-  const shouldUndo = undo === true;
-
-  if (shouldUndo) {
+  if (undo === true) {
     const { error: deleteError } = await supabase
       .from('completed_sessions')
       .delete()
@@ -46,9 +44,7 @@ export async function POST(req: Request) {
       session_title,
       status: 'skipped',
     },
-    {
-      onConflict: 'user_id,date,session_title',
-    }
+    { onConflict: 'user_id,date,session_title' }
   );
 
   if (upsertError) {
