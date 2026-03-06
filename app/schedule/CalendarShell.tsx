@@ -158,10 +158,18 @@ export default function CalendarShell({
   const [localSessions, setLocalSessions] = useState<MergedSession[]>(sessions);
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveMessage, setSaveMessage] = useState<string>('');
 
   useEffect(() => setHasMounted(true), []);
   useEffect(() => setCompleted(completedSessions), [completedSessions]);
   useEffect(() => setLocalSessions(sessions), [sessions]);
+
+  useEffect(() => {
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+  }, []);
 
   useEffect(() => {
     onCompletedUpdate?.(completed);
@@ -214,17 +222,44 @@ export default function CalendarShell({
     const { active, over } = event;
     if (!active || !over) return;
 
-    const draggedId = active.id;
-    const targetDate = over.id;
+    const draggedId = String(active.id);
+    const targetDate = String(over.id);
+    let previousDate: string | null = null;
 
     setLocalSessions((prev) =>
-      prev.map((s) => (s.id === draggedId ? { ...s, date: targetDate } : s))
+      prev.map((s) => {
+        if (String(s.id) !== draggedId) return s;
+        previousDate = String((s as any).date ?? '');
+        return { ...s, date: targetDate };
+      })
     );
+
+    setSaveState('saving');
+    setSaveMessage('Saving schedule change…');
 
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       const { error } = await supabase.from('sessions').update({ date: targetDate }).eq('id', draggedId);
-      if (error) console.error('Error persisting session move:', error);
+      if (error) {
+        console.error('Error persisting session move:', error);
+
+        if (previousDate) {
+          setLocalSessions((prev) =>
+            prev.map((s) => (String(s.id) === draggedId ? { ...s, date: previousDate as string } : s))
+          );
+        }
+
+        setSaveState('error');
+        setSaveMessage('Could not save this move. Reverted to original day.');
+        return;
+      }
+
+      setSaveState('saved');
+      setSaveMessage('Saved');
+      window.setTimeout(() => {
+        setSaveState('idle');
+        setSaveMessage('');
+      }, 1200);
     }, 450);
   };
 
@@ -255,6 +290,19 @@ export default function CalendarShell({
 
         {/* Full-width canvas */}
         <div className="w-full px-4 py-5 lg:px-6">
+          {saveState !== 'idle' ? (
+            <div
+              className={`mb-3 rounded-lg border px-3 py-2 text-xs font-medium ${
+                saveState === 'error'
+                  ? 'border-rose-200 bg-rose-50 text-rose-700'
+                  : saveState === 'saving'
+                    ? 'border-zinc-200 bg-white text-zinc-600'
+                    : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              }`}
+            >
+              {saveMessage}
+            </div>
+          ) : null}
           <div className="w-full overflow-x-auto">
             <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
               <MonthGrid

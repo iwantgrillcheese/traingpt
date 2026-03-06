@@ -481,10 +481,11 @@ export default function SessionModal({
         }),
       });
 
+      const payload = await res.json().catch(() => ({} as any));
       if (!res.ok) {
-        const msg = await res.text();
+        const msg = payload?.error || 'Failed to update session status.';
         console.error('Failed to mark done:', msg);
-        alert('Failed to update session status.');
+        alert(msg);
         return;
       }
 
@@ -494,11 +495,17 @@ export default function SessionModal({
         strava_id: toStravaIdString(session, stravaActivity),
       };
 
-      const newCompletedList: CompletedSession[] = isCompleted
-        ? completedSessions.filter(
+      const serverCompleted = payload?.completed === true;
+      const newCompletedList: CompletedSession[] = serverCompleted
+        ? [
+            ...completedSessions.filter(
+              (s) => s.date !== session.date || s.session_title !== session.title
+            ),
+            newEntry,
+          ]
+        : completedSessions.filter(
             (s) => s.date !== session.date || s.session_title !== session.title
-          )
-        : [...completedSessions, newEntry];
+          );
 
       onCompletedUpdate(newCompletedList);
     } catch (err) {
@@ -607,8 +614,13 @@ export default function SessionModal({
               {/* Workout */}
               <div className={clsx('rounded-2xl border backdrop-blur-sm', sportTheme.softBorder, sportTheme.softBg)}>
                 <div className={clsx('px-4 pt-4 pb-3 border-b', sportTheme.softBorder, sportTheme.softBg)}>
-                  <div className="text-[12px] font-semibold tracking-wide text-zinc-500 uppercase">
-                    Workout
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-[12px] font-semibold tracking-wide text-zinc-500 uppercase">
+                      Workout
+                    </div>
+                    <div className="text-[11px] text-zinc-500">
+                      {parsedWorkout.length ? 'Saved to this session' : 'Not generated yet'}
+                    </div>
                   </div>
                 </div>
 
@@ -821,7 +833,7 @@ export default function SessionModal({
                       : 'border-black/10 bg-white text-zinc-900'
                   )}
                 >
-                  {markingComplete ? 'Saving…' : isCompleted ? 'Undo completion' : 'Mark as done'}
+                  {markingComplete ? 'Saving…' : isCompleted ? 'Mark as not done' : 'Mark complete'}
                 </button>
 
                 {isUserCreatedSession ? (
