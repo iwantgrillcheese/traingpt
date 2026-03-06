@@ -92,7 +92,7 @@ export default function CalendarSummaryPanel({
 
       <Card title="Guidance">
         <div className="text-[12px] leading-relaxed text-zinc-500">
-          Drag sessions to protect consistency. Don’t chase perfection—chase repeatability.
+          Protect consistency first. Complete the key sessions, then layer in extra intensity.
         </div>
       </Card>
     </div>

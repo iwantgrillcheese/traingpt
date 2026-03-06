@@ -5,7 +5,7 @@ import { cookies } from 'next/headers';
 
 export async function POST(req: Request) {
   const supabase = createRouteHandlerClient({ cookies });
-  const { session_date, session_title, clientUserId } = await req.json();
+  const { session_date, session_title, clientUserId, undo } = await req.json();
 
   const {
     data: { session },
@@ -23,21 +23,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Authentication session mismatch. Please sign in again.' }, { status: 401 });
   }
 
-  const { data: existing } = await supabase
-    .from('completed_sessions')
-    .select('*')
-    .eq('user_id', session.user.id)
-    .eq('date', session_date) // ✅ match actual column name
-    .eq('session_title', session_title)
-    .maybeSingle();
+  if (!session_date || !session_title) {
+    return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 });
+  }
 
-  if (existing) {
-    // If already marked done → delete to undo
+  const shouldUndo = undo === true;
+
+  if (shouldUndo) {
     const { error: deleteError } = await supabase
       .from('completed_sessions')
       .delete()
       .eq('user_id', session.user.id)
-      .eq('date', session_date) // ✅ match actual column name
+      .eq('date', session_date)
       .eq('session_title', session_title);
 
     if (deleteError) {
@@ -45,21 +42,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: deleteError.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, wasMarkedDone: true });
-  } else {
-    // Insert new "done" row
-    const { error: insertError } = await supabase.from('completed_sessions').upsert({
-      user_id: session.user.id,
-      date: session_date, // ✅ match actual column name
-      session_title,
-      status: 'done',
-    });
-
-    if (insertError) {
-      console.error(insertError);
-      return NextResponse.json({ error: insertError.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true, wasMarkedDone: false });
+    return NextResponse.json({ success: true, completed: false });
   }
+
+  const { error: insertError } = await supabase.from('completed_sessions').upsert({
+    user_id: session.user.id,
+    date: session_date,
+    session_title,
+    status: 'done',
+  });
+
+  if (insertError) {
+    console.error(insertError);
+    return NextResponse.json({ error: insertError.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true, completed: true });
 }

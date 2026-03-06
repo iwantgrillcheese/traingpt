@@ -252,9 +252,9 @@ const [chatPrefill, setChatPrefill] = useState<string>('');
   }, [deltaMinutes]);
 
   const coachActions = [
-    { id: 'stall', title: 'Why did my fitness stall?', subtitle: 'Diagnose volume, intensity, recovery.' },
-    { id: 'focus', title: 'What should I focus on next?', subtitle: 'One clear priority for the next block.' },
-    { id: 'balance', title: 'Is my training balanced?', subtitle: 'Sport mix + consistency check.' },
+    { id: 'stall', title: 'Why did progress slow this block?', subtitle: 'Review volume, intensity, and recovery.' },
+    { id: 'focus', title: 'What is the right focus this week?', subtitle: 'Pick one clear priority.' },
+    { id: 'balance', title: 'Is my training balanced?', subtitle: 'Check sport mix and consistency.' },
   ] as const;
 
   const daysToRace = useMemo(() => {
@@ -266,18 +266,18 @@ const [chatPrefill, setChatPrefill] = useState<string>('');
   }, [raceDate]);
 
   const statusLabel = useMemo(() => {
-    if (readiness.score >= 80) return 'Stable Progression';
-    if (readiness.score >= 65) return 'Productive Strain';
-    if (readiness.score >= 45) return 'Load Softening';
-    if (readiness.score >= 30) return 'Recovery Deficit';
-    return 'Under-Stimulated';
+    if (readiness.score >= 80) return 'On track';
+    if (readiness.score >= 65) return 'Training well';
+    if (readiness.score >= 45) return 'Watch recovery';
+    if (readiness.score >= 30) return 'Needs recovery';
+    return 'Low recent load';
   }, [readiness.score]);
 
   const primaryRecommendation = useMemo(() => {
-    if (adherencePct < 60) return 'Nail session consistency before adding intensity this week.';
-    if (deltaMinutes < -60) return 'Recover 24h, then re-establish your key quality session.';
-    if (deltaMinutes > 90) return 'Hold load steady for 3 days and protect sleep.';
-    return 'Maintain this rhythm and execute one high-quality key session.';
+    if (adherencePct < 60) return 'Prioritize completing planned sessions before adding intensity.';
+    if (deltaMinutes < -60) return 'Use a lighter day, then resume your next key session.';
+    if (deltaMinutes > 90) return 'Keep the next 2–3 days steady and protect sleep.';
+    return 'Keep this rhythm and execute one key session with quality.';
   }, [adherencePct, deltaMinutes]);
 
   return (
@@ -290,6 +290,9 @@ const [chatPrefill, setChatPrefill] = useState<string>('');
             <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Performance</p>
             <h2 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-100">{statusLabel}</h2>
             <p className="mt-2 max-w-xl text-sm text-zinc-400">{primaryRecommendation}</p>
+            <p className="mt-1 max-w-xl text-xs text-zinc-500">
+              Based on {completedCount} completed vs {plannedCount} planned sessions ({adherencePct}% consistency) in {windowLabel(windowKey)}.
+            </p>
           </div>
           <button
             onClick={() => {

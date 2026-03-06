@@ -87,6 +87,7 @@ export default function SchedulePage() {
   const [raceHubSaving, setRaceHubSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
   const scheduleViewTrackedRef = useRef(false);
 
   // Walkthrough state
@@ -260,7 +261,7 @@ export default function SchedulePage() {
       cancelled = true;
       sub?.subscription?.unsubscribe();
     };
-  }, []);
+  }, [reloadToken]);
 
   useEffect(() => {
     if (loading || !authedUserId || scheduleViewTrackedRef.current) return;
@@ -483,6 +484,13 @@ export default function SchedulePage() {
       <div className="text-center py-10 text-zinc-400">
         <div className="text-sm">Something went wrong loading your schedule.</div>
         <div className="mt-2 text-xs text-zinc-500">{loadError}</div>
+        <button
+          type="button"
+          onClick={() => setReloadToken((n) => n + 1)}
+          className="mt-4 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+        >
+          Retry
+        </button>
       </div>
     );
   }

@@ -117,7 +117,7 @@ export default function MonthGrid({
       </div>
 
       <div className="mt-2 text-[11px] text-zinc-500">
-        Drag sessions to reschedule. Click a session for details.
+        Click a session to review details, completion status, and workout structure.
       </div>
     </div>
   );
