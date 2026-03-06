@@ -20,6 +20,7 @@ type CompletedSession = {
   date: string;
   session_title: string;
   strava_id?: string;
+  status?: 'done' | 'skipped';
 };
 
 type MonthGridProps = {

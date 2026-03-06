@@ -5,6 +5,13 @@ type SessionLike = {
   date: string;
   title?: string | null;
   sport?: string | null;
+  stravaActivity?: unknown;
+};
+
+type CompletionLike = {
+  date: string;
+  session_title: string;
+  status?: 'done' | 'skipped';
 };
 
 function safeDate(value?: string | null) {
@@ -65,4 +72,18 @@ export function formatSessionDateLabel(date?: string | null) {
   const d = safeDate(date);
   if (!d) return 'Unknown date';
   return format(d, 'EEE, MMM d');
+}
+
+export function getCompletionStatus(
+  session: SessionLike,
+  completed: CompletionLike[]
+): 'done' | 'skipped' | 'planned' {
+  if (session.stravaActivity) return 'done';
+
+  const match = completed.find(
+    (c) => c.date === session.date && c.session_title === String(session.title ?? '')
+  );
+
+  if (!match) return 'planned';
+  return match.status === 'skipped' ? 'skipped' : 'done';
 }

@@ -9,6 +9,7 @@ type CompletedSession = {
   date: string;
   session_title: string;
   strava_id?: string;
+  status?: 'done' | 'skipped';
 };
 
 type Props = {
@@ -51,10 +52,12 @@ export default function CalendarSummaryPanel({
   }, [sessionsByDate, range]);
 
   const completed = useMemo(() => {
-    return completedSessions.filter((c) => {
-      const d = parseISO(c.date);
-      return isWithinInterval(d, range);
-    }).length;
+    return completedSessions
+      .filter((c) => (c.status ?? 'done') === 'done')
+      .filter((c) => {
+        const d = parseISO(c.date);
+        return isWithinInterval(d, range);
+      }).length;
   }, [completedSessions, range]);
 
   const adherence = planned > 0 ? Math.round((completed / planned) * 100) : 0;

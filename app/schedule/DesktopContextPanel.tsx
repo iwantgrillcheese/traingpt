@@ -8,6 +8,7 @@ type CompletedSession = {
   date: string;
   session_title: string;
   strava_id?: string;
+  status?: 'done' | 'skipped';
 };
 
 function safeParseDate(d: string) {
@@ -69,7 +70,9 @@ export default function DesktopContextPanel({
     };
 
     const plannedWeek = localSessions.filter((s) => inThisWeek((s as any).date));
-    const completedWeek = completedSessions.filter((c) => inThisWeek(c.date));
+    const completedWeek = completedSessions.filter(
+      (c) => inThisWeek(c.date) && (c.status ?? 'done') === 'done'
+    );
 
     // “good enough” compliance: completed count / planned count for the week
     const plannedCount = plannedWeek.length;

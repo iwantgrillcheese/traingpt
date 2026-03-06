@@ -28,6 +28,7 @@ type CompletedSession = {
   date: string;
   session_title: string;
   strava_id?: string;
+  status?: 'done' | 'skipped';
 };
 
 type RaceHubState = {
@@ -233,6 +234,7 @@ export default function SchedulePage() {
           date: c.date || c.session_date,
           session_title: c.session_title || c.title,
           strava_id: c.strava_id,
+          status: c.status === 'skipped' ? 'skipped' : 'done',
         }));
 
         const params = latestPlan?.plan?.params ?? {};
