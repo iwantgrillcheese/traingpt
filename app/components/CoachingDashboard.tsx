@@ -1,7 +1,7 @@
 // CoachingDashboard.tsx
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 import CompliancePanel from '@/app/coaching/CompliancePanel';
@@ -19,6 +19,8 @@ import {
 } from 'date-fns';
 import clsx from 'clsx';
 import { calculateReadiness } from '@/lib/readiness';
+import type { CoachingContextPayload } from '@/types/coaching-context';
+import { buildCoachingPrompt } from '@/lib/coaching/context';
 
 
 
@@ -42,6 +44,8 @@ type Props = {
   weeklySummary: any;
   stravaConnected: boolean;
   raceDate?: string | null;
+  initialPrompt?: string;
+  initialContext?: CoachingContextPayload | null;
 };
 
 type WindowKey = 'L7' | 'L30' | 'L90' | 'M6' | 'Y1';
@@ -123,11 +127,17 @@ export default function CoachingDashboard({
   weeklySummary,
   stravaConnected,
   raceDate,
+  initialPrompt = '',
+  initialContext = null,
 }: Props) {
 const [chatOpen, setChatOpen] = useState(false);
-const [chatPrefill, setChatPrefill] = useState<string>('');
+const [chatPrefill, setChatPrefill] = useState<string>(initialPrompt);
   const [windowKey, setWindowKey] = useState<WindowKey>('L30');
   const [showDetails, setShowDetails] = useState(false);
+
+  useEffect(() => {
+    if (initialPrompt) setChatOpen(true);
+  }, [initialPrompt]);
 
   // Window boundaries (inclusive start, inclusive end)
   const { start, end, prevStart, prevEnd } = useMemo(() => {
@@ -251,10 +261,25 @@ const [chatPrefill, setChatPrefill] = useState<string>('');
     return `${sign}${formatMinutes(abs)} vs prior`;
   }, [deltaMinutes]);
 
+  const contextualBrief = useMemo(() => {
+    return {
+      raceGoal: initialContext?.raceGoal ?? weeklySummary?.raceType ?? 'Not set',
+      weekPhase: initialContext?.weekPhase ?? label,
+      weekLabel: initialContext?.weekLabel ?? label,
+      sessionTitle: initialContext?.sessionTitle ?? null,
+      sessionDate: initialContext?.sessionDate ?? null,
+      completionState: initialContext?.completionState ?? null,
+      recentCompleted: initialContext?.recentCompleted ?? null,
+      recentMissed: initialContext?.recentMissed ?? null,
+    };
+  }, [initialContext, weeklySummary, label]);
+
   const coachActions = [
-    { id: 'stall', title: 'Why did progress slow this block?', subtitle: 'Review volume, intensity, and recovery.' },
-    { id: 'focus', title: 'What is the right focus this week?', subtitle: 'Pick one clear priority.' },
-    { id: 'balance', title: 'Is my training balanced?', subtitle: 'Check sport mix and consistency.' },
+    { id: 'explain', title: 'Explain This Workout', subtitle: 'Clarify intent and execution cues.' },
+    { id: 'missed', title: 'I Missed This Session — What Should I Do?', subtitle: 'Adjust without derailing the week.' },
+    { id: 'move', title: 'Can I Move This Workout?', subtitle: 'Re-sequence based on current load.' },
+    { id: 'feel', title: 'How Hard Should This Feel?', subtitle: 'Set effort target and pacing cues.' },
+    { id: 'focus', title: 'What Should I Focus on This Week?', subtitle: 'Define the one priority that matters.' },
   ] as const;
 
   const daysToRace = useMemo(() => {
@@ -299,10 +324,22 @@ const [chatPrefill, setChatPrefill] = useState<string>('');
               setChatPrefill('');
               setChatOpen(true);
             }}
-            className="inline-flex items-center justify-center rounded-full border border-zinc-700 bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-white"
+            className="inline-flex items-center justify-center rounded-full border border-zinc-700 bg-transparent px-4 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-900/50"
           >
-            Ask coach
+            Open free chat
           </button>
+        </div>
+
+        <div className="mt-5 rounded-xl border border-zinc-800 bg-[#0b0d10] p-3">
+          <div className="text-[11px] uppercase tracking-wide text-zinc-500">Context brief</div>
+          <div className="mt-2 grid grid-cols-1 gap-2 text-xs text-zinc-300 md:grid-cols-3">
+            <div><span className="text-zinc-500">Race goal:</span> {contextualBrief.raceGoal || 'Not set'}</div>
+            <div><span className="text-zinc-500">Week / phase:</span> {contextualBrief.weekLabel} · {contextualBrief.weekPhase}</div>
+            <div><span className="text-zinc-500">Selected session:</span> {contextualBrief.sessionTitle ? `${contextualBrief.sessionTitle} (${contextualBrief.sessionDate || 'date n/a'})` : 'None (opened without session context)'}</div>
+            <div><span className="text-zinc-500">Completion:</span> {contextualBrief.completionState ?? 'planned'}</div>
+            <div><span className="text-zinc-500">Recent completed (14d):</span> {contextualBrief.recentCompleted ?? '—'}</div>
+            <div><span className="text-zinc-500">Recent missed (14d):</span> {contextualBrief.recentMissed ?? '—'}</div>
+          </div>
         </div>
 
         <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -380,7 +417,20 @@ const [chatPrefill, setChatPrefill] = useState<string>('');
             <button
               key={a.id}
               onClick={() => {
-                setChatPrefill(a.title);
+                const prompt = buildCoachingPrompt(a.title, {
+                  source: 'coaching',
+                  sessionId: initialContext?.sessionId,
+                  sessionTitle: contextualBrief.sessionTitle,
+                  sessionType: initialContext?.sessionType ?? null,
+                  sessionDate: contextualBrief.sessionDate,
+                  weekLabel: contextualBrief.weekLabel,
+                  weekPhase: contextualBrief.weekPhase,
+                  completionState: (contextualBrief.completionState as any) ?? 'planned',
+                  recentCompleted: contextualBrief.recentCompleted ?? undefined,
+                  recentMissed: contextualBrief.recentMissed ?? undefined,
+                  raceGoal: contextualBrief.raceGoal,
+                });
+                setChatPrefill(prompt);
                 setChatOpen(true);
               }}
               className="group rounded-2xl border border-zinc-800 bg-[#0b0d10] p-4 text-left hover:bg-[#141820] transition"

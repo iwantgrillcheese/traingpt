@@ -12,6 +12,7 @@ import {
   saveFuelingPreferences,
 } from '@/lib/fueling-preferences';
 import { track } from '@/lib/analytics/posthog-client';
+import { buildCoachingHref } from '@/lib/coaching/context';
 
 type CompletedSession = {
   date: string;
@@ -29,6 +30,11 @@ type Props = {
   onCompletedUpdate: (updated: CompletedSession[]) => void;
   onSessionDeleted?: (sessionId: string) => void;
   onSessionUpdated?: (updated: Session) => void;
+  weekLabel?: string;
+  weekPhase?: string | null;
+  recentCompleted?: number;
+  recentMissed?: number;
+  raceGoal?: string | null;
 };
 
 function useIsMobile(breakpointPx = 768) {
@@ -262,6 +268,11 @@ export default function SessionModal({
   onCompletedUpdate,
   onSessionDeleted,
   onSessionUpdated,
+  weekLabel,
+  weekPhase,
+  recentCompleted = 0,
+  recentMissed = 0,
+  raceGoal,
 }: Props) {
   const isMobile = useIsMobile(768);
 
@@ -865,15 +876,27 @@ export default function SessionModal({
                   {[
                     'Explain This Workout',
                     'How Hard Should This Feel?',
-                    'I Missed This Session',
-                    'Can I Shorten This Today?',
-                    'What Matters Most Here?',
+                    'I Missed This Session — What Should I Do?',
+                    'Can I Move This Workout?',
+                    'What Should I Focus on This Week?',
                   ].map((label) => {
-                    const prompt = `${label}\n\nSession: ${session.title}\nDate: ${session.date}\nSport: ${session.sport ?? 'unknown'}\nDetails: ${session.details ?? ''}\nStructured workout: ${output ?? ''}`;
+                    const href = buildCoachingHref(label, {
+                      source: 'session',
+                      sessionId: session.id,
+                      sessionTitle: session.title,
+                      sessionType: session.sport ?? null,
+                      sessionDate: session.date,
+                      weekLabel: weekLabel ?? null,
+                      weekPhase: weekPhase ?? null,
+                      completionState: isCompleted ? 'done' : isSkipped ? 'skipped' : 'planned',
+                      recentCompleted,
+                      recentMissed,
+                      raceGoal,
+                    });
                     return (
                       <a
                         key={label}
-                        href={`/coaching?q=${encodeURIComponent(prompt)}`}
+                        href={href}
                         className="rounded-lg border border-black/10 bg-white px-3 py-2 text-[13px] font-medium text-zinc-800 hover:bg-zinc-50"
                       >
                         {label}
