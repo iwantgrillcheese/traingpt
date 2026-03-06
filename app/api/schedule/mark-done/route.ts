@@ -52,9 +52,7 @@ export async function POST(req: Request) {
       session_title,
       status: 'done',
     },
-    {
-      onConflict: 'user_id,date,session_title',
-    }
+    { onConflict: 'user_id,date,session_title' }
   );
 
   if (insertError) {
