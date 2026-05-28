@@ -12,7 +12,7 @@ import {
 } from "@/lib/fueling-preferences";
 
 export default function ProfilePage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, refresh: refreshAuth } = useAuth();
 
   const [profile, setProfile] = useState<any>(null);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -28,7 +28,9 @@ export default function ProfilePage() {
   const [stravaMessage, setStravaMessage] = useState<string | null>(null);
 
   const stravaSync = useStravaAutoSync({
-    enabled: Boolean(profile?.strava_access_token),
+    enabled: Boolean(profile?.strava_access_token) && !authLoading && !profileLoading,
+    authReady: !authLoading && !profileLoading,
+    isAuthenticated: Boolean(user?.id),
     onSyncComplete: () => setStravaMessage("Strava connected and synced."),
   });
 
@@ -123,6 +125,17 @@ export default function ProfilePage() {
   }, []);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const returnedFromStrava = params.get("success") === "strava_connected" || params.get("sync") === "needed";
+
+    if (returnedFromStrava) {
+      refreshAuth().catch((error) => {
+        console.error("[settings] auth refresh after Strava return failed:", error);
+      });
+    }
+  }, [refreshAuth]);
+
+  useEffect(() => {
     if (stravaSync.message) {
       setStravaMessage(stravaSync.message);
     }
@@ -139,7 +152,8 @@ export default function ProfilePage() {
     url.searchParams.set("redirect_uri", redirectUri);
     url.searchParams.set("scope", "activity:read_all,profile:read_all");
     url.searchParams.set("approval_prompt", "auto");
-    url.searchParams.set("state", "/settings");
+    const returnTo = `${window.location.pathname}`;
+    url.searchParams.set("state", returnTo);
 
     setStravaConnectUrl(url.toString());
   }, []);

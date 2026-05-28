@@ -1,4 +1,4 @@
-'use client';
+use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -13,6 +13,8 @@ type StravaSyncResult = {
 
 type UseStravaAutoSyncOptions = {
   enabled?: boolean;
+  authReady?: boolean;
+  isAuthenticated?: boolean;
   onSyncComplete?: (result: StravaSyncResult) => void;
 };
 
@@ -27,8 +29,28 @@ function cleanStravaSyncParams() {
   window.history.replaceState({}, '', nextUrl.toString());
 }
 
+function getSyncSuccessMessage(result: StravaSyncResult) {
+  const inserted = Number(result?.inserted ?? 0);
+  const totalFetched = Number(result?.totalFetched ?? 0);
+
+  if (inserted > 0) {
+    return `Imported ${inserted} new Strava ${inserted === 1 ? 'activity' : 'activities'}.`;
+  }
+
+  if (totalFetched > 0) {
+    return 'Strava is already up to date.';
+  }
+
+  return 'No new Strava activities found.';
+}
+
 export function useStravaAutoSync(options: UseStravaAutoSyncOptions = {}) {
-  const { enabled = true, onSyncComplete } = options;
+  const {
+    enabled = true,
+    authReady = true,
+    isAuthenticated = true,
+    onSyncComplete,
+  } = options;
 
   const hasAutoSyncedRef = useRef(false);
   const [status, setStatus] = useState<SyncStatus>('idle');
@@ -36,7 +58,18 @@ export function useStravaAutoSync(options: UseStravaAutoSyncOptions = {}) {
   const [lastResult, setLastResult] = useState<StravaSyncResult | null>(null);
 
   const syncNow = useCallback(async () => {
-    if (!enabled) return null;
+    if (!enabled || !authReady) return null;
+
+    if (!isAuthenticated) {
+      const result = {
+        error: 'Strava is connected, but your TrainGPT session is not ready. Refresh and try syncing again.',
+      };
+
+      setStatus('error');
+      setMessage(result.error);
+      setLastResult(result);
+      return result;
+    }
 
     setStatus('syncing');
     setMessage('Importing your latest Strava activities…');
@@ -46,40 +79,36 @@ export function useStravaAutoSync(options: UseStravaAutoSyncOptions = {}) {
       const json = (await res.json().catch(() => ({}))) as StravaSyncResult;
 
       if (!res.ok) {
-        const errorMessage = json?.error || 'Strava sync failed.';
+        const errorMessage =
+          res.status === 401
+            ? 'Strava connected, but your TrainGPT session was not ready to sync. Refresh and try Sync latest.'
+            : json?.error || 'Strava sync failed.';
+
+        const result = { ...json, error: errorMessage };
         setStatus('error');
         setMessage(errorMessage);
-        setLastResult(json);
-        return json;
+        setLastResult(result);
+        return result;
       }
 
-      const inserted = Number(json?.inserted ?? 0);
-      const totalFetched = Number(json?.totalFetched ?? 0);
-
       setStatus('success');
-      setMessage(
-        inserted > 0
-          ? `Imported ${inserted} new Strava ${inserted === 1 ? 'activity' : 'activities'}.`
-          : totalFetched > 0
-            ? 'Strava is already up to date.'
-            : 'No new Strava activities found.'
-      );
+      setMessage(getSyncSuccessMessage(json));
       setLastResult(json);
       onSyncComplete?.(json);
 
       return json;
     } catch (error) {
       console.error('[useStravaAutoSync] sync failed:', error);
-      const json = { error: 'Unexpected Strava sync error.' };
+      const result = { error: 'Unexpected Strava sync error. Try again.' };
       setStatus('error');
-      setMessage(json.error);
-      setLastResult(json);
-      return json;
+      setMessage(result.error);
+      setLastResult(result);
+      return result;
     }
-  }, [enabled, onSyncComplete]);
+  }, [authReady, enabled, isAuthenticated, onSyncComplete]);
 
   useEffect(() => {
-    if (!enabled || hasAutoSyncedRef.current) return;
+    if (!enabled || !authReady || !isAuthenticated || hasAutoSyncedRef.current) return;
 
     const url = new URL(window.location.href);
     if (!shouldAutoSyncFromUrl(url)) return;
@@ -89,7 +118,7 @@ export function useStravaAutoSync(options: UseStravaAutoSyncOptions = {}) {
     syncNow().finally(() => {
       cleanStravaSyncParams();
     });
-  }, [enabled, syncNow]);
+  }, [authReady, enabled, isAuthenticated, syncNow]);
 
   return {
     status,

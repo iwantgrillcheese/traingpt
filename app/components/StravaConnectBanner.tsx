@@ -1,4 +1,4 @@
-'use client';
+use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { track } from '@/lib/analytics/posthog-client';
@@ -84,9 +84,14 @@ export default function StravaConnectBanner({ stravaConnected, onSyncComplete }:
       const data = (await res.json().catch(() => ({}))) as SyncResponse;
 
       if (!res.ok) {
-        console.error('[StravaConnectBanner] sync failed:', data?.error);
+        const errorMessage =
+          res.status === 401
+            ? 'Your TrainGPT session was not ready to sync. Refresh and try again.'
+            : data?.error || 'Strava sync failed. Try again.';
+
+        console.error('[StravaConnectBanner] sync failed:', errorMessage);
         setSyncState('error');
-        setSyncResponse(data);
+        setSyncResponse({ ...data, error: errorMessage });
         return;
       }
 
@@ -103,7 +108,7 @@ export default function StravaConnectBanner({ stravaConnected, onSyncComplete }:
     } catch (err) {
       console.error('[StravaConnectBanner] unexpected sync error:', err);
       setSyncState('error');
-      setSyncResponse({ error: 'Unexpected sync error.' });
+      setSyncResponse({ error: 'Unexpected sync error. Try again.' });
     }
   };
 
