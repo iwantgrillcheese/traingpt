@@ -6,6 +6,7 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase/client';
 import Footer from './components/footer';
 import BlogPreview from './components/blog/BlogPreview';
+import type { AuthChangeEvent, Session as SupabaseSession } from '@supabase/supabase-js';
 
 /* ------------------------------ tiny animation helpers (no deps) ------------------------------ */
 
@@ -679,18 +680,21 @@ export default function Home() {
 
     syncSession();
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, s) => {
-      if (!alive) return;
+const { data: listener } = supabase.auth.onAuthStateChange(
+  (_event: AuthChangeEvent, s: SupabaseSession | null) => {
+    if (!alive) return;
 
-      setSession(s ?? null);
-      setAuthReady(true);
+    setSession(s ?? null);
+    setAuthReady(true);
 
-      if (s?.user?.id) loadUserState(s.user.id);
-      else {
-        setHasPlan(false);
-        setStravaConnected(false);
-      }
-    });
+    if (s?.user?.id) {
+      loadUserState(s.user.id);
+    } else {
+      setHasPlan(false);
+      setStravaConnected(false);
+    }
+  }
+);
 
     const onFocus = () => syncSession();
     window.addEventListener('focus', onFocus);
