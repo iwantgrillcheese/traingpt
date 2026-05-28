@@ -808,7 +808,10 @@ function PlanPageContent() {
 
       if (stravaRes.data?.length) {
         const rows = stravaRes.data;
-        const totalHours = rows.reduce((acc, row: any) => acc + ((row.moving_time ?? 0) / 3600), 0);
+        const totalHours = rows.reduce(
+  (acc: number, row: any) => acc + ((row.moving_time ?? 0) / 3600),
+  0
+);
         const runCount = rows.filter((row: any) => String(row.sport_type ?? '').toLowerCase() === 'run').length;
         const bikeCount = rows.filter((row: any) => String(row.sport_type ?? '').toLowerCase() === 'bike').length;
         const swimCount = rows.filter((row: any) => String(row.sport_type ?? '').toLowerCase() === 'swim').length;
