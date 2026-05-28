@@ -1,29 +1,71 @@
-// /app/api/schedule/update-session/route.ts
-import { NextResponse } from 'next/server'
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { NextResponse } from 'next/server';
+import {
+  AuthError,
+  assertSameUser,
+  createRouteSupabaseClient,
+  requireUser,
+} from '@/lib/supabase/server';
+
+export const dynamic = 'force-dynamic';
+
+type UpdateSessionPayload = {
+  sessionId?: string;
+  newDate?: string;
+  clientUserId?: string | null;
+};
 
 export async function POST(req: Request) {
-  const supabase = createServerComponentClient({ cookies })
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  try {
+    const supabase = await createRouteSupabaseClient();
+    const user = await requireUser(supabase);
 
-  const { sessionId, newDate, clientUserId } = await req.json()
+    const payload = (await req.json()) as UpdateSessionPayload;
 
-  if (typeof clientUserId === 'string' && clientUserId && clientUserId !== user.id) {
-    console.error('[schedule/update-session] auth mismatch', {
-      cookieUserId: user.id,
-      clientUserId,
-    })
-    return NextResponse.json({ error: 'Authentication session mismatch. Please sign in again.' }, { status: 401 })
+    assertSameUser({
+      authenticatedUserId: user.id,
+      requestedUserId: payload.clientUserId,
+      routeName: 'schedule/update-session',
+    });
+
+    const sessionId = payload.sessionId?.trim();
+    const newDate = payload.newDate?.trim();
+
+    if (!sessionId || !newDate) {
+      return NextResponse.json(
+        { error: 'Missing required fields: sessionId and newDate are required.' },
+        { status: 400 }
+      );
+    }
+
+    const { error } = await supabase
+      .from('sessions')
+      .update({ date: newDate })
+      .eq('id', sessionId)
+      .eq('user_id', user.id);
+
+    if (error) {
+      console.error('[schedule/update-session] update failed:', error);
+
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('[schedule/update-session] failed:', error);
+
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status }
+      );
+    }
+
+    return NextResponse.json(
+      { error: 'Failed to update session.' },
+      { status: 500 }
+    );
   }
-
-  const { error } = await supabase
-    .from('sessions')
-    .update({ date: newDate })
-    .eq('id', sessionId)
-    .eq('user_id', user.id)
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-  return NextResponse.json({ success: true })
 }
