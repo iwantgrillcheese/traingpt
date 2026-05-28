@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase-client';
 
@@ -12,16 +12,17 @@ function resolveSafeNext(raw: string | null) {
   return raw;
 }
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-const next = useMemo(
-  () => resolveSafeNext(searchParams?.get('next') ?? null),
-  [searchParams]
-);
+  const next = useMemo(
+    () => resolveSafeNext(searchParams?.get('next') ?? null),
+    [searchParams]
+  );
 
-const error = searchParams?.get('error') ?? null;
+  const error = searchParams?.get('error') ?? null;
+
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [isSigningIn, setIsSigningIn] = useState(false);
 
@@ -114,5 +115,28 @@ const error = searchParams?.get('error') ?? null;
         </button>
       </div>
     </main>
+  );
+}
+
+function LoginFallback() {
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-center bg-white px-4">
+      <div className="w-full max-w-sm text-center">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">
+          TrainGPT
+        </p>
+        <h1 className="text-3xl font-semibold tracking-tight text-zinc-950">
+          Loading sign in…
+        </h1>
+      </div>
+    </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginFallback />}>
+      <LoginContent />
+    </Suspense>
   );
 }
