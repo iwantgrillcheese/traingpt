@@ -168,7 +168,6 @@ function normalizeCompletedSessions(rows: any[]): CompletedSession[] {
     .map((c: any): CompletedSession => ({
       date: String(c.date || c.session_date || ''),
       session_title: String(c.session_title || c.title || ''),
-      strava_id: c.strava_id === null || c.strava_id === undefined ? undefined : String(c.strava_id),
       status: c.status === 'skipped' ? 'skipped' : 'done',
     }))
     .filter((row): row is CompletedSession => Boolean(row.date && row.session_title));
@@ -298,7 +297,7 @@ export default function SchedulePage() {
 
           supabase
             .from('completed_sessions')
-            .select('date, session_title, strava_id, status')
+            .select('date, session_title, status')
             .eq('user_id', user.id)
             .gte('date', dataWindow.startDateKey)
             .lte('date', dataWindow.endDateKey)
