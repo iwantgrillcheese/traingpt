@@ -1,7 +1,18 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { startOfMonth, subMonths, addMonths, format, startOfWeek, endOfWeek, parseISO, subDays, isAfter } from 'date-fns';
+import type { SVGProps } from 'react';
+import {
+  startOfMonth,
+  subMonths,
+  addMonths,
+  format,
+  startOfWeek,
+  endOfWeek,
+  parseISO,
+  subDays,
+  isAfter,
+} from 'date-fns';
 import MonthGrid from './MonthGrid';
 import MobileCalendarView from './MobileCalendarView';
 import SessionModal from './SessionModal';
@@ -17,6 +28,7 @@ import {
   TouchSensor,
   useSensor,
   useSensors,
+  type DragEndEvent,
   type SensorOptions,
 } from '@dnd-kit/core';
 
@@ -37,12 +49,11 @@ type CalendarShellProps = {
   nextSummary?: string;
   weekPhaseSummary?: string;
   raceGoal?: string | null;
-
   onOpenWalkthrough?: () => void;
   walkthroughLoading?: boolean;
 };
 
-function IconChevronLeft(props: React.SVGProps<SVGSVGElement>) {
+function IconChevronLeft(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
       <path
@@ -56,7 +67,7 @@ function IconChevronLeft(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
-function IconChevronRight(props: React.SVGProps<SVGSVGElement>) {
+function IconChevronRight(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
       <path
@@ -157,6 +168,7 @@ export default function CalendarShell({
   walkthroughLoading,
 }: CalendarShellProps) {
   const [hasMounted, setHasMounted] = useState(false);
+  const [isMobileView, setIsMobileView] = useState(false);
 
   const [selectedSession, setSelectedSession] = useState<MergedSession | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<StravaActivity | null>(null);
@@ -170,9 +182,33 @@ export default function CalendarShell({
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState<string>('');
 
-  useEffect(() => setHasMounted(true), []);
-  useEffect(() => setCompleted(completedSessions), [completedSessions]);
-  useEffect(() => setLocalSessions(sessions), [sessions]);
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 767px)');
+
+    const update = () => {
+      setIsMobileView(mediaQuery.matches);
+    };
+
+    update();
+
+    mediaQuery.addEventListener?.('change', update);
+
+    return () => {
+      mediaQuery.removeEventListener?.('change', update);
+    };
+  }, []);
+
+  useEffect(() => {
+    setCompleted(completedSessions);
+  }, [completedSessions]);
+
+  useEffect(() => {
+    setLocalSessions(sessions);
+  }, [sessions]);
 
   useEffect(() => {
     return () => {
@@ -195,6 +231,7 @@ export default function CalendarShell({
 
   const sessionsByDate = useMemo(() => {
     const map: Record<string, MergedSession[]> = {};
+
     localSessions.forEach((s) => {
       if (!s.date) return;
       if (!map[s.date]) map[s.date] = [];
@@ -251,26 +288,28 @@ export default function CalendarShell({
     return { recentCompleted, recentMissed };
   }, [localSessions, completed]);
 
-  const handleSessionAdded = (newSession: any) => {
+  const handleSessionAdded = (newSession: MergedSession) => {
     setLocalSessions((prev) => [...prev, newSession]);
   };
 
   const handleSessionDeleted = (sessionId: string) => {
-    setLocalSessions((prev) => prev.filter((s) => s.id !== sessionId));
-    setSelectedSession((prev) => (prev?.id === sessionId ? null : prev));
+    setLocalSessions((prev) => prev.filter((s) => String(s.id) !== String(sessionId)));
+    setSelectedSession((prev) => (String(prev?.id) === String(sessionId) ? null : prev));
   };
 
-  const handleDragEnd = async (event: any) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     if (!active || !over) return;
 
     const draggedId = String(active.id);
     const targetDate = String(over.id);
+
     let previousDate: string | null = null;
 
     setLocalSessions((prev) =>
       prev.map((s) => {
         if (String(s.id) !== draggedId) return s;
+
         previousDate = String((s as any).date ?? '');
         return { ...s, date: targetDate };
       })
@@ -280,8 +319,10 @@ export default function CalendarShell({
     setSaveMessage('Saving schedule change…');
 
     if (saveTimer.current) clearTimeout(saveTimer.current);
+
     saveTimer.current = setTimeout(async () => {
       const { error } = await supabase.from('sessions').update({ date: targetDate }).eq('id', draggedId);
+
       if (error) {
         console.error('Error persisting session move:', error);
 
@@ -298,6 +339,7 @@ export default function CalendarShell({
 
       setSaveState('saved');
       setSaveMessage('Saved');
+
       window.setTimeout(() => {
         setSaveState('idle');
         setSaveMessage('');
@@ -305,101 +347,122 @@ export default function CalendarShell({
     }, 450);
   };
 
-  if (!hasMounted) return <main className="min-h-[100dvh] w-full bg-white" />;
+  if (!hasMounted) {
+    return <main className="min-h-[100dvh] w-full bg-white" />;
+  }
 
   return (
     <main className="min-h-[100dvh] w-full bg-zinc-50 pb-[env(safe-area-inset-bottom)]">
-      {/* Mobile (CSS-controlled) */}
-      <div className="md:hidden">
-        <div className="px-4 pt-3 pb-1 space-y-2 bg-zinc-50">
-          {weekPhaseSummary ? (
-            <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-zinc-500">{weekPhaseSummary}</div>
-          ) : null}
-          <div className="rounded-xl border border-black/10 bg-white px-3 py-2">
-            <div className="text-[10px] uppercase tracking-wide text-zinc-500">Today</div>
-            <div className="mt-1 text-[13px] font-medium text-zinc-900">{todaySummary ?? 'No workout scheduled today'}</div>
-          </div>
-          <div className="rounded-xl border border-black/10 bg-white px-3 py-2">
-            <div className="text-[10px] uppercase tracking-wide text-zinc-500">Next</div>
-            <div className="mt-1 text-[13px] font-medium text-zinc-900">{nextSummary ?? 'No upcoming sessions yet'}</div>
-          </div>
-        </div>
-        <MobileCalendarView
-          sessions={localSessions as any}
-          completedSessions={completed}
-          stravaActivities={extraStravaActivities}
-          onSessionDeleted={handleSessionDeleted}
-          weekPhase={weekPhaseSummary ?? null}
-          raceGoal={raceGoal ?? null}
-        />
-      </div>
+      {isMobileView ? (
+        <div>
+          <div className="space-y-2 bg-zinc-50 px-4 pb-1 pt-3">
+            {weekPhaseSummary ? (
+              <div className="text-[11px] font-semibold uppercase tracking-[0.1em] text-zinc-500">
+                {weekPhaseSummary}
+              </div>
+            ) : null}
 
-      {/* Desktop (CSS-controlled) */}
-      <div className="hidden md:block">
-        <Toolbar
-          currentMonth={currentMonth}
-          onPrev={goToPrevMonth}
-          onNext={goToNextMonth}
-          onToday={goToToday}
-          onOpenWalkthrough={onOpenWalkthrough}
-          walkthroughLoading={walkthroughLoading}
-        />
-
-        <div className="w-full px-4 pt-4 lg:px-6">
-          <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-xl border border-black/10 bg-white px-3 py-2">
-              <div className="text-[10px] uppercase tracking-wide text-zinc-500">Week</div>
-              <div className="mt-1 text-[13px] font-medium text-zinc-900">{weekPhaseSummary ?? 'Current week'}</div>
-            </div>
             <div className="rounded-xl border border-black/10 bg-white px-3 py-2">
               <div className="text-[10px] uppercase tracking-wide text-zinc-500">Today</div>
-              <div className="mt-1 text-[13px] font-medium text-zinc-900">{todaySummary ?? 'No workout scheduled today'}</div>
+              <div className="mt-1 text-[13px] font-medium text-zinc-900">
+                {todaySummary ?? 'No workout scheduled today'}
+              </div>
             </div>
+
             <div className="rounded-xl border border-black/10 bg-white px-3 py-2">
               <div className="text-[10px] uppercase tracking-wide text-zinc-500">Next</div>
-              <div className="mt-1 text-[13px] font-medium text-zinc-900">{nextSummary ?? 'No upcoming sessions yet'}</div>
+              <div className="mt-1 text-[13px] font-medium text-zinc-900">
+                {nextSummary ?? 'No upcoming sessions yet'}
+              </div>
+            </div>
+          </div>
+
+          <MobileCalendarView
+            sessions={localSessions as any}
+            completedSessions={completed}
+            stravaActivities={extraStravaActivities}
+            onSessionDeleted={handleSessionDeleted}
+            weekPhase={weekPhaseSummary ?? null}
+            raceGoal={raceGoal ?? null}
+          />
+        </div>
+      ) : (
+        <div>
+          <Toolbar
+            currentMonth={currentMonth}
+            onPrev={goToPrevMonth}
+            onNext={goToNextMonth}
+            onToday={goToToday}
+            onOpenWalkthrough={onOpenWalkthrough}
+            walkthroughLoading={walkthroughLoading}
+          />
+
+          <div className="w-full px-4 pt-4 lg:px-6">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-xl border border-black/10 bg-white px-3 py-2">
+                <div className="text-[10px] uppercase tracking-wide text-zinc-500">Week</div>
+                <div className="mt-1 text-[13px] font-medium text-zinc-900">
+                  {weekPhaseSummary ?? 'Current week'}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-black/10 bg-white px-3 py-2">
+                <div className="text-[10px] uppercase tracking-wide text-zinc-500">Today</div>
+                <div className="mt-1 text-[13px] font-medium text-zinc-900">
+                  {todaySummary ?? 'No workout scheduled today'}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-black/10 bg-white px-3 py-2">
+                <div className="text-[10px] uppercase tracking-wide text-zinc-500">Next</div>
+                <div className="mt-1 text-[13px] font-medium text-zinc-900">
+                  {nextSummary ?? 'No upcoming sessions yet'}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="w-full px-4 py-5 lg:px-6">
+            {saveState !== 'idle' ? (
+              <div
+                className={`mb-3 rounded-lg border px-3 py-2 text-xs font-medium ${
+                  saveState === 'error'
+                    ? 'border-rose-200 bg-rose-50 text-rose-700'
+                    : saveState === 'saving'
+                      ? 'border-zinc-200 bg-white text-zinc-600'
+                      : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                }`}
+              >
+                {saveMessage}
+              </div>
+            ) : null}
+
+            <div className="w-full overflow-x-auto">
+              <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+                <MonthGrid
+                  currentMonth={currentMonth}
+                  sessionsByDate={sessionsByDate}
+                  completedSessions={completed}
+                  stravaByDate={stravaByDate}
+                  onSessionClick={(s) => setSelectedSession(s)}
+                  onStravaActivityClick={(a) => setSelectedActivity(a)}
+                />
+              </DndContext>
             </div>
           </div>
         </div>
+      )}
 
-        {/* Full-width canvas */}
-        <div className="w-full px-4 py-5 lg:px-6">
-          {saveState !== 'idle' ? (
-            <div
-              className={`mb-3 rounded-lg border px-3 py-2 text-xs font-medium ${
-                saveState === 'error'
-                  ? 'border-rose-200 bg-rose-50 text-rose-700'
-                  : saveState === 'saving'
-                    ? 'border-zinc-200 bg-white text-zinc-600'
-                    : 'border-emerald-200 bg-emerald-50 text-emerald-700'
-              }`}
-            >
-              {saveMessage}
-            </div>
-          ) : null}
-          <div className="w-full overflow-x-auto">
-            <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-              <MonthGrid
-                currentMonth={currentMonth}
-                sessionsByDate={sessionsByDate}
-                completedSessions={completed}
-                stravaByDate={stravaByDate}
-                onSessionClick={(s) => setSelectedSession(s)}
-                onStravaActivityClick={(a) => setSelectedActivity(a)}
-              />
-            </DndContext>
-          </div>
-        </div>
-      </div>
-
-      <button
-        type="button"
-        onClick={() => setAddSessionDate(new Date())}
-        className="fixed bottom-[calc(env(safe-area-inset-bottom)+16px)] right-4 z-30 hidden h-12 items-center justify-center rounded-full border border-black/10 bg-zinc-950 px-5 text-[14px] font-semibold text-white shadow-[0_14px_30px_rgba(0,0,0,0.25)] active:translate-y-[0.5px] md:inline-flex"
-        aria-label="Add session"
-      >
-        + Add session
-      </button>
+      {!isMobileView ? (
+        <button
+          type="button"
+          onClick={() => setAddSessionDate(new Date())}
+          className="fixed bottom-[calc(env(safe-area-inset-bottom)+16px)] right-4 z-30 inline-flex h-12 items-center justify-center rounded-full border border-black/10 bg-zinc-950 px-5 text-[14px] font-semibold text-white shadow-[0_14px_30px_rgba(0,0,0,0.25)] active:translate-y-[0.5px]"
+          aria-label="Add session"
+        >
+          + Add session
+        </button>
+      ) : null}
 
       <SessionModal
         session={selectedSession}
@@ -416,11 +479,25 @@ export default function CalendarShell({
         onSessionDeleted={handleSessionDeleted}
         onSessionUpdated={(updatedSession) => {
           setLocalSessions((prev) =>
-            prev.map((s) => (s.id === updatedSession.id ? { ...s, details: updatedSession.details } : s))
+            prev.map((s) =>
+              String(s.id) === String(updatedSession.id)
+                ? { ...s, details: updatedSession.details }
+                : s
+            )
           );
-          setSelectedSession((prev) =>
-            prev?.id === updatedSession.id ? { ...prev, details: updatedSession.details } : prev
-          );
+
+         setSelectedSession((prev) => {
+  if (!prev) return null;
+
+  if (String(prev.id) !== String(updatedSession.id)) {
+    return prev;
+  }
+
+  return {
+    ...prev,
+    details: updatedSession.details,
+  };
+});
         }}
       />
 
