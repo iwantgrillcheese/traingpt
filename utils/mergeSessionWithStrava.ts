@@ -5,7 +5,7 @@ import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
 
 export type MergedSession = Omit<Session, 'duration'> & {
   stravaActivity?: StravaActivity;
-  duration?: number; // minutes
+  duration?: number; // completed activity duration in minutes
   distance_km?: number;
 };
 
@@ -15,32 +15,64 @@ export type MergedResult = {
   matchedStravaIds: Set<string>;
 };
 
-function stravaKey(a: StravaActivity): string {
-  // Prefer Strava activity id, fall back to DB row id
-  return String(a.strava_id ?? a.id);
+type NormalizedSport = 'swim' | 'bike' | 'run';
+
+function stravaKey(activity: StravaActivity): string {
+  return String(activity.strava_id ?? activity.id);
 }
 
-function normalizeSessionSport(sport?: Session['sport'] | string): 'swim' | 'bike' | 'run' | null {
-  const s = (sport ?? '').toLowerCase();
-  if (s.includes('swim')) return 'swim';
-  if (s.includes('bike') || s.includes('ride')) return 'bike';
-  if (s.includes('run')) return 'run';
+function normalizeSessionSport(sport?: Session['sport'] | string): NormalizedSport | null {
+  const normalized = String(sport ?? '').toLowerCase();
+
+  if (normalized.includes('swim')) return 'swim';
+  if (normalized.includes('bike') || normalized.includes('ride') || normalized.includes('cycle')) return 'bike';
+  if (normalized.includes('run')) return 'run';
+
   return null;
 }
 
-function normalizeStravaSport(sportType?: StravaActivity['sport_type'] | string): 'swim' | 'bike' | 'run' | null {
-  const s = (sportType ?? '').toLowerCase();
-  if (s.includes('swim')) return 'swim';
-  if (s.includes('ride') || s.includes('bike')) return 'bike';
-  if (s.includes('run')) return 'run';
+function normalizeStravaSport(sportType?: StravaActivity['sport_type'] | string): NormalizedSport | null {
+  const normalized = String(sportType ?? '').toLowerCase();
+
+  if (normalized.includes('swim')) return 'swim';
+  if (normalized.includes('ride') || normalized.includes('bike') || normalized.includes('virtualride')) return 'bike';
+  if (normalized.includes('run')) return 'run';
+
   return null;
 }
 
-function isDurationSimilar(estimatedMinutes: number | null, stravaSeconds: number): boolean {
-  if (!estimatedMinutes) return true; // permissive if we can't estimate
-  const stravaMinutes = stravaSeconds / 60;
-  const diff = Math.abs(stravaMinutes - estimatedMinutes);
-  return diff / estimatedMinutes <= 0.2; // within 20%
+function getActivityDate(activity: StravaActivity): string | null {
+  return activity.local_date ?? activity.start_date_local?.slice(0, 10) ?? activity.start_date?.slice(0, 10) ?? null;
+}
+
+function getActivityDurationMinutes(activity: StravaActivity): number | null {
+  const seconds = Number(activity.moving_time ?? 0);
+  if (!Number.isFinite(seconds) || seconds <= 0) return null;
+
+  return seconds / 60;
+}
+
+function durationScore(estimatedMinutes: number | null, activity: StravaActivity): number {
+  if (!estimatedMinutes || estimatedMinutes <= 0) return 0;
+
+  const actualMinutes = getActivityDurationMinutes(activity);
+  if (!actualMinutes) return Number.MAX_SAFE_INTEGER;
+
+  return Math.abs(actualMinutes - estimatedMinutes) / estimatedMinutes;
+}
+
+function isDurationAcceptable(estimatedMinutes: number | null, activity: StravaActivity): boolean {
+  if (!estimatedMinutes || estimatedMinutes <= 0) return true;
+
+  const score = durationScore(estimatedMinutes, activity);
+
+  // Be a little forgiving. Real workouts can be extended, cut short, or logged with
+  // warmup/cooldown that the plan title did not capture.
+  return score <= 0.35;
+}
+
+function bucketKey(date: string, sport: NormalizedSport) {
+  return `${date}::${sport}`;
 }
 
 export default function mergeSessionsWithStrava(
@@ -50,49 +82,60 @@ export default function mergeSessionsWithStrava(
 ): MergedResult {
   const matchedIds = new Set<string>();
 
-  // Ensure local_date exists on each activity (timezone-safe date matching)
-  const withLocalDate: StravaActivity[] = (() => {
-    const needsLocal = strava.some((a) => !a.local_date);
-    if (!needsLocal) return strava;
-    const grouped = normalizeStravaActivities(strava, userTimezone);
-    return Object.values(grouped).flat();
-  })();
+  const groupedByDate = normalizeStravaActivities(strava, userTimezone);
+  const normalizedActivities = Object.values(groupedByDate).flat();
+
+  const activitiesByDateAndSport = normalizedActivities.reduce<Record<string, StravaActivity[]>>(
+    (acc, activity) => {
+      const date = getActivityDate(activity);
+      const sport = normalizeStravaSport(activity.sport_type);
+
+      if (!date || !sport) return acc;
+
+      const key = bucketKey(date, sport);
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(activity);
+
+      return acc;
+    },
+    {}
+  );
 
   const merged: MergedSession[] = sessions.map((session) => {
-    const sessionDate = session.date; // 'YYYY-MM-DD'
+    const sessionDate = session.date;
     const sessionSport = normalizeSessionSport(session.sport);
-    const estimatedDuration = estimateDurationFromTitle(session.title);
 
     if (!sessionDate || !sessionSport) {
       return { ...session };
     }
 
-    const match = withLocalDate.find((a) => {
-      const key = stravaKey(a);
-      if (matchedIds.has(key)) return false;
+    const estimatedDuration = estimateDurationFromTitle(session.title);
+    const candidates = activitiesByDateAndSport[bucketKey(sessionDate, sessionSport)] ?? [];
 
-      const activityDate = a.local_date ?? String(a.start_date).slice(0, 10);
-      const activitySport = normalizeStravaSport(a.sport_type);
-      if (!activitySport) return false;
+    const bestMatch =
+      candidates
+        .filter((activity) => !matchedIds.has(stravaKey(activity)))
+        .filter((activity) => isDurationAcceptable(estimatedDuration, activity))
+        .sort((a, b) => durationScore(estimatedDuration, a) - durationScore(estimatedDuration, b))[0] ?? null;
 
-      const ok =
-        activityDate === sessionDate &&
-        activitySport === sessionSport &&
-        isDurationSimilar(estimatedDuration, a.moving_time);
+    if (!bestMatch) {
+      return { ...session };
+    }
 
-      if (ok) matchedIds.add(key);
-      return ok;
-    });
+    matchedIds.add(stravaKey(bestMatch));
+
+    const durationMinutes = getActivityDurationMinutes(bestMatch);
+    const distanceMeters = Number(bestMatch.distance ?? 0);
 
     return {
       ...session,
-      stravaActivity: match,
-      duration: match?.moving_time ? match.moving_time / 60 : undefined,
-      distance_km: match?.distance ? match.distance / 1000 : undefined,
+      stravaActivity: bestMatch,
+      duration: durationMinutes ?? undefined,
+      distance_km: Number.isFinite(distanceMeters) && distanceMeters > 0 ? distanceMeters / 1000 : undefined,
     };
   });
 
-  const unmatched = withLocalDate.filter((a) => !matchedIds.has(stravaKey(a)));
+  const unmatched = normalizedActivities.filter((activity) => !matchedIds.has(stravaKey(activity)));
 
   return { merged, unmatched, matchedStravaIds: matchedIds };
 }

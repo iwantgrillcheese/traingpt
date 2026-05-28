@@ -2,15 +2,20 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase/client';
+
 import CalendarShell from './CalendarShell';
+import Footer from '../components/footer';
+import PostPlanWalkthrough from '../plan/components/PostPlanWalkthrough';
+
+import { supabase } from '@/lib/supabase/client';
+import { useAuth } from '@/lib/auth/AuthProvider';
+import { track } from '@/lib/analytics/posthog-client';
+
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
+import type { WalkthroughContext } from '@/types/coachGuides';
 import mergeSessionsWithStrava, { type MergedSession } from '@/utils/mergeSessionWithStrava';
-import Footer from '../components/footer';
-import { calculateReadiness } from '@/lib/readiness';
-import type { AuthChangeEvent, Session as SupabaseSession } from '@supabase/supabase-js';
-import { track } from '@/lib/analytics/posthog-client';
+
 import {
   conciseSessionLabel,
   formatSessionDateLabel,
@@ -18,13 +23,11 @@ import {
   getNextUpcomingSession,
   getTodaysPrimarySession,
 } from './session-utils';
-import PostPlanWalkthrough from '../plan/components/PostPlanWalkthrough';
-import type { WalkthroughContext } from '@/types/coachGuides';
 
 type CompletedSession = {
   date: string;
   session_title: string;
-  strava_id?: string;
+  strava_id?: string | number | null;
   status?: 'done' | 'skipped';
 };
 
@@ -38,6 +41,38 @@ type RaceHubState = {
   planPayload?: any;
 };
 
+type DataWindow = {
+  start: Date;
+  end: Date;
+  startDateKey: string;
+  endDateKey: string;
+  startIso: string;
+  endIso: string;
+};
+
+const STRAVA_COLUMNS = [
+  'id',
+  'user_id',
+  'strava_id',
+  'name',
+  'sport_type',
+  'start_date',
+  'start_date_local',
+  'moving_time',
+  'distance',
+  'manual',
+  'created_at',
+  'average_heartrate',
+  'max_heartrate',
+  'average_speed',
+  'average_watts',
+  'weighted_average_watts',
+  'kilojoules',
+  'total_elevation_gain',
+  'device_watts',
+  'trainer',
+].join(',');
+
 function deriveCurrentPhase(planPayload: any): string | null {
   const weeks = planPayload?.weeks;
   if (!Array.isArray(weeks) || weeks.length === 0) return null;
@@ -48,8 +83,8 @@ function deriveCurrentPhase(planPayload: any): string | null {
   for (const week of weeks) {
     if (!week?.startDate || !week?.phase) continue;
 
-    const start = new Date(week.startDate);
-    if (Number.isNaN(start.getTime())) continue;
+    const start = parseDateValue(week.startDate);
+    if (!start) continue;
 
     if (start <= today) latestPhase = String(week.phase);
   }
@@ -77,17 +112,78 @@ function formatWeekRange(start: Date, end: Date) {
   return `${fmt.format(start)} – ${fmt.format(end)}`;
 }
 
+function parseDateValue(value?: string | null): Date | null {
+  if (!value) return null;
+
+  const normalized = value.includes('T') ? value : `${value}T00:00:00`;
+  const parsed = new Date(normalized);
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function toDateKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function buildScheduleDataWindow(sessions: Session[], raceDate?: string | null): DataWindow {
+  const today = new Date();
+
+  const parsedSessionDates = sessions
+    .map((session) => parseDateValue(session.date))
+    .filter((date): date is Date => !!date);
+
+  let start: Date;
+  let end: Date;
+
+  if (parsedSessionDates.length > 0) {
+    start = new Date(Math.min(...parsedSessionDates.map((date) => date.getTime())));
+    end = new Date(Math.max(...parsedSessionDates.map((date) => date.getTime())));
+
+    // Small buffer catches Strava activities near plan edges and manual status edits.
+    start.setDate(start.getDate() - 14);
+    end.setDate(end.getDate() + 14);
+  } else {
+    start = new Date(today);
+    start.setDate(today.getDate() - 90);
+
+    end = new Date(today);
+    end.setDate(today.getDate() + 30);
+  }
+
+  const parsedRaceDate = parseDateValue(raceDate);
+  if (parsedRaceDate && parsedRaceDate > end) {
+    end = new Date(parsedRaceDate);
+    end.setDate(end.getDate() + 14);
+  }
+
+  start.setHours(0, 0, 0, 0);
+  end.setHours(23, 59, 59, 999);
+
+  return {
+    start,
+    end,
+    startDateKey: toDateKey(start),
+    endDateKey: toDateKey(end),
+    startIso: start.toISOString(),
+    endIso: end.toISOString(),
+  };
+}
+
 function normalizeCompletedSessions(rows: any[]): CompletedSession[] {
-  return (rows ?? []).map((c: any) => ({
-    date: c.date || c.session_date,
-    session_title: c.session_title || c.title,
-    strava_id: c.strava_id,
-    status: c.status === 'skipped' ? 'skipped' : 'done',
-  }));
+  return (rows ?? [])
+    .map((c: any) => ({
+      date: String(c.date || c.session_date || ''),
+      session_title: String(c.session_title || c.title || ''),
+      strava_id: c.strava_id ?? null,
+      status: c.status === 'skipped' ? 'skipped' : 'done',
+    }))
+    .filter((row) => row.date && row.session_title);
 }
 
 export default function SchedulePage() {
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
+
   const scheduleViewTrackedRef = useRef(false);
   const loadRunRef = useRef(0);
 
@@ -120,8 +216,6 @@ export default function SchedulePage() {
   useEffect(() => {
     let cancelled = false;
 
-    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
     const clearScheduleState = () => {
       setAuthedUserId(null);
       setSessions([]);
@@ -131,6 +225,8 @@ export default function SchedulePage() {
     };
 
     const loadSchedule = async () => {
+      if (authLoading) return;
+
       const runId = ++loadRunRef.current;
 
       try {
@@ -139,27 +235,11 @@ export default function SchedulePage() {
           setLoadError(null);
         }
 
-        let session = null;
-
-        for (let attempt = 0; attempt < 5; attempt += 1) {
-          const sessionRes = await supabase.auth.getSession();
-
-          if (sessionRes.error) throw sessionRes.error;
-
-          session = sessionRes.data.session;
-          if (session?.user?.id) break;
-
-          await sleep(300);
-        }
-
-        if (cancelled || runId !== loadRunRef.current) return;
-
-        if (!session?.user?.id) {
+        if (!user?.id) {
           clearScheduleState();
           return;
         }
 
-        const user = session.user;
         setAuthedUserId(user.id);
 
         const { error: profileError } = await supabase.from('profiles').upsert({
@@ -170,6 +250,7 @@ export default function SchedulePage() {
         });
 
         if (profileError) {
+          // Non-fatal. The schedule can still render.
           console.error('[schedule] profile upsert failed:', profileError);
         }
 
@@ -186,15 +267,46 @@ export default function SchedulePage() {
         const latestPlan = latestPlanRow as any;
         const latestPlanId = latestPlan?.id ?? null;
 
-        const [sessionsRes, stravaRes, completedRes] = await Promise.all([
-          latestPlanId
-            ? supabase.from('sessions').select('*').eq('user_id', user.id).eq('plan_id', latestPlanId)
-            : supabase.from('sessions').select('*').eq('user_id', user.id),
-          supabase.from('strava_activities').select('*').eq('user_id', user.id),
-          supabase.from('completed_sessions').select('*').eq('user_id', user.id),
-        ]);
+        const sessionsQuery = latestPlanId
+          ? supabase
+              .from('sessions')
+              .select('*')
+              .eq('user_id', user.id)
+              .eq('plan_id', latestPlanId)
+              .order('date', { ascending: true })
+          : supabase
+              .from('sessions')
+              .select('*')
+              .eq('user_id', user.id)
+              .order('date', { ascending: true });
+
+        const sessionsRes = await sessionsQuery;
 
         if (sessionsRes.error) throw sessionsRes.error;
+
+        const loadedSessions = (sessionsRes.data ?? []) as Session[];
+        const dataWindow = buildScheduleDataWindow(loadedSessions, latestPlan?.race_date ?? null);
+
+        const [stravaRes, completedRes] = await Promise.all([
+          supabase
+            .from('strava_activities')
+            .select(STRAVA_COLUMNS)
+            .eq('user_id', user.id)
+            .gte('start_date', dataWindow.startIso)
+            .lte('start_date', dataWindow.endIso)
+            .order('start_date', { ascending: false })
+            .limit(500),
+
+          supabase
+            .from('completed_sessions')
+            .select('date, session_title, strava_id, status')
+            .eq('user_id', user.id)
+            .gte('date', dataWindow.startDateKey)
+            .lte('date', dataWindow.endDateKey)
+            .order('date', { ascending: false })
+            .limit(1000),
+        ]);
+
         if (stravaRes.error) throw stravaRes.error;
         if (completedRes.error) throw completedRes.error;
 
@@ -202,7 +314,7 @@ export default function SchedulePage() {
 
         const params = latestPlan?.plan?.params ?? {};
 
-        setSessions((sessionsRes.data ?? []) as Session[]);
+        setSessions(loadedSessions);
         setStravaActivities((stravaRes.data ?? []) as StravaActivity[]);
         setCompletedSessions(normalizeCompletedSessions(completedRes.data ?? []));
         setRaceHub({
@@ -215,13 +327,19 @@ export default function SchedulePage() {
           planPayload: latestPlan?.plan ?? null,
         });
 
-        console.log('[schedule] loaded', {
-          userId: user.id,
-          planId: latestPlanId,
-          sessions: sessionsRes.data?.length ?? 0,
-          stravaActivities: stravaRes.data?.length ?? 0,
-          completedSessions: completedRes.data?.length ?? 0,
-        });
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[schedule] loaded', {
+            userId: user.id,
+            planId: latestPlanId,
+            sessions: loadedSessions.length,
+            stravaActivities: stravaRes.data?.length ?? 0,
+            completedSessions: completedRes.data?.length ?? 0,
+            dataWindow: {
+              start: dataWindow.startDateKey,
+              end: dataWindow.endDateKey,
+            },
+          });
+        }
       } catch (error: any) {
         console.error('[schedule] load failed:', error);
 
@@ -237,25 +355,10 @@ export default function SchedulePage() {
 
     loadSchedule();
 
-const { data } = supabase.auth.onAuthStateChange(
-  (event: AuthChangeEvent, session: SupabaseSession | null) => {
-    if (event === 'SIGNED_OUT') {
-      clearScheduleState();
-      setLoading(false);
-      return;
-    }
-
-    if (session?.user?.id) {
-      loadSchedule();
-    }
-  }
-);
-
     return () => {
       cancelled = true;
-      data.subscription.unsubscribe();
     };
-  }, [reloadToken]);
+  }, [authLoading, user, reloadToken]);
 
   useEffect(() => {
     if (loading || !authedUserId || scheduleViewTrackedRef.current) return;
@@ -293,16 +396,6 @@ const { data } = supabase.auth.onAuthStateChange(
     }
   }, [sessions, stravaActivities, userTimezone]);
 
-  const readiness = useMemo(
-    () =>
-      calculateReadiness({
-        sessions,
-        completedSessions,
-        raceDate: raceHub?.raceDate,
-      }),
-    [sessions, completedSessions, raceHub?.raceDate]
-  );
-
   const scheduleSummary = useMemo(() => {
     const todayPrimary = getTodaysPrimarySession(enrichedSessions as any, new Date());
     const nextUpcoming = getNextUpcomingSession(enrichedSessions as any, new Date());
@@ -321,9 +414,6 @@ const { data } = supabase.auth.onAuthStateChange(
   }, [enrichedSessions, raceHub?.currentPhase]);
 
   const fetchLatestPlanContext = useCallback(async (): Promise<WalkthroughContext | null> => {
-    const sessionRes = await supabase.auth.getSession();
-    const user = sessionRes.data.session?.user;
-
     if (!user?.id) return null;
 
     const { data: latestPlan, error } = await supabase
@@ -346,7 +436,7 @@ const { data } = supabase.auth.onAuthStateChange(
       restDay: (latestPlan as any).rest_day ?? null,
       mode: 'manual' as any,
     };
-  }, []);
+  }, [user?.id]);
 
   const openWalkthrough = useCallback(async () => {
     try {
@@ -396,7 +486,7 @@ const { data } = supabase.auth.onAuthStateChange(
     router,
   ]);
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="flex min-h-screen items-start justify-center bg-white px-6 pt-24">
         <div className="text-center">
@@ -416,7 +506,7 @@ const { data } = supabase.auth.onAuthStateChange(
 
           <button
             type="button"
-            onClick={() => setReloadToken((n) => n + 1)}
+            onClick={() => setReloadToken((n: number) => n + 1)}
             className="mt-5 rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-800 shadow-sm hover:bg-zinc-50"
           >
             Retry
@@ -452,18 +542,18 @@ const { data } = supabase.auth.onAuthStateChange(
       <main className="flex-grow">
         <div className="relative left-1/2 w-screen -translate-x-1/2">
           <CalendarShell
-  sessions={enrichedSessions}
-  completedSessions={completedSessions}
-  extraStravaActivities={unmatchedActivities}
-  onCompletedUpdateAction={handleCompletedUpdate}
-  timezone={userTimezone}
-  onOpenWalkthroughAction={openWalkthrough}
-  walkthroughLoading={walkthroughLoading}
-  todaySummary={scheduleSummary.todayLabel}
-  nextSummary={scheduleSummary.nextLabel}
-  weekPhaseSummary={scheduleSummary.weekPhase}
-  raceGoal={raceHub?.raceType ?? raceHub?.raceName ?? null}
-/>
+            sessions={enrichedSessions}
+            completedSessions={completedSessions}
+            extraStravaActivities={unmatchedActivities}
+            onCompletedUpdateAction={handleCompletedUpdate}
+            timezone={userTimezone}
+            onOpenWalkthroughAction={openWalkthrough}
+            walkthroughLoading={walkthroughLoading}
+            todaySummary={scheduleSummary.todayLabel}
+            nextSummary={scheduleSummary.nextLabel}
+            weekPhaseSummary={scheduleSummary.weekPhase}
+            raceGoal={raceHub?.raceType ?? raceHub?.raceName ?? null}
+          />
         </div>
       </main>
 
