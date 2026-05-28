@@ -1,36 +1,31 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import {
+  AuthError,
+  createRouteSupabaseClient,
+  requireUser,
+} from '@/lib/supabase/server';
 
-type StravaActivityRow = { strava_id: number };
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
-export async function POST(req: Request) {
-  const supabase = createServerComponentClient({ cookies });
+type ProfileRow = {
+  strava_access_token: string | null;
+  strava_refresh_token: string | null;
+  strava_expires_at: number | null;
+};
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+type StravaSummaryActivity = {
+  id: number;
+  name?: string;
+  sport_type?: string;
+  type?: string;
+  start_date?: string;
+};
 
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+type ExistingActivityRow = {
+  strava_id: number;
+};
 
-  // Get Strava credentials from profile
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('strava_access_token, strava_refresh_token, strava_expires_at')
-    .eq('id', user.id)
-    .single();
-
-  if (!profile?.strava_access_token || !profile?.strava_refresh_token) {
-    return NextResponse.json({ error: 'Strava not connected' }, { status: 400 });
-  }
-
-  let accessToken = profile.strava_access_token;
-
-  // Dedupe
-
-  // 🔧 Add this utility function near the top
 function normalizeSportType(input: string | null | undefined): string {
   switch (input?.toLowerCase()) {
     case 'ride':
@@ -45,126 +40,251 @@ function normalizeSportType(input: string | null | undefined): string {
   }
 }
 
+function getUnixSecondsFromIso(value: string | null | undefined) {
+  if (!value) return null;
 
-  // Refresh token if expired
-  const now = Math.floor(Date.now() / 1000);
-  if (profile.strava_expires_at < now) {
-    const refreshRes = await fetch('https://www.strava.com/oauth/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        client_id: process.env.STRAVA_CLIENT_ID,
-        client_secret: process.env.STRAVA_CLIENT_SECRET,
-        grant_type: 'refresh_token',
-        refresh_token: profile.strava_refresh_token,
-      }),
-    });
+  const timestamp = new Date(value).getTime();
 
-    const refreshData = await refreshRes.json();
+  if (!Number.isFinite(timestamp)) return null;
 
-    if (!refreshRes.ok) {
-      console.error('[STRAVA_REFRESH_ERROR]', refreshData);
-      return NextResponse.json({ error: 'Token refresh failed' }, { status: 500 });
+  return Math.floor(timestamp / 1000);
+}
+
+async function refreshStravaToken({
+  refreshToken,
+  userId,
+  supabase,
+}: {
+  refreshToken: string;
+  userId: string;
+  supabase: Awaited<ReturnType<typeof createRouteSupabaseClient>>;
+}) {
+  const refreshRes = await fetch('https://www.strava.com/oauth/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      client_id: process.env.STRAVA_CLIENT_ID,
+      client_secret: process.env.STRAVA_CLIENT_SECRET,
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+    }),
+  });
+
+  const refreshData = await refreshRes.json();
+
+  if (!refreshRes.ok) {
+    console.error('[strava_sync] token refresh failed:', refreshData);
+    throw new Error('Token refresh failed');
+  }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({
+      strava_access_token: refreshData.access_token,
+      strava_refresh_token: refreshData.refresh_token,
+      strava_expires_at: refreshData.expires_at,
+    })
+    .eq('id', userId);
+
+  if (error) {
+    console.error('[strava_sync] failed to save refreshed token:', error);
+    throw new Error('Failed to save refreshed Strava token');
+  }
+
+  return String(refreshData.access_token);
+}
+
+export async function POST() {
+  try {
+    const supabase = await createRouteSupabaseClient();
+    const user = await requireUser(supabase);
+
+    if (!process.env.STRAVA_CLIENT_ID || !process.env.STRAVA_CLIENT_SECRET) {
+      return NextResponse.json(
+        { error: 'Server misconfigured: missing Strava credentials.' },
+        { status: 500 }
+      );
     }
 
-    accessToken = refreshData.access_token;
-
-    await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .update({
-        strava_access_token: refreshData.access_token,
-        strava_refresh_token: refreshData.refresh_token,
-        strava_expires_at: refreshData.expires_at,
-      })
-      .eq('id', user.id);
-  }
+      .select('strava_access_token, strava_refresh_token, strava_expires_at')
+      .eq('id', user.id)
+      .maybeSingle<ProfileRow>();
 
-// Fetch recent activities (last 90 days)
-const after = Math.floor(Date.now() / 1000) - 60 * 60 * 24 * 90;
+    if (profileError) {
+      console.error('[strava_sync] profile lookup failed:', profileError);
 
-  const res = await fetch(
-    `https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=200`,
-    {
-      headers: { Authorization: `Bearer ${accessToken}` },
+      return NextResponse.json(
+        { error: 'Failed to load Strava profile.' },
+        { status: 500 }
+      );
     }
-  );
 
-  if (!res.ok) {
-    const errText = await res.text();
-    console.error('[STRAVA_LIST_ERROR]', errText);
-    return NextResponse.json({ error: 'Failed to fetch summary activities' }, { status: 500 });
-  }
+    if (!profile?.strava_access_token || !profile?.strava_refresh_token) {
+      return NextResponse.json(
+        { error: 'Strava not connected.' },
+        { status: 400 }
+      );
+    }
 
-  const summaryList = await res.json();
+    let accessToken = profile.strava_access_token;
 
-  const { data: existing } = await supabase
-    .from('strava_activities')
-    .select('strava_id')
-    .eq('user_id', user.id);
+    const now = Math.floor(Date.now() / 1000);
+    const expiresAt = Number(profile.strava_expires_at ?? 0);
 
-  const existingIds = new Set(
-    existing?.map((a: StravaActivityRow) => a.strava_id)
-  );
+    if (expiresAt <= now + 60) {
+      accessToken = await refreshStravaToken({
+        refreshToken: profile.strava_refresh_token,
+        userId: user.id,
+        supabase,
+      });
+    }
 
-  const newSummaries = summaryList.filter((a: any) => !existingIds.has(a.id));
-  const detailedActivities = [];
+    const { data: latestActivity } = await supabase
+      .from('strava_activities')
+      .select('start_date')
+      .eq('user_id', user.id)
+      .order('start_date', { ascending: false })
+      .limit(1)
+      .maybeSingle<{ start_date: string | null }>();
 
-  for (const summary of newSummaries) {
-    const detailRes = await fetch(
-      `https://www.strava.com/api/v3/activities/${summary.id}`,
+    const latestStoredUnix = getUnixSecondsFromIso(latestActivity?.start_date);
+
+    // First sync gets 90 days. Later syncs fetch from the latest stored activity,
+    // with a one-hour buffer to avoid missing activities around timestamp edges.
+    const after =
+      latestStoredUnix !== null
+        ? Math.max(0, latestStoredUnix - 60 * 60)
+        : Math.floor(Date.now() / 1000) - 60 * 60 * 24 * 90;
+
+    const listRes = await fetch(
+      `https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=200`,
       {
         headers: { Authorization: `Bearer ${accessToken}` },
       }
     );
 
-    if (!detailRes.ok) {
-      console.warn(`[DETAIL_FAIL] ${summary.id}`);
-      continue;
+    if (!listRes.ok) {
+      const errText = await listRes.text();
+      console.error('[strava_sync] activity list failed:', errText);
+
+      return NextResponse.json(
+        { error: 'Failed to fetch Strava activities.' },
+        { status: 500 }
+      );
     }
 
-    const detail = await detailRes.json();
+    const summaryList = (await listRes.json()) as StravaSummaryActivity[];
 
-  detailedActivities.push({
-  user_id: user.id,
-  strava_id: detail.id,
-  name: detail.name,
-  sport_type: normalizeSportType(detail.sport_type),
-  distance: detail.distance,
-  moving_time: detail.moving_time,
-  start_date: detail.start_date,
-  average_speed: detail.average_speed,
-  average_heartrate: detail.average_heartrate,
-  max_heartrate: detail.max_heartrate,
-  average_watts: detail.average_watts,
-  weighted_average_watts: detail.weighted_average_watts,
-  kilojoules: detail.kilojoules,
-  device_watts: detail.device_watts,
-  trainer: detail.trainer,
-  total_elevation_gain: detail.total_elevation_gain,
-});
+    if (!Array.isArray(summaryList) || summaryList.length === 0) {
+      return NextResponse.json({
+        inserted: 0,
+        totalFetched: 0,
+        skippedExisting: 0,
+      });
+    }
 
+    const summaryIds = summaryList.map((activity) => activity.id).filter(Boolean);
 
-    // optional throttle to avoid rate limits
-    await new Promise((r) => setTimeout(r, 150));
-  }
+    const { data: existingRows, error: existingError } = await supabase
+      .from('strava_activities')
+      .select('strava_id')
+      .eq('user_id', user.id)
+      .in('strava_id', summaryIds);
 
-  if (detailedActivities.length > 0) {
+    if (existingError) {
+      console.error('[strava_sync] existing activity lookup failed:', existingError);
+
+      return NextResponse.json(
+        { error: 'Failed to check existing Strava activities.' },
+        { status: 500 }
+      );
+    }
+
+    const existingIds = new Set(
+      ((existingRows ?? []) as ExistingActivityRow[]).map((row) => Number(row.strava_id))
+    );
+
+    const newSummaries = summaryList.filter((activity) => !existingIds.has(Number(activity.id)));
+    const detailedActivities: Record<string, unknown>[] = [];
+
+    for (const summary of newSummaries) {
+      const detailRes = await fetch(
+        `https://www.strava.com/api/v3/activities/${summary.id}`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+
+      if (!detailRes.ok) {
+        console.warn(`[strava_sync] failed to fetch activity detail: ${summary.id}`);
+        continue;
+      }
+
+      const detail = await detailRes.json();
+
+      detailedActivities.push({
+        user_id: user.id,
+        strava_id: detail.id,
+        name: detail.name,
+        sport_type: normalizeSportType(detail.sport_type ?? detail.type),
+        distance: detail.distance ?? null,
+        moving_time: detail.moving_time ?? null,
+        start_date: detail.start_date ?? null,
+        average_speed: detail.average_speed ?? null,
+        average_heartrate: detail.average_heartrate ?? null,
+        max_heartrate: detail.max_heartrate ?? null,
+        average_watts: detail.average_watts ?? null,
+        weighted_average_watts: detail.weighted_average_watts ?? null,
+        kilojoules: detail.kilojoules ?? null,
+        device_watts: detail.device_watts ?? null,
+        trainer: detail.trainer ?? null,
+        total_elevation_gain: detail.total_elevation_gain ?? null,
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+
+    if (detailedActivities.length === 0) {
+      return NextResponse.json({
+        inserted: 0,
+        totalFetched: summaryList.length,
+        skippedExisting: summaryList.length,
+      });
+    }
+
     const { error: insertError } = await supabase
       .from('strava_activities')
       .insert(detailedActivities);
 
     if (insertError) {
-      console.error('[SUPABASE_INSERT_ERROR]', insertError);
-      return NextResponse.json({ error: 'Insert failed' }, { status: 500 });
+      console.error('[strava_sync] insert failed:', insertError);
+
+      return NextResponse.json(
+        { error: insertError.message },
+        { status: 500 }
+      );
     }
 
-    console.log(`✅ Inserted ${detailedActivities.length} activities`);
-  } else {
-    console.log('ℹ️ No new detailed activities to insert');
-  }
+    return NextResponse.json({
+      inserted: detailedActivities.length,
+      totalFetched: summaryList.length,
+      skippedExisting: summaryList.length - detailedActivities.length,
+    });
+  } catch (error) {
+    console.error('[strava_sync] failed:', error);
 
-  return NextResponse.json({
-    inserted: detailedActivities.length,
-    totalFetched: summaryList.length,
-  });
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status }
+      );
+    }
+
+    return NextResponse.json(
+      { error: 'Failed to sync Strava activities.' },
+      { status: 500 }
+    );
+  }
 }
