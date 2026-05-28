@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import CoachingDashboard from '../components/CoachingDashboard';
 import type { Session as TrainSession } from '@/types/session';
@@ -8,6 +8,7 @@ import type { StravaActivity } from '@/types/strava';
 import { getWeeklySummary, type WeeklySummary } from '@/utils/getWeeklySummary';
 import { getWeeklyVolume } from '@/utils/getWeeklyVolume';
 import { supabase } from '@/lib/supabase/client';
+import { useAuth } from '@/lib/auth/AuthProvider';
 import { useStravaAutoSync } from '../hooks/useStravaAutoSync';
 import { decodeCoachingContext } from '@/lib/coaching/context';
 import type { CoachingContextPayload } from '@/types/coaching-context';
@@ -16,13 +17,15 @@ type CompletedSessionRow = {
   id?: string;
   user_id: string;
 
-  // older rows / code paths
-  date?: string;
-  session_date?: string;
+  // Legacy and current row shapes.
+  date?: string | null;
+  session_date?: string | null;
 
-  session_title?: string;
-  title?: string;
+  session_title?: string | null;
+  title?: string | null;
 
+  status?: 'done' | 'skipped' | string | null;
+  duration?: number | null;
   strava_id?: string | number | null;
 };
 
@@ -32,26 +35,54 @@ type NormalizedCompletedSession = CompletedSessionRow & {
   strava_id?: string;
 };
 
+type LatestPlanRow = {
+  id: string | null;
+  race_date: string | null;
+};
+
+const LOOKBACK_DAYS = 190;
+const LOOKAHEAD_DAYS = 45;
+
 function normalizeCompletedRows(rows: CompletedSessionRow[]): NormalizedCompletedSession[] {
-  return rows.map((r) => ({
-    ...r,
-    session_date: r.session_date ?? r.date ?? undefined,
-    session_title: r.session_title ?? r.title ?? undefined,
-    strava_id: r.strava_id != null ? String(r.strava_id) : undefined,
+  return rows.map((row) => ({
+    ...row,
+    session_date: row.session_date ?? row.date ?? undefined,
+    session_title: row.session_title ?? row.title ?? undefined,
+    strava_id: row.strava_id != null ? String(row.strava_id) : undefined,
   }));
+}
+
+function getDateWindow() {
+  const now = new Date();
+
+  const start = new Date(now);
+  start.setDate(now.getDate() - LOOKBACK_DAYS);
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(now);
+  end.setDate(now.getDate() + LOOKAHEAD_DAYS);
+  end.setHours(23, 59, 59, 999);
+
+  return {
+    startIso: start.toISOString(),
+    endIso: end.toISOString(),
+    startDateKey: start.toISOString().slice(0, 10),
+    endDateKey: end.toISOString().slice(0, 10),
+  };
 }
 
 export default function CoachingClient() {
   useStravaAutoSync();
+
+  const { user, loading: authLoading } = useAuth();
   const searchParams = useSearchParams();
+  const loadRunRef = useRef(0);
 
   const initialPrompt = searchParams?.get('q') ?? '';
   const initialContext: CoachingContextPayload | null = useMemo(
     () => decodeCoachingContext(searchParams?.get('ctx')),
     [searchParams]
   );
-
-  const [userId, setUserId] = useState<string | null>(null);
 
   const [sessions, setSessions] = useState<TrainSession[]>([]);
   const [completedSessions, setCompletedSessions] = useState<NormalizedCompletedSession[]>([]);
@@ -65,119 +96,135 @@ export default function CoachingClient() {
   useEffect(() => {
     let cancelled = false;
 
-    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const clearData = () => {
+      setSessions([]);
+      setCompletedSessions([]);
+      setStravaActivities([]);
+      setStravaConnected(false);
+      setRaceDate(null);
+    };
 
-    async function fetchAll(attempt = 0) {
+    const fetchCoachingData = async () => {
+      const runId = ++loadRunRef.current;
+
+      if (authLoading) {
+        setLoading(true);
+        return;
+      }
+
+      if (!user?.id) {
+        clearData();
+        setLoading(false);
+        setLoadError(null);
+        return;
+      }
+
       try {
         setLoading(true);
         setLoadError(null);
 
-        const {
-          data: { session },
-          error: sessionErr,
-        } = await supabase.auth.getSession();
+        const { startIso, endIso, startDateKey, endDateKey } = getDateWindow();
 
-        if (sessionErr) throw sessionErr;
-
-        if (!session?.user) {
-          if (!cancelled) {
-            setUserId(null);
-            setSessions([]);
-            setCompletedSessions([]);
-            setStravaActivities([]);
-            setStravaConnected(false);
-            setLoading(false);
-          }
-          return;
-        }
-
-        const {
-          data: { user },
-          error: userErr,
-        } = await supabase.auth.getUser();
-
-        const msg = userErr?.message?.toLowerCase() ?? '';
-        if (msg.includes('auth session missing') && attempt < 1) {
-          await sleep(350);
-          return fetchAll(attempt + 1);
-        }
-
-        if (userErr) throw userErr;
-
-        if (!user) {
-          if (!cancelled) {
-            setUserId(null);
-            setSessions([]);
-            setCompletedSessions([]);
-            setStravaActivities([]);
-            setStravaConnected(false);
-            setLoading(false);
-          }
-          return;
-        }
-
-        if (cancelled) return;
-        setUserId(user.id);
-
-        const [sessionsRes, completedRes, stravaRes, profileRes, latestPlanRes] = await Promise.all([
-          supabase.from('sessions').select('*').eq('user_id', user.id),
-          supabase.from('completed_sessions').select('*').eq('user_id', user.id),
-          supabase.from('strava_activities').select('*').eq('user_id', user.id),
-          supabase.from('profiles').select('strava_access_token').eq('id', user.id).single(),
+        const [profileRes, latestPlanRes] = await Promise.all([
+          supabase
+            .from('profiles')
+            .select('strava_access_token')
+            .eq('id', user.id)
+            .maybeSingle(),
           supabase
             .from('plans')
-            .select('race_date')
+            .select('id, race_date')
             .eq('user_id', user.id)
             .order('created_at', { ascending: false })
             .limit(1)
-            .maybeSingle(),
+            .maybeSingle<LatestPlanRow>(),
+        ]);
+
+        if (latestPlanRes.error) throw latestPlanRes.error;
+
+        if (profileRes.error) {
+          // Profile lookup should not take down coaching. It only powers the Strava banner.
+          console.warn('[CoachingClient] profile lookup failed:', profileRes.error);
+        }
+
+        const latestPlanId = latestPlanRes.data?.id ?? null;
+
+        const sessionsQuery = latestPlanId
+          ? supabase
+              .from('sessions')
+              .select('*')
+              .eq('user_id', user.id)
+              .eq('plan_id', latestPlanId)
+              .order('date', { ascending: true })
+          : supabase
+              .from('sessions')
+              .select('*')
+              .eq('user_id', user.id)
+              .gte('date', startDateKey)
+              .lte('date', endDateKey)
+              .order('date', { ascending: true });
+
+        const [sessionsRes, completedRes, stravaRes] = await Promise.all([
+          sessionsQuery,
+          supabase
+            .from('completed_sessions')
+            .select('*')
+            .eq('user_id', user.id)
+            .gte('date', startDateKey)
+            .lte('date', endDateKey)
+            .order('date', { ascending: false }),
+          supabase
+            .from('strava_activities')
+            .select('*')
+            .eq('user_id', user.id)
+            .gte('start_date', startIso)
+            .lte('start_date', endIso)
+            .order('start_date', { ascending: false })
+            .limit(500),
         ]);
 
         if (sessionsRes.error) throw sessionsRes.error;
         if (completedRes.error) throw completedRes.error;
         if (stravaRes.error) throw stravaRes.error;
-        if (latestPlanRes.error) throw latestPlanRes.error;
 
-        if (profileRes.error) {
-          // don’t hard fail the whole page if profile lookup flakes
-          console.warn('[CoachingClient] profiles lookup failed:', profileRes.error);
-        }
-
-        if (cancelled) return;
+        if (cancelled || runId !== loadRunRef.current) return;
 
         setSessions((sessionsRes.data ?? []) as TrainSession[]);
         setCompletedSessions(normalizeCompletedRows((completedRes.data ?? []) as CompletedSessionRow[]));
         setStravaActivities((stravaRes.data ?? []) as StravaActivity[]);
-        setStravaConnected(!!profileRes.data?.strava_access_token);
-        setRaceDate((latestPlanRes.data as any)?.race_date ?? null);
+        setStravaConnected(Boolean(profileRes.data?.strava_access_token));
+        setRaceDate(latestPlanRes.data?.race_date ?? null);
       } catch (err: unknown) {
-        console.error('[CoachingClient] fetch error', err);
-        const msg =
-          err instanceof Error ? err.message : 'Failed to load coaching data.';
-        if (!cancelled) setLoadError(msg);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
+        console.error('[CoachingClient] fetch error:', err);
 
-    fetchAll();
+        if (!cancelled && runId === loadRunRef.current) {
+          setLoadError(err instanceof Error ? err.message : 'Failed to load coaching data.');
+        }
+      } finally {
+        if (!cancelled && runId === loadRunRef.current) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchCoachingData();
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authLoading, user?.id]);
 
   const weeklySummary: WeeklySummary | null = useMemo(() => {
-    if (!userId) return null;
+    if (!user?.id) return null;
     return getWeeklySummary(sessions, completedSessions as any, stravaActivities);
-  }, [userId, sessions, completedSessions, stravaActivities]);
+  }, [user?.id, sessions, completedSessions, stravaActivities]);
 
   const weeklyVolume: number[] = useMemo(() => {
-    if (!userId) return [];
+    if (!user?.id) return [];
     return getWeeklyVolume(sessions, completedSessions as any, stravaActivities);
-  }, [userId, sessions, completedSessions, stravaActivities]);
+  }, [user?.id, sessions, completedSessions, stravaActivities]);
 
-  if (loading) {
+  if (authLoading || loading) {
     return <div className="p-6 text-sm text-zinc-500">Loading coaching dashboard…</div>;
   }
 
@@ -191,7 +238,7 @@ export default function CoachingClient() {
     );
   }
 
-  if (!userId) {
+  if (!user?.id) {
     return <div className="p-6 text-sm text-zinc-500">Please sign in to view coaching.</div>;
   }
 
@@ -205,7 +252,7 @@ export default function CoachingClient() {
 
   return (
     <CoachingDashboard
-      userId={userId}
+      userId={user.id}
       sessions={sessions}
       completedSessions={completedSessions as any}
       stravaActivities={stravaActivities}
