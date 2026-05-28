@@ -15,18 +15,11 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import SessionModal from './SessionModal';
 import AddSessionModalTP from './AddSessionModalTP';
-import type { Session } from '@/types/session';
+import type { Session, CompletedSession } from '@/types/session';
 import { conciseSessionLabel, getCompletionStatus } from './session-utils';
 import type { StravaActivity } from '@/types/strava';
 
 type EnrichedSession = Session & { stravaActivity?: StravaActivity };
-
-type CompletedSession = {
-  date: string;
-  session_title: string;
-  strava_id?: string;
-  status?: 'done' | 'skipped';
-};
 
 export type MobileCalendarViewProps = {
   sessions: EnrichedSession[];
@@ -73,7 +66,6 @@ function deriveDetail(title: string) {
   if (lower.includes('brick')) return 'Brick';
   return '';
 }
-
 
 function cleanSessionTitle(title: string) {
   return (title || '')
@@ -494,7 +486,6 @@ export default function MobileCalendarView({
                       );
                     })}
 
-
                   </div>
 
                   {/* Strava-only extras */}
@@ -565,7 +556,6 @@ export default function MobileCalendarView({
             </div>
           );
         })}
-
 
         <SessionModal
           session={selectedSession}

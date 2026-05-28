@@ -3,13 +3,7 @@
 import { useMemo } from 'react';
 import { format, startOfWeek, endOfWeek, isAfter, parseISO } from 'date-fns';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
-
-type CompletedSession = {
-  date: string;
-  session_title: string;
-  strava_id?: string;
-  status?: 'done' | 'skipped';
-};
+import type { CompletedSession } from '@/types/session';
 
 function safeParseDate(d: string) {
   try {

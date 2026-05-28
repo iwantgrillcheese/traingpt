@@ -1,11 +1,11 @@
-import { Session } from '@/types/session';
-import { StravaActivity } from '@/types/strava';
+import type { Session } from '@/types/session';
+import type { StravaActivity } from '@/types/strava';
 import estimateDurationFromTitle from '@/utils/estimateDurationFromTitle';
 import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
 
 export type MergedSession = Omit<Session, 'duration'> & {
   stravaActivity?: StravaActivity;
-  duration?: number; // completed activity duration in minutes
+  duration?: number | null; // planned or completed duration in minutes
   distance_km?: number;
 };
 

@@ -12,7 +12,7 @@ import { useAuth } from '@/lib/auth/AuthProvider';
 import { useStravaAutoSync } from '../hooks/useStravaAutoSync';
 import { track } from '@/lib/analytics/posthog-client';
 
-import type { Session } from '@/types/session';
+import type { Session, CompletedSession } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 import type { WalkthroughContext } from '@/types/coachGuides';
 import mergeSessionsWithStrava, { type MergedSession } from '@/utils/mergeSessionWithStrava';
@@ -24,13 +24,6 @@ import {
   getNextUpcomingSession,
   getTodaysPrimarySession,
 } from './session-utils';
-
-type CompletedSession = {
-  date: string;
-  session_title: string;
-  strava_id?: string;
-  status?: 'done' | 'skipped';
-};
 
 type RaceHubState = {
   planId?: string | null;

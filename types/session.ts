@@ -12,3 +12,11 @@ export type Session = {
   structured_workout: string | null;
   strava_id: number | null;
 };
+
+export type CompletedSession = {
+  date: string;
+  session_title: string;
+  strava_id?: string;
+  session_id?: string | null;
+  status?: 'done' | 'skipped';
+};

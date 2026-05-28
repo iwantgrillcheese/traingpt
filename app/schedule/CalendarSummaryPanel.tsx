@@ -4,13 +4,7 @@ import React, { useMemo } from 'react';
 import { startOfMonth, endOfMonth, parseISO, isWithinInterval, format } from 'date-fns';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
-
-type CompletedSession = {
-  date: string;
-  session_title: string;
-  strava_id?: string;
-  status?: 'done' | 'skipped';
-};
+import type { CompletedSession } from '@/types/session';
 
 type Props = {
   currentMonth: Date;

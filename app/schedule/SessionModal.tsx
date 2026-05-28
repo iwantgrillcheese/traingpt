@@ -5,7 +5,7 @@ import { Dialog } from '@headlessui/react';
 import { format, parseISO } from 'date-fns';
 import clsx from 'clsx';
 import { supabase } from '@/lib/supabase/client';
-import type { Session } from '@/types/session';
+import type { Session, CompletedSession } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 import {
   loadFuelingPreferences,
@@ -13,13 +13,6 @@ import {
 } from '@/lib/fueling-preferences';
 import { track } from '@/lib/analytics/posthog-client';
 import { buildCoachingHref } from '@/lib/coaching/context';
-
-type CompletedSession = {
-  date: string;
-  session_title: string;
-  strava_id?: string;
-  status?: 'done' | 'skipped';
-};
 
 type Props = {
   session: Session | null;
@@ -484,7 +477,6 @@ export default function SessionModal({
       setLoading(false);
     }
   };
-
 
   const handleDeleteSession = async () => {
     if (!session || !isUserCreatedSession) return;

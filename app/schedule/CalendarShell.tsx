@@ -33,13 +33,7 @@ import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
 import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
 import { supabase } from '@/lib/supabase/client';
-
-type CompletedSession = {
-  date: string;
-  session_title: string;
-  strava_id?: string;
-  status?: 'done' | 'skipped';
-};
+import type { CompletedSession } from '@/types/session';
 
 type CalendarShellProps = {
   sessions: MergedSession[];

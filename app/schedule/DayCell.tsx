@@ -8,13 +8,7 @@ import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
 import AddSessionModalTP from './AddSessionModalTP';
 import { conciseSessionLabel, getCompletionStatus } from './session-utils';
-
-type CompletedSession = {
-  date: string;
-  session_title: string;
-  strava_id?: string;
-  status?: 'done' | 'skipped';
-};
+import type { CompletedSession } from '@/types/session';
 
 type Props = {
   date: Date;

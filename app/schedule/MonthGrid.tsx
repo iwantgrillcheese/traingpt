@@ -15,13 +15,7 @@ import clsx from 'clsx';
 import DayCell from './DayCell';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
-
-type CompletedSession = {
-  date: string;
-  session_title: string;
-  strava_id?: string;
-  status?: 'done' | 'skipped';
-};
+import type { CompletedSession } from '@/types/session';
 
 type MonthGridProps = {
   currentMonth: Date;
