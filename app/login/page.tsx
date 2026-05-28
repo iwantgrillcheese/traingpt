@@ -16,12 +16,22 @@ export default function LoginPage() {
   }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data?.session) {
-        router.push(next);
-      }
-    });
-  }, [router, next]);
+  let cancelled = false;
+
+  const checkSession = async () => {
+    const result = await supabase.auth.getSession();
+
+    if (!cancelled && result.data.session) {
+      router.push(next);
+    }
+  };
+
+  checkSession();
+
+  return () => {
+    cancelled = true;
+  };
+}, [router, next]);
 
   const signInWithGoogle = async () => {
     await supabase.auth.signInWithOAuth({
