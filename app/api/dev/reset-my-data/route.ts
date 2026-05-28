@@ -1,15 +1,13 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { createClient } from '@supabase/supabase-js';
+import { AuthError, createRouteSupabaseClient, requireUser } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 const ALLOWED_EMAILS = ['me@cameronmcdiarmid.com', 'cameron.mcdiarmid@gmail.com'];
 
 function resetIsAllowedByEnv(): boolean {
-  // Prod use is intentionally allowed for allowlisted users.
-  // Optional kill switch remains available.
   if (process.env.DISABLE_DEV_RESET === 'true') return false;
   return true;
 }
@@ -19,16 +17,8 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const confirm = typeof body?.confirm === 'string' ? body.confirm : '';
 
-    const supabase = createRouteHandlerClient({ cookies });
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
-    }
+    const supabase = await createRouteSupabaseClient();
+    const user = await requireUser(supabase);
 
     if (!resetIsAllowedByEnv()) {
       return NextResponse.json(
@@ -77,6 +67,7 @@ export async function POST(req: Request) {
         .from(table)
         .select('id', { head: true, count: 'exact' })
         .eq('user_id', userId);
+
       if (error) throw new Error(`${table}: ${error.message}`);
       return count ?? 0;
     };
@@ -111,10 +102,18 @@ export async function POST(req: Request) {
       user_id: userId,
       deleted,
     });
-  } catch (err: any) {
-    console.error('[dev/reset-my-data] failed', err?.message, err);
+  } catch (error: any) {
+    console.error('[dev/reset-my-data] failed', error?.message, error);
+
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { ok: false, error: error.message },
+        { status: error.status }
+      );
+    }
+
     return NextResponse.json(
-      { ok: false, error: err?.message || 'Reset failed' },
+      { ok: false, error: error?.message || 'Reset failed' },
       { status: 500 }
     );
   }

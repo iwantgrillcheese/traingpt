@@ -1,7 +1,5 @@
 // /app/api/coach-chat/route.ts
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { OpenAI } from 'openai';
 import {
   startOfWeek,
@@ -14,6 +12,7 @@ import {
 
 import mergeSessionsWithStrava from '@/utils/mergeSessionWithStrava';
 import { stripUnsupportedParams } from '@/utils/openaiSafeParams';
+import { AuthError, createRouteSupabaseClient, requireUser } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -159,16 +158,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing message' }, { status: 400 });
     }
 
-    const supabase = createRouteHandlerClient({ cookies });
-
-    const {
-      data: { user },
-      error: userErr,
-    } = await supabase.auth.getUser();
-
-    if (userErr || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const supabase = await createRouteSupabaseClient();
+    const user = await requireUser(supabase);
 
     const user_id = user.id;
 
@@ -375,6 +366,13 @@ ${issues.length ? issues.map((x) => `• ${x}`).join('\n') : '• None'}
   } catch (err: any) {
     console.error('❌ /api/coach-chat error:', err);
     const msg = String(err?.message || '');
+
+    if (err instanceof AuthError) {
+      return NextResponse.json(
+        { error: err.message },
+        { status: err.status }
+      );
+    }
 
     if (msg.includes('OPENAI_API_KEY is missing')) {
       return NextResponse.json({ error: 'Server misconfigured: missing OPENAI_API_KEY' }, { status: 500 });

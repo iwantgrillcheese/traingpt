@@ -1,29 +1,20 @@
 import { NextResponse } from 'next/server';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { AuthError, createRouteSupabaseClient, requireUser } from '@/lib/supabase/server';
 import { getStripeClient } from '@/utils/stripe';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function POST() {
   try {
-    const supabase = createServerComponentClient({ cookies });
-
-    const {
-      data: { session },
-      error: authError,
-    } = await supabase.auth.getSession();
-
-    if (authError || !session?.user) {
-      console.error('[Stripe Portal] Unauthorized', authError);
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const user = session.user;
+    const supabase = await createRouteSupabaseClient();
+    const user = await requireUser(supabase);
 
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('stripe_customer_id')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
 
     if (profileError) {
       console.error('[Stripe Portal] Failed to fetch profile:', profileError);
@@ -47,8 +38,13 @@ export async function POST() {
     });
 
     return NextResponse.json({ url: portalSession.url });
-  } catch (err) {
-    console.error('[Stripe Portal Error]', err);
+  } catch (error) {
+    console.error('[Stripe Portal Error]', error);
+
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

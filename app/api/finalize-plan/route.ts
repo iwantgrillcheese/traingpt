@@ -1,6 +1,4 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import {
   parseISO,
   isValid as isValidDate,
@@ -14,6 +12,7 @@ import {
 import type { UserParams, WeekMeta, PlanType, GeneratedPlan, WeekJson } from "@/types/plan";
 import { extractPrefs } from "@/utils/extractPrefs";
 import { convertPlanToSessions } from "@/utils/convertPlanToSessions";
+import { AuthError, assertSameUser, createRouteSupabaseClient, requireUser } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -245,16 +244,8 @@ export async function POST(req: Request) {
       clientUserId,
     } = body ?? {};
 
-    const supabase = createRouteHandlerClient({ cookies });
-    const {
-      data: { user },
-      error: userErr,
-    } = await supabase.auth.getUser();
-
-    if (userErr || !user) {
-      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-    }
-
+    const supabase = await createRouteSupabaseClient();
+    const user = await requireUser(supabase);
     const userId = user.id;
 
     if (typeof clientUserId !== 'string' || !clientUserId) {
@@ -268,20 +259,11 @@ export async function POST(req: Request) {
       );
     }
 
-    if (clientUserId !== userId) {
-      console.error('[finalize-plan] auth mismatch', {
-        cookieUserId: userId,
-        clientUserId,
-      });
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            'Authentication session mismatch. Please sign out and sign back in, then try again.',
-        },
-        { status: 401 }
-      );
-    }
+    assertSameUser({
+      authenticatedUserId: userId,
+      requestedUserId: clientUserId,
+      routeName: 'finalize-plan',
+    });
 
     const { data: latestPlanRow } = await supabase
       .from("plans")
@@ -583,6 +565,14 @@ export async function POST(req: Request) {
     });
   } catch (err: any) {
     console.error("FINALIZE_PLAN_ERROR", err?.message, err?.stack, err);
+
+    if (err instanceof AuthError) {
+      return NextResponse.json(
+        { ok: false, error: err.message },
+        { status: err.status }
+      );
+    }
+
     return NextResponse.json(
       { error: err?.message ?? "Internal error" },
       { status: 500 }
