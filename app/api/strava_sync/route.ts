@@ -110,7 +110,7 @@ export async function POST() {
       .from('profiles')
       .select('strava_access_token, strava_refresh_token, strava_expires_at')
       .eq('id', user.id)
-      .maybeSingle<ProfileRow>();
+      .maybeSingle();
 
     if (profileError) {
       console.error('[strava_sync] profile lookup failed:', profileError);
@@ -121,21 +121,23 @@ export async function POST() {
       );
     }
 
-    if (!profile?.strava_access_token || !profile?.strava_refresh_token) {
+    const typedProfile = profile as ProfileRow | null;
+
+    if (!typedProfile?.strava_access_token || !typedProfile?.strava_refresh_token) {
       return NextResponse.json(
         { error: 'Strava not connected.' },
         { status: 400 }
       );
     }
 
-    let accessToken = profile.strava_access_token;
+    let accessToken = typedProfile.strava_access_token;
 
     const now = Math.floor(Date.now() / 1000);
-    const expiresAt = Number(profile.strava_expires_at ?? 0);
+    const expiresAt = Number(typedProfile.strava_expires_at ?? 0);
 
     if (expiresAt <= now + 60) {
       accessToken = await refreshStravaToken({
-        refreshToken: profile.strava_refresh_token,
+        refreshToken: typedProfile.strava_refresh_token,
         userId: user.id,
         supabase,
       });
@@ -147,9 +149,10 @@ export async function POST() {
       .eq('user_id', user.id)
       .order('start_date', { ascending: false })
       .limit(1)
-      .maybeSingle<{ start_date: string | null }>();
+      .maybeSingle();
 
-    const latestStoredUnix = getUnixSecondsFromIso(latestActivity?.start_date);
+    const typedLatestActivity = latestActivity as { start_date: string | null } | null;
+    const latestStoredUnix = getUnixSecondsFromIso(typedLatestActivity?.start_date);
 
     // First sync gets 90 days. Later syncs fetch from the latest stored activity,
     // with a one-hour buffer to avoid missing activities around timestamp edges.
@@ -232,6 +235,7 @@ export async function POST() {
         distance: detail.distance ?? null,
         moving_time: detail.moving_time ?? null,
         start_date: detail.start_date ?? null,
+        start_date_local: detail.start_date_local ?? detail.start_date ?? null,
         average_speed: detail.average_speed ?? null,
         average_heartrate: detail.average_heartrate ?? null,
         max_heartrate: detail.max_heartrate ?? null,

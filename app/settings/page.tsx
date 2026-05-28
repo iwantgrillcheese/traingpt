@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
+import { useStravaAutoSync } from '../hooks/useStravaAutoSync';
 import {
   DEFAULT_FUELING_PREFERENCES,
   loadFuelingPreferences,
@@ -15,6 +16,14 @@ export default function ProfilePage() {
   const [fuelingPreferences, setFuelingPreferences] = useState(DEFAULT_FUELING_PREFERENCES);
   const [resetLoading, setResetLoading] = useState(false);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
+  const [stravaConnectUrl, setStravaConnectUrl] = useState<string | null>(null);
+  const [stravaActionLoading, setStravaActionLoading] = useState(false);
+  const [stravaMessage, setStravaMessage] = useState<string | null>(null);
+
+  const stravaSync = useStravaAutoSync({
+    enabled: Boolean(profile?.strava_access_token),
+    onSyncComplete: () => setStravaMessage('Strava connected and synced.'),
+  });
 
   const canShowResetDataButton =
     (profile?.email || '').toLowerCase() === 'me@cameronmcdiarmid.com';
@@ -48,14 +57,13 @@ export default function ProfilePage() {
         avatar: user_metadata?.avatar_url || '',
       };
 
-      // ✅ Typed query + safe boolean coercion
-const { data: userData, error: userErr } = await supabase
-  .from('users')
-  .select('marketing_opt_in')
-  .eq('id', session.user.id)
-  .maybeSingle();
+      const { data: userData, error: userErr } = await supabase
+        .from('users')
+        .select('marketing_opt_in')
+        .eq('id', session.user.id)
+        .maybeSingle();
 
-const typedUserData = userData as { marketing_opt_in: boolean | null } | null;
+      const typedUserData = userData as { marketing_opt_in: boolean | null } | null;
 
       if (userErr) {
         console.error('Error loading user marketing_opt_in:', userErr);
@@ -89,6 +97,28 @@ const typedUserData = userData as { marketing_opt_in: boolean | null } | null;
 
   useEffect(() => {
     setFuelingPreferences(loadFuelingPreferences());
+  }, []);
+
+  useEffect(() => {
+    if (stravaSync.message) {
+      setStravaMessage(stravaSync.message);
+    }
+  }, [stravaSync.message]);
+
+  useEffect(() => {
+    const clientId = process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID || '145662';
+    const origin = window.location.origin;
+    const redirectUri = `${origin}/api/strava/callback`;
+
+    const url = new URL('https://www.strava.com/oauth/authorize');
+    url.searchParams.set('client_id', clientId);
+    url.searchParams.set('response_type', 'code');
+    url.searchParams.set('redirect_uri', redirectUri);
+    url.searchParams.set('scope', 'activity:read_all,profile:read_all');
+    url.searchParams.set('approval_prompt', 'auto');
+    url.searchParams.set('state', '/settings');
+
+    setStravaConnectUrl(url.toString());
   }, []);
 
   const handleFuelingPreferenceUpdate = (
@@ -142,8 +172,31 @@ const typedUserData = userData as { marketing_opt_in: boolean | null } | null;
   };
 
   const handleDisconnectStrava = async () => {
-    await fetch('/api/strava_disconnect', { method: 'POST' });
-    window.location.reload();
+    try {
+      setStravaActionLoading(true);
+      setStravaMessage(null);
+
+      const res = await fetch('/api/strava_disconnect', { method: 'POST' });
+      const json = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setStravaMessage(json?.error || 'Failed to disconnect Strava.');
+        return;
+      }
+
+      setProfile((prev: any) => ({
+        ...prev,
+        strava_access_token: null,
+        strava_refresh_token: null,
+        strava_expires_at: null,
+        strava_athlete_id: null,
+      }));
+      setStravaMessage('Strava disconnected.');
+    } catch (error: any) {
+      setStravaMessage(error?.message || 'Failed to disconnect Strava.');
+    } finally {
+      setStravaActionLoading(false);
+    }
   };
 
   const handleDeleteAccount = async () => {
@@ -211,9 +264,6 @@ const typedUserData = userData as { marketing_opt_in: boolean | null } | null;
   };
 
   if (!profile) return <div className="text-center py-20 text-gray-500">Loading profile...</div>;
-
-  const stravaClientId = process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID;
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
 
   return (
     <main className="max-w-4xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
@@ -304,20 +354,25 @@ const typedUserData = userData as { marketing_opt_in: boolean | null } | null;
             </div>
 
             {profile?.strava_access_token ? (
-              <button onClick={handleDisconnectStrava} className="text-red-500 text-sm underline">
-                Disconnect
-              </button>
-            ) : !stravaClientId || !baseUrl ? (
-              <p className="text-sm text-red-500">Strava config missing</p>
-            ) : (
-              <a
-                href={`https://www.strava.com/oauth/authorize?client_id=${stravaClientId}&response_type=code&redirect_uri=${baseUrl}/api/strava/callback&scope=activity:read_all,profile:read_all`}
-                className="text-blue-500 text-sm underline"
+              <button
+                type="button"
+                onClick={handleDisconnectStrava}
+                disabled={stravaActionLoading}
+                className="text-sm font-medium text-red-500 underline disabled:opacity-50"
               >
+                {stravaActionLoading ? 'Disconnecting…' : 'Disconnect'}
+              </button>
+            ) : stravaConnectUrl ? (
+              <a href={stravaConnectUrl} className="text-sm font-medium text-blue-500 underline">
                 Connect
               </a>
+            ) : (
+              <p className="text-sm text-gray-500">Preparing Strava connection…</p>
             )}
           </div>
+          {stravaMessage ? (
+            <p className="mt-3 text-sm text-gray-600">{stravaMessage}</p>
+          ) : null}
         </section>
 
         {/* Subscription */}

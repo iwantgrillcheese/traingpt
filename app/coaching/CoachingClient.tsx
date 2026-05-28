@@ -72,11 +72,15 @@ function getDateWindow() {
 }
 
 export default function CoachingClient() {
-  useStravaAutoSync();
-
   const { user, loading: authLoading } = useAuth();
   const searchParams = useSearchParams();
   const loadRunRef = useRef(0);
+  const [reloadToken, setReloadToken] = useState(0);
+
+  const stravaSync = useStravaAutoSync({
+    enabled: Boolean(user?.id),
+    onSyncComplete: () => setReloadToken((value) => value + 1),
+  });
 
   const initialPrompt = searchParams?.get('q') ?? '';
   const initialContext: CoachingContextPayload | null = useMemo(
@@ -212,7 +216,7 @@ export default function CoachingClient() {
     return () => {
       cancelled = true;
     };
-  }, [authLoading, user?.id]);
+  }, [authLoading, user?.id, reloadToken]);
 
   const weeklySummary: WeeklySummary | null = useMemo(() => {
     if (!user?.id) return null;
@@ -251,17 +255,35 @@ export default function CoachingClient() {
   }
 
   return (
-    <CoachingDashboard
-      userId={user.id}
-      sessions={sessions}
-      completedSessions={completedSessions as any}
-      stravaActivities={stravaActivities}
-      weeklyVolume={weeklyVolume}
-      weeklySummary={weeklySummary}
-      stravaConnected={stravaConnected}
-      raceDate={raceDate}
-      initialPrompt={initialPrompt}
-      initialContext={initialContext}
-    />
+    <>
+      {stravaSync.message ? (
+        <div className="mx-auto mt-4 max-w-6xl px-4 sm:px-6">
+          <div
+            className={`rounded-2xl border px-4 py-3 text-sm ${
+              stravaSync.status === 'error'
+                ? 'border-rose-200 bg-rose-50 text-rose-700'
+                : stravaSync.status === 'syncing'
+                  ? 'border-zinc-200 bg-white text-zinc-600'
+                  : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+            }`}
+          >
+            {stravaSync.message}
+          </div>
+        </div>
+      ) : null}
+
+      <CoachingDashboard
+        userId={user.id}
+        sessions={sessions}
+        completedSessions={completedSessions as any}
+        stravaActivities={stravaActivities}
+        weeklyVolume={weeklyVolume}
+        weeklySummary={weeklySummary}
+        stravaConnected={stravaConnected}
+        raceDate={raceDate}
+        initialPrompt={initialPrompt}
+        initialContext={initialContext}
+      />
+    </>
   );
 }

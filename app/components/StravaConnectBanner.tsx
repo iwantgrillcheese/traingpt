@@ -1,102 +1,167 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { track } from '@/lib/analytics/posthog-client';
 
 type Props = {
   stravaConnected: boolean;
+  onSyncComplete?: () => void;
 };
 
-export default function StravaConnectBanner({ stravaConnected }: Props) {
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+type SyncState = 'idle' | 'syncing' | 'success' | 'error';
 
-  const connectUrl =
-    'https://www.strava.com/oauth/authorize?client_id=145662&response_type=code&redirect_uri=https://www.traingpt.co/api/strava/callback&scope=activity:read_all,profile:read_all&approval_prompt=auto';
+type SyncResponse = {
+  inserted?: number;
+  totalFetched?: number;
+  skippedExisting?: number;
+  error?: string;
+};
+
+function getSafeReturnTo() {
+  if (typeof window === 'undefined') return '/coaching';
+
+  const path = `${window.location.pathname}${window.location.search}`;
+  return path.startsWith('/') && !path.startsWith('//') ? path : '/coaching';
+}
+
+function buildStravaConnectUrl() {
+  if (typeof window === 'undefined') return '#';
+
+  const clientId = process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID || '145662';
+  const redirectUri = `${window.location.origin}/api/strava/callback`;
+  const returnTo = getSafeReturnTo();
+
+  const url = new URL('https://www.strava.com/oauth/authorize');
+  url.searchParams.set('client_id', clientId);
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('redirect_uri', redirectUri);
+  url.searchParams.set('scope', 'activity:read_all,profile:read_all');
+  url.searchParams.set('approval_prompt', 'auto');
+  url.searchParams.set('state', returnTo);
+
+  return url.toString();
+}
+
+function getSyncMessage(state: SyncState, response: SyncResponse | null) {
+  if (state === 'syncing') return 'Importing latest Strava activities…';
+  if (state === 'error') return response?.error || 'Strava sync failed. Try again.';
+  if (state !== 'success') return null;
+
+  const inserted = Number(response?.inserted ?? 0);
+  const totalFetched = Number(response?.totalFetched ?? 0);
+
+  if (inserted > 0) {
+    return `Imported ${inserted} new ${inserted === 1 ? 'activity' : 'activities'}.`;
+  }
+
+  if (totalFetched > 0) {
+    return 'Strava is already up to date.';
+  }
+
+  return 'No new activities found.';
+}
+
+export default function StravaConnectBanner({ stravaConnected, onSyncComplete }: Props) {
+  const [connectUrl, setConnectUrl] = useState('#');
+  const [syncState, setSyncState] = useState<SyncState>('idle');
+  const [syncResponse, setSyncResponse] = useState<SyncResponse | null>(null);
+
+  useEffect(() => {
+    setConnectUrl(buildStravaConnectUrl());
+  }, []);
+
+  const syncMessage = useMemo(
+    () => getSyncMessage(syncState, syncResponse),
+    [syncResponse, syncState]
+  );
 
   const handleSync = async () => {
-    setLoading(true);
-    setSuccess(false);
+    setSyncState('syncing');
+    setSyncResponse(null);
 
     try {
       const res = await fetch('/api/strava_sync', { method: 'POST' });
-      const data = await res.json();
+      const data = (await res.json().catch(() => ({}))) as SyncResponse;
 
       if (!res.ok) {
-        console.error('Sync failed:', data?.error);
-        alert('Strava sync failed.');
-      } else {
-        console.log(`✅ Synced ${data.inserted} activities`);
-        track('strava_sync_completed', { activities_imported: Number(data?.inserted ?? 0) });
-        setSuccess(true);
-        setTimeout(() => setSuccess(false), 3000); // hide after 3s
+        console.error('[StravaConnectBanner] sync failed:', data?.error);
+        setSyncState('error');
+        setSyncResponse(data);
+        return;
       }
+
+      const imported = Number(data?.inserted ?? 0);
+      track('strava_sync_completed', { activities_imported: imported });
+
+      setSyncState('success');
+      setSyncResponse(data);
+      onSyncComplete?.();
+
+      window.setTimeout(() => {
+        setSyncState((current) => (current === 'success' ? 'idle' : current));
+      }, 5000);
     } catch (err) {
-      console.error('Error syncing Strava:', err);
-      alert('Unexpected sync error.');
-    } finally {
-      setLoading(false);
+      console.error('[StravaConnectBanner] unexpected sync error:', err);
+      setSyncState('error');
+      setSyncResponse({ error: 'Unexpected sync error.' });
     }
   };
 
   if (stravaConnected) {
     return (
-      <div className="mt-6 mb-6 flex flex-col items-start justify-between gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:gap-0">
-        <div className="flex items-center gap-2">
-          <img src="/strava-2.svg" alt="Strava" className="w-5 h-5" />
-          <span className="text-sm text-gray-700">Strava Connected</span>
-          {success && (
-            <span className="ml-2 text-sm text-green-600">✅ Up to date</span>
-          )}
+      <div className="mb-6 mt-6 rounded-2xl border border-black/10 bg-white px-4 py-4 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <img src="/strava-2.svg" alt="Strava" className="mt-0.5 h-5 w-5" />
+            <div>
+              <p className="text-sm font-medium text-zinc-900">Strava connected</p>
+              <p className="mt-1 text-xs leading-5 text-zinc-500">
+                Sync latest activities to update your training history and coaching insights.
+              </p>
+              {syncMessage ? (
+                <p
+                  className={`mt-2 text-xs font-medium ${
+                    syncState === 'error' ? 'text-rose-600' : 'text-emerald-700'
+                  }`}
+                >
+                  {syncMessage}
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSync}
+            disabled={syncState === 'syncing'}
+            className="inline-flex items-center justify-center rounded-full border border-black/10 bg-zinc-950 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {syncState === 'syncing' ? 'Syncing…' : 'Sync latest'}
+          </button>
         </div>
-        <button
-          onClick={handleSync}
-          disabled={loading}
-          className="inline-flex items-center rounded bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200 disabled:opacity-50"
-        >
-          {loading && (
-            <svg
-              className="mr-2 h-4 w-4 animate-spin text-gray-500"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              ></circle>
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8z"
-              ></path>
-            </svg>
-          )}
-          {loading ? 'Syncing…' : 'Sync Latest'}
-        </button>
       </div>
     );
   }
 
   return (
-    <div className="mt-6 mb-6 rounded-xl border border-orange-500 bg-orange-50 p-4 shadow-sm">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center">
-          <img src="/strava-2.svg" alt="Strava" className="w-6 h-6 mr-3" />
-          <p className="text-sm text-orange-800">
-            Connect with Strava to automatically track your completed workouts.
-          </p>
+    <div className="mb-6 mt-6 rounded-2xl border border-orange-200 bg-orange-50 px-4 py-4 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3">
+          <img src="/strava-2.svg" alt="Strava" className="mt-0.5 h-6 w-6" />
+          <div>
+            <p className="text-sm font-medium text-orange-950">Connect Strava</p>
+            <p className="mt-1 text-sm leading-5 text-orange-800">
+              Automatically match completed workouts to your training plan.
+            </p>
+          </div>
         </div>
+
         <a
           href={connectUrl}
           onClick={() => track('strava_connect_clicked')}
-          className="rounded bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600"
+          className="inline-flex items-center justify-center rounded-full bg-orange-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-600"
         >
-          Connect
+          Connect Strava
         </a>
       </div>
     </div>

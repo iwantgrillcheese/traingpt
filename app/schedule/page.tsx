@@ -9,6 +9,7 @@ import PostPlanWalkthrough from '../plan/components/PostPlanWalkthrough';
 
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
+import { useStravaAutoSync } from '../hooks/useStravaAutoSync';
 import { track } from '@/lib/analytics/posthog-client';
 
 import type { Session } from '@/types/session';
@@ -201,6 +202,11 @@ export default function SchedulePage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
+
+  const stravaSync = useStravaAutoSync({
+    enabled: Boolean(user?.id),
+    onSyncComplete: () => setReloadToken((value: number) => value + 1),
+  });
 
   const [walkthroughContext, setWalkthroughContext] = useState<WalkthroughContext | null>(null);
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
@@ -538,6 +544,22 @@ export default function SchedulePage() {
           onClose={() => setWalkthroughOpen(false)}
         />
       )}
+
+      {stravaSync.message ? (
+        <div className="mx-auto w-full max-w-5xl px-4 pt-4">
+          <div
+            className={`rounded-2xl border px-4 py-3 text-sm ${
+              stravaSync.status === 'error'
+                ? 'border-rose-200 bg-rose-50 text-rose-700'
+                : stravaSync.status === 'syncing'
+                  ? 'border-zinc-200 bg-white text-zinc-600'
+                  : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+            }`}
+          >
+            {stravaSync.message}
+          </div>
+        </div>
+      ) : null}
 
       <main className="flex-grow">
         <div className="relative left-1/2 w-screen -translate-x-1/2">
