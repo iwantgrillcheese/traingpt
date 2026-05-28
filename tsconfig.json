@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "ES2015", // ✅ upgraded from es5 to allow for `for...of` on entries
+    "target": "ES2015",
     "lib": ["DOM", "DOM.Iterable", "ESNext"],
 
     "allowJs": true,
@@ -16,10 +16,11 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
+    "ignoreDeprecations": "6.0",
 
-    "downlevelIteration": true, // ✅ fix for Object.entries on arrays
+    "downlevelIteration": true,
 
-    "baseUrl": ".", 
+    "baseUrl": ".",
     "paths": {
       "@/*": ["./*"]
     },

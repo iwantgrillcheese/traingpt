@@ -1,15 +1,13 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase-client';
 import CalendarShell from './CalendarShell';
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
-import mergeSessionsWithStrava, { MergedSession } from '@/utils/mergeSessionWithStrava';
+import mergeSessionsWithStrava, { type MergedSession } from '@/utils/mergeSessionWithStrava';
 import Footer from '../components/footer';
-import RaceHubCard from '../components/race/RaceHubCard';
-import WeeklyIntentCard from '../components/race/WeeklyIntentCard';
 import { calculateReadiness } from '@/lib/readiness';
 import { track } from '@/lib/analytics/posthog-client';
 import {
@@ -19,8 +17,6 @@ import {
   getNextUpcomingSession,
   getTodaysPrimarySession,
 } from './session-utils';
-
-// Walkthrough
 import PostPlanWalkthrough from '../plan/components/PostPlanWalkthrough';
 import type { WalkthroughContext } from '@/types/coachGuides';
 
@@ -50,12 +46,11 @@ function deriveCurrentPhase(planPayload: any): string | null {
 
   for (const week of weeks) {
     if (!week?.startDate || !week?.phase) continue;
+
     const start = new Date(week.startDate);
     if (Number.isNaN(start.getTime())) continue;
 
-    if (start <= today) {
-      latestPhase = String(week.phase);
-    }
+    if (start <= today) latestPhase = String(week.phase);
   }
 
   return latestPhase ?? (weeks[0]?.phase ? String(weeks[0].phase) : null);
@@ -65,6 +60,7 @@ function getWeekBounds(reference = new Date()) {
   const start = new Date(reference);
   const day = start.getDay();
   const offset = day === 0 ? -6 : 1 - day;
+
   start.setDate(start.getDate() + offset);
   start.setHours(0, 0, 0, 0);
 
@@ -80,120 +76,103 @@ function formatWeekRange(start: Date, end: Date) {
   return `${fmt.format(start)} – ${fmt.format(end)}`;
 }
 
+function normalizeCompletedSessions(rows: any[]): CompletedSession[] {
+  return (rows ?? []).map((c: any) => ({
+    date: c.date || c.session_date,
+    session_title: c.session_title || c.title,
+    strava_id: c.strava_id,
+    status: c.status === 'skipped' ? 'skipped' : 'done',
+  }));
+}
+
 export default function SchedulePage() {
   const router = useRouter();
+  const scheduleViewTrackedRef = useRef(false);
+  const loadRunRef = useRef(0);
 
   const userTimezone =
-    Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'America/Los_Angeles';
+    typeof window !== 'undefined'
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'America/Los_Angeles'
+      : 'America/Los_Angeles';
 
   const [authedUserId, setAuthedUserId] = useState<string | null>(null);
-
   const [sessions, setSessions] = useState<Session[]>([]);
   const [stravaActivities, setStravaActivities] = useState<StravaActivity[]>([]);
   const [completedSessions, setCompletedSessions] = useState<CompletedSession[]>([]);
   const [raceHub, setRaceHub] = useState<RaceHubState | null>(null);
-  const [raceHubSaving, setRaceHubSaving] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
-  const scheduleViewTrackedRef = useRef(false);
 
-  // Walkthrough state
   const [walkthroughContext, setWalkthroughContext] = useState<WalkthroughContext | null>(null);
   const [walkthroughOpen, setWalkthroughOpen] = useState(false);
   const [walkthroughLoading, setWalkthroughLoading] = useState(false);
-
-  // Auto-open control (one-shot)
   const [autoWalkthroughFired, setAutoWalkthroughFired] = useState(false);
   const [shouldAutoOpenWalkthrough, setShouldAutoOpenWalkthrough] = useState(false);
 
-  // Read query param WITHOUT useSearchParams (Next 15 build-safe)
   useEffect(() => {
-    try {
-      const sp = new URLSearchParams(window.location.search);
-      setShouldAutoOpenWalkthrough(sp.get('walkthrough') === '1');
-    } catch {
-      setShouldAutoOpenWalkthrough(false);
-    }
+    const sp = new URLSearchParams(window.location.search);
+    setShouldAutoOpenWalkthrough(sp.get('walkthrough') === '1');
   }, []);
 
   useEffect(() => {
     let cancelled = false;
 
-    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-    const load = async (attempt: number) => {
+    const clearScheduleState = () => {
+      setAuthedUserId(null);
+      setSessions([]);
+      setStravaActivities([]);
+      setCompletedSessions([]);
+      setRaceHub(null);
+    };
+
+    const loadSchedule = async () => {
+      const runId = ++loadRunRef.current;
+
       try {
-        setLoading(true);
-        setLoadError(null);
+        if (!cancelled && runId === loadRunRef.current) {
+          setLoading(true);
+          setLoadError(null);
+        }
 
-        // 1) Get session first (more stable during hydration).
-        const {
-          data: { session },
-          error: sessionErr,
-        } = await supabase.auth.getSession();
+        let session = null;
 
-        if (!session || sessionErr) {
-          if (!cancelled) {
-            setAuthedUserId(null);
-            setSessions([]);
-            setStravaActivities([]);
-            setCompletedSessions([]);
-            setRaceHub(null);
-            setLoading(false);
-          }
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+          const sessionRes = await supabase.auth.getSession();
+
+          if (sessionRes.error) throw sessionRes.error;
+
+          session = sessionRes.data.session;
+          if (session?.user?.id) break;
+
+          await sleep(300);
+        }
+
+        if (cancelled || runId !== loadRunRef.current) return;
+
+        if (!session?.user?.id) {
+          clearScheduleState();
           return;
         }
 
-        // 2) Now fetch user (can throw transient "Auth session missing" right after redirect on mobile).
-        const {
-          data: { user },
-          error: userErr,
-        } = await supabase.auth.getUser();
-
-        const msg = userErr?.message?.toLowerCase() ?? '';
-        if (msg.includes('auth session missing')) {
-          if (attempt < 1) {
-            await sleep(400);
-            return load(attempt + 1);
-          }
-          if (!cancelled) {
-            setAuthedUserId(null);
-            setRaceHub(null);
-            setLoading(false);
-          }
-          return;
-        }
-
-        if (userErr) throw userErr;
-
-        if (!user) {
-          if (!cancelled) {
-            setAuthedUserId(null);
-            setRaceHub(null);
-            setLoading(false);
-          }
-          return;
-        }
-
-        if (cancelled) return;
-
+        const user = session.user;
         setAuthedUserId(user.id);
 
-        // ✅ Ensure profile row exists (safe to call after any login)
-        const { error: upsertError } = await supabase.from('profiles').upsert({
+        const { error: profileError } = await supabase.from('profiles').upsert({
           id: user.id,
           email: user.email,
           full_name: user.user_metadata?.full_name ?? null,
           avatar_url: user.user_metadata?.avatar_url ?? null,
         });
 
-        if (upsertError) {
-          console.error('Failed to upsert profile:', upsertError);
-          // Don't block schedule load
+        if (profileError) {
+          console.error('[schedule] profile upsert failed:', profileError);
         }
 
-        const { data: latestPlanRow, error: latestPlanErr } = await supabase
+        const { data: latestPlanRow, error: latestPlanError } = await supabase
           .from('plans')
           .select('id, race_type, race_date, plan')
           .eq('user_id', user.id)
@@ -201,11 +180,10 @@ export default function SchedulePage() {
           .limit(1)
           .maybeSingle();
 
+        if (latestPlanError) throw latestPlanError;
+
         const latestPlan = latestPlanRow as any;
-
-        if (latestPlanErr) throw latestPlanErr;
-
-        const latestPlanId = (latestPlan as any)?.id ?? null;
+        const latestPlanId = latestPlan?.id ?? null;
 
         const [sessionsRes, stravaRes, completedRes] = await Promise.all([
           latestPlanId
@@ -219,25 +197,13 @@ export default function SchedulePage() {
         if (stravaRes.error) throw stravaRes.error;
         if (completedRes.error) throw completedRes.error;
 
-        if (cancelled) return;
+        if (cancelled || runId !== loadRunRef.current) return;
+
+        const params = latestPlan?.plan?.params ?? {};
 
         setSessions((sessionsRes.data ?? []) as Session[]);
         setStravaActivities((stravaRes.data ?? []) as StravaActivity[]);
-
-        console.log('[schedule] loaded latest plan sessions', {
-          userId: user.id,
-          planId: latestPlanId,
-          sessionCount: (sessionsRes.data ?? []).length,
-        });
-
-        const normalizedCompleted: CompletedSession[] = (completedRes.data ?? []).map((c: any) => ({
-          date: c.date || c.session_date,
-          session_title: c.session_title || c.title,
-          strava_id: c.strava_id,
-          status: c.status === 'skipped' ? 'skipped' : 'done',
-        }));
-
-        const params = latestPlan?.plan?.params ?? {};
+        setCompletedSessions(normalizeCompletedSessions(completedRes.data ?? []));
         setRaceHub({
           planId: latestPlan?.id ?? null,
           raceType: latestPlan?.race_type ?? null,
@@ -248,34 +214,50 @@ export default function SchedulePage() {
           planPayload: latestPlan?.plan ?? null,
         });
 
-        setCompletedSessions(normalizedCompleted);
-        setLoading(false);
-      } catch (e: any) {
-        console.error('SchedulePage load error:', e);
-        if (!cancelled) {
-          setLoadError(e?.message ?? 'Failed to load schedule data.');
+        console.log('[schedule] loaded', {
+          userId: user.id,
+          planId: latestPlanId,
+          sessions: sessionsRes.data?.length ?? 0,
+          stravaActivities: stravaRes.data?.length ?? 0,
+          completedSessions: completedRes.data?.length ?? 0,
+        });
+      } catch (error: any) {
+        console.error('[schedule] load failed:', error);
+
+        if (!cancelled && runId === loadRunRef.current) {
+          setLoadError(error?.message ?? 'Failed to load schedule data.');
+        }
+      } finally {
+        if (!cancelled && runId === loadRunRef.current) {
           setLoading(false);
         }
       }
     };
 
-    load(0);
+    loadSchedule();
 
-    // If auth finishes hydrating after first render, reload.
-    const { data: sub } = supabase.auth.onAuthStateChange(() => {
-      load(0);
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        clearScheduleState();
+        setLoading(false);
+        return;
+      }
+
+      if (session?.user?.id) {
+        loadSchedule();
+      }
     });
 
     return () => {
       cancelled = true;
-      sub?.subscription?.unsubscribe();
+      data.subscription.unsubscribe();
     };
   }, [reloadToken]);
 
   useEffect(() => {
     if (loading || !authedUserId || scheduleViewTrackedRef.current) return;
 
-    const width = typeof window !== 'undefined' ? window.innerWidth : 1280;
+    const width = window.innerWidth;
     const view = width < 768 ? 'mobile' : width < 1100 ? 'month' : 'desktop';
 
     track('schedule_viewed', { view });
@@ -286,118 +268,27 @@ export default function SchedulePage() {
     setCompletedSessions(updated);
   }, []);
 
-  const handleRaceHubSave = useCallback(
-    async (next: {
-      raceType: string;
-      raceDate: string;
-      raceName?: string;
-      raceLocation?: string;
-    }) => {
-      if (!authedUserId || !raceHub?.planId) {
-        return { ok: false, message: 'No active plan found yet. Generate a plan first.' };
-      }
-
-      try {
-        setRaceHubSaving(true);
-
-        const basePlan = raceHub?.planPayload && typeof raceHub.planPayload === 'object' ? raceHub.planPayload : {};
-        const nextParams = {
-          ...(basePlan as any).params,
-          raceName: next.raceName?.trim() || null,
-          raceLocation: next.raceLocation?.trim() || null,
-        };
-
-        const { error } = await supabase
-          .from('plans')
-          .update({
-            race_type: next.raceType,
-            race_date: next.raceDate,
-            plan: {
-              ...(basePlan as any),
-              params: nextParams,
-            },
-          })
-          .eq('id', raceHub.planId)
-          .eq('user_id', authedUserId);
-
-        if (error) throw error;
-
-        setRaceHub((prev) =>
-          prev
-            ? {
-                ...prev,
-                raceType: next.raceType,
-                raceDate: next.raceDate,
-                raceName: next.raceName?.trim() || null,
-                raceLocation: next.raceLocation?.trim() || null,
-                planPayload: {
-                  ...(basePlan as any),
-                  params: nextParams,
-                },
-              }
-            : prev
-        );
-
-        return { ok: true, message: 'Saved' };
-      } catch (e: any) {
-        return { ok: false, message: e?.message || 'Failed to save race details.' };
-      } finally {
-        setRaceHubSaving(false);
-      }
-    },
-    [authedUserId, raceHub]
-  );
-
   const { enrichedSessions, unmatchedActivities } = useMemo(() => {
     try {
-      const { merged, unmatched } = mergeSessionsWithStrava(sessions, stravaActivities, userTimezone);
-      return { enrichedSessions: merged, unmatchedActivities: unmatched };
-    } catch (e) {
-      console.error('mergeSessionsWithStrava failed:', e);
+      const { merged, unmatched } = mergeSessionsWithStrava(
+        sessions,
+        stravaActivities,
+        userTimezone
+      );
+
+      return {
+        enrichedSessions: merged,
+        unmatchedActivities: unmatched,
+      };
+    } catch (error) {
+      console.error('[schedule] mergeSessionsWithStrava failed:', error);
+
       return {
         enrichedSessions: sessions as unknown as MergedSession[],
         unmatchedActivities: [] as StravaActivity[],
       };
     }
   }, [sessions, stravaActivities, userTimezone]);
-
-  const weeklyIntent = useMemo(() => {
-    const { start, end } = getWeekBounds();
-    const rangeLabel = formatWeekRange(start, end);
-
-    const weekSessions = sessions
-      .filter((session) => {
-        const d = new Date(session.date);
-        return !Number.isNaN(d.getTime()) && d >= start && d <= end;
-      })
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-    const hardSessions = weekSessions.filter((s) => /tempo|threshold|interval|long|brick|race pace/i.test(s.title || ''));
-    const keySessions = (hardSessions.length ? hardSessions : weekSessions).slice(0, 3);
-
-    const bullets = keySessions.length
-      ? keySessions.map((s) => `${s.sport}: ${s.title}`)
-      : ['Set your race and generate a plan to see this week’s key focus sessions.'];
-
-    const keySessionTitles = keySessions.map((s) => `${s.sport}: ${s.title}`);
-    const prefill = keySessionTitles.length
-      ? `Weekly coaching check-in for ${rangeLabel}. My top sessions are: ${keySessionTitles.join('; ')}.`
-      : `Weekly coaching check-in for ${rangeLabel}. Help me plan my key sessions.`;
-
-    const weeklyCheckInPrompt = [
-      `Weekly check-in (${rangeLabel})`,
-      `Goal race: ${raceHub?.raceType ?? 'Not set'} on ${raceHub?.raceDate ?? 'Not set'}`,
-      `Top sessions this week: ${keySessionTitles.length ? keySessionTitles.join('; ') : 'Not available yet'}`,
-      'Please help me review what went well, what to adjust, and set 3 priorities for next week.',
-    ].join(' | ');
-
-    return {
-      weekRangeLabel: rangeLabel,
-      bullets,
-      coachingHref: `/coaching?q=${encodeURIComponent(prefill)}`,
-      checkInHref: `/coaching?q=${encodeURIComponent(weeklyCheckInPrompt)}`,
-    };
-  }, [sessions, raceHub?.raceType, raceHub?.raceDate]);
 
   const readiness = useMemo(
     () =>
@@ -426,16 +317,13 @@ export default function SchedulePage() {
     };
   }, [enrichedSessions, raceHub?.currentPhase]);
 
-  const isLoggedOut = !authedUserId;
-
   const fetchLatestPlanContext = useCallback(async (): Promise<WalkthroughContext | null> => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const sessionRes = await supabase.auth.getSession();
+    const user = sessionRes.data.session?.user;
 
     if (!user?.id) return null;
 
-    const { data: latestPlan, error: planErr } = await supabase
+    const { data: latestPlan, error } = await supabase
       .from('plans')
       .select('id, user_id, race_type, race_date, experience, max_hours, rest_day')
       .eq('user_id', user.id)
@@ -443,8 +331,7 @@ export default function SchedulePage() {
       .limit(1)
       .maybeSingle();
 
-    if (planErr) return null;
-    if (!latestPlan?.id || !latestPlan?.user_id) return null;
+    if (error || !latestPlan?.id || !latestPlan?.user_id) return null;
 
     return {
       planId: String(latestPlan.id),
@@ -461,8 +348,10 @@ export default function SchedulePage() {
   const openWalkthrough = useCallback(async () => {
     try {
       setWalkthroughLoading(true);
+
       const ctx = await fetchLatestPlanContext();
       if (!ctx) return;
+
       setWalkthroughContext(ctx);
       setWalkthroughOpen(true);
     } finally {
@@ -470,28 +359,31 @@ export default function SchedulePage() {
     }
   }, [fetchLatestPlanContext]);
 
-  // Auto-open walkthrough if ?walkthrough=1 (one-time), then clean URL
   useEffect(() => {
     if (!shouldAutoOpenWalkthrough) return;
     if (autoWalkthroughFired) return;
-
     if (loading) return;
     if (!authedUserId) return;
 
     setAutoWalkthroughFired(true);
 
-    (async () => {
+    const run = async () => {
       const ctx = await fetchLatestPlanContext();
-      if (ctx) setWalkthroughContext({ ...(ctx as any), mode: 'auto' });
+
+      if (ctx) {
+        setWalkthroughContext({ ...(ctx as any), mode: 'auto' });
+      }
+
       setWalkthroughOpen(true);
 
-      // Clean URL without triggering Next searchParams
       try {
         window.history.replaceState({}, '', '/schedule');
       } catch {
         router.replace('/schedule');
       }
-    })();
+    };
+
+    run();
   }, [
     shouldAutoOpenWalkthrough,
     autoWalkthroughFired,
@@ -502,21 +394,44 @@ export default function SchedulePage() {
   ]);
 
   if (loading) {
-    return <div className="text-center py-10 text-zinc-400">Loading your training data...</div>;
+    return (
+      <div className="flex min-h-screen items-start justify-center bg-white px-6 pt-24">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-6 w-6 animate-spin rounded-full border-2 border-zinc-200 border-t-zinc-900" />
+          <p className="text-sm font-medium text-zinc-500">Loading your training data...</p>
+        </div>
+      </div>
+    );
   }
 
   if (loadError) {
     return (
-      <div className="text-center py-10 text-zinc-400">
-        <div className="text-sm">Something went wrong loading your schedule.</div>
-        <div className="mt-2 text-xs text-zinc-500">{loadError}</div>
-        <button
-          type="button"
-          onClick={() => setReloadToken((n) => n + 1)}
-          className="mt-4 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
-        >
-          Retry
-        </button>
+      <div className="flex min-h-screen items-start justify-center bg-white px-6 pt-24">
+        <div className="max-w-sm text-center">
+          <p className="text-sm font-semibold text-zinc-900">Couldn’t load your schedule.</p>
+          <p className="mt-2 text-xs leading-5 text-zinc-500">{loadError}</p>
+
+          <button
+            type="button"
+            onClick={() => setReloadToken((n) => n + 1)}
+            className="mt-5 rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-800 shadow-sm hover:bg-zinc-50"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!authedUserId) {
+    return (
+      <div className="flex min-h-screen items-start justify-center bg-white px-6 pt-24">
+        <div className="max-w-sm text-center">
+          <p className="text-sm font-semibold text-zinc-900">Sign in to view your schedule.</p>
+          <p className="mt-2 text-xs leading-5 text-zinc-500">
+            Your training calendar is connected to your TrainGPT account.
+          </p>
+        </div>
       </div>
     );
   }
@@ -532,27 +447,21 @@ export default function SchedulePage() {
       )}
 
       <main className="flex-grow">
-        {isLoggedOut ? (
-          <div className="text-center py-10 text-zinc-400">Please sign in to view your schedule.</div>
-        ) : (
-          <>
-            <div className="relative left-1/2 w-screen -translate-x-1/2">
-              <CalendarShell
-                sessions={enrichedSessions}
-                completedSessions={completedSessions}
-                extraStravaActivities={unmatchedActivities}
-                onCompletedUpdate={handleCompletedUpdate}
-                timezone={userTimezone}
-                onOpenWalkthrough={openWalkthrough}
-                walkthroughLoading={walkthroughLoading}
-                todaySummary={scheduleSummary.todayLabel}
-                nextSummary={scheduleSummary.nextLabel}
-                weekPhaseSummary={scheduleSummary.weekPhase}
-                raceGoal={raceHub?.raceType ?? raceHub?.raceName ?? null}
-              />
-            </div>
-          </>
-        )}
+        <div className="relative left-1/2 w-screen -translate-x-1/2">
+          <CalendarShell
+            sessions={enrichedSessions}
+            completedSessions={completedSessions}
+            extraStravaActivities={unmatchedActivities}
+            onCompletedUpdate={handleCompletedUpdate}
+            timezone={userTimezone}
+            onOpenWalkthrough={openWalkthrough}
+            walkthroughLoading={walkthroughLoading}
+            todaySummary={scheduleSummary.todayLabel}
+            nextSummary={scheduleSummary.nextLabel}
+            weekPhaseSummary={scheduleSummary.weekPhase}
+            raceGoal={raceHub?.raceType ?? raceHub?.raceName ?? null}
+          />
+        </div>
       </main>
 
       <Footer />
