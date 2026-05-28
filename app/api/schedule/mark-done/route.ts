@@ -13,10 +13,6 @@ type MarkDonePayload = {
   session_title?: string;
   clientUserId?: string | null;
   undo?: boolean;
-  session_id?: string | null;
-  sessionId?: string | null;
-  strava_id?: string | null;
-  stravaId?: string | null;
 };
 
 export async function POST(req: Request) {
@@ -42,64 +38,32 @@ export async function POST(req: Request) {
       );
     }
 
-    const sessionId = payload.session_id ?? payload.sessionId ?? null;
-    const stravaId = payload.strava_id ?? payload.stravaId ?? null;
-    const shouldUndo = payload.undo === true;
+    const { error: deleteError } = await supabase
+      .from('completed_sessions')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('date', sessionDate)
+      .eq('session_title', sessionTitle);
 
-    if (shouldUndo) {
-      let deleteQuery = supabase
-        .from('completed_sessions')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('date', sessionDate)
-        .eq('session_title', sessionTitle);
+    if (deleteError) {
+      console.error('[schedule/mark-done] delete existing failed:', deleteError);
+      return NextResponse.json({ error: deleteError.message }, { status: 500 });
+    }
 
-      if (sessionId) {
-        deleteQuery = deleteQuery.eq('session_id', sessionId);
-      }
-
-      const { error: deleteError } = await deleteQuery;
-
-      if (deleteError) {
-        console.error('[schedule/mark-done] delete failed:', deleteError);
-
-        return NextResponse.json(
-          { error: deleteError.message },
-          { status: 500 }
-        );
-      }
-
+    if (payload.undo === true) {
       return NextResponse.json({ success: true, completed: false });
     }
 
-    const upsertPayload: Record<string, unknown> = {
+    const { error: insertError } = await supabase.from('completed_sessions').insert({
       user_id: user.id,
       date: sessionDate,
       session_title: sessionTitle,
       status: 'done',
-    };
+    });
 
-    if (sessionId) {
-      upsertPayload.session_id = sessionId;
-    }
-
-    if (stravaId) {
-      upsertPayload.strava_id = stravaId;
-    }
-
-    const { error: upsertError } = await supabase
-      .from('completed_sessions')
-      .upsert(upsertPayload, {
-        onConflict: 'user_id,date,session_title',
-      });
-
-    if (upsertError) {
-      console.error('[schedule/mark-done] upsert failed:', upsertError);
-
-      return NextResponse.json(
-        { error: upsertError.message },
-        { status: 500 }
-      );
+    if (insertError) {
+      console.error('[schedule/mark-done] insert failed:', insertError);
+      return NextResponse.json({ error: insertError.message }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, completed: true });
@@ -107,10 +71,7 @@ export async function POST(req: Request) {
     console.error('[schedule/mark-done] failed:', error);
 
     if (error instanceof AuthError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.status }
-      );
+      return NextResponse.json({ error: error.message }, { status: error.status });
     }
 
     return NextResponse.json(
