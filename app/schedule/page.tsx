@@ -172,13 +172,13 @@ function buildScheduleDataWindow(sessions: Session[], raceDate?: string | null):
 
 function normalizeCompletedSessions(rows: any[]): CompletedSession[] {
   return (rows ?? [])
-    .map((c: any) => ({
+    .map((c: any): CompletedSession => ({
       date: String(c.date || c.session_date || ''),
       session_title: String(c.session_title || c.title || ''),
-      strava_id: c.strava_id ?? null,
+      strava_id: c.strava_id ?? undefined,
       status: c.status === 'skipped' ? 'skipped' : 'done',
     }))
-    .filter((row) => row.date && row.session_title);
+    .filter((row): row is CompletedSession => Boolean(row.date && row.session_title));
 }
 
 export default function SchedulePage() {
