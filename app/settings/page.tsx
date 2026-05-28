@@ -49,19 +49,20 @@ export default function ProfilePage() {
       };
 
       // ✅ Typed query + safe boolean coercion
-      const { data: userData, error: userErr } = await supabase
-        .from('users')
-        .select('marketing_opt_in')
-        .eq('id', session.user.id)
-        .single()
-        .returns<{ marketing_opt_in: boolean | null }>();
+const { data: userData, error: userErr } = await supabase
+  .from('users')
+  .select('marketing_opt_in')
+  .eq('id', session.user.id)
+  .maybeSingle();
+
+const typedUserData = userData as { marketing_opt_in: boolean | null } | null;
 
       if (userErr) {
         console.error('Error loading user marketing_opt_in:', userErr);
       }
 
       if (!cancelled) {
-        setOptIn(userData?.marketing_opt_in === true);
+        setOptIn(typedUserData?.marketing_opt_in === true);
       }
 
       const { data: profileData, error: profileErr } = await supabase
