@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Dialog } from '@headlessui/react';
 import { format, parseISO } from 'date-fns';
 import clsx from 'clsx';
-import { supabase } from '@/lib/supabase-client';
+import { supabase } from '@/lib/supabase/client';
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 import {

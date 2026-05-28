@@ -2,13 +2,14 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase-client';
+import { supabase } from '@/lib/supabase/client';
 import CalendarShell from './CalendarShell';
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 import mergeSessionsWithStrava, { type MergedSession } from '@/utils/mergeSessionWithStrava';
 import Footer from '../components/footer';
 import { calculateReadiness } from '@/lib/readiness';
+import type { AuthChangeEvent, Session as SupabaseSession } from '@supabase/supabase-js';
 import { track } from '@/lib/analytics/posthog-client';
 import {
   conciseSessionLabel,
@@ -236,17 +237,19 @@ export default function SchedulePage() {
 
     loadSchedule();
 
-    const { data } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') {
-        clearScheduleState();
-        setLoading(false);
-        return;
-      }
+const { data } = supabase.auth.onAuthStateChange(
+  (event: AuthChangeEvent, session: SupabaseSession | null) => {
+    if (event === 'SIGNED_OUT') {
+      clearScheduleState();
+      setLoading(false);
+      return;
+    }
 
-      if (session?.user?.id) {
-        loadSchedule();
-      }
-    });
+    if (session?.user?.id) {
+      loadSchedule();
+    }
+  }
+);
 
     return () => {
       cancelled = true;
@@ -449,18 +452,18 @@ export default function SchedulePage() {
       <main className="flex-grow">
         <div className="relative left-1/2 w-screen -translate-x-1/2">
           <CalendarShell
-            sessions={enrichedSessions}
-            completedSessions={completedSessions}
-            extraStravaActivities={unmatchedActivities}
-            onCompletedUpdate={handleCompletedUpdate}
-            timezone={userTimezone}
-            onOpenWalkthrough={openWalkthrough}
-            walkthroughLoading={walkthroughLoading}
-            todaySummary={scheduleSummary.todayLabel}
-            nextSummary={scheduleSummary.nextLabel}
-            weekPhaseSummary={scheduleSummary.weekPhase}
-            raceGoal={raceHub?.raceType ?? raceHub?.raceName ?? null}
-          />
+  sessions={enrichedSessions}
+  completedSessions={completedSessions}
+  extraStravaActivities={unmatchedActivities}
+  onCompletedUpdateAction={handleCompletedUpdate}
+  timezone={userTimezone}
+  onOpenWalkthroughAction={openWalkthrough}
+  walkthroughLoading={walkthroughLoading}
+  todaySummary={scheduleSummary.todayLabel}
+  nextSummary={scheduleSummary.nextLabel}
+  weekPhaseSummary={scheduleSummary.weekPhase}
+  raceGoal={raceHub?.raceType ?? raceHub?.raceName ?? null}
+/>
         </div>
       </main>
 

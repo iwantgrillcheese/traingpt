@@ -1,87 +1,87 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { identify, initPostHog, reset, track } from '@/lib/analytics/posthog-client';
+import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { useAuth } from '@/lib/auth/AuthProvider';
 
-export default function PostHogIdentityBridge({
-  supabaseClient,
-}: {
-  supabaseClient: SupabaseClient<any, 'public', any>;
-}) {
+export default function PostHogIdentityBridge() {
+  const { user } = useAuth();
+  const supabase = createBrowserSupabaseClient();
+
   const lastIdentifiedUserId = useRef<string | null>(null);
+  const trackedLoginForUserId = useRef<string | null>(null);
 
   useEffect(() => {
     initPostHog();
+  }, []);
 
-    const syncIdentity = async (user: User | null) => {
+  useEffect(() => {
+    let cancelled = false;
+
+    const syncIdentity = async () => {
       if (!user?.id) {
-        lastIdentifiedUserId.current = null;
-        return;
-      }
-
-      const [{ data: profileData }, { data: latestPlanData }] = await Promise.all([
-        supabaseClient
-          .from('profiles')
-          .select('strava_access_token')
-          .eq('id', user.id)
-          .maybeSingle(),
-        supabaseClient
-          .from('plans')
-          .select('id')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-      ]);
-
-      identify({
-        id: user.id,
-        email: user.email,
-        created_at: user.created_at,
-        has_strava: !!profileData?.strava_access_token,
-        has_plan: !!latestPlanData?.id,
-      });
-
-      lastIdentifiedUserId.current = user.id;
-    };
-
-    supabaseClient.auth.getSession().then(async ({ data }) => {
-      await syncIdentity(data.session?.user ?? null);
-    });
-
-    const { data: sub } = supabaseClient.auth.onAuthStateChange(async (event, session) => {
-      const user = session?.user ?? null;
-
-      if (event === 'SIGNED_OUT') {
         reset();
         lastIdentifiedUserId.current = null;
+        trackedLoginForUserId.current = null;
         return;
       }
 
-      if (event === 'SIGNED_IN' && user) {
-        await syncIdentity(user);
-
-        const createdAt = new Date(user.created_at || 0).getTime();
-        const lastSignInAt = new Date(user.last_sign_in_at || 0).getTime();
-        const looksLikeSignup =
-          Number.isFinite(createdAt) &&
-          Number.isFinite(lastSignInAt) &&
-          Math.abs(lastSignInAt - createdAt) < 120000;
-
-        track(looksLikeSignup ? 'user_signed_up' : 'user_logged_in');
+      if (lastIdentifiedUserId.current === user.id) {
         return;
       }
 
-      if (user && lastIdentifiedUserId.current !== user.id) {
-        await syncIdentity(user);
+      try {
+        const [{ data: profileData }, { data: latestPlanData }] = await Promise.all([
+          supabase
+            .from('profiles')
+            .select('strava_access_token')
+            .eq('id', user.id)
+            .maybeSingle(),
+          supabase
+            .from('plans')
+            .select('id')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        ]);
+
+        if (cancelled) return;
+
+        identify({
+          id: user.id,
+          email: user.email,
+          created_at: user.created_at,
+          has_strava: !!profileData?.strava_access_token,
+          has_plan: !!latestPlanData?.id,
+        });
+
+        lastIdentifiedUserId.current = user.id;
+
+        if (trackedLoginForUserId.current !== user.id) {
+          const createdAt = new Date(user.created_at || 0).getTime();
+          const lastSignInAt = new Date(user.last_sign_in_at || 0).getTime();
+
+          const looksLikeSignup =
+            Number.isFinite(createdAt) &&
+            Number.isFinite(lastSignInAt) &&
+            Math.abs(lastSignInAt - createdAt) < 120000;
+
+          track(looksLikeSignup ? 'user_signed_up' : 'user_logged_in');
+          trackedLoginForUserId.current = user.id;
+        }
+      } catch (error) {
+        console.error('[PostHogIdentityBridge] identity sync failed:', error);
       }
-    });
+    };
+
+    syncIdentity();
 
     return () => {
-      sub.subscription.unsubscribe();
+      cancelled = true;
     };
-  }, [supabaseClient]);
+  }, [user, supabase]);
 
   return null;
 }

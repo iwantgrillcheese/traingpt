@@ -3,25 +3,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SVGProps } from 'react';
 import {
-  startOfMonth,
-  subMonths,
   addMonths,
-  format,
-  startOfWeek,
   endOfWeek,
-  parseISO,
-  subDays,
+  format,
   isAfter,
+  parseISO,
+  startOfMonth,
+  startOfWeek,
+  subDays,
+  subMonths,
 } from 'date-fns';
-import MonthGrid from './MonthGrid';
-import MobileCalendarView from './MobileCalendarView';
-import SessionModal from './SessionModal';
-import StravaActivityModal from './StravaActivityModal';
-import AddSessionModalTP from './AddSessionModalTP';
-import type { MergedSession } from '@/utils/mergeSessionWithStrava';
-import type { StravaActivity } from '@/types/strava';
-import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
-import { supabase } from '@/lib/supabase-client';
 import {
   DndContext,
   MouseSensor,
@@ -31,6 +22,17 @@ import {
   type DragEndEvent,
   type SensorOptions,
 } from '@dnd-kit/core';
+
+import MonthGrid from './MonthGrid';
+import MobileCalendarView from './MobileCalendarView';
+import SessionModal from './SessionModal';
+import StravaActivityModal from './StravaActivityModal';
+import AddSessionModalTP from './AddSessionModalTP';
+
+import type { MergedSession } from '@/utils/mergeSessionWithStrava';
+import type { StravaActivity } from '@/types/strava';
+import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
+import { supabase } from '@/lib/supabase/client';
 
 type CompletedSession = {
   date: string;
@@ -42,14 +44,14 @@ type CompletedSession = {
 type CalendarShellProps = {
   sessions: MergedSession[];
   completedSessions: CompletedSession[];
-  extraStravaActivities: StravaActivity[];
-  onCompletedUpdate?: (updated: CompletedSession[]) => void;
+  extraStravaActivities?: StravaActivity[];
+  onCompletedUpdateAction?: (updated: CompletedSession[]) => void;
   timezone?: string;
   todaySummary?: string;
   nextSummary?: string;
   weekPhaseSummary?: string;
   raceGoal?: string | null;
-  onOpenWalkthrough?: () => void;
+  onOpenWalkthroughAction?: () => void;
   walkthroughLoading?: boolean;
 };
 
@@ -158,13 +160,13 @@ export default function CalendarShell({
   sessions,
   completedSessions,
   extraStravaActivities = [],
-  onCompletedUpdate,
+  onCompletedUpdateAction,
   timezone = 'America/Los_Angeles',
   todaySummary,
   nextSummary,
   weekPhaseSummary,
   raceGoal,
-  onOpenWalkthrough,
+  onOpenWalkthroughAction,
   walkthroughLoading,
 }: CalendarShellProps) {
   const [hasMounted, setHasMounted] = useState(false);
@@ -180,7 +182,7 @@ export default function CalendarShell({
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [saveMessage, setSaveMessage] = useState<string>('');
+  const [saveMessage, setSaveMessage] = useState('');
 
   useEffect(() => {
     setHasMounted(true);
@@ -194,7 +196,6 @@ export default function CalendarShell({
     };
 
     update();
-
     mediaQuery.addEventListener?.('change', update);
 
     return () => {
@@ -217,8 +218,8 @@ export default function CalendarShell({
   }, []);
 
   useEffect(() => {
-    onCompletedUpdate?.(completed);
-  }, [completed, onCompletedUpdate]);
+    onCompletedUpdateAction?.(completed);
+  }, [completed, onCompletedUpdateAction]);
 
   const sensors = useSensors(
     useSensor(MouseSensor, {
@@ -232,14 +233,18 @@ export default function CalendarShell({
   const sessionsByDate = useMemo(() => {
     const map: Record<string, MergedSession[]> = {};
 
-    localSessions.forEach((s) => {
-      if (!s.date) return;
-      if (!map[s.date]) map[s.date] = [];
-      map[s.date].push(s);
+    localSessions.forEach((session) => {
+      if (!session.date) return;
+
+      if (!map[session.date]) {
+        map[session.date] = [];
+      }
+
+      map[session.date].push(session);
     });
 
-    Object.keys(map).forEach((k) => {
-      map[k] = map[k]
+    Object.keys(map).forEach((dateKey) => {
+      map[dateKey] = map[dateKey]
         .slice()
         .sort((a, b) => String(a.sport ?? '').localeCompare(String(b.sport ?? '')));
     });
@@ -251,37 +256,48 @@ export default function CalendarShell({
     return normalizeStravaActivities(extraStravaActivities, timezone);
   }, [extraStravaActivities, timezone]);
 
-  const goToPrevMonth = () => setCurrentMonth((m) => subMonths(m, 1));
-  const goToNextMonth = () => setCurrentMonth((m) => addMonths(m, 1));
+  const goToPrevMonth = () => setCurrentMonth((month) => subMonths(month, 1));
+  const goToNextMonth = () => setCurrentMonth((month) => addMonths(month, 1));
   const goToToday = () => setCurrentMonth(startOfMonth(new Date()));
 
   const weekLabel = useMemo(() => {
     const now = new Date();
-    const ws = startOfWeek(now, { weekStartsOn: 1 });
-    const we = endOfWeek(now, { weekStartsOn: 1 });
-    return `${format(ws, 'MMM d')}–${format(we, 'MMM d')}`;
+    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+    const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
+
+    return `${format(weekStart, 'MMM d')}–${format(weekEnd, 'MMM d')}`;
   }, []);
 
   const recentExecution = useMemo(() => {
     const cutoff = subDays(new Date(), 14);
+
     const completedKeys = new Set(
       completed
-        .filter((c) => (c.status ?? 'done') === 'done')
-        .map((c) => `${c.date}::${c.session_title}`)
+        .filter((item) => (item.status ?? 'done') === 'done')
+        .map((item) => `${item.date}::${item.session_title}`)
     );
 
-    const recentCompleted = localSessions.filter((s) => {
-      if (!s.date || !s.title) return false;
-      const d = parseISO(s.date);
-      if (!isAfter(d, cutoff)) return false;
-      return Boolean((s as any).stravaActivity) || completedKeys.has(`${s.date}::${s.title}`);
+    const recentCompleted = localSessions.filter((session) => {
+      if (!session.date || !session.title) return false;
+
+      const sessionDate = parseISO(session.date);
+      if (!isAfter(sessionDate, cutoff)) return false;
+
+      return Boolean(session.stravaActivity) || completedKeys.has(`${session.date}::${session.title}`);
     }).length;
 
-    const recentMissed = localSessions.filter((s) => {
-      if (!s.date || !s.title) return false;
-      const d = parseISO(s.date);
-      if (isAfter(d, new Date()) || !isAfter(d, cutoff)) return false;
-      const done = Boolean((s as any).stravaActivity) || completedKeys.has(`${s.date}::${s.title}`);
+    const recentMissed = localSessions.filter((session) => {
+      if (!session.date || !session.title) return false;
+
+      const sessionDate = parseISO(session.date);
+
+      if (isAfter(sessionDate, new Date()) || !isAfter(sessionDate, cutoff)) {
+        return false;
+      }
+
+      const done =
+        Boolean(session.stravaActivity) || completedKeys.has(`${session.date}::${session.title}`);
+
       return !done;
     }).length;
 
@@ -293,12 +309,17 @@ export default function CalendarShell({
   };
 
   const handleSessionDeleted = (sessionId: string) => {
-    setLocalSessions((prev) => prev.filter((s) => String(s.id) !== String(sessionId)));
-    setSelectedSession((prev) => (String(prev?.id) === String(sessionId) ? null : prev));
+    setLocalSessions((prev) => prev.filter((session) => String(session.id) !== String(sessionId)));
+
+    setSelectedSession((prev) => {
+      if (!prev) return null;
+      return String(prev.id) === String(sessionId) ? null : prev;
+    });
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
+
     if (!active || !over) return;
 
     const draggedId = String(active.id);
@@ -307,28 +328,35 @@ export default function CalendarShell({
     let previousDate: string | null = null;
 
     setLocalSessions((prev) =>
-      prev.map((s) => {
-        if (String(s.id) !== draggedId) return s;
+      prev.map((session) => {
+        if (String(session.id) !== draggedId) return session;
 
-        previousDate = String((s as any).date ?? '');
-        return { ...s, date: targetDate };
+        previousDate = String(session.date ?? '');
+        return { ...session, date: targetDate };
       })
     );
 
     setSaveState('saving');
     setSaveMessage('Saving schedule change…');
 
-    if (saveTimer.current) clearTimeout(saveTimer.current);
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+    }
 
     saveTimer.current = setTimeout(async () => {
-      const { error } = await supabase.from('sessions').update({ date: targetDate }).eq('id', draggedId);
+      const { error } = await supabase
+        .from('sessions')
+        .update({ date: targetDate })
+        .eq('id', draggedId);
 
       if (error) {
-        console.error('Error persisting session move:', error);
+        console.error('[CalendarShell] error persisting session move:', error);
 
         if (previousDate) {
           setLocalSessions((prev) =>
-            prev.map((s) => (String(s.id) === draggedId ? { ...s, date: previousDate as string } : s))
+            prev.map((session) =>
+              String(session.id) === draggedId ? { ...session, date: previousDate as string } : session
+            )
           );
         }
 
@@ -393,7 +421,7 @@ export default function CalendarShell({
             onPrev={goToPrevMonth}
             onNext={goToNextMonth}
             onToday={goToToday}
-            onOpenWalkthrough={onOpenWalkthrough}
+            onOpenWalkthrough={onOpenWalkthroughAction}
             walkthroughLoading={walkthroughLoading}
           />
 
@@ -444,8 +472,8 @@ export default function CalendarShell({
                   sessionsByDate={sessionsByDate}
                   completedSessions={completed}
                   stravaByDate={stravaByDate}
-                  onSessionClick={(s) => setSelectedSession(s)}
-                  onStravaActivityClick={(a) => setSelectedActivity(a)}
+                  onSessionClick={(session) => setSelectedSession(session)}
+                  onStravaActivityClick={(activity) => setSelectedActivity(activity)}
                 />
               </DndContext>
             </div>
@@ -479,25 +507,25 @@ export default function CalendarShell({
         onSessionDeleted={handleSessionDeleted}
         onSessionUpdated={(updatedSession) => {
           setLocalSessions((prev) =>
-            prev.map((s) =>
-              String(s.id) === String(updatedSession.id)
-                ? { ...s, details: updatedSession.details }
-                : s
+            prev.map((session) =>
+              String(session.id) === String(updatedSession.id)
+                ? { ...session, details: updatedSession.details }
+                : session
             )
           );
 
-         setSelectedSession((prev) => {
-  if (!prev) return null;
+          setSelectedSession((prev) => {
+            if (!prev) return null;
 
-  if (String(prev.id) !== String(updatedSession.id)) {
-    return prev;
-  }
+            if (String(prev.id) !== String(updatedSession.id)) {
+              return prev;
+            }
 
-  return {
-    ...prev,
-    details: updatedSession.details,
-  };
-});
+            return {
+              ...prev,
+              details: updatedSession.details,
+            };
+          });
         }}
       />
 

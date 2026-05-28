@@ -7,7 +7,7 @@ import type { Session as TrainSession } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 import { getWeeklySummary, type WeeklySummary } from '@/utils/getWeeklySummary';
 import { getWeeklyVolume } from '@/utils/getWeeklyVolume';
-import { supabase } from '@/lib/supabase-client';
+import { supabase } from '@/lib/supabase/client';
 import { useStravaAutoSync } from '../hooks/useStravaAutoSync';
 import { decodeCoachingContext } from '@/lib/coaching/context';
 import type { CoachingContextPayload } from '@/types/coaching-context';

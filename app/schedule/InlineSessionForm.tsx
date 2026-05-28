@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase-client';
+import { supabase } from '@/lib/supabase/client';
 import { format } from 'date-fns';
 
 export default function InlineSessionForm({ date, onClose, onAdded }: any) {

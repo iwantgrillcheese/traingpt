@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Footer from '../components/footer';
-import { supabase } from '@/lib/supabase-client';
+import { supabase } from '@/lib/supabase/client';
 import PostPlanWalkthrough from './components/PostPlanWalkthrough';
 import type { WalkthroughContext } from '@/types/coachGuides';
 import { track } from '@/lib/analytics/posthog-client';

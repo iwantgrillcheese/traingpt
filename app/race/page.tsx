@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { differenceInCalendarDays, format, parseISO } from 'date-fns';
-import { supabase } from '@/lib/supabase-client';
+import { supabase } from '@/lib/supabase/client';
 import type { Session } from '@/types/session';
 import { calculateReadiness } from '@/lib/readiness';
 

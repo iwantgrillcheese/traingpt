@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase-client';
+import { supabase } from '@/lib/supabase/client';
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<{ name: string; email: string; avatar: string } | null>(null);
