@@ -141,7 +141,7 @@ export default function CoachingClient() {
             .eq('user_id', user.id)
             .order('created_at', { ascending: false })
             .limit(1)
-            .maybeSingle<LatestPlanRow>(),
+            .maybeSingle(),
         ]);
 
         if (latestPlanRes.error) throw latestPlanRes.error;
@@ -151,7 +151,8 @@ export default function CoachingClient() {
           console.warn('[CoachingClient] profile lookup failed:', profileRes.error);
         }
 
-        const latestPlanId = latestPlanRes.data?.id ?? null;
+        const latestPlan = latestPlanRes.data as LatestPlanRow | null;
+        const latestPlanId = latestPlan?.id ?? null;
 
         const sessionsQuery = latestPlanId
           ? supabase
@@ -197,7 +198,7 @@ export default function CoachingClient() {
         setCompletedSessions(normalizeCompletedRows((completedRes.data ?? []) as CompletedSessionRow[]));
         setStravaActivities((stravaRes.data ?? []) as StravaActivity[]);
         setStravaConnected(Boolean(profileRes.data?.strava_access_token));
-        setRaceDate(latestPlanRes.data?.race_date ?? null);
+        setRaceDate(latestPlan?.race_date ?? null);
       } catch (err: unknown) {
         console.error('[CoachingClient] fetch error:', err);
 
