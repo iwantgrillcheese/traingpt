@@ -12,7 +12,28 @@ const moveToDow = (date: string, dow: DayOfWeek) => {
 
 const ensureDesc = (s: string) =>
   s.includes(' — ') ? s : s.replace(': ', ' — ').replace(/^(.+?)$/, '$1 — Details');
+type GuardSession =
+  | string
+  | {
+      sport?: string;
+      title?: string;
+      details?: string;
+      description?: string;
+    };
 
+function sessionToText(session: GuardSession): string {
+  if (typeof session === 'string') return session;
+
+  return [
+    session.sport,
+    session.title,
+    session.details,
+    session.description,
+  ]
+    .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
+    .join(' — ')
+    .trim();
+}
 export function guardWeek(week: WeekJson, prefs?: TrainingPrefs): WeekJson {
   // Defaults if no prefs provided
   const longRideDay: DayOfWeek = prefs?.longRideDay ?? 6; // Sat (unused for now, reserved for future longest-ride snap)
@@ -27,9 +48,9 @@ export function guardWeek(week: WeekJson, prefs?: TrainingPrefs): WeekJson {
     const dow = toDow(date);
     const next: string[] = [];
 
-    for (let s of items) {
-      s = ensureDesc(s);
-      const t = s.toLowerCase();
+for (const item of items as GuardSession[]) {
+  const s = ensureDesc(sessionToText(item));
+  const t = s.toLowerCase();
 
       // Brick: must be on an allowed day
       if (t.includes('brick') && !brickAllowed.has(dow)) {
