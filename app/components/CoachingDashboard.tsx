@@ -1,36 +1,26 @@
-// CoachingDashboard.tsx
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import clsx from 'clsx';
+import { format, isAfter, isBefore, parseISO, startOfDay, subDays } from 'date-fns';
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 import FitnessPanel from '@/app/coaching/FitnessPanel';
 import StravaConnectBanner from '@/app/components/StravaConnectBanner';
 import CoachChatModal from '@/app/components/CoachChatModal';
-import {
-  startOfDay,
-  subDays,
-  parseISO,
-  isAfter,
-  isBefore,
-  format,
-} from 'date-fns';
-import clsx from 'clsx';
 import { calculateReadiness } from '@/lib/readiness';
 import type { CoachingContextPayload } from '@/types/coaching-context';
 import { buildCoachingPrompt } from '@/lib/coaching/context';
 
-
-
 type CompletedRow = {
   user_id?: string;
-  date?: string; // legacy
+  date?: string;
   session_date?: string;
   session_title?: string;
   title?: string;
   sport?: string | null;
-  duration?: number | null; // minutes (optional)
-  strava_id?: string | null;
+  duration?: number | null;
+  status?: 'done' | 'skipped' | string | null;
 };
 
 type Props = {
@@ -46,20 +36,19 @@ type Props = {
   initialContext?: CoachingContextPayload | null;
 };
 
-type WindowKey = 'L7' | 'L30' | 'L90' | 'M6' | 'Y1';
+type WindowKey = 'L7' | 'L30' | 'L90';
 
 const WINDOW_DAYS: Record<WindowKey, number> = {
   L7: 7,
   L30: 30,
   L90: 90,
-  M6: 182, // ~6 months
-  Y1: 365,
 };
 
 function safeParseDate(dateStr?: string | null): Date | null {
   if (!dateStr) return null;
   try {
-    return parseISO(dateStr);
+    const parsed = parseISO(dateStr);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   } catch {
     return null;
   }
@@ -69,24 +58,33 @@ function pickCompletedDate(row: CompletedRow) {
   return row.session_date ?? row.date ?? undefined;
 }
 
-const estimateDurationFromTitle = (title?: string | null): number => {
+function estimateDurationFromTitle(title?: string | null): number {
   if (!title) return 45;
-  const match = title.match(/(\d{1,3}(\.\d+)?)\s*(hr|hour|hours)/i);
-  if (match) {
-    const hrs = parseFloat(match[1]);
-    if (!Number.isNaN(hrs)) return Math.round(hrs * 60);
-  }
-  const matchMin = title.match(/(\d{2,3})\s*min/i);
-  return matchMin ? parseInt(matchMin[1], 10) : 45;
-};
 
-const formatMinutes = (minutes: number): string => {
+  const hours = title.match(/(\d{1,3}(?:\.\d+)?)\s*(hr|hour|hours)/i);
+  if (hours) {
+    const parsed = Number.parseFloat(hours[1]);
+    if (Number.isFinite(parsed)) return Math.round(parsed * 60);
+  }
+
+  const mins = title.match(/(\d{1,3})\s*min/i);
+  if (mins) {
+    const parsed = Number.parseInt(mins[1], 10);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+
+  return 45;
+}
+
+function formatMinutes(minutes: number): string {
   const m = Math.max(0, Math.round(minutes));
-  if (m === 0) return '0 min';
   const hrs = Math.floor(m / 60);
   const mins = m % 60;
-  return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
-};
+
+  if (hrs <= 0) return `${mins}m`;
+  if (mins === 0) return `${hrs}h`;
+  return `${hrs}h ${mins}m`;
+}
 
 function clampPct(n: number) {
   if (!Number.isFinite(n)) return 0;
@@ -94,54 +92,79 @@ function clampPct(n: number) {
 }
 
 function windowLabel(key: WindowKey) {
-  switch (key) {
-    case 'L7':
-      return 'L7';
-    case 'L30':
-      return 'L30';
-    case 'L90':
-      return 'L90';
-    case 'M6':
-      return '6M';
-    case 'Y1':
-      return '1Y';
-  }
+  if (key === 'L7') return '7 days';
+  if (key === 'L30') return '30 days';
+  return '90 days';
 }
 
 function rangeLabel(start: Date, end: Date) {
-  // Example: Jan 1–Jan 30
   const sameYear = format(start, 'yyyy') === format(end, 'yyyy');
   const sameMonth = format(start, 'MMM') === format(end, 'MMM') && sameYear;
-  if (sameMonth) return `${format(start, 'MMM d')}–${format(end, 'd')}`;
-  return `${format(start, 'MMM d')}–${format(end, 'MMM d')}`;
+  if (sameMonth) return `${format(start, 'MMM d')} – ${format(end, 'd')}`;
+  return `${format(start, 'MMM d')} – ${format(end, 'MMM d')}`;
+}
+
+function raceCountdown(raceDate?: string | null) {
+  if (!raceDate) return null;
+  const race = safeParseDate(raceDate);
+  if (!race) return null;
+
+  const diff = Math.ceil(
+    (startOfDay(race).getTime() - startOfDay(new Date()).getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  return Math.max(0, diff);
+}
+
+function getSportLabel(session?: Session | null) {
+  return session?.sport ? String(session.sport) : 'Session';
+}
+
+function getDateLabel(session?: Session | null) {
+  const parsed = safeParseDate(session?.date ?? null);
+  return parsed ? format(parsed, 'EEE, MMM d') : 'Date not set';
+}
+
+function MetricCard({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-zinc-200 bg-white p-5">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">{label}</p>
+      <p className="mt-3 text-2xl font-semibold tracking-tight text-zinc-950">{value}</p>
+      <p className="mt-1 text-sm text-zinc-500">{detail}</p>
+    </div>
+  );
 }
 
 export default function CoachingDashboard({
-  userId,
   sessions,
   completedSessions,
   stravaActivities,
-  weeklyVolume,
   weeklySummary,
   stravaConnected,
   raceDate,
   initialPrompt = '',
   initialContext = null,
 }: Props) {
-const [chatOpen, setChatOpen] = useState(false);
-const [chatPrefill, setChatPrefill] = useState<string>(initialPrompt);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatPrefill, setChatPrefill] = useState<string>(initialPrompt);
   const [windowKey, setWindowKey] = useState<WindowKey>('L30');
 
   useEffect(() => {
     if (initialPrompt) setChatOpen(true);
   }, [initialPrompt]);
 
-  // Window boundaries (inclusive start, inclusive end)
   const { start, end, prevStart, prevEnd } = useMemo(() => {
     const days = WINDOW_DAYS[windowKey];
     const end = startOfDay(new Date());
     const start = subDays(end, days - 1);
-
     const prevEnd = subDays(start, 1);
     const prevStart = subDays(prevEnd, days - 1);
 
@@ -150,75 +173,91 @@ const [chatPrefill, setChatPrefill] = useState<string>(initialPrompt);
 
   const label = useMemo(() => rangeLabel(start, end), [start, end]);
 
-  // Planned sessions in window (for adherence)
   const plannedInWindow = useMemo(() => {
-    return (sessions ?? []).filter((s) => {
-      const d = safeParseDate((s as any).date);
-      if (!d) return false;
-      const dd = startOfDay(d);
-      return !isBefore(dd, start) && !isAfter(dd, end);
+    return (sessions ?? []).filter((session) => {
+      const parsed = safeParseDate((session as any).date);
+      if (!parsed) return false;
+      const date = startOfDay(parsed);
+      return !isBefore(date, start) && !isAfter(date, end);
     });
   }, [sessions, start, end]);
 
   const plannedMinutes = useMemo(() => {
-    return plannedInWindow.reduce((sum, s) => {
-      const dur =
-        (s as any).duration != null
-          ? Number((s as any).duration)
-          : estimateDurationFromTitle((s as any).title);
-      return sum + (Number.isFinite(dur) ? dur : 0);
+    return plannedInWindow.reduce((sum, session) => {
+      const duration =
+        (session as any).duration != null
+          ? Number((session as any).duration)
+          : estimateDurationFromTitle((session as any).title);
+      return sum + (Number.isFinite(duration) ? duration : 0);
     }, 0);
   }, [plannedInWindow]);
 
-  // Strava activities in window
   const stravaInWindow = useMemo(() => {
-    return (stravaActivities ?? []).filter((a) => {
-      const d = safeParseDate((a as any).start_date);
-      if (!d) return false;
-      const dd = startOfDay(d);
-      return !isBefore(dd, start) && !isAfter(dd, end);
+    return (stravaActivities ?? []).filter((activity) => {
+      const parsed = safeParseDate((activity as any).start_date);
+      if (!parsed) return false;
+      const date = startOfDay(parsed);
+      return !isBefore(date, start) && !isAfter(date, end);
     });
   }, [stravaActivities, start, end]);
 
-  // Completed rows in window (manual completion)
   const completedRowsInWindow: CompletedRow[] = useMemo(() => {
     const rows = (completedSessions ?? []) as CompletedRow[];
-    return rows.filter((r) => {
-      const d = safeParseDate(pickCompletedDate(r));
-      if (!d) return false;
-      const dd = startOfDay(d);
-      return !isBefore(dd, start) && !isAfter(dd, end);
+    return rows.filter((row) => {
+      const parsed = safeParseDate(pickCompletedDate(row));
+      if (!parsed) return false;
+      const date = startOfDay(parsed);
+      return !isBefore(date, start) && !isAfter(date, end);
     });
   }, [completedSessions, start, end]);
 
-  // Completed minutes: prefer Strava time; fallback to completed rows if Strava empty
   const completedMinutes = useMemo(() => {
-    const fromStrava = stravaInWindow.reduce((sum, a) => {
-      const mt = (a as any).moving_time;
-      return sum + (mt != null ? mt / 60 : 0);
+    const fromStrava = stravaInWindow.reduce((sum, activity) => {
+      const movingTime = (activity as any).moving_time;
+      return sum + (movingTime != null ? Number(movingTime) / 60 : 0);
     }, 0);
 
-    const fromCompletedRows = completedRowsInWindow.reduce((sum, r) => {
-      const dur =
-        r.duration != null && Number.isFinite(Number(r.duration))
-          ? Number(r.duration)
-          : estimateDurationFromTitle((r.session_title ?? r.title) as any);
-      return sum + (Number.isFinite(dur) ? dur : 0);
+    const fromCompletedRows = completedRowsInWindow.reduce((sum, row) => {
+      const duration =
+        row.duration != null && Number.isFinite(Number(row.duration))
+          ? Number(row.duration)
+          : estimateDurationFromTitle((row.session_title ?? row.title) as any);
+
+      return sum + (Number.isFinite(duration) ? duration : 0);
     }, 0);
 
     return fromStrava > 0 ? fromStrava : fromCompletedRows;
   }, [stravaInWindow, completedRowsInWindow]);
 
   const plannedCount = plannedInWindow.length;
-  const completedCount = useMemo(() => {
-    // Count Strava activities if present; else count completed rows
-    return stravaInWindow.length > 0 ? stravaInWindow.length : completedRowsInWindow.length;
-  }, [stravaInWindow.length, completedRowsInWindow.length]);
+  const completedCount = stravaInWindow.length > 0 ? stravaInWindow.length : completedRowsInWindow.length;
 
   const adherencePct = useMemo(() => {
-    if (plannedMinutes <= 0) return 0;
-    return clampPct((completedMinutes / plannedMinutes) * 100);
-  }, [plannedMinutes, completedMinutes]);
+    if (plannedCount <= 0) return 0;
+    return clampPct((completedCount / plannedCount) * 100);
+  }, [plannedCount, completedCount]);
+
+  const prevStrava = useMemo(() => {
+    return (stravaActivities ?? []).filter((activity) => {
+      const parsed = safeParseDate((activity as any).start_date);
+      if (!parsed) return false;
+      const date = startOfDay(parsed);
+      return !isBefore(date, prevStart) && !isAfter(date, prevEnd);
+    });
+  }, [stravaActivities, prevStart, prevEnd]);
+
+  const prevCompletedMinutes = useMemo(() => {
+    return prevStrava.reduce((sum, activity) => {
+      const movingTime = (activity as any).moving_time;
+      return sum + (movingTime != null ? Number(movingTime) / 60 : 0);
+    }, 0);
+  }, [prevStrava]);
+
+  const deltaMinutes = Math.round(completedMinutes - prevCompletedMinutes);
+  const deltaLabel =
+    deltaMinutes === 0
+      ? 'No change vs prior'
+      : `${deltaMinutes > 0 ? '+' : '−'}${formatMinutes(Math.abs(deltaMinutes))} vs prior`;
 
   const readiness = useMemo(
     () =>
@@ -230,189 +269,268 @@ const [chatPrefill, setChatPrefill] = useState<string>(initialPrompt);
     [sessions, completedSessions, raceDate]
   );
 
-  // Previous window for deltas
-  const prevStrava = useMemo(() => {
-    return (stravaActivities ?? []).filter((a) => {
-      const d = safeParseDate((a as any).start_date);
-      if (!d) return false;
-      const dd = startOfDay(d);
-      return !isBefore(dd, prevStart) && !isAfter(dd, prevEnd);
-    });
-  }, [stravaActivities, prevStart, prevEnd]);
+  const daysToRace = raceCountdown(raceDate);
 
-  const prevCompletedMinutes = useMemo(() => {
-    return prevStrava.reduce((sum, a) => {
-      const mt = (a as any).moving_time;
-      return sum + (mt != null ? mt / 60 : 0);
-    }, 0);
-  }, [prevStrava]);
+  const nextSession = useMemo(() => {
+    const now = startOfDay(new Date());
 
-  const deltaMinutes = useMemo(() => {
-    return Math.round(completedMinutes - prevCompletedMinutes);
-  }, [completedMinutes, prevCompletedMinutes]);
-
-  const deltaLabel = useMemo(() => {
-    if (deltaMinutes === 0) return 'No change vs prior';
-    const sign = deltaMinutes > 0 ? '+' : '–';
-    const abs = Math.abs(deltaMinutes);
-    return `${sign}${formatMinutes(abs)} vs prior`;
-  }, [deltaMinutes]);
+    return [...(sessions ?? [])]
+      .filter((session) => {
+        const parsed = safeParseDate(session.date);
+        if (!parsed) return false;
+        return !isBefore(startOfDay(parsed), now);
+      })
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)))[0] ?? null;
+  }, [sessions]);
 
   const contextualBrief = useMemo(() => {
     return {
       raceGoal: initialContext?.raceGoal ?? weeklySummary?.raceType ?? 'Not set',
       weekPhase: initialContext?.weekPhase ?? label,
       weekLabel: initialContext?.weekLabel ?? label,
-      sessionTitle: initialContext?.sessionTitle ?? null,
-      sessionDate: initialContext?.sessionDate ?? null,
+      sessionTitle: initialContext?.sessionTitle ?? nextSession?.title ?? null,
+      sessionDate: initialContext?.sessionDate ?? nextSession?.date ?? null,
+      sessionType: initialContext?.sessionType ?? nextSession?.sport ?? null,
       completionState: initialContext?.completionState ?? null,
       recentCompleted: initialContext?.recentCompleted ?? null,
       recentMissed: initialContext?.recentMissed ?? null,
     };
-  }, [initialContext, weeklySummary, label]);
-
-  const coachActions = [
-    { id: 'explain', title: 'Explain This Workout', subtitle: 'Clarify intent and execution cues.' },
-    { id: 'missed', title: 'I Missed This Session — What Should I Do?', subtitle: 'Adjust without derailing the week.' },
-    { id: 'move', title: 'Can I Move This Workout?', subtitle: 'Re-sequence based on current load.' },
-    { id: 'feel', title: 'How Hard Should This Feel?', subtitle: 'Set effort target and pacing cues.' },
-    { id: 'focus', title: 'What Should I Focus on This Week?', subtitle: 'Define the one priority that matters.' },
-  ] as const;
-
-  const daysToRace = useMemo(() => {
-    if (!raceDate) return null;
-    const d = safeParseDate(raceDate);
-    if (!d) return null;
-    const diff = Math.ceil((startOfDay(d).getTime() - startOfDay(new Date()).getTime()) / (1000 * 60 * 60 * 24));
-    return diff;
-  }, [raceDate]);
+  }, [initialContext, weeklySummary, label, nextSession]);
 
   const statusLabel = useMemo(() => {
     if (readiness.score >= 80) return 'On track';
-    if (readiness.score >= 65) return 'Training well';
+    if (readiness.score >= 65) return 'Building well';
     if (readiness.score >= 45) return 'Watch recovery';
-    if (readiness.score >= 30) return 'Needs recovery';
-    return 'Low recent load';
+    if (readiness.score >= 30) return 'Reduce strain';
+    return 'Needs consistency';
   }, [readiness.score]);
 
   const primaryRecommendation = useMemo(() => {
-    if (adherencePct < 60) return 'Prioritize completing planned sessions before adding intensity.';
-    if (deltaMinutes < -60) return 'Use a lighter day, then resume your next key session.';
-    if (deltaMinutes > 90) return 'Keep the next 2–3 days steady and protect sleep.';
-    return 'Keep this rhythm and execute one key session with quality.';
-  }, [adherencePct, deltaMinutes]);
+    if (plannedCount === 0) return 'Generate or update your plan so coaching has a clear target.';
+    if (adherencePct < 60) return 'Focus on completing the next scheduled session before adding intensity.';
+    if (deltaMinutes < -60) return 'Resume rhythm with one controlled session, then rebuild the week.';
+    if (deltaMinutes > 90) return 'Protect recovery and keep the next session controlled.';
+    return 'Keep the week steady and execute the next key session well.';
+  }, [plannedCount, adherencePct, deltaMinutes]);
+
+  const coachActions = [
+    { id: 'week', title: 'Adjust this week', subtitle: 'Optimize the next few sessions.' },
+    { id: 'explain', title: 'Explain workout', subtitle: 'Break down purpose and execution.' },
+    { id: 'feel', title: "I'm feeling…", subtitle: 'Get recovery or effort guidance.' },
+    { id: 'race', title: 'Race strategy', subtitle: 'Pacing, nutrition, and prep.' },
+    { id: 'injury', title: 'Injury guidance', subtitle: 'Stay healthy and adapt.' },
+  ] as const;
 
   return (
-    <div className="relative mt-10 rounded-2xl border border-zinc-800 bg-[#0b0d10] p-6 text-zinc-100 shadow-[0_10px_40px_rgba(0,0,0,0.35)]">
-      <StravaConnectBanner stravaConnected={stravaConnected} />
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 border-b border-zinc-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-400">Coaching</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950 sm:text-4xl">
+            Coach Brief
+          </h1>
+          <p className="mt-2 text-sm text-zinc-500">
+            Actionable guidance for your week, based on your plan and completed training.
+          </p>
+        </div>
 
-      <section className="rounded-2xl border border-zinc-800 bg-[#101318] p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">Weekly Focus</p>
-            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-100">{primaryRecommendation}</h2>
-            <p className="mt-2 text-sm text-zinc-400">Status: {statusLabel}</p>
+        <div className="flex items-center gap-2">
+          <div className="hidden rounded-full border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-500 sm:block">
+            {label}
           </div>
           <button
+            type="button"
             onClick={() => {
               setChatPrefill('');
               setChatOpen(true);
             }}
-            className="inline-flex items-center justify-center rounded-full border border-zinc-700 bg-transparent px-4 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-900/50"
+            className="rounded-full bg-zinc-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800"
           >
-            Open free chat
+            Ask Coach
           </button>
         </div>
+      </div>
 
-        <div className="mt-5 rounded-xl bg-[#0b0d10] p-4">
-          <div className="text-[11px] uppercase tracking-wide text-zinc-500">Context brief</div>
-          <div className="mt-2 grid grid-cols-1 gap-1 text-sm text-zinc-300 md:grid-cols-2">
-            <div><span className="text-zinc-500">Race goal:</span> {contextualBrief.raceGoal || 'Not set'}</div>
-            <div><span className="text-zinc-500">Training phase:</span> {contextualBrief.weekPhase}</div>
-            <div><span className="text-zinc-500">This week:</span> {contextualBrief.weekLabel}</div>
-            <div><span className="text-zinc-500">Selected session:</span> {contextualBrief.sessionTitle ? `${contextualBrief.sessionTitle} (${contextualBrief.sessionDate || 'date n/a'})` : 'None selected'}</div>
-          </div>
-        </div>
+      <StravaConnectBanner stravaConnected={stravaConnected} />
 
-        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <div className="rounded-xl bg-[#0b0d10] p-4">
-            <div className="text-xs text-zinc-500">Plan adherence</div>
-            <div className="mt-1 text-2xl font-semibold text-zinc-100">{adherencePct}%</div>
-            <div className="mt-2 h-1.5 w-full rounded-full bg-zinc-800">
-              <div className="h-1.5 rounded-full bg-zinc-200" style={{ width: `${Math.min(100, adherencePct)}%` }} />
+      <section className="rounded-[28px] border border-zinc-200 bg-white p-5 sm:p-7">
+        <div className="grid gap-6 lg:grid-cols-[1.4fr_0.7fr] lg:items-center">
+          <div className="flex gap-5">
+            <div className="hidden h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-zinc-950 text-2xl text-white sm:flex">
+              ✦
             </div>
-            <div className="mt-2 text-xs text-zinc-500">{completedCount} completed · {plannedCount} planned</div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
+                Weekly focus
+              </p>
+              <h2 className="mt-3 max-w-3xl text-2xl font-semibold tracking-tight text-zinc-950">
+                {primaryRecommendation}
+              </h2>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-600">
+                Status: {statusLabel}. {contextualBrief.raceGoal !== 'Not set' ? `Race focus: ${contextualBrief.raceGoal}.` : 'Set a race goal to make coaching more specific.'}
+              </p>
+            </div>
           </div>
 
-          <div className="rounded-xl bg-[#0b0d10] p-4">
-            <div className="text-xs text-zinc-500">Weekly volume</div>
-            <div className="mt-1 text-2xl font-semibold text-zinc-100">{formatMinutes(completedMinutes)}</div>
-            <div className="mt-2 text-xs text-zinc-500">{deltaLabel}</div>
-          </div>
-
-          <div className="rounded-xl bg-[#0b0d10] p-4">
-            <div className="text-xs text-zinc-500">Plan status</div>
-            <div className="mt-1 text-2xl font-semibold text-zinc-100">{daysToRace == null ? '—' : `${Math.max(daysToRace, 0)}d`}</div>
-            <div className="mt-2 text-xs text-zinc-500">to race day</div>
+          <div className="rounded-2xl border border-zinc-200 bg-[#fbfbfa] p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">
+              Key session
+            </p>
+            <p className="mt-3 text-base font-semibold text-zinc-950">
+              {nextSession?.title ?? 'No upcoming session'}
+            </p>
+            <p className="mt-1 text-sm text-zinc-500">
+              {nextSession ? `${getDateLabel(nextSession)} · ${getSportLabel(nextSession)}` : 'Generate a plan to see what matters next.'}
+            </p>
           </div>
         </div>
       </section>
 
-      <section className="mt-5 rounded-2xl border border-zinc-800 bg-[#101318] p-5">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h3 className="text-sm font-semibold text-zinc-100">Coach guidance</h3>
-          <div className="inline-flex items-center rounded-full bg-[#0b0d10] p-1">
-            {(['L7', 'L30', 'L90'] as WindowKey[]).map((k) => (
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          label="Plan adherence"
+          value={`${adherencePct}%`}
+          detail={`${completedCount} completed · ${plannedCount} planned`}
+        />
+        <MetricCard label="Volume" value={formatMinutes(completedMinutes)} detail={deltaLabel} />
+        <MetricCard
+          label="Consistency"
+          value={plannedCount > 0 ? `${Math.min(completedCount, plannedCount)} / ${plannedCount}` : '—'}
+          detail={plannedCount > 0 ? 'Current window' : 'No sessions planned'}
+        />
+        <MetricCard
+          label="Race countdown"
+          value={daysToRace == null ? '—' : `${daysToRace}d`}
+          detail={contextualBrief.raceGoal || 'Race not set'}
+        />
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+        <div className="rounded-[28px] border border-zinc-200 bg-white p-5 sm:p-6">
+          <div className="flex items-center justify-between gap-4 border-b border-zinc-200 pb-4">
+            <div>
+              <h3 className="text-base font-semibold text-zinc-950">Ask Coach</h3>
+              <p className="mt-1 text-sm text-zinc-500">
+                Get help adjusting training, understanding a workout, or making a decision.
+              </p>
+            </div>
+            <div className="hidden rounded-full bg-[#fbfbfa] p-1 sm:flex">
+              {(['L7', 'L30', 'L90'] as WindowKey[]).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setWindowKey(key)}
+                  className={clsx(
+                    'rounded-full px-3 py-1.5 text-xs font-medium transition',
+                    key === windowKey ? 'bg-white text-zinc-950 shadow-sm' : 'text-zinc-500 hover:text-zinc-950'
+                  )}
+                >
+                  {windowLabel(key)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            {coachActions.map((action) => (
               <button
-                key={k}
-                onClick={() => setWindowKey(k)}
-                className={clsx(
-                  'rounded-full px-3 py-1 text-xs font-medium transition',
-                  k === windowKey ? 'bg-zinc-200 text-zinc-900' : 'text-zinc-400 hover:text-zinc-200'
-                )}
+                key={action.id}
+                type="button"
+                onClick={() => {
+                  const prompt = buildCoachingPrompt(action.title, {
+                    source: 'coaching',
+                    sessionId: initialContext?.sessionId,
+                    sessionTitle: contextualBrief.sessionTitle,
+                    sessionType: (contextualBrief.sessionType as any) ?? null,
+                    sessionDate: contextualBrief.sessionDate,
+                    weekLabel: contextualBrief.weekLabel,
+                    weekPhase: contextualBrief.weekPhase,
+                    completionState: (contextualBrief.completionState as any) ?? 'planned',
+                    recentCompleted: contextualBrief.recentCompleted ?? undefined,
+                    recentMissed: contextualBrief.recentMissed ?? undefined,
+                    raceGoal: contextualBrief.raceGoal,
+                  });
+                  setChatPrefill(prompt);
+                  setChatOpen(true);
+                }}
+                className="rounded-2xl border border-zinc-200 bg-white p-4 text-left transition hover:border-zinc-300 hover:bg-[#fbfbfa]"
               >
-                {windowLabel(k)}
+                <div className="text-sm font-semibold text-zinc-950">{action.title}</div>
+                <div className="mt-1 text-xs leading-5 text-zinc-500">{action.subtitle}</div>
               </button>
             ))}
           </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setChatPrefill('What should I focus on this week?');
+              setChatOpen(true);
+            }}
+            className="mt-4 flex w-full items-center justify-between rounded-2xl border border-zinc-200 bg-[#fbfbfa] px-4 py-3 text-left text-sm text-zinc-500 transition hover:border-zinc-300"
+          >
+            <span>Ask your coach anything…</span>
+            <span className="rounded-full bg-zinc-950 px-3 py-1.5 text-xs font-medium text-white">Send</span>
+          </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-          {coachActions.map((a) => (
-            <button
-              key={a.id}
-              onClick={() => {
-                const prompt = buildCoachingPrompt(a.title, {
-                  source: 'coaching',
-                  sessionId: initialContext?.sessionId,
-                  sessionTitle: contextualBrief.sessionTitle,
-                  sessionType: initialContext?.sessionType ?? null,
-                  sessionDate: contextualBrief.sessionDate,
-                  weekLabel: contextualBrief.weekLabel,
-                  weekPhase: contextualBrief.weekPhase,
-                  completionState: (contextualBrief.completionState as any) ?? 'planned',
-                  recentCompleted: contextualBrief.recentCompleted ?? undefined,
-                  recentMissed: contextualBrief.recentMissed ?? undefined,
-                  raceGoal: contextualBrief.raceGoal,
-                });
-                setChatPrefill(prompt);
-                setChatOpen(true);
-              }}
-              className="rounded-xl bg-[#0b0d10] p-3 text-left hover:bg-[#141820] transition"
-            >
-              <div className="text-sm font-medium text-zinc-100">{a.title}</div>
-              <div className="mt-1 text-xs text-zinc-500">{a.subtitle}</div>
-            </button>
-          ))}
+        <div className="rounded-[28px] border border-zinc-200 bg-white p-5 sm:p-6">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h3 className="text-base font-semibold text-zinc-950">Coach insights</h3>
+              <p className="mt-1 text-sm text-zinc-500">What stands out from your recent training.</p>
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-4">
+            <div className="flex gap-3">
+              <div className="mt-1 h-2 w-2 rounded-full bg-zinc-950" />
+              <div>
+                <p className="text-sm font-medium text-zinc-950">Your training rhythm is {statusLabel.toLowerCase()}.</p>
+                <p className="mt-1 text-sm leading-5 text-zinc-500">{primaryRecommendation}</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <div className="mt-1 h-2 w-2 rounded-full bg-zinc-300" />
+              <div>
+                <p className="text-sm font-medium text-zinc-950">Volume is {deltaMinutes >= 0 ? 'holding' : 'lower'} versus the prior window.</p>
+                <p className="mt-1 text-sm leading-5 text-zinc-500">
+                  {deltaLabel}. Use this as context, not a score to chase.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <div className="mt-1 h-2 w-2 rounded-full bg-zinc-300" />
+              <div>
+                <p className="text-sm font-medium text-zinc-950">Next decision: protect the key session.</p>
+                <p className="mt-1 text-sm leading-5 text-zinc-500">
+                  {nextSession ? `${nextSession.title} is the next clear target.` : 'Create a plan so TrainGPT can guide the week.'}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section className="mt-5 rounded-2xl border border-zinc-800 bg-[#101318] p-5">
-        <h3 className="text-sm font-semibold text-zinc-100">Training trend</h3>
-        <p className="mt-1 text-xs text-zinc-500">Supporting visual for recent load and consistency.</p>
-        <div className="mt-4">
-          <FitnessPanel sessions={sessions} completedSessions={completedSessions as any} stravaActivities={stravaActivities} windowDays={WINDOW_DAYS[windowKey]} />
+      <section className="rounded-[28px] border border-zinc-200 bg-white p-5 sm:p-6">
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h3 className="text-base font-semibold text-zinc-950">Performance trend</h3>
+            <p className="mt-1 text-sm text-zinc-500">Recent load and consistency from completed Strava sessions.</p>
+          </div>
+          <div className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-500">
+            {windowLabel(windowKey)}
+          </div>
         </div>
+
+        <FitnessPanel
+          sessions={sessions}
+          completedSessions={completedSessions as any}
+          stravaActivities={stravaActivities}
+          windowDays={WINDOW_DAYS[windowKey]}
+        />
       </section>
 
       <CoachChatModal open={chatOpen} onClose={() => setChatOpen(false)} prefill={chatPrefill} />

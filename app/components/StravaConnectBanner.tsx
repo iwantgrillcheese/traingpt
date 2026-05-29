@@ -43,21 +43,15 @@ function buildStravaConnectUrl() {
 }
 
 function getSyncMessage(state: SyncState, response: SyncResponse | null) {
-  if (state === 'syncing') return 'Importing latest Strava activities…';
-  if (state === 'error') return response?.error || 'Strava sync failed. Try again.';
+  if (state === 'syncing') return 'Syncing latest activities…';
+  if (state === 'error') return response?.error || 'Sync failed. Try again.';
   if (state !== 'success') return null;
 
   const inserted = Number(response?.inserted ?? 0);
   const totalFetched = Number(response?.totalFetched ?? 0);
 
-  if (inserted > 0) {
-    return `Imported ${inserted} new ${inserted === 1 ? 'activity' : 'activities'}.`;
-  }
-
-  if (totalFetched > 0) {
-    return 'Strava is already up to date.';
-  }
-
+  if (inserted > 0) return `Imported ${inserted} new ${inserted === 1 ? 'activity' : 'activities'}.`;
+  if (totalFetched > 0) return 'Already up to date.';
   return 'No new activities found.';
 }
 
@@ -70,10 +64,7 @@ export default function StravaConnectBanner({ stravaConnected, onSyncComplete }:
     setConnectUrl(buildStravaConnectUrl());
   }, []);
 
-  const syncMessage = useMemo(
-    () => getSyncMessage(syncState, syncResponse),
-    [syncResponse, syncState]
-  );
+  const syncMessage = useMemo(() => getSyncMessage(syncState, syncResponse), [syncState, syncResponse]);
 
   const handleSync = async () => {
     setSyncState('syncing');
@@ -86,10 +77,9 @@ export default function StravaConnectBanner({ stravaConnected, onSyncComplete }:
       if (!res.ok) {
         const errorMessage =
           res.status === 401
-            ? 'Your TrainGPT session was not ready to sync. Refresh and try again.'
+            ? 'Your session was not ready to sync. Refresh and try again.'
             : data?.error || 'Strava sync failed. Try again.';
 
-        console.error('[StravaConnectBanner] sync failed:', errorMessage);
         setSyncState('error');
         setSyncResponse({ ...data, error: errorMessage });
         return;
@@ -114,24 +104,17 @@ export default function StravaConnectBanner({ stravaConnected, onSyncComplete }:
 
   if (stravaConnected) {
     return (
-      <div className="mb-6 mt-6 rounded-2xl border border-black/10 bg-white px-4 py-4 shadow-sm">
+      <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <img src="/strava-2.svg" alt="Strava" className="mt-0.5 h-5 w-5" />
+          <div className="flex items-center gap-3">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-orange-50">
+              <img src="/strava-2.svg" alt="Strava" className="h-4 w-4" />
+            </span>
             <div>
-              <p className="text-sm font-medium text-zinc-900">Strava connected</p>
-              <p className="mt-1 text-xs leading-5 text-zinc-500">
-                Sync latest activities to update your training history and coaching insights.
+              <p className="text-sm font-medium text-zinc-950">Strava connected</p>
+              <p className="text-xs text-zinc-500">
+                {syncMessage || 'Sync recent activities to keep coaching current.'}
               </p>
-              {syncMessage ? (
-                <p
-                  className={`mt-2 text-xs font-medium ${
-                    syncState === 'error' ? 'text-rose-600' : 'text-emerald-700'
-                  }`}
-                >
-                  {syncMessage}
-                </p>
-              ) : null}
             </div>
           </div>
 
@@ -139,7 +122,7 @@ export default function StravaConnectBanner({ stravaConnected, onSyncComplete }:
             type="button"
             onClick={handleSync}
             disabled={syncState === 'syncing'}
-            className="inline-flex items-center justify-center rounded-full border border-black/10 bg-zinc-950 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center justify-center rounded-full border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-800 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {syncState === 'syncing' ? 'Syncing…' : 'Sync latest'}
           </button>
@@ -149,24 +132,24 @@ export default function StravaConnectBanner({ stravaConnected, onSyncComplete }:
   }
 
   return (
-    <div className="mb-6 mt-6 rounded-2xl border border-orange-200 bg-orange-50 px-4 py-4 shadow-sm">
+    <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-start gap-3">
-          <img src="/strava-2.svg" alt="Strava" className="mt-0.5 h-6 w-6" />
+        <div className="flex items-center gap-3">
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-orange-50">
+            <img src="/strava-2.svg" alt="Strava" className="h-4 w-4" />
+          </span>
           <div>
-            <p className="text-sm font-medium text-orange-950">Connect Strava</p>
-            <p className="mt-1 text-sm leading-5 text-orange-800">
-              Automatically match completed workouts to your training plan.
-            </p>
+            <p className="text-sm font-medium text-zinc-950">Connect Strava</p>
+            <p className="text-xs text-zinc-500">Automatically match completed workouts to your plan.</p>
           </div>
         </div>
 
         <a
           href={connectUrl}
           onClick={() => track('strava_connect_clicked')}
-          className="inline-flex items-center justify-center rounded-full bg-orange-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-600"
+          className="inline-flex items-center justify-center rounded-full bg-zinc-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800"
         >
-          Connect Strava
+          Connect
         </a>
       </div>
     </div>

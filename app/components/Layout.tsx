@@ -1,181 +1,146 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useMemo } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
 import ProfileAvatar from './profile avatar';
 
 type NavItem = {
   label: string;
   href: string;
+  caption?: string;
 };
 
 const NAV: NavItem[] = [
-  { label: 'Plan Generator', href: '/' },
-  { label: 'My Schedule', href: '/schedule' },
-  { label: 'Coaching', href: '/coaching' },
-  { label: 'Settings', href: '/settings' },
+  { label: 'Schedule', href: '/schedule', caption: 'Calendar' },
+  { label: 'Plan', href: '/plan', caption: 'Generator' },
+  { label: 'Coaching', href: '/coaching', caption: 'Brief' },
+  { label: 'Settings', href: '/settings', caption: 'Account' },
 ];
 
+function isActive(pathname: string | null, href: string) {
+  if (!pathname) return false;
+  if (href === '/') return pathname === '/';
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function AppSidebar({ pathname }: { pathname: string | null }) {
+  return (
+    <aside className="hidden border-r border-zinc-200 bg-[#fbfbfa] lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:flex lg:w-[244px] lg:flex-col">
+      <div className="border-b border-zinc-200 px-5 py-5">
+        <Link href="/schedule" className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-950 text-sm font-semibold text-white shadow-sm">
+            T
+          </div>
+          <div>
+            <div className="text-[15px] font-semibold tracking-tight text-zinc-950">TrainGPT</div>
+            <div className="mt-0.5 text-xs text-zinc-500">Plans · Calendar · Strava</div>
+          </div>
+        </Link>
+      </div>
+
+      <nav className="flex flex-1 flex-col px-3 py-4 text-sm">
+        <div className="space-y-1">
+          {NAV.map((item) => {
+            const active = isActive(pathname, item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={clsx(
+                  'group flex items-center justify-between rounded-xl px-3 py-2.5 transition',
+                  active
+                    ? 'bg-zinc-950 text-white shadow-sm'
+                    : 'text-zinc-600 hover:bg-white hover:text-zinc-950'
+                )}
+              >
+                <span className="font-medium">{item.label}</span>
+                {item.caption ? (
+                  <span className={clsx('text-[11px]', active ? 'text-zinc-300' : 'text-zinc-400')}>
+                    {item.caption}
+                  </span>
+                ) : null}
+              </Link>
+            );
+          })}
+        </div>
+
+        <div className="mt-auto space-y-3">
+          <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">
+              Training OS
+            </div>
+            <p className="mt-2 text-sm leading-5 text-zinc-700">
+              Keep the week simple. Execute the next session well.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-zinc-200 bg-white p-3">
+            <div className="flex items-center gap-3">
+              <ProfileAvatar />
+              <div className="min-w-0">
+                <div className="truncate text-sm font-medium text-zinc-950">Account</div>
+                <div className="text-xs text-zinc-500">Settings & sync</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </nav>
+    </aside>
+  );
+}
+
+function MobileHeader() {
+  return (
+    <header className="sticky top-0 z-40 border-b border-zinc-200 bg-white/90 backdrop-blur lg:hidden">
+      <div className="flex h-14 items-center justify-between px-4">
+        <Link href="/schedule" className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-950 text-xs font-semibold text-white">
+            T
+          </div>
+          <span className="text-sm font-semibold tracking-tight text-zinc-950">TrainGPT</span>
+        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/schedule"
+            className="rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700"
+          >
+            Schedule
+          </Link>
+          <ProfileAvatar />
+        </div>
+      </div>
+    </header>
+  );
+}
+
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
-  const router = useRouter();
 
   const isLanding = pathname === '/';
+  const isSchedule = useMemo(() => pathname === '/schedule' || pathname?.startsWith('/schedule/'), [pathname]);
 
-  // Close drawer on route change
-  useEffect(() => {
-    setSidebarOpen(false);
-  }, [pathname]);
+  if (isLanding) {
+    return <div className="min-h-[100dvh] bg-white text-zinc-950">{children}</div>;
+  }
 
-  // Close drawer on resize to desktop
-  useEffect(() => {
-    const onResize = () => {
-      if (window.innerWidth >= 768) setSidebarOpen(false);
-    };
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
-
-  /**
-   * Navigate using Next router, but if the URL doesn't change immediately
-   * (some page-level code is blocking client navigation), fall back to a hard nav.
-   */
-  const navigate = useCallback(
-    (href: string) => {
-      if (!href || href === pathname) {
-        setSidebarOpen(false);
-        return;
-      }
-
-      setSidebarOpen(false);
-
-      const before = window.location.pathname;
-
-      try {
-        router.push(href);
-      } catch {
-        window.location.assign(href);
-        return;
-      }
-
-      // If Next navigation gets stuck (your /schedule case), force it.
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          if (window.location.pathname === before) {
-            window.location.assign(href);
-          }
-        });
-      });
-    },
-    [router, pathname]
-  );
-
-  const navItemClass = (href: string) =>
-    clsx(
-      'block w-full rounded-xl px-3 py-2 text-left transition',
-      pathname === href ? 'bg-gray-100 text-gray-900' : 'text-gray-700 hover:bg-gray-50'
-    );
+  // Schedule currently owns a custom calendar shell/sidebar. Keep it full-bleed until
+  // we consolidate app chrome across all pages in a later pass.
+  if (isSchedule) {
+    return <div className="min-h-[100dvh] bg-[#fbfbfa] text-zinc-950">{children}</div>;
+  }
 
   return (
-    <div className="min-h-[100dvh] bg-white text-gray-900">
-      {/* App chrome (hide on landing) */}
-      {!isLanding && (
-        <>
-          {/* Header */}
-          <header className="sticky top-0 z-40 border-b border-gray-100 bg-white/90 backdrop-blur">
-            <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
-              <div className="flex items-center gap-3">
-                <Link href="/" className="text-xl font-bold tracking-tight">
-                  TrainGPT
-                </Link>
+    <div className="min-h-[100dvh] bg-[#fbfbfa] text-zinc-950">
+      <AppSidebar pathname={pathname} />
+      <MobileHeader />
 
-                {/* Toggle */}
-                <button
-                  type="button"
-                  onClick={() => setSidebarOpen((v) => !v)}
-                  aria-label="Toggle sidebar"
-                  className={clsx(
-                    'relative h-6 w-11 rounded-full transition-colors duration-200',
-                    sidebarOpen ? 'bg-black' : 'bg-gray-200'
-                  )}
-                >
-                  <span
-                    className={clsx(
-                      'absolute top-[3px] left-[3px] h-4 w-4 rounded-full bg-white shadow transition-transform duration-200',
-                      sidebarOpen ? 'translate-x-5' : 'translate-x-0'
-                    )}
-                  />
-                </button>
-              </div>
-
-              <ProfileAvatar />
-            </div>
-          </header>
-
-          {/* Backdrop */}
-          <div
-            className={clsx(
-              'fixed inset-0 z-30 bg-black/30 transition-opacity',
-              sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-            )}
-            onClick={() => setSidebarOpen(false)}
-            aria-hidden="true"
-          />
-
-          {/* Drawer */}
-          <aside
-            className={clsx(
-              'fixed inset-y-0 left-0 z-40 bg-white shadow-xl transition-transform duration-200 will-change-transform pointer-events-auto',
-              'w-[82vw] max-w-[320px]',
-              sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-            )}
-            style={{
-              paddingTop: 'env(safe-area-inset-top)',
-              paddingBottom: 'env(safe-area-inset-bottom)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            <div className="px-5 pt-4 pb-3 border-b border-gray-100">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-gray-900">Menu</div>
-                <button
-                  type="button"
-                  onClick={() => setSidebarOpen(false)}
-                  className="rounded-lg px-2 py-1 text-sm text-gray-500 hover:bg-gray-50 hover:text-gray-900"
-                  aria-label="Close menu"
-                >
-                  Close
-                </button>
-              </div>
-              <div className="mt-1 text-xs text-gray-500">Navigate your training</div>
-            </div>
-
-            <nav className="flex h-full flex-col px-3 py-3 text-sm overflow-y-auto">
-              <div className="flex flex-col gap-1 pt-1">
-                {NAV.map((item) => (
-                  <button
-                    key={item.href}
-                    type="button"
-                    className={navItemClass(item.href)}
-                    onClick={() => navigate(item.href)}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="mt-auto px-2 pt-6 text-xs text-gray-400">Built for real training.</div>
-            </nav>
-          </aside>
-        </>
-      )}
-
-      {/* Main content */}
-      <main className={isLanding ? '' : 'mx-auto max-w-7xl px-4 py-6'}>{children}</main>
+      <main className="lg:pl-[244px]">
+        <div className="mx-auto w-full max-w-[1240px] px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+          {children}
+        </div>
+      </main>
     </div>
   );
 }
