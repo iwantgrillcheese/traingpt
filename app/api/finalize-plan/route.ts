@@ -19,6 +19,7 @@ import { AuthError, assertSameUser, createRouteSupabaseClient, requireUser } fro
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
+import type { DayOfWeek, TrainingPrefs } from '@/types/plan';
 
 /* ---------- helpers ---------- */
 
@@ -558,14 +559,15 @@ export async function POST(req: Request) {
         Math.min(4, Number(process.env.PLAN_GENERATION_CONCURRENCY ?? 3) || 3)
       );
 
-      const guardTrainingPrefs = {
-        ...(paramsForAttempt.trainingPrefs ?? {}),
-        brickDays: Array.isArray(paramsForAttempt.trainingPrefs?.brickDays)
-          ? paramsForAttempt.trainingPrefs?.brickDays
-          : paramsForAttempt.trainingPrefs?.longRideDay !== undefined
-            ? [paramsForAttempt.trainingPrefs.longRideDay]
-            : [6],
-      };
+      const guardTrainingPrefs: TrainingPrefs = {
+  ...trainingPrefs,
+  brickDays: Array.isArray(trainingPrefs.brickDays)
+    ? trainingPrefs.brickDays.filter(
+        (day): day is DayOfWeek =>
+          Number.isInteger(day) && day >= 0 && day <= 6
+      )
+    : [],
+};
 
       async function generateOneWeek(i: number, prevWeek?: WeekJson): Promise<WeekJson> {
         const elapsed = Date.now() - startedAt;
