@@ -1,7 +1,7 @@
-import { addDays, differenceInCalendarDays, formatISO, isValid, parseISO } from 'date-fns';
+import { addDays, formatISO, isValid, parseISO } from 'date-fns';
 import type { UserParams, WeekJson, WeekMeta } from '@/types/plan';
 
-type ScaffoldSport = 'swim' | 'bike' | 'run' | 'strength' | 'other';
+type ScaffoldSport = 'swim' | 'bike' | 'run' | 'strength';
 
 type ScaffoldSession = {
   sport: ScaffoldSport;
@@ -10,9 +10,6 @@ type ScaffoldSession = {
 };
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
-
-type PhaseKind = 'base' | 'build' | 'peak' | 'taper' | 'recovery';
-type RaceFamily = 'sprint' | 'olympic' | 'half' | 'ironman' | 'triathlon';
 
 function isoDate(date: Date) {
   return formatISO(date, { representation: 'date' });
@@ -40,135 +37,74 @@ function canonicalWeekDates(weekStartISO: string): string[] {
   return Array.from({ length: 7 }, (_, index) => isoDate(addDays(start, index)));
 }
 
-function dayIndexForDate(dateISO?: string | null): number | null {
-  if (!dateISO) return null;
-  const parsed = parseISO(dateISO);
-  if (!isValid(parsed)) return null;
-  return parsed.getDay();
-}
-
 function isTriathlonRace(raceType: string) {
-  return /tri|sprint|olympic|70\.3|half iron|ironman|140\.6/i.test(raceType);
+  return /tri|sprint|olympic|70\.3|half iron|ironman/i.test(raceType);
 }
 
-function raceFamily(raceType: string): RaceFamily {
+function raceFamily(raceType: string): 'sprint' | 'olympic' | 'half' | 'ironman' | 'triathlon' {
   const lower = raceType.toLowerCase();
   if (lower.includes('70.3') || lower.includes('half iron')) return 'half';
-  if (lower.includes('ironman') || lower.includes('140.6')) return 'ironman';
+  if (lower.includes('ironman')) return 'ironman';
   if (lower.includes('olympic')) return 'olympic';
   if (lower.includes('sprint')) return 'sprint';
   return 'triathlon';
 }
 
-function phaseKind(weekMeta: WeekMeta): PhaseKind {
-  const lower = String(weekMeta.phase ?? '').toLowerCase();
-  if (weekMeta.deload || lower.includes('recovery') || lower.includes('deload')) return 'recovery';
+function phaseIntensity(phase: string, deload: boolean) {
+  const lower = phase.toLowerCase();
+  if (deload || lower.includes('recovery')) return 'recovery';
   if (lower.includes('taper')) return 'taper';
   if (lower.includes('peak')) return 'peak';
   if (lower.includes('build')) return 'build';
   return 'base';
 }
 
-function isRaceWeek(weekMeta: WeekMeta, raceDate?: string | null) {
-  if (!raceDate) return false;
-  const weekStart = parseISO(weekMeta.startDate);
-  const race = parseISO(raceDate);
-  if (!isValid(weekStart) || !isValid(race)) return false;
-  const daysUntilRace = differenceInCalendarDays(race, weekStart);
-  return daysUntilRace >= 0 && daysUntilRace <= 6;
-}
-
-function experienceLevel(userParams: UserParams): 'beginner' | 'intermediate' | 'advanced' {
-  const exp = String(userParams.experience ?? '').toLowerCase();
-  if (exp.includes('begin')) return 'beginner';
-  if (exp.includes('advanced') || exp.includes('expert')) return 'advanced';
-  return 'intermediate';
-}
-
-function swimComfort(userParams: UserParams): 'new' | 'developing' | 'comfortable' | 'strong' {
-  const comfort = String(userParams.swimComfort ?? '').toLowerCase();
-  if (comfort.includes('new') || comfort.includes('beginner')) return 'new';
-  if (comfort.includes('develop')) return 'developing';
-  if (comfort.includes('strong')) return 'strong';
-  return 'comfortable';
-}
-
-function wantsStrength(userParams: UserParams) {
-  const text = `${userParams.athleteNotes ?? ''} ${(userParams.coachingPriorities ?? []).join(' ')}`.toLowerCase();
-  return /strength|lift|lifting|gym|weights|physique/.test(text);
-}
-
-function hasPriority(userParams: UserParams, pattern: RegExp) {
-  const text = `${userParams.athleteNotes ?? ''} ${(userParams.coachingPriorities ?? []).join(' ')} ${userParams.constraintsSummary ?? ''}`.toLowerCase();
-  return pattern.test(text);
-}
-
-function getLongRideDetails(userParams: UserParams, weekMeta: WeekMeta, index: number) {
+function getLongRideDetails(userParams: UserParams, weekMeta: WeekMeta) {
   const family = raceFamily(userParams.raceType);
-  const phase = phaseKind(weekMeta);
-  const weekNum = index + 1;
+  const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
 
-  if (phase === 'taper') return 'Reduced aerobic ride. Keep effort mostly Z2, include a few short race-effort pickups only if fresh, and finish feeling sharper than when you started.';
-  if (phase === 'recovery') return 'Shorter endurance ride for recovery week. Keep it conversational, relaxed, and smooth with no forced intensity.';
-  if (family === 'half') return `70.3 long ride for aerobic durability. Keep most of the ride Z2; include controlled steady work only if it does not compromise the brick run. Week ${weekNum} should feel sustainable, not heroic.`;
-  if (family === 'ironman') return `Ironman aerobic long ride. Prioritize fueling practice, steady pacing, and relaxed form. Week ${weekNum} should build durability without chasing power.`;
-  if (family === 'sprint' || family === 'olympic') return 'Endurance ride with controlled race-effort practice. Keep the final minutes smooth so the run off the bike feels composed.';
+  if (phase === 'taper') return 'Aerobic long ride with reduced volume. Keep the effort mostly Z2 and finish feeling fresh.';
+  if (family === 'half') return 'Aerobic long ride for 70.3 durability. Ride mostly Z2 with a controlled steady finish if feeling good.';
+  if (family === 'ironman') return 'Long aerobic ride focused on fueling practice, steady pacing, and staying relaxed for the full duration.';
+  if (family === 'sprint' || family === 'olympic') return 'Aerobic endurance ride with a few controlled race-effort segments. Keep the final 10min smooth.';
   return 'Aerobic long ride focused on durability, fueling, and controlled pacing.';
 }
 
 function getBrickRunDetails(userParams: UserParams, weekMeta: WeekMeta) {
-  const phase = phaseKind(weekMeta);
-  if (phase === 'taper') return '8-12min very easy off the bike. Keep cadence quick, stay relaxed, and stop before it creates fatigue.';
-  if (phase === 'recovery') return '8-10min easy transition jog off the bike. This is for rhythm only, not fitness.';
-  if (phase === 'base') return '10-15min easy off the bike. Focus on quick cadence, relaxed breathing, and smooth posture. Do not chase pace.';
-  if (phase === 'peak') return '20-30min controlled off the bike. Start easy, then settle into realistic race effort only if legs feel good.';
-  return '15-25min easy-to-steady off the bike. Practice transition rhythm and controlled pacing without turning it into a second hard run.';
+  const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
+  if (phase === 'taper') return '10-15min very easy off the bike. Keep cadence quick and effort relaxed.';
+  if (phase === 'base') return '10-15min easy off the bike. Focus on smooth cadence and relaxed form, not pace.';
+  if (phase === 'peak') return '20-30min controlled off the bike. Start easy, then settle into realistic race effort if fresh.';
+  return '15-25min easy-to-steady off the bike. Practice transition rhythm and controlled pacing.';
 }
 
 function getLongRunDetails(userParams: UserParams, weekMeta: WeekMeta) {
-  const phase = phaseKind(weekMeta);
-  if (phase === 'taper') return 'Reduced long run. Keep it easy, relaxed, and confidence-building with no forced pace work.';
-  if (phase === 'recovery') return 'Shortened aerobic run for recovery week. Stay conversational and finish fresh.';
+  const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
+  if (phase === 'taper') return 'Reduced long run. Keep it easy and relaxed with no forced pace work.';
   if (phase === 'peak') return 'Long aerobic run with controlled pacing. Keep effort sustainable and avoid turning it into a race.';
   return 'Long easy aerobic run. Stay conversational and build durability without excess fatigue.';
 }
 
 function getRunQualityDetails(userParams: UserParams, weekMeta: WeekMeta) {
-  const phase = phaseKind(weekMeta);
-  if (phase === 'recovery' || phase === 'taper') return 'Easy aerobic run with 4-6 relaxed strides only if fresh. Keep the session light.';
-  if (phase === 'base') return 'Controlled aerobic run with short relaxed strides. Build rhythm without heavy intensity.';
-  if (phase === 'peak') return 'Race-specific run session. Keep the main work controlled and avoid digging a hole before the weekend key sessions.';
-  return 'Threshold-focused run. Include steady controlled work near threshold effort with easy recoveries. Finish in control.';
+  const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
+  if (phase === 'recovery' || phase === 'taper') return 'Easy aerobic run with 4-6 relaxed strides if fresh. Keep the session light.';
+  if (phase === 'base') return 'Controlled aerobic run with short strides. Build rhythm without heavy intensity.';
+  return 'Threshold-focused run. Include a steady main set at controlled threshold effort with easy recoveries.';
 }
 
 function getBikeMidweekDetails(userParams: UserParams, weekMeta: WeekMeta) {
-  const phase = phaseKind(weekMeta);
+  const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
   if (phase === 'recovery' || phase === 'taper') return 'Easy aerobic spin. Keep cadence smooth and effort relaxed.';
   if (phase === 'base') return 'Aerobic bike with steady Z2 work. Keep effort controlled and build consistency.';
-  if (phase === 'peak') return 'Race-specific bike session with controlled steady work. Keep the intensity honest but do not compromise the long ride.';
   return 'Bike strength or tempo session. Include controlled steady intervals without compromising the long ride.';
 }
 
-function getSwimDetails(kind: 'Technique' | 'Endurance' | 'Threshold', userParams: UserParams, weekMeta: WeekMeta) {
-  const comfort = swimComfort(userParams);
-  const phase = phaseKind(weekMeta);
-
+function getSwimDetails(kind: 'Technique' | 'Endurance', userParams: UserParams, weekMeta: WeekMeta) {
+  const comfort = String(userParams.swimComfort ?? '').toLowerCase();
   if (kind === 'Technique' || comfort === 'new' || comfort === 'developing') {
-    return 'Technique-focused swim. Include easy warmup, drill work, short relaxed repeats, and smooth cooldown. Prioritize body position, breathing, and comfort over speed.';
+    return 'Technique-focused swim with easy warmup, drill work, short relaxed repeats, and smooth cooldown. Prioritize form and comfort.';
   }
-
-  if (kind === 'Threshold' && phase !== 'base' && phase !== 'recovery') {
-    return 'Controlled swim threshold session. Include warmup, a main set of repeat efforts at strong but sustainable pace, and cooldown. Keep form intact.';
-  }
-
-  return 'Endurance swim. Include warmup, steady aerobic repeats, and cooldown. Keep pacing smooth and sustainable.';
-}
-
-function getStrengthDetails(userParams: UserParams, weekMeta: WeekMeta, kind: 'Core' | 'Full Body') {
-  const phase = phaseKind(weekMeta);
-  if (phase === 'taper') return 'Short mobility and activation only. Keep this light and skip anything that creates soreness.';
-  if (kind === 'Core') return 'Short accessory strength session focused on core, hips, glutes, and mobility. Keep it controlled and secondary to endurance training.';
-  return 'Controlled full-body strength session. Prioritize movement quality, posterior chain, core, and durability. Avoid failure or soreness before key sessions.';
+  return 'Endurance swim with warmup, steady aerobic repeats, and cooldown. Keep pacing smooth and sustainable.';
 }
 
 function findAvailableDay(preferred: number, blocked: Set<number>, used: Set<number>, allowUsed = false): number {
@@ -192,7 +128,7 @@ function addSession(
 function sessionKey(session: unknown) {
   if (!session || typeof session !== 'object' || Array.isArray(session)) return '';
   const record = session as Record<string, unknown>;
-  return `${String(record.sport ?? '').toLowerCase()} ${String(record.title ?? '').toLowerCase()} ${String(record.details ?? record.description ?? '').toLowerCase()}`;
+  return `${String(record.sport ?? '').toLowerCase()} ${String(record.title ?? '').toLowerCase()} ${String(record.details ?? '').toLowerCase()}`;
 }
 
 function usefulGeneratedDetails(session: unknown): string | null {
@@ -221,48 +157,10 @@ function isMatchingGeneratedSession(slot: ScaffoldSession, generated: unknown) {
   if (title.includes('brick run')) return /brick run|off the bike|transition run/.test(key);
   if (title.includes('long run')) return /long run/.test(key);
   if (title.includes('threshold')) return /threshold|tempo|interval/.test(key);
-  if (title.includes('tempo')) return /tempo|threshold|steady/.test(key);
   if (title.includes('technique')) return /technique|drill/.test(key);
   if (title.includes('endurance')) return /endurance|aerobic|steady/.test(key);
-  if (title.includes('easy')) return /easy|recovery|aerobic/.test(key);
 
   return key.includes(title);
-}
-
-function addIfAvailable(
-  days: Record<string, ScaffoldSession[]>,
-  weekStartISO: string,
-  preferred: number,
-  blocked: Set<number>,
-  used: Set<number>,
-  session: ScaffoldSession,
-  allowUsed = false
-) {
-  const day = findAvailableDay(preferred, blocked, used, allowUsed);
-  addSession(days, weekStartISO, day, session);
-  used.add(day);
-  return day;
-}
-
-function removeSessionsOnBlockedDays(days: Record<string, ScaffoldSession[]>, weekMeta: WeekMeta, blocked: Set<number>) {
-  for (const date of Object.keys(days)) {
-    const day = dayIndexForDate(date);
-    if (day !== null && blocked.has(day)) days[date] = [];
-  }
-}
-
-function maybeAddRaceDay(days: Record<string, ScaffoldSession[]>, userParams: UserParams, weekMeta: WeekMeta) {
-  if (!userParams.raceDate || !isRaceWeek(weekMeta, userParams.raceDate)) return false;
-  if (!days[userParams.raceDate]) return false;
-
-  days[userParams.raceDate] = [
-    {
-      sport: 'other',
-      title: 'Race Day',
-      details: `${userParams.raceType} race day. Execute calmly, fuel early, pace the bike intelligently, and stay composed on the run.`,
-    },
-  ];
-  return true;
 }
 
 export function buildTriathlonWeekScaffold({
@@ -286,33 +184,34 @@ export function buildTriathlonWeekScaffold({
   const unavailable = new Set((userParams.unavailableDays ?? []).map(dayNameToIndex).filter((v): v is number => v !== null));
   const blocked = new Set<number>([restDay, ...Array.from(unavailable)]);
 
-  const phase = phaseKind(weekMeta);
-  const family = raceFamily(userParams.raceType);
-  const exp = experienceLevel(userParams);
-  const comfort = swimComfort(userParams);
-  const maxHours = Number(userParams.maxHours ?? 0);
   const used = new Set<number>();
-  const raceWeek = isRaceWeek(weekMeta, userParams.raceDate);
+  const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
+  const isRaceWeek = Boolean(userParams.raceDate && weekDates.includes(userParams.raceDate));
 
-  // Hard-reset blocked days up front. Scaffold must respect user availability.
-  removeSessionsOnBlockedDays(days, weekMeta, blocked);
-
-  if (raceWeek && maybeAddRaceDay(days, userParams, weekMeta)) {
-    // Race week should be short, sharp, and uncluttered.
-    addIfAvailable(days, weekMeta.startDate, 2, blocked, used, {
+  // Race week should be light and confidence-building. Do not force normal
+  // long ride / brick / long run structure into race week.
+  if (isRaceWeek) {
+    const easySwimDay = findAvailableDay(2, blocked, used); // Tue
+    addSession(days, weekMeta.startDate, easySwimDay, {
       sport: 'swim',
       title: 'Swim Easy',
-      details: 'Short relaxed swim with a few smooth pickups. Leave the pool feeling better than when you started.',
+      details: 'Short relaxed swim with a few smooth pickups. Keep effort easy and focus on feeling comfortable in the water.',
     });
-    addIfAvailable(days, weekMeta.startDate, 3, blocked, used, {
+    used.add(easySwimDay);
+
+    const easyBikeDay = findAvailableDay(3, blocked, used); // Wed
+    addSession(days, weekMeta.startDate, easyBikeDay, {
       sport: 'bike',
       title: 'Bike Easy',
-      details: 'Short easy spin with 3-4 relaxed cadence pickups. Keep legs fresh for race day.',
+      details: 'Short aerobic spin with a few light cadence pickups. Keep the legs fresh and avoid fatigue.',
     });
-    addIfAvailable(days, weekMeta.startDate, 4, blocked, used, {
+    used.add(easyBikeDay);
+
+    const easyRunDay = findAvailableDay(4, blocked, used); // Thu
+    addSession(days, weekMeta.startDate, easyRunDay, {
       sport: 'run',
       title: 'Run Easy',
-      details: 'Short relaxed run with 4 strides if fresh. Keep effort easy and confidence high.',
+      details: 'Short easy run with relaxed strides if fresh. Finish feeling better than you started.',
     });
 
     return {
@@ -328,83 +227,71 @@ export function buildTriathlonWeekScaffold({
   const safeLongRideDay = findAvailableDay(longRideDay, blocked, used, true);
   addSession(days, weekMeta.startDate, safeLongRideDay, {
     sport: 'bike',
-    title: phase === 'recovery' ? 'Bike Endurance' : 'Long Ride',
-    details: getLongRideDetails(userParams, weekMeta, index),
+    title: 'Long Ride',
+    details: getLongRideDetails(userParams, weekMeta),
   });
   used.add(safeLongRideDay);
 
-  // Every triathlon plan gets brick practice. Recovery/taper weeks keep this very short.
-  addSession(days, weekMeta.startDate, safeLongRideDay, {
-    sport: 'run',
-    title: 'Brick Run',
-    details: getBrickRunDetails(userParams, weekMeta),
-  });
+  // Every non-race triathlon week gets brick practice appropriate to phase/race.
+  {
+    addSession(days, weekMeta.startDate, safeLongRideDay, {
+      sport: 'run',
+      title: 'Brick Run',
+      details: getBrickRunDetails(userParams, weekMeta),
+    });
+  }
 
   const safeLongRunDay = findAvailableDay(longRunDay, blocked, used, true);
   addSession(days, weekMeta.startDate, safeLongRunDay, {
     sport: 'run',
-    title: phase === 'taper' || phase === 'recovery' ? 'Run Easy' : 'Long Run',
+    title: phase === 'taper' ? 'Run Easy' : 'Long Run',
     details: getLongRunDetails(userParams, weekMeta),
   });
   used.add(safeLongRunDay);
 
-  // Base week composition. Keep this sane and avoid the 10-12 session mess.
-  const swimTechniqueDay = addIfAvailable(days, weekMeta.startDate, 2, blocked, used, {
+  // Supporting sessions.
+  const swimTechniqueDay = findAvailableDay(2, blocked, used); // Tue
+  addSession(days, weekMeta.startDate, swimTechniqueDay, {
     sport: 'swim',
     title: 'Swim Technique',
     details: getSwimDetails('Technique', userParams, weekMeta),
   });
+  used.add(swimTechniqueDay);
 
-  const runQualityPreferred = safeLongRunDay === 0 ? 3 : 2; // Wed when long run Sunday, otherwise Tue
-  addIfAvailable(days, weekMeta.startDate, runQualityPreferred, blocked, used, {
-    sport: 'run',
-    title: phase === 'build' || phase === 'peak' ? 'Run Threshold' : 'Run Easy',
-    details: getRunQualityDetails(userParams, weekMeta),
-  });
-
-  const bikePreferred = safeLongRideDay === 6 ? 4 : 5; // Thu normally, Fri if long ride midweek
-  addIfAvailable(days, weekMeta.startDate, bikePreferred, blocked, used, {
+  const bikeDay = findAvailableDay(4, blocked, used); // Thu
+  addSession(days, weekMeta.startDate, bikeDay, {
     sport: 'bike',
     title: phase === 'build' || phase === 'peak' ? 'Bike Tempo' : 'Bike Endurance',
     details: getBikeMidweekDetails(userParams, weekMeta),
   });
+  used.add(bikeDay);
 
-  const shouldAddSecondSwim = maxHours >= 5 || family === 'half' || family === 'ironman' || comfort === 'new' || comfort === 'developing';
-  if (shouldAddSecondSwim) {
-    addIfAvailable(days, weekMeta.startDate, 5, blocked, used, {
-      sport: 'swim',
-      title: comfort === 'new' || comfort === 'developing' ? 'Swim Technique' : 'Swim Endurance',
-      details: getSwimDetails('Endurance', userParams, weekMeta),
-    });
-  }
+  const swimEnduranceDay = findAvailableDay(5, blocked, used); // Fri
+  addSession(days, weekMeta.startDate, swimEnduranceDay, {
+    sport: 'swim',
+    title: 'Swim Endurance',
+    details: getSwimDetails('Endurance', userParams, weekMeta),
+  });
+  used.add(swimEnduranceDay);
 
-  const wantsSwimEmphasis = hasPriority(userParams, /swim|technique|water|pool/) || comfort === 'new' || comfort === 'developing';
-  const shouldAddThirdSwim = !weekMeta.deload && phase !== 'taper' && maxHours >= 8 && wantsSwimEmphasis;
-  if (shouldAddThirdSwim) {
-    addIfAvailable(days, weekMeta.startDate, 1, blocked, used, {
-      sport: 'swim',
-      title: 'Swim Easy',
-      details: 'Short easy technique swim. Keep it relaxed and use it to reinforce breathing, balance, and feel for the water.',
-    });
-  }
+  const runQualityDay = findAvailableDay(3, blocked, used); // Wed
+  addSession(days, weekMeta.startDate, runQualityDay, {
+    sport: 'run',
+    title: phase === 'build' || phase === 'peak' ? 'Run Threshold' : 'Run Easy',
+    details: getRunQualityDetails(userParams, weekMeta),
+  });
+  used.add(runQualityDay);
 
-  // Optional strength. Keep secondary, never duplicate, and reduce in taper/recovery.
-  const strengthRequested = wantsStrength(userParams);
-  const strengthAllowed = phase !== 'taper' && maxHours >= 6 && (strengthRequested || exp === 'advanced');
-  if (strengthAllowed) {
-    addIfAvailable(days, weekMeta.startDate, swimTechniqueDay, blocked, new Set([safeLongRideDay, safeLongRunDay]), {
+  // Optional strength. Keep secondary and never duplicate.
+  const notes = `${userParams.athleteNotes ?? ''} ${(userParams.coachingPriorities ?? []).join(' ')}`.toLowerCase();
+  const wantsStrength = /strength|lift|gym|weights/.test(notes);
+  if (wantsStrength || String(userParams.experience).toLowerCase().includes('advanced')) {
+    const strengthDay = findAvailableDay(3, blocked, new Set([safeLongRideDay, safeLongRunDay]), true);
+    addSession(days, weekMeta.startDate, strengthDay, {
       sport: 'strength',
       title: 'Strength Core',
-      details: getStrengthDetails(userParams, weekMeta, 'Core'),
-    }, true);
-
-    if (!weekMeta.deload && phase !== 'recovery' && strengthRequested && maxHours >= 9) {
-      addIfAvailable(days, weekMeta.startDate, 4, blocked, new Set([safeLongRideDay, safeLongRunDay]), {
-        sport: 'strength',
-        title: 'Strength Full Body',
-        details: getStrengthDetails(userParams, weekMeta, 'Full Body'),
-      });
-    }
+      details: 'Short accessory strength session focused on core, mobility, and durability. Keep it controlled and secondary to triathlon training.',
+    });
   }
 
   return {
@@ -456,7 +343,7 @@ export function applyTriathlonScaffold({
     days,
     debug: [
       generatedWeek.debug,
-      'Applied deterministic triathlon scaffold V2. Code owns structure; GPT enriches workout details only.',
+      'Applied deterministic triathlon scaffold. GPT was used for workout detail enrichment, not weekly structure.',
     ]
       .filter(Boolean)
       .join('\n'),

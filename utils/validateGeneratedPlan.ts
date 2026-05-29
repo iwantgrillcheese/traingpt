@@ -72,7 +72,23 @@ function isTrainingSession(item: unknown): boolean {
   return true;
 }
 
+function structuredSport(item: unknown): string | null {
+  if (!isRecord(item)) return null;
+  const value = item.sport;
+  return typeof value === 'string' ? value.trim().toLowerCase() : null;
+}
+
 function hasSport(item: unknown, sport: Sport | 'brick') {
+  const explicitSport = structuredSport(item);
+
+  // For structured sessions, the sport field is source-of-truth. This prevents
+  // Brick Run details like "off the bike" from being misread as a bike session.
+  if (explicitSport) {
+    if (sport === 'brick') return explicitSport === 'brick';
+    if (sport === 'other') return !['swim', 'bike', 'run', 'strength'].includes(explicitSport);
+    return explicitSport === sport;
+  }
+
   const text = itemText(item).toLowerCase();
   if (sport === 'bike') return /\b(bike|ride|cycling|ftp)\b/.test(text);
   if (sport === 'run') return /\b(run|running|jog|tempo|threshold|interval|off the bike)\b/.test(text);
@@ -83,9 +99,7 @@ function hasSport(item: unknown, sport: Sport | 'brick') {
 }
 
 function objectSportValue(item: unknown): string | null {
-  if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
-  const value = (item as Record<string, unknown>).sport;
-  return typeof value === 'string' ? value.trim().toLowerCase() : null;
+  return structuredSport(item);
 }
 
 function isUnsupportedDbSportValue(item: unknown): string | null {
@@ -115,18 +129,38 @@ function parseDurationMinutes(text: string): number | null {
 }
 
 function looksLikeLongRide(item: unknown) {
+  if (!hasSport(item, 'bike')) return false;
+
+  const title = rawTitleText(item).toLowerCase();
   const text = itemText(item).toLowerCase();
   const minutes = parseDurationMinutes(text);
-  return hasSport(item, 'bike') && (/\blong\b/.test(text) || (minutes !== null && minutes >= 90));
+
+  if (/\blong\s+ride\b/.test(title)) return true;
+  if (/\blong\s+ride\b/.test(text)) return true;
+
+  return minutes !== null && minutes >= 90 && !/brick\s+run|long\s+run/.test(text);
 }
 
 function looksLikeLongRun(item: unknown) {
+  if (!hasSport(item, 'run')) return false;
+
+  const title = rawTitleText(item).toLowerCase();
   const text = itemText(item).toLowerCase();
   const minutes = parseDurationMinutes(text);
-  return hasSport(item, 'run') && (/\blong\b/.test(text) || (minutes !== null && minutes >= 60));
+
+  if (/\blong\s+run\b/.test(title)) return true;
+  if (/\blong\s+run\b/.test(text)) return true;
+  if (isBrickRun(item)) return false;
+
+  return minutes !== null && minutes >= 60;
 }
 
 function isBrickRun(item: unknown) {
+  if (hasSport(item, 'run')) {
+    const title = rawTitleText(item).toLowerCase();
+    if (/\bbrick\s+run\b/.test(title)) return true;
+  }
+
   return /\bbrick\s+run\b|\brun\s+off\s+the\s+bike\b|\boff\s+the\s+bike\b/i.test(itemText(item));
 }
 

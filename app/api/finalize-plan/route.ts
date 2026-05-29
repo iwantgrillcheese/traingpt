@@ -691,10 +691,16 @@ export async function POST(req: Request) {
         createdAt: new Date().toISOString(),
       };
 
-      const repair = repairGeneratedPlan({
-        plan: generatedPlan,
-        userParams: paramsForAttempt,
-      });
+      // Triathlon weeks are now built from a deterministic scaffold inside generateWeek().
+      // Do not run the old post-hoc repair layer on triathlon plans: it was written for
+      // free-form GPT weeks and can accidentally move/remove scaffolded Brick Runs or
+      // mis-handle structured sessions. Keep repair for running/free-form plans only.
+      const repair = planTypeResolved === "triathlon"
+        ? { plan: generatedPlan, changes: [] as string[] }
+        : repairGeneratedPlan({
+            plan: generatedPlan,
+            userParams: paramsForAttempt,
+          });
 
       if (repair.changes.length > 0) {
         console.log("[plan-repair] applied", {
@@ -726,7 +732,13 @@ export async function POST(req: Request) {
 
     let attemptResult = await generatePlanAttempt(1, userParams);
 
-    if (!attemptResult.validation.ok || attemptResult.validation.score < minimumPlanQualityScore || hasCriticalPlanWarnings(attemptResult.validation.warnings)) {
+    const shouldRetryPlan =
+      planTypeResolved !== "triathlon" &&
+      (!attemptResult.validation.ok ||
+        attemptResult.validation.score < minimumPlanQualityScore ||
+        hasCriticalPlanWarnings(attemptResult.validation.warnings));
+
+    if (shouldRetryPlan) {
       console.warn("[plan-validation] quality gate retrying", {
         userId,
         raceType,
@@ -746,16 +758,19 @@ export async function POST(req: Request) {
           : "",
       ]
         .filter(Boolean)
-        .join("\n");
+        .join("
+");
 
       const retryParams: UserParams = {
         ...userParams,
         constraintsSummary: retryContext,
-        athleteNotes: [userParams.athleteNotes, retryContext].filter(Boolean).join("\n"),
+        athleteNotes: [userParams.athleteNotes, retryContext].filter(Boolean).join("
+"),
       };
 
       attemptResult = await generatePlanAttempt(2, retryParams);
     }
+
 
     const finalValidation = attemptResult.validation;
     const finalPlan = attemptResult.plan;

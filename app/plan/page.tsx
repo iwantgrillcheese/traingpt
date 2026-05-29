@@ -451,7 +451,16 @@ function PlanPageContent() {
       }
 
       if (!res.ok) {
-        throw new Error(json?.error || text || 'Plan generation failed.');
+        const backendMessage =
+          typeof json?.error === 'string'
+            ? json.error
+            : typeof json?.message === 'string'
+              ? json.message
+              : typeof text === 'string' && text.trim() && !text.trim().startsWith('{')
+                ? text.trim()
+                : 'We could not generate your plan. Please try again.';
+
+        throw new Error(backendMessage);
       }
 
       track('plan_generation_completed', {
@@ -471,7 +480,14 @@ function PlanPageContent() {
         error_type: String(err?.message ?? 'unknown').slice(0, 120),
         generation_time_ms: Date.now() - startedAt,
       });
-      setError(err?.message || 'Something went wrong while generating your plan. Please try again.');
+      const message =
+        err instanceof Error && typeof err.message === 'string' && err.message.trim()
+          ? err.message
+          : typeof err === 'string'
+            ? err
+            : 'Something went wrong while generating your plan. Please try again.';
+
+      setError(message === '[object Object]' ? 'We could not generate your plan. Please try again.' : message);
       setLoading(false);
     }
   };
