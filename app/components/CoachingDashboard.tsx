@@ -1,16 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import clsx from 'clsx';
-import { format, isAfter, isBefore, parseISO, startOfDay, subDays } from 'date-fns';
+import { useMemo, useState } from 'react';
+import { addDays, endOfWeek, format, isAfter, isBefore, parseISO, startOfDay, startOfWeek, subDays } from 'date-fns';
+
 import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 import FitnessPanel from '@/app/coaching/FitnessPanel';
 import StravaConnectBanner from '@/app/components/StravaConnectBanner';
 import CoachChatModal from '@/app/components/CoachChatModal';
-import { calculateReadiness } from '@/lib/readiness';
 import type { CoachingContextPayload } from '@/types/coaching-context';
-import { buildCoachingPrompt } from '@/lib/coaching/context';
 
 type CompletedRow = {
   user_id?: string;
@@ -26,7 +24,7 @@ type CompletedRow = {
 type Props = {
   userId: string;
   sessions: Session[];
-  completedSessions: any[];
+  completedSessions: CompletedRow[];
   stravaActivities: StravaActivity[];
   weeklyVolume: number[];
   weeklySummary: any;
@@ -36,25 +34,24 @@ type Props = {
   initialContext?: CoachingContextPayload | null;
 };
 
-type WindowKey = 'L7' | 'L30' | 'L90';
+type SportBucket = 'Swim' | 'Bike' | 'Run' | 'Strength' | 'Other';
 
-const WINDOW_DAYS: Record<WindowKey, number> = {
-  L7: 7,
-  L30: 30,
-  L90: 90,
-};
+function safeParseDate(value?: string | null): Date | null {
+  if (!value) return null;
 
-function safeParseDate(dateStr?: string | null): Date | null {
-  if (!dateStr) return null;
   try {
-    const parsed = parseISO(dateStr);
+    const parsed = parseISO(value);
     return Number.isNaN(parsed.getTime()) ? null : parsed;
   } catch {
     return null;
   }
 }
 
-function pickCompletedDate(row: CompletedRow) {
+function isWithinRange(date: Date, start: Date, end: Date) {
+  return !isBefore(date, start) && !isAfter(date, end);
+}
+
+function getCompletedDate(row: CompletedRow): string | undefined {
   return row.session_date ?? row.date ?? undefined;
 }
 
@@ -76,36 +73,54 @@ function estimateDurationFromTitle(title?: string | null): number {
   return 45;
 }
 
+function sessionDurationMinutes(session: Session): number {
+  if (typeof session.duration === 'number' && Number.isFinite(session.duration)) {
+    return Math.max(0, session.duration);
+  }
+
+  return estimateDurationFromTitle(session.title);
+}
+
 function formatMinutes(minutes: number): string {
-  const m = Math.max(0, Math.round(minutes));
-  const hrs = Math.floor(m / 60);
-  const mins = m % 60;
+  const rounded = Math.max(0, Math.round(minutes));
+  const hours = Math.floor(rounded / 60);
+  const mins = rounded % 60;
 
-  if (hrs <= 0) return `${mins}m`;
-  if (mins === 0) return `${hrs}h`;
-  return `${hrs}h ${mins}m`;
+  if (hours <= 0) return `${mins}m`;
+  if (mins === 0) return `${hours}h`;
+  return `${hours}h ${mins}m`;
 }
 
-function clampPct(n: number) {
-  if (!Number.isFinite(n)) return 0;
-  return Math.max(0, Math.min(100, Math.round(n)));
+function formatDelta(minutes: number): string {
+  if (Math.abs(minutes) < 5) return 'flat vs last week';
+  return `${minutes > 0 ? '+' : '−'}${formatMinutes(Math.abs(minutes))} vs last week`;
 }
 
-function windowLabel(key: WindowKey) {
-  if (key === 'L7') return '7 days';
-  if (key === 'L30') return '30 days';
-  return '90 days';
+function normalizeSport(input?: string | null): SportBucket {
+  const value = String(input ?? '').toLowerCase();
+
+  if (value.includes('swim')) return 'Swim';
+  if (value.includes('bike') || value.includes('ride') || value.includes('virtualride')) return 'Bike';
+  if (value.includes('run')) return 'Run';
+  if (value.includes('strength') || value.includes('gym')) return 'Strength';
+
+  return 'Other';
 }
 
-function rangeLabel(start: Date, end: Date) {
-  const sameYear = format(start, 'yyyy') === format(end, 'yyyy');
-  const sameMonth = format(start, 'MMM') === format(end, 'MMM') && sameYear;
-  if (sameMonth) return `${format(start, 'MMM d')} – ${format(end, 'd')}`;
-  return `${format(start, 'MMM d')} – ${format(end, 'MMM d')}`;
+function sportDotClass(sport: SportBucket | string) {
+  const normalized = normalizeSport(String(sport));
+  if (normalized === 'Swim') return 'bg-sky-500';
+  if (normalized === 'Bike') return 'bg-orange-500';
+  if (normalized === 'Run') return 'bg-emerald-500';
+  if (normalized === 'Strength') return 'bg-violet-500';
+  return 'bg-zinc-400';
+}
+
+function getActivityDate(activity: StravaActivity): Date | null {
+  return safeParseDate(activity.start_date_local || activity.start_date);
 }
 
 function raceCountdown(raceDate?: string | null) {
-  if (!raceDate) return null;
   const race = safeParseDate(raceDate);
   if (!race) return null;
 
@@ -116,16 +131,82 @@ function raceCountdown(raceDate?: string | null) {
   return Math.max(0, diff);
 }
 
-function getSportLabel(session?: Session | null) {
-  return session?.sport ? String(session.sport) : 'Session';
+function sessionScore(session: Session) {
+  const title = `${session.title ?? ''} ${session.details ?? ''}`.toLowerCase();
+  const duration = sessionDurationMinutes(session);
+  let score = 0;
+
+  if (title.includes('long')) score += 8;
+  if (title.includes('brick')) score += 8;
+  if (title.includes('threshold')) score += 7;
+  if (title.includes('tempo')) score += 6;
+  if (title.includes('interval')) score += 6;
+  if (title.includes('race')) score += 5;
+  if (title.includes('endurance')) score += 3;
+  if (duration >= 90) score += 4;
+  if (duration >= 150) score += 4;
+  if (session.sport === 'Rest') score -= 10;
+
+  return score;
 }
 
-function getDateLabel(session?: Session | null) {
-  const parsed = safeParseDate(session?.date ?? null);
-  return parsed ? format(parsed, 'EEE, MMM d') : 'Date not set';
+function getSessionDateLabel(session: Session) {
+  const parsed = safeParseDate(session.date);
+  return parsed ? format(parsed, 'EEE, MMM d') : 'Date TBD';
 }
 
-function MetricCard({
+function getCompletedTitle(row: CompletedRow) {
+  return row.session_title ?? row.title ?? '';
+}
+
+function buildWeeklyReview({
+  completedCount,
+  plannedCount,
+  actualMinutes,
+  plannedMinutes,
+  deltaMinutes,
+  keySessions,
+}: {
+  completedCount: number;
+  plannedCount: number;
+  actualMinutes: number;
+  plannedMinutes: number;
+  deltaMinutes: number;
+  keySessions: Session[];
+}) {
+  if (plannedCount === 0 && actualMinutes === 0) {
+    return 'No meaningful training data is available for this week yet. Once your plan and Strava sessions are connected, this will summarize how the week is tracking.';
+  }
+
+  const completionText =
+    plannedCount > 0
+      ? `You have completed ${completedCount} of ${plannedCount} planned sessions this week`
+      : 'You have logged training this week';
+
+  const volumeText =
+    plannedMinutes > 0
+      ? `with ${formatMinutes(actualMinutes)} trained against ${formatMinutes(plannedMinutes)} planned`
+      : `with ${formatMinutes(actualMinutes)} logged`;
+
+  const trendText =
+    Math.abs(deltaMinutes) < 5
+      ? 'Training volume is essentially flat compared with last week.'
+      : deltaMinutes > 0
+        ? `Training volume is up ${formatMinutes(deltaMinutes)} compared with last week.`
+        : `Training volume is down ${formatMinutes(Math.abs(deltaMinutes))} compared with last week.`;
+
+  const keyText =
+    keySessions.length > 0
+      ? `The sessions to protect are ${keySessions
+          .slice(0, 2)
+          .map((session) => session.title)
+          .join(' and ')}.`
+      : 'The next useful step is to keep logging completed sessions so the review has enough signal.';
+
+  return `${completionText}, ${volumeText}. ${trendText} ${keyText}`;
+}
+
+function MetricTile({
   label,
   value,
   detail,
@@ -135,10 +216,18 @@ function MetricCard({
   detail: string;
 }) {
   return (
-    <div className="rounded-2xl border border-zinc-200 bg-white p-5">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">{label}</p>
+    <div className="rounded-2xl border border-zinc-200 bg-white p-4 sm:p-5">
+      <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-400">{label}</p>
       <p className="mt-3 text-2xl font-semibold tracking-tight text-zinc-950">{value}</p>
-      <p className="mt-1 text-sm text-zinc-500">{detail}</p>
+      <p className="mt-1 text-sm leading-5 text-zinc-500">{detail}</p>
+    </div>
+  );
+}
+
+function EmptyCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-5 text-sm leading-6 text-zinc-500">
+      {children}
     </div>
   );
 }
@@ -147,393 +236,367 @@ export default function CoachingDashboard({
   sessions,
   completedSessions,
   stravaActivities,
-  weeklySummary,
+  weeklyVolume,
   stravaConnected,
   raceDate,
-  initialPrompt = '',
-  initialContext = null,
+  initialPrompt,
 }: Props) {
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatPrefill, setChatPrefill] = useState<string>(initialPrompt);
-  const [windowKey, setWindowKey] = useState<WindowKey>('L30');
+  const [chatOpen, setChatOpen] = useState(Boolean(initialPrompt));
+  const [chatPrefill, setChatPrefill] = useState(initialPrompt ?? '');
+  const [checkInRating, setCheckInRating] = useState<number | null>(null);
+  const [checkInNote, setCheckInNote] = useState('');
 
-  useEffect(() => {
-    if (initialPrompt) setChatOpen(true);
-  }, [initialPrompt]);
+  const now = new Date();
+  const today = startOfDay(now);
+  const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
+  const priorWeekStart = subDays(weekStart, 7);
+  const priorWeekEnd = subDays(weekEnd, 7);
 
-  const { start, end, prevStart, prevEnd } = useMemo(() => {
-    const days = WINDOW_DAYS[windowKey];
-    const end = startOfDay(new Date());
-    const start = subDays(end, days - 1);
-    const prevEnd = subDays(start, 1);
-    const prevStart = subDays(prevEnd, days - 1);
+  const weekLabel = `${format(weekStart, 'MMM d')} – ${format(weekEnd, 'MMM d')}`;
+  const countdown = raceCountdown(raceDate);
 
-    return { start, end, prevStart, prevEnd };
-  }, [windowKey]);
+  const plannedThisWeek = useMemo(() => {
+    return sessions
+      .filter((session) => {
+        const date = safeParseDate(session.date);
+        return date ? isWithinRange(date, weekStart, weekEnd) : false;
+      })
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  }, [sessions, weekStart, weekEnd]);
 
-  const label = useMemo(() => rangeLabel(start, end), [start, end]);
+  const upcomingSessions = useMemo(() => {
+    const lookaheadEnd = addDays(today, 10);
 
-  const plannedInWindow = useMemo(() => {
-    return (sessions ?? []).filter((session) => {
-      const parsed = safeParseDate((session as any).date);
-      if (!parsed) return false;
-      const date = startOfDay(parsed);
-      return !isBefore(date, start) && !isAfter(date, end);
+    return sessions
+      .filter((session) => {
+        const date = safeParseDate(session.date);
+        return date ? isWithinRange(date, today, lookaheadEnd) && session.sport !== 'Rest' : false;
+      })
+      .sort((a, b) => {
+        const dateCompare = String(a.date).localeCompare(String(b.date));
+        if (dateCompare !== 0) return dateCompare;
+        return sessionScore(b) - sessionScore(a);
+      });
+  }, [sessions, today]);
+
+  const keySessions = useMemo(() => {
+    const scored = upcomingSessions
+      .map((session) => ({ session, score: sessionScore(session) }))
+      .sort((a, b) => b.score - a.score || String(a.session.date).localeCompare(String(b.session.date)));
+
+    const protectedSessions = scored.filter((item) => item.score >= 5).map((item) => item.session);
+
+    return (protectedSessions.length > 0 ? protectedSessions : upcomingSessions).slice(0, 3);
+  }, [upcomingSessions]);
+
+  const completedThisWeek = useMemo(() => {
+    return completedSessions.filter((row) => {
+      if (row.status === 'skipped') return false;
+      const date = safeParseDate(getCompletedDate(row));
+      return date ? isWithinRange(date, weekStart, weekEnd) : false;
     });
-  }, [sessions, start, end]);
+  }, [completedSessions, weekStart, weekEnd]);
 
   const plannedMinutes = useMemo(() => {
-    return plannedInWindow.reduce((sum, session) => {
-      const duration =
-        (session as any).duration != null
-          ? Number((session as any).duration)
-          : estimateDurationFromTitle((session as any).title);
-      return sum + (Number.isFinite(duration) ? duration : 0);
-    }, 0);
-  }, [plannedInWindow]);
+    return plannedThisWeek.reduce((total, session) => total + sessionDurationMinutes(session), 0);
+  }, [plannedThisWeek]);
 
-  const stravaInWindow = useMemo(() => {
-    return (stravaActivities ?? []).filter((activity) => {
-      const parsed = safeParseDate((activity as any).start_date);
-      if (!parsed) return false;
-      const date = startOfDay(parsed);
-      return !isBefore(date, start) && !isAfter(date, end);
+  const currentWeekActivities = useMemo(() => {
+    return stravaActivities.filter((activity) => {
+      const date = getActivityDate(activity);
+      return date ? isWithinRange(date, weekStart, weekEnd) : false;
     });
-  }, [stravaActivities, start, end]);
+  }, [stravaActivities, weekStart, weekEnd]);
 
-  const completedRowsInWindow: CompletedRow[] = useMemo(() => {
-    const rows = (completedSessions ?? []) as CompletedRow[];
-    return rows.filter((row) => {
-      const parsed = safeParseDate(pickCompletedDate(row));
-      if (!parsed) return false;
-      const date = startOfDay(parsed);
-      return !isBefore(date, start) && !isAfter(date, end);
+  const priorWeekActivities = useMemo(() => {
+    return stravaActivities.filter((activity) => {
+      const date = getActivityDate(activity);
+      return date ? isWithinRange(date, priorWeekStart, priorWeekEnd) : false;
     });
-  }, [completedSessions, start, end]);
+  }, [stravaActivities, priorWeekStart, priorWeekEnd]);
 
-  const completedMinutes = useMemo(() => {
-    const fromStrava = stravaInWindow.reduce((sum, activity) => {
-      const movingTime = (activity as any).moving_time;
-      return sum + (movingTime != null ? Number(movingTime) / 60 : 0);
+  const actualMinutes = useMemo(() => {
+    const stravaMinutes = currentWeekActivities.reduce(
+      (total, activity) => total + Math.max(0, Number(activity.moving_time ?? 0) / 60),
+      0
+    );
+
+    // If Strava exists, use it as the source of truth for time trained.
+    if (stravaMinutes > 0) return stravaMinutes;
+
+    return completedThisWeek.reduce((total, row) => {
+      if (typeof row.duration === 'number' && Number.isFinite(row.duration)) {
+        return total + row.duration;
+      }
+
+      return total + estimateDurationFromTitle(getCompletedTitle(row));
     }, 0);
+  }, [currentWeekActivities, completedThisWeek]);
 
-    const fromCompletedRows = completedRowsInWindow.reduce((sum, row) => {
-      const duration =
-        row.duration != null && Number.isFinite(Number(row.duration))
-          ? Number(row.duration)
-          : estimateDurationFromTitle((row.session_title ?? row.title) as any);
+  const priorWeekMinutes = useMemo(() => {
+    return priorWeekActivities.reduce(
+      (total, activity) => total + Math.max(0, Number(activity.moving_time ?? 0) / 60),
+      0
+    );
+  }, [priorWeekActivities]);
 
-      return sum + (Number.isFinite(duration) ? duration : 0);
-    }, 0);
+  const deltaMinutes = Math.round(actualMinutes - priorWeekMinutes);
+  const completionPct = plannedThisWeek.length > 0 ? Math.round((completedThisWeek.length / plannedThisWeek.length) * 100) : 0;
 
-    return fromStrava > 0 ? fromStrava : fromCompletedRows;
-  }, [stravaInWindow, completedRowsInWindow]);
-
-  const plannedCount = plannedInWindow.length;
-  const completedCount = stravaInWindow.length > 0 ? stravaInWindow.length : completedRowsInWindow.length;
-
-  const adherencePct = useMemo(() => {
-    if (plannedCount <= 0) return 0;
-    return clampPct((completedCount / plannedCount) * 100);
-  }, [plannedCount, completedCount]);
-
-  const prevStrava = useMemo(() => {
-    return (stravaActivities ?? []).filter((activity) => {
-      const parsed = safeParseDate((activity as any).start_date);
-      if (!parsed) return false;
-      const date = startOfDay(parsed);
-      return !isBefore(date, prevStart) && !isAfter(date, prevEnd);
-    });
-  }, [stravaActivities, prevStart, prevEnd]);
-
-  const prevCompletedMinutes = useMemo(() => {
-    return prevStrava.reduce((sum, activity) => {
-      const movingTime = (activity as any).moving_time;
-      return sum + (movingTime != null ? Number(movingTime) / 60 : 0);
-    }, 0);
-  }, [prevStrava]);
-
-  const deltaMinutes = Math.round(completedMinutes - prevCompletedMinutes);
-  const deltaLabel =
-    deltaMinutes === 0
-      ? 'No change vs prior'
-      : `${deltaMinutes > 0 ? '+' : '−'}${formatMinutes(Math.abs(deltaMinutes))} vs prior`;
-
-  const readiness = useMemo(
-    () =>
-      calculateReadiness({
-        sessions,
-        completedSessions,
-        raceDate,
-      }),
-    [sessions, completedSessions, raceDate]
-  );
-
-  const daysToRace = raceCountdown(raceDate);
-
-  const nextSession = useMemo(() => {
-    const now = startOfDay(new Date());
-
-    return [...(sessions ?? [])]
-      .filter((session) => {
-        const parsed = safeParseDate(session.date);
-        if (!parsed) return false;
-        return !isBefore(startOfDay(parsed), now);
-      })
-      .sort((a, b) => String(a.date).localeCompare(String(b.date)))[0] ?? null;
-  }, [sessions]);
-
-  const contextualBrief = useMemo(() => {
-    return {
-      raceGoal: initialContext?.raceGoal ?? weeklySummary?.raceType ?? 'Not set',
-      weekPhase: initialContext?.weekPhase ?? label,
-      weekLabel: initialContext?.weekLabel ?? label,
-      sessionTitle: initialContext?.sessionTitle ?? nextSession?.title ?? null,
-      sessionDate: initialContext?.sessionDate ?? nextSession?.date ?? null,
-      sessionType: initialContext?.sessionType ?? nextSession?.sport ?? null,
-      completionState: initialContext?.completionState ?? null,
-      recentCompleted: initialContext?.recentCompleted ?? null,
-      recentMissed: initialContext?.recentMissed ?? null,
+  const sportMinutes = useMemo(() => {
+    const buckets: Record<SportBucket, number> = {
+      Swim: 0,
+      Bike: 0,
+      Run: 0,
+      Strength: 0,
+      Other: 0,
     };
-  }, [initialContext, weeklySummary, label, nextSession]);
 
-  const statusLabel = useMemo(() => {
-    if (readiness.score >= 80) return 'On track';
-    if (readiness.score >= 65) return 'Building well';
-    if (readiness.score >= 45) return 'Watch recovery';
-    if (readiness.score >= 30) return 'Reduce strain';
-    return 'Needs consistency';
-  }, [readiness.score]);
+    currentWeekActivities.forEach((activity) => {
+      const sport = normalizeSport(activity.sport_type);
+      buckets[sport] += Math.max(0, Number(activity.moving_time ?? 0) / 60);
+    });
 
-  const primaryRecommendation = useMemo(() => {
-    if (plannedCount === 0) return 'Generate or update your plan so coaching has a clear target.';
-    if (adherencePct < 60) return 'Focus on completing the next scheduled session before adding intensity.';
-    if (deltaMinutes < -60) return 'Resume rhythm with one controlled session, then rebuild the week.';
-    if (deltaMinutes > 90) return 'Protect recovery and keep the next session controlled.';
-    return 'Keep the week steady and execute the next key session well.';
-  }, [plannedCount, adherencePct, deltaMinutes]);
+    if (Object.values(buckets).some((value) => value > 0)) {
+      return buckets;
+    }
 
-  const coachActions = [
-    { id: 'week', title: 'Adjust this week', subtitle: 'Optimize the next few sessions.' },
-    { id: 'explain', title: 'Explain workout', subtitle: 'Break down purpose and execution.' },
-    { id: 'feel', title: "I'm feeling…", subtitle: 'Get recovery or effort guidance.' },
-    { id: 'race', title: 'Race strategy', subtitle: 'Pacing, nutrition, and prep.' },
-    { id: 'injury', title: 'Injury guidance', subtitle: 'Stay healthy and adapt.' },
-  ] as const;
+    completedThisWeek.forEach((row) => {
+      const sport = normalizeSport(row.sport);
+      buckets[sport] += typeof row.duration === 'number' ? row.duration : estimateDurationFromTitle(getCompletedTitle(row));
+    });
+
+    return buckets;
+  }, [currentWeekActivities, completedThisWeek]);
+
+  const weeklyReview = buildWeeklyReview({
+    completedCount: completedThisWeek.length,
+    plannedCount: plannedThisWeek.length,
+    actualMinutes,
+    plannedMinutes,
+    deltaMinutes,
+    keySessions,
+  });
+
+  const openCoachWithPrompt = (prompt: string) => {
+    setChatPrefill(prompt);
+    setChatOpen(true);
+  };
+
+  const checkInDisabled = checkInRating === null && checkInNote.trim().length === 0;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 border-b border-zinc-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-400">Coaching</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950 sm:text-4xl">
-            Coach Brief
-          </h1>
-          <p className="mt-2 text-sm text-zinc-500">
-            Actionable guidance for your week, based on your plan and completed training.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <div className="hidden rounded-full border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-500 sm:block">
-            {label}
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setChatPrefill('');
-              setChatOpen(true);
-            }}
-            className="rounded-full bg-zinc-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-zinc-800"
-          >
-            Ask Coach
-          </button>
-        </div>
-      </div>
-
-      <StravaConnectBanner stravaConnected={stravaConnected} />
-
-      <section className="rounded-[28px] border border-zinc-200 bg-white p-5 sm:p-7">
-        <div className="grid gap-6 lg:grid-cols-[1.4fr_0.7fr] lg:items-center">
-          <div className="flex gap-5">
-            <div className="hidden h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-zinc-950 text-2xl text-white sm:flex">
-              ✦
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
-                Weekly focus
-              </p>
-              <h2 className="mt-3 max-w-3xl text-2xl font-semibold tracking-tight text-zinc-950">
-                {primaryRecommendation}
-              </h2>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-600">
-                Status: {statusLabel}. {contextualBrief.raceGoal !== 'Not set' ? `Race focus: ${contextualBrief.raceGoal}.` : 'Set a race goal to make coaching more specific.'}
-              </p>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-zinc-200 bg-[#fbfbfa] p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">
-              Key session
-            </p>
-            <p className="mt-3 text-base font-semibold text-zinc-950">
-              {nextSession?.title ?? 'No upcoming session'}
-            </p>
-            <p className="mt-1 text-sm text-zinc-500">
-              {nextSession ? `${getDateLabel(nextSession)} · ${getSportLabel(nextSession)}` : 'Generate a plan to see what matters next.'}
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          label="Plan adherence"
-          value={`${adherencePct}%`}
-          detail={`${completedCount} completed · ${plannedCount} planned`}
-        />
-        <MetricCard label="Volume" value={formatMinutes(completedMinutes)} detail={deltaLabel} />
-        <MetricCard
-          label="Consistency"
-          value={plannedCount > 0 ? `${Math.min(completedCount, plannedCount)} / ${plannedCount}` : '—'}
-          detail={plannedCount > 0 ? 'Current window' : 'No sessions planned'}
-        />
-        <MetricCard
-          label="Race countdown"
-          value={daysToRace == null ? '—' : `${daysToRace}d`}
-          detail={contextualBrief.raceGoal || 'Race not set'}
-        />
-      </section>
-
-      <section className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-        <div className="rounded-[28px] border border-zinc-200 bg-white p-5 sm:p-6">
-          <div className="flex items-center justify-between gap-4 border-b border-zinc-200 pb-4">
-            <div>
-              <h3 className="text-base font-semibold text-zinc-950">Ask Coach</h3>
-              <p className="mt-1 text-sm text-zinc-500">
-                Get help adjusting training, understanding a workout, or making a decision.
-              </p>
-            </div>
-            <div className="hidden rounded-full bg-[#fbfbfa] p-1 sm:flex">
-              {(['L7', 'L30', 'L90'] as WindowKey[]).map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setWindowKey(key)}
-                  className={clsx(
-                    'rounded-full px-3 py-1.5 text-xs font-medium transition',
-                    key === windowKey ? 'bg-white text-zinc-950 shadow-sm' : 'text-zinc-500 hover:text-zinc-950'
-                  )}
-                >
-                  {windowLabel(key)}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            {coachActions.map((action) => (
-              <button
-                key={action.id}
-                type="button"
-                onClick={() => {
-                  const prompt = buildCoachingPrompt(action.title, {
-                    source: 'coaching',
-                    sessionId: initialContext?.sessionId,
-                    sessionTitle: contextualBrief.sessionTitle,
-                    sessionType: (contextualBrief.sessionType as any) ?? null,
-                    sessionDate: contextualBrief.sessionDate,
-                    weekLabel: contextualBrief.weekLabel,
-                    weekPhase: contextualBrief.weekPhase,
-                    completionState: (contextualBrief.completionState as any) ?? 'planned',
-                    recentCompleted: contextualBrief.recentCompleted ?? undefined,
-                    recentMissed: contextualBrief.recentMissed ?? undefined,
-                    raceGoal: contextualBrief.raceGoal,
-                  });
-                  setChatPrefill(prompt);
-                  setChatOpen(true);
-                }}
-                className="rounded-2xl border border-zinc-200 bg-white p-4 text-left transition hover:border-zinc-300 hover:bg-[#fbfbfa]"
-              >
-                <div className="text-sm font-semibold text-zinc-950">{action.title}</div>
-                <div className="mt-1 text-xs leading-5 text-zinc-500">{action.subtitle}</div>
-              </button>
-            ))}
-          </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              setChatPrefill('What should I focus on this week?');
-              setChatOpen(true);
-            }}
-            className="mt-4 flex w-full items-center justify-between rounded-2xl border border-zinc-200 bg-[#fbfbfa] px-4 py-3 text-left text-sm text-zinc-500 transition hover:border-zinc-300"
-          >
-            <span>Ask your coach anything…</span>
-            <span className="rounded-full bg-zinc-950 px-3 py-1.5 text-xs font-medium text-white">Send</span>
-          </button>
-        </div>
-
-        <div className="rounded-[28px] border border-zinc-200 bg-white p-5 sm:p-6">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h3 className="text-base font-semibold text-zinc-950">Coach insights</h3>
-              <p className="mt-1 text-sm text-zinc-500">What stands out from your recent training.</p>
-            </div>
-          </div>
-
-          <div className="mt-5 space-y-4">
-            <div className="flex gap-3">
-              <div className="mt-1 h-2 w-2 rounded-full bg-zinc-950" />
-              <div>
-                <p className="text-sm font-medium text-zinc-950">Your training rhythm is {statusLabel.toLowerCase()}.</p>
-                <p className="mt-1 text-sm leading-5 text-zinc-500">{primaryRecommendation}</p>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <div className="mt-1 h-2 w-2 rounded-full bg-zinc-300" />
-              <div>
-                <p className="text-sm font-medium text-zinc-950">Volume is {deltaMinutes >= 0 ? 'holding' : 'lower'} versus the prior window.</p>
-                <p className="mt-1 text-sm leading-5 text-zinc-500">
-                  {deltaLabel}. Use this as context, not a score to chase.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <div className="mt-1 h-2 w-2 rounded-full bg-zinc-300" />
-              <div>
-                <p className="text-sm font-medium text-zinc-950">Next decision: protect the key session.</p>
-                <p className="mt-1 text-sm leading-5 text-zinc-500">
-                  {nextSession ? `${nextSession.title} is the next clear target.` : 'Create a plan so TrainGPT can guide the week.'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-[28px] border border-zinc-200 bg-white p-5 sm:p-6">
-        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+    <main className="min-h-screen bg-[#fbfbfa] text-zinc-950">
+      <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+        <header className="mb-8 flex flex-col gap-4 border-b border-zinc-200 pb-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h3 className="text-base font-semibold text-zinc-950">Performance trend</h3>
-            <p className="mt-1 text-sm text-zinc-500">Recent load and consistency from completed Strava sessions.</p>
+            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-400">Coaching</p>
+            <h1 className="mt-3 max-w-3xl text-3xl font-semibold tracking-tight text-zinc-950 sm:text-4xl">
+              Training review
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-500">
+              A factual read on your week, the sessions that matter next, and the review loop your AI coach will use to guide progress.
+            </p>
           </div>
-          <div className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-500">
-            {windowLabel(windowKey)}
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => openCoachWithPrompt('Review my current training week and tell me what matters most.')}
+              className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-800 transition hover:border-zinc-400 hover:bg-zinc-50"
+            >
+              Ask about this week
+            </button>
+            <div className="rounded-full border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-500">
+              {countdown !== null ? `${countdown} days to race` : weekLabel}
+            </div>
           </div>
+        </header>
+
+        <div className="mb-6">
+          <StravaConnectBanner stravaConnected={stravaConnected} />
         </div>
 
-        <FitnessPanel
-          sessions={sessions}
-          completedSessions={completedSessions as any}
-          stravaActivities={stravaActivities}
-          windowDays={WINDOW_DAYS[windowKey]}
-        />
-      </section>
+        <section className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricTile
+            label="Time trained"
+            value={formatMinutes(actualMinutes)}
+            detail={`${formatDelta(deltaMinutes)} · ${weekLabel}`}
+          />
+          <MetricTile
+            label="Planned time"
+            value={formatMinutes(plannedMinutes)}
+            detail={`${plannedThisWeek.length} sessions scheduled this week`}
+          />
+          <MetricTile
+            label="Sessions complete"
+            value={`${completedThisWeek.length}/${plannedThisWeek.length || 0}`}
+            detail={plannedThisWeek.length > 0 ? `${completionPct}% of this week` : 'No planned sessions this week'}
+          />
+          <MetricTile
+            label="Plan to date"
+            value={`${weeklySummary?.planToDate?.completed ?? completedSessions.length}`}
+            detail={`${weeklySummary?.planToDate?.planned ?? sessions.length} planned sessions total`}
+          />
+        </section>
 
-      <CoachChatModal open={chatOpen} onClose={() => setChatOpen(false)} prefill={chatPrefill} />
-    </div>
+        <section className="mb-6 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="rounded-[28px] border border-zinc-200 bg-white p-5 sm:p-6">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold tracking-tight text-zinc-950">Training trends</h2>
+                <p className="mt-1 text-sm text-zinc-500">Time logged by sport this week.</p>
+              </div>
+              <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600">
+                {formatMinutes(actualMinutes)}
+              </span>
+            </div>
+
+            <div className="space-y-4">
+              {(['Bike', 'Run', 'Swim', 'Strength', 'Other'] as SportBucket[])
+                .filter((sport) => sportMinutes[sport] > 0 || sport !== 'Other')
+                .map((sport) => {
+                  const minutes = sportMinutes[sport];
+                  const pct = actualMinutes > 0 ? Math.max(2, Math.round((minutes / actualMinutes) * 100)) : 0;
+
+                  return (
+                    <div key={sport}>
+                      <div className="mb-2 flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className={`h-2 w-2 rounded-full ${sportDotClass(sport)}`} />
+                          <span className="font-medium text-zinc-800">{sport}</span>
+                        </div>
+                        <span className="text-zinc-500">{formatMinutes(minutes)}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-zinc-100">
+                        <div
+                          className="h-2 rounded-full bg-zinc-900"
+                          style={{ width: `${pct}%`, opacity: minutes > 0 ? 1 : 0.08 }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+
+          <div className="rounded-[28px] border border-zinc-200 bg-white p-5 sm:p-6">
+            <div className="mb-5">
+              <h2 className="text-lg font-semibold tracking-tight text-zinc-950">Weekly review</h2>
+              <p className="mt-1 text-sm text-zinc-500">Generated weekly coaching review will live here.</p>
+            </div>
+
+            <p className="text-base leading-7 text-zinc-700">{weeklyReview}</p>
+
+            <div className="mt-5 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+              <p className="text-xs font-medium uppercase tracking-[0.14em] text-zinc-400">Sunday check-in</p>
+              <p className="mt-2 text-sm leading-6 text-zinc-600">
+                Each Sunday, rate the week and add a note. This will become the input for your AI coach review and next-week recommendations.
+              </p>
+
+              <div className="mt-4 flex gap-2">
+                {[1, 2, 3, 4, 5].map((rating) => (
+                  <button
+                    key={rating}
+                    type="button"
+                    onClick={() => setCheckInRating(rating)}
+                    className={`h-9 w-9 rounded-full border text-sm font-medium transition ${
+                      checkInRating === rating
+                        ? 'border-zinc-950 bg-zinc-950 text-white'
+                        : 'border-zinc-200 bg-white text-zinc-600 hover:border-zinc-400'
+                    }`}
+                    aria-label={`Rate week ${rating} out of 5`}
+                  >
+                    {rating}
+                  </button>
+                ))}
+              </div>
+
+              <textarea
+                value={checkInNote}
+                onChange={(event) => setCheckInNote(event.target.value)}
+                placeholder="What felt good? What felt off?"
+                className="mt-4 min-h-24 w-full resize-none rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-zinc-400 focus:border-zinc-400"
+              />
+
+              <button
+                type="button"
+                disabled={checkInDisabled}
+                onClick={() => openCoachWithPrompt(`My weekly check-in rating is ${checkInRating ?? 'not rated'}/5. Notes: ${checkInNote || 'No notes provided.'}`)}
+                className="mt-3 w-full rounded-full bg-zinc-950 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
+              >
+                Discuss this week with coach
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="mb-6 rounded-[28px] border border-zinc-200 bg-white p-5 sm:p-6">
+          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold tracking-tight text-zinc-950">Key sessions</h2>
+              <p className="mt-1 text-sm text-zinc-500">The next workouts most likely to shape the week.</p>
+            </div>
+            <span className="text-sm text-zinc-400">Next 10 days</span>
+          </div>
+
+          {keySessions.length > 0 ? (
+            <div className="grid gap-3 lg:grid-cols-3">
+              {keySessions.map((session) => {
+                const sport = normalizeSport(session.sport);
+                const prompt = `Explain this key session and how I should execute it: ${session.title} on ${getSessionDateLabel(session)}.`;
+
+                return (
+                  <button
+                    key={session.id}
+                    type="button"
+                    onClick={() => openCoachWithPrompt(prompt)}
+                    className="rounded-2xl border border-zinc-200 bg-white p-4 text-left transition hover:border-zinc-400 hover:bg-zinc-50"
+                  >
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className={`h-2 w-2 rounded-full ${sportDotClass(sport)}`} />
+                        <span className="text-xs font-medium uppercase tracking-[0.14em] text-zinc-400">{sport}</span>
+                      </div>
+                      <span className="text-xs text-zinc-400">{getSessionDateLabel(session)}</span>
+                    </div>
+                    <p className="text-base font-semibold leading-6 text-zinc-950">{session.title}</p>
+                    <p className="mt-2 text-sm leading-5 text-zinc-500">
+                      {session.details || `${formatMinutes(sessionDurationMinutes(session))} planned`}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <EmptyCard>
+              No upcoming key sessions found. Once your plan has sessions in the next 10 days, they will appear here.
+            </EmptyCard>
+          )}
+        </section>
+
+        <section className="rounded-[28px] border border-zinc-200 bg-white p-5 sm:p-6">
+          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold tracking-tight text-zinc-950">Longer trend</h2>
+              <p className="mt-1 text-sm text-zinc-500">A simple view of recent training load from completed work.</p>
+            </div>
+            <span className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-500">
+              Last 30 days
+            </span>
+          </div>
+
+          <FitnessPanel
+            sessions={sessions}
+            completedSessions={completedSessions as any}
+            stravaActivities={stravaActivities}
+            windowDays={30}
+          />
+        </section>
+
+        <CoachChatModal open={chatOpen} onClose={() => setChatOpen(false)} prefill={chatPrefill} />
+      </div>
+    </main>
   );
 }
