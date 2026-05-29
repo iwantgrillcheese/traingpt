@@ -7,6 +7,17 @@ type ScaffoldSession = {
   sport: ScaffoldSport;
   title: string;
   details: string;
+  type:
+    | 'swim_technique'
+    | 'swim_endurance'
+    | 'bike_endurance'
+    | 'bike_quality'
+    | 'long_ride'
+    | 'run_easy'
+    | 'run_quality'
+    | 'long_run'
+    | 'brick_run'
+    | 'strength';
 };
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
@@ -96,7 +107,7 @@ function getBikeMidweekDetails(userParams: UserParams, weekMeta: WeekMeta) {
   const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
   if (phase === 'recovery' || phase === 'taper') return 'Easy aerobic spin. Keep cadence smooth and effort relaxed.';
   if (phase === 'base') return 'Aerobic bike with steady Z2 work. Keep effort controlled and build consistency.';
-  return 'Bike strength or tempo session. Include controlled steady intervals without compromising the long ride.';
+  return 'Bike strength or tempo session. Include controlled steady intervals while keeping the weekend endurance ride protected.';
 }
 
 function getSwimDetails(kind: 'Technique' | 'Endurance', userParams: UserParams, weekMeta: WeekMeta) {
@@ -195,6 +206,7 @@ export function buildTriathlonWeekScaffold({
     addSession(days, weekMeta.startDate, easySwimDay, {
       sport: 'swim',
       title: 'Swim Easy',
+      type: 'swim_technique',
       details: 'Short relaxed swim with a few smooth pickups. Keep effort easy and focus on feeling comfortable in the water.',
     });
     used.add(easySwimDay);
@@ -203,6 +215,7 @@ export function buildTriathlonWeekScaffold({
     addSession(days, weekMeta.startDate, easyBikeDay, {
       sport: 'bike',
       title: 'Bike Easy',
+      type: 'bike_endurance',
       details: 'Short aerobic spin with a few light cadence pickups. Keep the legs fresh and avoid fatigue.',
     });
     used.add(easyBikeDay);
@@ -211,6 +224,7 @@ export function buildTriathlonWeekScaffold({
     addSession(days, weekMeta.startDate, easyRunDay, {
       sport: 'run',
       title: 'Run Easy',
+      type: 'run_easy',
       details: 'Short easy run with relaxed strides if fresh. Finish feeling better than you started.',
     });
 
@@ -228,6 +242,7 @@ export function buildTriathlonWeekScaffold({
   addSession(days, weekMeta.startDate, safeLongRideDay, {
     sport: 'bike',
     title: 'Long Ride',
+    type: 'long_ride',
     details: getLongRideDetails(userParams, weekMeta),
   });
   used.add(safeLongRideDay);
@@ -237,6 +252,7 @@ export function buildTriathlonWeekScaffold({
     addSession(days, weekMeta.startDate, safeLongRideDay, {
       sport: 'run',
       title: 'Brick Run',
+      type: 'brick_run',
       details: getBrickRunDetails(userParams, weekMeta),
     });
   }
@@ -245,6 +261,7 @@ export function buildTriathlonWeekScaffold({
   addSession(days, weekMeta.startDate, safeLongRunDay, {
     sport: 'run',
     title: phase === 'taper' ? 'Run Easy' : 'Long Run',
+    type: phase === 'taper' ? 'run_easy' : 'long_run',
     details: getLongRunDetails(userParams, weekMeta),
   });
   used.add(safeLongRunDay);
@@ -254,6 +271,7 @@ export function buildTriathlonWeekScaffold({
   addSession(days, weekMeta.startDate, swimTechniqueDay, {
     sport: 'swim',
     title: 'Swim Technique',
+    type: 'swim_technique',
     details: getSwimDetails('Technique', userParams, weekMeta),
   });
   used.add(swimTechniqueDay);
@@ -262,6 +280,7 @@ export function buildTriathlonWeekScaffold({
   addSession(days, weekMeta.startDate, bikeDay, {
     sport: 'bike',
     title: phase === 'build' || phase === 'peak' ? 'Bike Tempo' : 'Bike Endurance',
+    type: phase === 'build' || phase === 'peak' ? 'bike_quality' : 'bike_endurance',
     details: getBikeMidweekDetails(userParams, weekMeta),
   });
   used.add(bikeDay);
@@ -270,6 +289,7 @@ export function buildTriathlonWeekScaffold({
   addSession(days, weekMeta.startDate, swimEnduranceDay, {
     sport: 'swim',
     title: 'Swim Endurance',
+    type: 'swim_endurance',
     details: getSwimDetails('Endurance', userParams, weekMeta),
   });
   used.add(swimEnduranceDay);
@@ -278,6 +298,7 @@ export function buildTriathlonWeekScaffold({
   addSession(days, weekMeta.startDate, runQualityDay, {
     sport: 'run',
     title: phase === 'build' || phase === 'peak' ? 'Run Threshold' : 'Run Easy',
+    type: phase === 'build' || phase === 'peak' ? 'run_quality' : 'run_easy',
     details: getRunQualityDetails(userParams, weekMeta),
   });
   used.add(runQualityDay);
@@ -290,6 +311,7 @@ export function buildTriathlonWeekScaffold({
     addSession(days, weekMeta.startDate, strengthDay, {
       sport: 'strength',
       title: 'Strength Core',
+      type: 'strength',
       details: 'Short accessory strength session focused on core, mobility, and durability. Keep it controlled and secondary to triathlon training.',
     });
   }

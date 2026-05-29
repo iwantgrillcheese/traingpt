@@ -102,6 +102,12 @@ function objectSportValue(item: unknown): string | null {
   return structuredSport(item);
 }
 
+function structuredType(item: unknown): string | null {
+  if (!isRecord(item)) return null;
+  const value = item.type;
+  return typeof value === 'string' ? value.trim().toLowerCase() : null;
+}
+
 function isUnsupportedDbSportValue(item: unknown): string | null {
   const sport = objectSportValue(item);
   if (!sport) return null;
@@ -131,11 +137,18 @@ function parseDurationMinutes(text: string): number | null {
 function looksLikeLongRide(item: unknown) {
   if (!hasSport(item, 'bike')) return false;
 
+  const type = structuredType(item);
+  if (type === 'long_ride') return true;
+
+  // For structured sessions, only the title/type should classify the long ride.
+  // Details may mention \"long ride\" for context and should not move detection to that day.
   const title = rawTitleText(item).toLowerCase();
+  if (/^long\s+ride$/.test(title) || /^bike\s+long\s+ride$/.test(title)) return true;
+
+  if (isRecord(item)) return false;
+
   const text = itemText(item).toLowerCase();
   const minutes = parseDurationMinutes(text);
-
-  if (/\blong\s+ride\b/.test(title)) return true;
   if (/\blong\s+ride\b/.test(text)) return true;
 
   return minutes !== null && minutes >= 90 && !/brick\s+run|long\s+run/.test(text);
@@ -144,22 +157,33 @@ function looksLikeLongRide(item: unknown) {
 function looksLikeLongRun(item: unknown) {
   if (!hasSport(item, 'run')) return false;
 
+  const type = structuredType(item);
+  if (type === 'long_run') return true;
+  if (type === 'brick_run' || type === 'run_easy' || type === 'run_quality') return false;
+
   const title = rawTitleText(item).toLowerCase();
+  if (/^long\s+run$/.test(title) || /^run\s+long\s+run$/.test(title)) return true;
+  if (isBrickRun(item)) return false;
+
+  if (isRecord(item)) return false;
+
   const text = itemText(item).toLowerCase();
   const minutes = parseDurationMinutes(text);
-
-  if (/\blong\s+run\b/.test(title)) return true;
   if (/\blong\s+run\b/.test(text)) return true;
-  if (isBrickRun(item)) return false;
 
   return minutes !== null && minutes >= 60;
 }
 
 function isBrickRun(item: unknown) {
   if (hasSport(item, 'run')) {
+    const type = structuredType(item);
+    if (type === 'brick_run') return true;
+
     const title = rawTitleText(item).toLowerCase();
-    if (/\bbrick\s+run\b/.test(title)) return true;
+    if (/^brick\s+run$/.test(title) || /\bbrick\s+run\b/.test(title)) return true;
   }
+
+  if (isRecord(item)) return false;
 
   return /\bbrick\s+run\b|\brun\s+off\s+the\s+bike\b|\boff\s+the\s+bike\b/i.test(itemText(item));
 }
