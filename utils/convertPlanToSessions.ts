@@ -385,7 +385,7 @@ function normalizeStructuredTitle(sport: Sport | 'brick', title: string, type?: 
   if (sport === 'run' && type === 'long_run') return 'Long Run';
 
   if (clean && clean.length <= 32 && !/[0-9]{1,3}\s*(?:min|mi|km|m|yd|ftp|watts?|%)/i.test(clean)) {
-    return sport === 'strength' ? 'Strength' : clean;
+    return clean;
   }
 
   return deriveCalendarTitle(sport, clean);
