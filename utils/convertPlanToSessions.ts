@@ -307,7 +307,7 @@ function rowsFromParsedSession({
   }
 
   const { bikeTitle, runTitle } = extractBrickDurations(text);
-  const sharedDetails = parsed.details ?? cleanTitle(text) || 'Part of brick workout.';
+  const sharedDetails = parsed.details ?? (cleanTitle(text) || 'Part of brick workout.');
 
   return [
     buildRow({ userId, planId, date, sport: 'bike', title: bikeTitle, details: sharedDetails, raw: parsed.raw }),
