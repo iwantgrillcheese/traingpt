@@ -5,10 +5,9 @@ import { addDays, format, isSameDay, parseISO, startOfWeek } from 'date-fns';
 import clsx from 'clsx';
 import AddSessionModalTP from './AddSessionModalTP';
 import SessionModal from './SessionModal';
-import type { CompletedSession, Session } from '@/types/session';
+import type { CompletedSession } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
-import { getCompletionStatus } from './session-utils';
 
 type Props = {
   sessions: MergedSession[];
@@ -39,7 +38,7 @@ function normalizeSport(value?: string | null) {
 
 function sportDot(sport?: string | null) {
   const value = normalizeSport(sport).toLowerCase();
-  if (value === 'swim') return 'bg-blue-500';
+  if (value === 'swim') return 'bg-sky-500';
   if (value === 'bike') return 'bg-emerald-500';
   if (value === 'run') return 'bg-orange-500';
   if (value === 'strength') return 'bg-violet-500';
@@ -65,6 +64,12 @@ function getWeekDays(anchor = new Date()) {
   return Array.from({ length: 7 }, (_, index) => addDays(start, index));
 }
 
+function getCompletionStatus(session: MergedSession, completedSessions: CompletedSession[]) {
+  const match = completedSessions.find((item) => item.date === session.date && item.session_title === session.title);
+  if (!match) return null;
+  return match.status === 'skipped' ? 'skipped' : 'done';
+}
+
 export default function MobileCalendarView({
   sessions,
   completedSessions,
@@ -83,13 +88,10 @@ export default function MobileCalendarView({
   useEffect(() => setLocalCompleted(completedSessions), [completedSessions]);
 
   const weekDays = useMemo(() => getWeekDays(selectedDate), [selectedDate]);
-  const selectedKey = format(selectedDate, 'yyyy-MM-dd');
 
   const sessionsForSelectedDate = useMemo(() => {
-    return localSessions
-      .filter((session) => session.date === selectedKey)
-      .sort((a, b) => String(a.sport ?? '').localeCompare(String(b.sport ?? '')));
-  }, [localSessions, selectedKey]);
+    return localSessions.filter((session) => isSameDay(parseDate(session.date), selectedDate));
+  }, [localSessions, selectedDate]);
 
   const nextSession = useMemo(() => {
     const today = new Date();
@@ -99,128 +101,128 @@ export default function MobileCalendarView({
       .sort((a, b) => parseDate(a.date).getTime() - parseDate(b.date).getTime())[0] ?? null;
   }, [localSessions]);
 
-  const completedThisWeek = useMemo(() => {
-    const keys = new Set(weekDays.map((date) => format(date, 'yyyy-MM-dd')));
-    return localSessions.filter((session) => {
-      if (!keys.has(session.date)) return false;
-      const status = getCompletionStatus({ date: session.date, title: session.title, stravaActivity: session.stravaActivity }, localCompleted);
-      return Boolean(session.stravaActivity) || status === 'done';
-    }).length;
-  }, [localSessions, localCompleted, weekDays]);
+  const selectedDateLabel = format(selectedDate, 'EEEE, MMMM d');
+
+  const handleSessionDeleted = (sessionId: string) => {
+    setLocalSessions((prev) => prev.filter((session) => session.id !== sessionId));
+    setSelectedSession(null);
+    onSessionDeleted?.(sessionId);
+  };
+
+  const handleSessionUpdated = (updated: MergedSession) => {
+    setLocalSessions((prev) => prev.map((session) => (session.id === updated.id ? { ...session, ...updated } : session)));
+    setSelectedSession((prev) => (prev?.id === updated.id ? { ...prev, ...updated } : prev));
+  };
+
+  const weekCompletion = useMemo(() => {
+    const weekDateKeys = new Set(weekDays.map((date) => format(date, 'yyyy-MM-dd')));
+    const weekSessions = localSessions.filter((session) => weekDateKeys.has(session.date));
+    const done = weekSessions.filter((session) => Boolean(session.stravaActivity) || getCompletionStatus(session, localCompleted) === 'done').length;
+    return { done, total: weekSessions.length };
+  }, [weekDays, localSessions, localCompleted]);
 
   return (
-    <main className="min-h-[100dvh] bg-[#FAFAF7] px-4 pb-24 pt-4">
-      <header className="mb-5 flex items-start justify-between">
-        <div>
-          <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Schedule</div>
-          <h1 className="mt-1 text-[30px] font-semibold tracking-tight text-zinc-950">Today</h1>
-          <p className="mt-1 text-[13px] text-zinc-500">{weekPhase || 'Your training week'}</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setAddSessionDate(selectedDate)}
-          className="rounded-full bg-zinc-950 px-4 py-2 text-[13px] font-semibold text-white shadow-[0_10px_25px_rgba(15,23,42,0.18)]"
-        >
-          + Add
-        </button>
-      </header>
-
-      <section className="mb-4 rounded-[28px] border border-zinc-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-        <div className="mb-4 flex items-center justify-between">
+    <main className="min-h-[100dvh] bg-white text-zinc-950">
+      <header className="sticky top-0 z-20 border-b border-zinc-200 bg-white/95 px-4 pb-3 pt-4 backdrop-blur-xl">
+        <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">This week</div>
-            <div className="mt-1 text-[15px] font-semibold text-zinc-950">{format(weekDays[0], 'MMM d')} – {format(weekDays[6], 'MMM d')}</div>
+            <div className="text-[26px] font-semibold tracking-tight text-zinc-950">Schedule</div>
+            <div className="mt-1 text-[13px] text-zinc-500">{weekPhase || 'This week'} · {weekCompletion.done}/{weekCompletion.total || 0} complete</div>
           </div>
-          <div className="text-right text-[12px] text-zinc-500">
-            <span className="font-semibold text-zinc-950">{completedThisWeek}</span> completed
-          </div>
+          <button
+            type="button"
+            onClick={() => setAddSessionDate(selectedDate)}
+            className="mt-1 rounded-full bg-zinc-950 px-4 py-2 text-[13px] font-semibold text-white"
+          >
+            + Add
+          </button>
         </div>
 
-        <div className="grid grid-cols-7 gap-2">
+        <div className="mt-4 grid grid-cols-7 gap-1.5">
           {weekDays.map((date) => {
             const active = isSameDay(date, selectedDate);
-            const key = format(date, 'yyyy-MM-dd');
-            const count = localSessions.filter((session) => session.date === key).length;
+            const hasSession = localSessions.some((session) => isSameDay(parseDate(session.date), date));
             return (
               <button
-                key={key}
+                key={date.toISOString()}
                 type="button"
                 onClick={() => setSelectedDate(date)}
                 className={clsx(
-                  'rounded-2xl px-2 py-2 text-center transition-colors',
-                  active ? 'bg-zinc-950 text-white' : 'bg-zinc-50 text-zinc-600'
+                  'rounded-2xl border px-1 py-2 text-center transition-colors',
+                  active ? 'border-zinc-950 bg-zinc-950 text-white' : 'border-zinc-200 bg-white text-zinc-700'
                 )}
               >
-                <div className="text-[10px] font-semibold uppercase tracking-[0.08em] opacity-70">{format(date, 'EEE')}</div>
-                <div className="mt-1 text-[16px] font-semibold">{format(date, 'd')}</div>
-                {count ? <div className={clsx('mx-auto mt-1 h-1 w-1 rounded-full', active ? 'bg-white' : 'bg-zinc-400')} /> : null}
+                <div className={clsx('text-[10px] font-medium uppercase tracking-[0.08em]', active ? 'text-zinc-300' : 'text-zinc-400')}>{format(date, 'EEE')}</div>
+                <div className="mt-1 text-[15px] font-semibold">{format(date, 'd')}</div>
+                <div className="mt-1 flex h-1 items-center justify-center">
+                  {hasSession ? <span className={clsx('h-1 w-1 rounded-full', active ? 'bg-white' : 'bg-zinc-950')} /> : null}
+                </div>
               </button>
             );
           })}
         </div>
-      </section>
+      </header>
 
-      {nextSession ? (
-        <section className="mb-4 rounded-[28px] border border-zinc-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Next up</div>
-          <div className="mt-3 flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <div className="line-clamp-2 text-[17px] font-semibold leading-tight text-zinc-950">{cleanTitle(nextSession.title)}</div>
-              <div className="mt-1 text-[13px] text-zinc-500">{format(parseDate(nextSession.date), 'EEE, MMM d')} · {normalizeSport(nextSession.sport)}</div>
-            </div>
-            <button type="button" onClick={() => setSelectedSession(nextSession)} className="shrink-0 rounded-xl bg-zinc-950 px-4 py-2 text-[13px] font-semibold text-white">
-              View
+      <div className="px-4 py-5">
+        {nextSession ? (
+          <section className="mb-5 rounded-3xl border border-zinc-200 bg-zinc-50/70 p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Next session</div>
+            <div className="mt-2 text-[18px] font-semibold leading-tight text-zinc-950">{cleanTitle(nextSession.title)}</div>
+            <div className="mt-2 text-[13px] text-zinc-500">{format(parseDate(nextSession.date), 'EEE, MMM d')} · {normalizeSport(nextSession.sport)}{formatMinutes(nextSession.duration ?? null) ? ` · ${formatMinutes(nextSession.duration ?? null)}` : ''}</div>
+            <button type="button" onClick={() => setSelectedSession(nextSession)} className="mt-4 w-full rounded-2xl bg-zinc-950 px-4 py-3 text-[14px] font-semibold text-white">
+              View workout
             </button>
-          </div>
-        </section>
-      ) : null}
+          </section>
+        ) : null}
 
-      <section className="rounded-[28px] border border-zinc-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">{format(selectedDate, 'EEEE')}</div>
-            <h2 className="mt-1 text-[20px] font-semibold tracking-tight text-zinc-950">{format(selectedDate, 'MMMM d')}</h2>
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <div className="text-[20px] font-semibold tracking-tight text-zinc-950">{selectedDateLabel}</div>
+              {raceGoal ? <div className="mt-1 text-[13px] text-zinc-500">{raceGoal}</div> : null}
+            </div>
           </div>
-          <button type="button" onClick={() => setAddSessionDate(selectedDate)} className="rounded-xl border border-zinc-200 px-3 py-2 text-[13px] font-semibold text-zinc-700">
-            Add
-          </button>
-        </div>
 
-        <div className="space-y-3">
           {sessionsForSelectedDate.length ? (
-            sessionsForSelectedDate.map((session) => {
-              const status = getCompletionStatus({ date: session.date, title: session.title, stravaActivity: session.stravaActivity }, localCompleted);
-              const completed = Boolean(session.stravaActivity) || status === 'done';
-              const skipped = status === 'skipped';
-              return (
-                <button
-                  key={session.id}
-                  type="button"
-                  onClick={() => setSelectedSession(session)}
-                  className="w-full rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 text-left transition-colors hover:bg-white"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <div className="mb-2 flex items-center gap-2">
-                        <span className={clsx('h-2 w-2 rounded-full', sportDot(session.sport))} />
-                        <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-500">{normalizeSport(session.sport)}</span>
+            <div className="space-y-3">
+              {sessionsForSelectedDate.map((session) => {
+                const status = getCompletionStatus(session, localCompleted);
+                const done = Boolean(session.stravaActivity) || status === 'done';
+                const skipped = status === 'skipped';
+                return (
+                  <button
+                    key={session.id}
+                    type="button"
+                    onClick={() => setSelectedSession(session)}
+                    className="w-full rounded-3xl border border-zinc-200 bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="mb-2 flex items-center gap-2">
+                          <span className={clsx('h-2 w-2 rounded-full', sportDot(session.sport))} />
+                          <span className="text-[12px] font-medium text-zinc-500">{normalizeSport(session.sport)}</span>
+                        </div>
+                        <div className="text-[16px] font-semibold leading-tight text-zinc-950">{cleanTitle(session.title)}</div>
+                        <div className="mt-2 text-[13px] text-zinc-500">{formatMinutes(session.duration ?? null) || 'Duration not set'}</div>
                       </div>
-                      <div className="line-clamp-2 text-[15px] font-semibold leading-snug text-zinc-950">{cleanTitle(session.title)}</div>
-                      <div className="mt-1 text-[13px] text-zinc-500">{formatMinutes(session.duration ?? null) || 'Planned'}</div>
+                      {done ? <span className="rounded-full bg-zinc-950 px-2.5 py-1 text-[11px] font-semibold text-white">Done</span> : null}
+                      {skipped ? <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-semibold text-zinc-600">Skipped</span> : null}
                     </div>
-                    {completed ? <span className="text-[12px] font-semibold text-emerald-700">Done</span> : null}
-                    {skipped ? <span className="text-[12px] font-semibold text-zinc-500">Skipped</span> : null}
-                  </div>
-                </button>
-              );
-            })
+                  </button>
+                );
+              })}
+            </div>
           ) : (
-            <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-8 text-center text-[13px] text-zinc-500">
-              No session scheduled. Add one or use this as recovery time.
+            <div className="rounded-3xl border border-dashed border-zinc-200 bg-zinc-50/60 px-4 py-10 text-center">
+              <div className="text-[15px] font-semibold text-zinc-950">No session planned</div>
+              <div className="mt-1 text-[13px] text-zinc-500">Add a workout or use this as a recovery day.</div>
+              <button type="button" onClick={() => setAddSessionDate(selectedDate)} className="mt-4 rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-[13px] font-semibold text-zinc-800">
+                Add session
+              </button>
             </div>
           )}
-        </div>
-      </section>
+        </section>
+      </div>
 
       <SessionModal
         session={selectedSession}
@@ -229,25 +231,18 @@ export default function MobileCalendarView({
         onClose={() => setSelectedSession(null)}
         completedSessions={localCompleted}
         onCompletedUpdate={setLocalCompleted}
-        onSessionDeleted={(sessionId) => {
-          setLocalSessions((prev) => prev.filter((session) => session.id !== sessionId));
-          onSessionDeleted?.(sessionId);
-        }}
-        onSessionUpdated={(updated) => {
-          setLocalSessions((prev) => prev.map((session) => (session.id === updated.id ? { ...session, ...updated } : session)));
-          setSelectedSession((prev) => (prev && prev.id === updated.id ? { ...prev, ...updated } : prev));
-        }}
-        weekLabel={`${format(weekDays[0], 'MMM d')} – ${format(weekDays[6], 'MMM d')}`}
+        onSessionDeleted={handleSessionDeleted}
+        onSessionUpdated={handleSessionUpdated}
         weekPhase={weekPhase}
         raceGoal={raceGoal}
       />
 
       <AddSessionModalTP
         open={!!addSessionDate}
-        date={addSessionDate ?? selectedDate}
+        date={addSessionDate ?? new Date()}
         onClose={() => setAddSessionDate(null)}
-        onAdded={(newSession: Session) => {
-          setLocalSessions((prev) => [...prev, newSession as MergedSession]);
+        onAdded={(row: MergedSession) => {
+          setLocalSessions((prev) => [...prev, row]);
           setAddSessionDate(null);
         }}
       />

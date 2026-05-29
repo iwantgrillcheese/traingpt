@@ -120,17 +120,12 @@ function parseWorkout(raw?: string | null): WorkoutSection[] {
 
 function getObjective(session: Session | null) {
   const detail = String(session?.details ?? '').trim();
-  if (!detail) return 'Execute the session with steady effort and clean form.';
-  return detail.split(/(?<=[.!?])\s+/)[0] || 'Execute the session with steady effort and clean form.';
+  if (!detail) return 'Execute this session with steady effort and good form.';
+  return detail.split(/(?<=[.!?])\s+/)[0] || 'Execute this session with steady effort and good form.';
 }
 
-function metricCard(label: string, value: string | null) {
-  return (
-    <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-3">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400">{label}</div>
-      <div className="mt-1 text-[14px] font-semibold text-zinc-950">{value || '—'}</div>
-    </div>
-  );
+function metaPill(label: string) {
+  return <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-[12px] font-medium text-zinc-600">{label}</span>;
 }
 
 export default function SessionModal({
@@ -157,10 +152,12 @@ export default function SessionModal({
   const [bodyWeightKg, setBodyWeightKg] = useState('');
   const [bodyFatPct, setBodyFatPct] = useState('');
   const [sweatRateLPerHour, setSweatRateLPerHour] = useState('');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     setOutput(session?.structured_workout ?? null);
     setNotesDraft(session?.details ?? '');
+    setErrorMessage(null);
   }, [session?.id, session?.structured_workout, session?.details]);
 
   useEffect(() => {
@@ -202,6 +199,7 @@ export default function SessionModal({
   const completedDuration = formatMovingTime(stravaActivity?.moving_time ?? null);
   const completedDistance = formatDistance(stravaActivity?.distance ?? null);
   const title = cleanTitle(session.title);
+  const sport = normalizeSport(session.sport);
 
   const applyLocalStatus = (nextStatus: 'done' | 'skipped' | null) => {
     const base = completedSessions.filter((item) => item.date !== session.date || item.session_title !== session.title);
@@ -211,6 +209,7 @@ export default function SessionModal({
 
   const updateStatus = async (mode: 'done' | 'skipped') => {
     setMarking(true);
+    setErrorMessage(null);
     const previous = completedSessions;
     const shouldUndo = mode === 'done' ? manualStatus === 'done' : isSkipped;
     onCompletedUpdate(applyLocalStatus(shouldUndo ? null : mode));
@@ -231,7 +230,7 @@ export default function SessionModal({
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) {
         onCompletedUpdate(previous);
-        window.alert(payload?.error || 'Could not update session status.');
+        setErrorMessage(payload?.error || 'Could not update session status.');
         return;
       }
 
@@ -240,7 +239,7 @@ export default function SessionModal({
     } catch (error) {
       console.error(error);
       onCompletedUpdate(previous);
-      window.alert('Unexpected error updating session.');
+      setErrorMessage('Unexpected error updating session.');
     } finally {
       setMarking(false);
     }
@@ -248,6 +247,7 @@ export default function SessionModal({
 
   const handleGenerate = async () => {
     setLoading(true);
+    setErrorMessage(null);
     try {
       const res = await fetch('/api/generate-detailed-session', {
         method: 'POST',
@@ -270,7 +270,7 @@ export default function SessionModal({
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.structured_workout) {
-        window.alert(data?.error || 'Failed to generate detailed workout.');
+        setErrorMessage(data?.error || 'Failed to generate detailed workout.');
         return;
       }
 
@@ -279,7 +279,7 @@ export default function SessionModal({
       onSessionUpdated?.({ ...session, structured_workout: structured, details: session.details });
     } catch (error) {
       console.error(error);
-      window.alert('Unexpected error generating workout.');
+      setErrorMessage('Unexpected error generating workout.');
     } finally {
       setLoading(false);
     }
@@ -288,17 +288,18 @@ export default function SessionModal({
   const handleSaveNotes = async () => {
     if (!notesChanged) return;
     setSavingNotes(true);
+    setErrorMessage(null);
     try {
       const cleanNotes = notesDraft.trim();
       const { error } = await supabase.from('sessions').update({ details: cleanNotes || null }).eq('id', session.id);
       if (error) {
-        window.alert('Could not save notes.');
+        setErrorMessage('Could not save notes.');
         return;
       }
       onSessionUpdated?.({ ...session, details: cleanNotes || null });
     } catch (error) {
       console.error(error);
-      window.alert('Unexpected error saving notes.');
+      setErrorMessage('Unexpected error saving notes.');
     } finally {
       setSavingNotes(false);
     }
@@ -309,7 +310,7 @@ export default function SessionModal({
     if (!confirmed) return;
     const { error } = await supabase.from('sessions').delete().eq('id', session.id);
     if (error) {
-      window.alert('Could not delete this session.');
+      setErrorMessage('Could not delete this session.');
       return;
     }
     onSessionDeleted?.(session.id);
@@ -318,51 +319,59 @@ export default function SessionModal({
 
   return (
     <Dialog open={open} onClose={onClose} className="relative z-50">
-      <div className="fixed inset-0 bg-zinc-950/25 backdrop-blur-sm" aria-hidden="true" />
+      <div className="fixed inset-0 bg-zinc-950/25 backdrop-blur-[2px]" aria-hidden="true" />
 
-      <div className="fixed inset-0 flex justify-end">
-        <Dialog.Panel className="flex h-full w-full max-w-[480px] flex-col border-l border-zinc-200 bg-[#FAFAF7] shadow-[0_30px_100px_rgba(15,23,42,0.28)]">
-          <div className="border-b border-zinc-200 bg-white px-6 py-5">
-            <div className="mb-5 flex items-start justify-between gap-4">
-              <div>
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">Planned</span>
-                  <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-semibold text-zinc-700">{normalizeSport(session.sport)}</span>
-                  {isCompleted ? <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">Completed</span> : null}
-                  {isSkipped ? <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-semibold text-zinc-600">Skipped</span> : null}
+      <div className="fixed inset-0 flex items-center justify-center p-4 sm:p-6">
+        <Dialog.Panel className="flex max-h-[88vh] w-full max-w-[760px] flex-col overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.22)]">
+          <div className="border-b border-zinc-200 px-6 py-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  {metaPill(sport)}
+                  {metaPill(formattedDate)}
+                  {isCompleted ? <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[12px] font-medium text-emerald-700">Completed</span> : null}
+                  {isSkipped ? <span className="rounded-full border border-zinc-200 bg-zinc-100 px-2.5 py-1 text-[12px] font-medium text-zinc-600">Skipped</span> : null}
                 </div>
-                <Dialog.Title className="text-[24px] font-semibold leading-tight tracking-tight text-zinc-950">{title}</Dialog.Title>
-                <div className="mt-2 text-[13px] text-zinc-500">{formattedDate}</div>
+                <Dialog.Title className="text-[26px] font-semibold leading-tight tracking-tight text-zinc-950">
+                  {title}
+                </Dialog.Title>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-zinc-500">
+                  {plannedDuration ? <span>Planned {plannedDuration}</span> : null}
+                  {completedDuration ? <span>Completed {completedDuration}</span> : null}
+                  {completedDistance ? <span>{completedDistance}</span> : null}
+                  {raceGoal ? <span>{raceGoal}</span> : null}
+                </div>
               </div>
 
               <button type="button" onClick={onClose} className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-zinc-200 bg-white text-zinc-500 hover:bg-zinc-50">
                 <XIcon className="h-5 w-5" />
               </button>
             </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              {metricCard('Planned', plannedDuration)}
-              {metricCard('Completed', completedDuration ?? completedDistance)}
-            </div>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-            <section className="rounded-3xl border border-zinc-200 bg-white p-5">
+            {errorMessage ? (
+              <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-[13px] font-medium text-rose-700">
+                {errorMessage}
+              </div>
+            ) : null}
+
+            <section className="rounded-2xl border border-zinc-200 bg-zinc-50/60 p-4">
               <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Objective</div>
               <p className="mt-2 text-[14px] leading-6 text-zinc-700">{getObjective(session)}</p>
             </section>
 
-            <section className="mt-4 rounded-3xl border border-zinc-200 bg-white p-5">
-              <div className="mb-4 flex items-center justify-between">
+            <section className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4">
+              <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
                   <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Workout</div>
-                  <div className="mt-1 text-[14px] font-semibold text-zinc-950">{workoutSections.length ? 'Structured session' : 'Not generated yet'}</div>
+                  <div className="mt-1 text-[15px] font-semibold text-zinc-950">{workoutSections.length ? 'Structured workout' : 'Not generated yet'}</div>
                 </div>
                 <button
                   type="button"
                   onClick={handleGenerate}
                   disabled={loading}
-                  className="inline-flex items-center gap-2 rounded-xl bg-zinc-950 px-3.5 py-2 text-[13px] font-semibold text-white disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-xl bg-zinc-950 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
                 >
                   <SparkIcon className="h-4 w-4" />
                   {loading ? 'Generating…' : workoutSections.length ? 'Regenerate' : 'Generate'}
@@ -372,12 +381,12 @@ export default function SessionModal({
               {workoutSections.length ? (
                 <div className="space-y-3">
                   {workoutSections.map((section) => (
-                    <div key={section.title} className="rounded-2xl border border-zinc-100 bg-zinc-50/70 p-4">
-                      <div className="text-[13px] font-semibold text-zinc-950">{section.title}</div>
-                      <ul className="mt-2 space-y-1.5 text-[13px] leading-5 text-zinc-600">
+                    <div key={section.title} className="rounded-2xl border border-zinc-200 bg-zinc-50/60 p-4">
+                      <div className="text-[14px] font-semibold text-zinc-950">{section.title}</div>
+                      <ul className="mt-2 space-y-1.5 text-[14px] leading-6 text-zinc-700">
                         {section.items.map((item, index) => (
                           <li key={`${section.title}-${index}`} className="flex gap-2">
-                            <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-zinc-400" />
+                            <span className="mt-2.5 h-1 w-1 shrink-0 rounded-full bg-zinc-400" />
                             <span>{item}</span>
                           </li>
                         ))}
@@ -386,35 +395,46 @@ export default function SessionModal({
                   ))}
                 </div>
               ) : (
-                <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-8 text-center text-[13px] text-zinc-500">
-                  Generate a detailed workout to turn this session into warm-up, main set, and cool-down steps.
+                <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-8 text-center text-[14px] leading-6 text-zinc-500">
+                  Generate a clear version of this session with warm-up, main set, and cool-down steps.
                 </div>
               )}
             </section>
 
-            <section className="mt-4 rounded-3xl border border-zinc-200 bg-white p-5">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Completion</div>
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => updateStatus('done')}
-                  disabled={marking}
-                  className={clsx('rounded-xl border px-4 py-3 text-[13px] font-semibold', isCompleted ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50')}
-                >
-                  {manualStatus === 'done' ? 'Mark as not done' : 'Mark done'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => updateStatus('skipped')}
-                  disabled={marking || Boolean(stravaActivity)}
-                  className={clsx('rounded-xl border px-4 py-3 text-[13px] font-semibold', isSkipped ? 'border-zinc-300 bg-zinc-100 text-zinc-700' : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 disabled:opacity-50')}
-                >
-                  {isSkipped ? 'Unskip session' : 'Skip session'}
-                </button>
-              </div>
-            </section>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <section className="rounded-2xl border border-zinc-200 bg-white p-4">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Completion</div>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => updateStatus('done')}
+                    disabled={marking}
+                    className={clsx('rounded-xl border px-4 py-3 text-[13px] font-semibold', isCompleted ? 'border-zinc-950 bg-zinc-950 text-white' : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50')}
+                  >
+                    {manualStatus === 'done' ? 'Undo done' : 'Mark done'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateStatus('skipped')}
+                    disabled={marking || Boolean(stravaActivity)}
+                    className={clsx('rounded-xl border px-4 py-3 text-[13px] font-semibold', isSkipped ? 'border-zinc-300 bg-zinc-100 text-zinc-800' : 'border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50 disabled:opacity-50')}
+                  >
+                    {isSkipped ? 'Unskip' : 'Skip'}
+                  </button>
+                </div>
+              </section>
 
-            <section className="mt-4 rounded-3xl border border-zinc-200 bg-white p-5">
+              <section className="rounded-2xl border border-zinc-200 bg-white p-4">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Context</div>
+                <div className="mt-3 space-y-1.5 text-[13px] leading-5 text-zinc-600">
+                  <div>Week: <span className="font-medium text-zinc-950">{weekLabel || 'Current week'}</span></div>
+                  <div>Phase: <span className="font-medium text-zinc-950">{weekPhase || 'Active'}</span></div>
+                  <div>Recent: <span className="font-medium text-zinc-950">{recentCompleted} done · {recentMissed} missed</span></div>
+                </div>
+              </section>
+            </div>
+
+            <section className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4">
               <div className="mb-3 flex items-center justify-between">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Notes</div>
                 <button type="button" onClick={handleSaveNotes} disabled={!notesChanged || savingNotes} className="text-[12px] font-semibold text-zinc-950 disabled:text-zinc-300">
@@ -425,42 +445,39 @@ export default function SessionModal({
                 value={notesDraft}
                 onChange={(event) => setNotesDraft(event.target.value)}
                 placeholder="Add how you felt, what changed, or anything your coach should know."
-                className="min-h-[110px] w-full resize-none rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-[13px] leading-5 text-zinc-800 outline-none focus:border-zinc-400 focus:bg-white"
+                className="min-h-[105px] w-full resize-none rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-[14px] leading-6 text-zinc-800 outline-none focus:border-zinc-400 focus:bg-white"
               />
             </section>
 
-            <section className="mt-4 rounded-3xl border border-zinc-200 bg-white p-5">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Context</div>
-              <div className="mt-3 grid grid-cols-2 gap-3 text-[13px] text-zinc-600">
-                <div>Week: <span className="font-semibold text-zinc-950">{weekLabel || 'Current week'}</span></div>
-                <div>Phase: <span className="font-semibold text-zinc-950">{weekPhase || 'Active'}</span></div>
-                <div>Recent done: <span className="font-semibold text-zinc-950">{recentCompleted}</span></div>
-                <div>Recent missed: <span className="font-semibold text-zinc-950">{recentMissed}</span></div>
-              </div>
-              {raceGoal ? <div className="mt-3 text-[13px] text-zinc-500">Race focus: {raceGoal}</div> : null}
-            </section>
-
-            <section className="mt-4 rounded-3xl border border-zinc-200 bg-white p-5">
-              <label className="flex items-center justify-between gap-4">
+            <section className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4">
+              <label className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-[13px] font-semibold text-zinc-950">Include fueling guidance</div>
-                  <div className="mt-1 text-[12px] text-zinc-500">Optional context for long or high-intensity sessions.</div>
+                  <div className="text-[13px] font-semibold text-zinc-950">Add fueling guidance</div>
+                  <div className="mt-1 text-[13px] leading-5 text-zinc-500">Optional. Included next time you generate the workout.</div>
                 </div>
-                <input type="checkbox" checked={fuelingEnabled} onChange={(event) => setFuelingEnabled(event.target.checked)} className="h-4 w-4" />
+                <input type="checkbox" checked={fuelingEnabled} onChange={(event) => setFuelingEnabled(event.target.checked)} className="mt-1 h-4 w-4" />
               </label>
 
               {fuelingEnabled ? (
-                <div className="mt-4 grid grid-cols-3 gap-2">
-                  <input value={bodyWeightKg} onChange={(e) => setBodyWeightKg(e.target.value)} placeholder="kg" className="rounded-xl border border-zinc-200 px-3 py-2 text-[13px]" />
-                  <input value={bodyFatPct} onChange={(e) => setBodyFatPct(e.target.value)} placeholder="body fat %" className="rounded-xl border border-zinc-200 px-3 py-2 text-[13px]" />
-                  <input value={sweatRateLPerHour} onChange={(e) => setSweatRateLPerHour(e.target.value)} placeholder="L/hr" className="rounded-xl border border-zinc-200 px-3 py-2 text-[13px]" />
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <input value={bodyWeightKg} onChange={(event) => setBodyWeightKg(event.target.value)} placeholder="kg" className="rounded-xl border border-zinc-200 px-3 py-2 text-[13px] outline-none focus:border-zinc-400" />
+                  <input value={bodyFatPct} onChange={(event) => setBodyFatPct(event.target.value)} placeholder="body fat %" className="rounded-xl border border-zinc-200 px-3 py-2 text-[13px] outline-none focus:border-zinc-400" />
+                  <input value={sweatRateLPerHour} onChange={(event) => setSweatRateLPerHour(event.target.value)} placeholder="sweat L/hr" className="rounded-xl border border-zinc-200 px-3 py-2 text-[13px] outline-none focus:border-zinc-400" />
                 </div>
               ) : null}
             </section>
+          </div>
 
-            <div className="mt-6 border-t border-zinc-200 pt-4">
-              <button type="button" onClick={handleDelete} className="text-[13px] font-semibold text-rose-600 hover:text-rose-700">
-                Delete session
+          <div className="flex items-center justify-between gap-3 border-t border-zinc-200 bg-white px-6 py-4">
+            <button type="button" onClick={handleDelete} className="text-[13px] font-medium text-zinc-400 hover:text-rose-600">
+              Delete session
+            </button>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={onClose} className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-[13px] font-semibold text-zinc-700 hover:bg-zinc-50">
+                Close
+              </button>
+              <button type="button" onClick={handleGenerate} disabled={loading} className="rounded-xl bg-zinc-950 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-zinc-800 disabled:opacity-60">
+                {loading ? 'Generating…' : workoutSections.length ? 'Regenerate workout' : 'Generate workout'}
               </button>
             </div>
           </div>

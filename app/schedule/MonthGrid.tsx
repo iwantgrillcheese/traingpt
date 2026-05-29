@@ -51,12 +51,12 @@ export default function MonthGrid({
   }, [currentMonth]);
 
   return (
-    <section className="overflow-hidden rounded-[28px] border border-zinc-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
-      <div className="grid grid-cols-7 border-b border-zinc-200 bg-zinc-50/80">
+    <section className="overflow-hidden rounded-[18px] border border-zinc-200 bg-white">
+      <div className="grid grid-cols-7 border-b border-zinc-200 bg-white">
         {WEEKDAYS.map((weekday) => (
           <div
             key={weekday}
-            className="px-3 py-3 text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500"
+            className="px-3 py-3 text-center text-[11px] font-medium uppercase tracking-[0.12em] text-zinc-400"
           >
             {weekday}
           </div>

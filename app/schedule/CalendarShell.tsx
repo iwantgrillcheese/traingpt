@@ -1,14 +1,13 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SVGProps } from 'react';
 import {
   addMonths,
-  differenceInCalendarDays,
   endOfWeek,
   format,
   isAfter,
-  isSameDay,
   parseISO,
   startOfMonth,
   startOfWeek,
@@ -53,6 +52,13 @@ type CalendarShellProps = {
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
+const NAV_ITEMS = [
+  { label: 'Schedule', href: '/schedule' },
+  { label: 'Coaching', href: '/coaching' },
+  { label: 'Plan', href: '/plan' },
+  { label: 'Settings', href: '/settings' },
+];
+
 function IconChevronLeft(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
@@ -65,14 +71,6 @@ function IconChevronRight(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
       <path d="m7.5 4.5 5 5.5-5 5.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function IconSpark(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
-      <path d="M10 2.5 11.7 8l5.8 2-5.8 2L10 17.5 8.3 12l-5.8-2 5.8-2L10 2.5Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -92,6 +90,7 @@ function getWeeklyStats(sessions: MergedSession[], completed: CompletedSession[]
   const now = new Date();
   const start = startOfWeek(now, { weekStartsOn: 1 });
   const end = endOfWeek(now, { weekStartsOn: 1 });
+
   const weekSessions = sessions.filter((session) => {
     if (!session.date) return false;
     const date = parseISO(session.date);
@@ -121,6 +120,13 @@ function formatMinutes(minutes: number) {
   return mins ? `${hours}h ${mins}m` : `${hours}h`;
 }
 
+function cleanTitle(title?: string | null) {
+  return String(title ?? 'Untitled session')
+    .replace(/^\p{Extended_Pictographic}\s*/u, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 function getNextSession(sessions: MergedSession[]) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -130,49 +136,38 @@ function getNextSession(sessions: MergedSession[]) {
     .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime())[0] ?? null;
 }
 
-function SummaryCard({ label, value, detail }: { label: string; value: string; detail?: string }) {
+function AppRail({ raceGoal }: { raceGoal?: string | null }) {
   return (
-    <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400">{label}</div>
-      <div className="mt-1 text-[18px] font-semibold tracking-tight text-zinc-950">{value}</div>
-      {detail ? <div className="mt-1 text-[12px] text-zinc-500">{detail}</div> : null}
-    </div>
-  );
-}
-
-function AppSidebar({ raceGoal }: { raceGoal?: string | null }) {
-  const items = ['Overview', 'Schedule', 'Sessions', 'Plan', 'Progress', 'Coaching'];
-
-  return (
-    <aside className="hidden w-[220px] shrink-0 border-r border-zinc-200 bg-white/85 px-4 py-5 xl:block">
+    <aside className="hidden w-[184px] shrink-0 border-r border-zinc-200 bg-white px-4 py-5 lg:block">
       <div className="mb-8 flex items-center gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-950 text-sm font-semibold text-white">T</div>
-        <div>
-          <div className="text-[15px] font-semibold tracking-tight text-zinc-950">TrainGPT</div>
-          <div className="text-[11px] text-zinc-500">Plans · Calendar · Strava</div>
+        <div className="grid h-8 w-8 place-items-center rounded-lg bg-zinc-950 text-[13px] font-semibold text-white">T</div>
+        <div className="min-w-0">
+          <div className="text-[14px] font-semibold tracking-tight text-zinc-950">TrainGPT</div>
+          <div className="truncate text-[11px] text-zinc-500">Plans · Calendar · Strava</div>
         </div>
       </div>
 
       <nav className="space-y-1">
-        {items.map((item) => {
-          const active = item === 'Schedule';
+        {NAV_ITEMS.map((item) => {
+          const active = item.href === '/schedule';
           return (
-            <div
-              key={item}
-              className={`rounded-xl px-3 py-2 text-[13px] font-medium ${
-                active ? 'bg-zinc-100 text-zinc-950' : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900'
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`block rounded-lg px-3 py-2 text-[13px] font-medium transition-colors ${
+                active ? 'bg-zinc-100 text-zinc-950' : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-950'
               }`}
             >
-              {item}
-            </div>
+              {item.label}
+            </Link>
           );
         })}
       </nav>
 
-      <div className="mt-8 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+      <div className="mt-8 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4">
         <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Race focus</div>
-        <div className="mt-2 text-[13px] font-semibold text-zinc-950">{raceGoal || 'Current plan'}</div>
-        <div className="mt-2 text-[12px] leading-5 text-zinc-500">Keep the week consistent and protect key sessions.</div>
+        <div className="mt-2 text-[13px] font-semibold leading-snug text-zinc-950">{raceGoal || 'Current plan'}</div>
+        <div className="mt-2 text-[12px] leading-5 text-zinc-500">Keep the plan simple. Protect the key sessions.</div>
       </div>
     </aside>
   );
@@ -233,29 +228,38 @@ export default function CalendarShell({
 
   const sessionsByDate = useMemo(() => {
     const map: Record<string, MergedSession[]> = {};
-    for (const session of localSessions) {
-      if (!session.date) continue;
+    localSessions.forEach((session) => {
+      if (!session.date) return;
       if (!map[session.date]) map[session.date] = [];
       map[session.date].push(session);
-    }
-    Object.keys(map).forEach((dateKey) => {
-      map[dateKey] = map[dateKey].slice().sort((a, b) => String(a.sport ?? '').localeCompare(String(b.sport ?? '')));
     });
+
+    Object.keys(map).forEach((dateKey) => {
+      map[dateKey] = map[dateKey]
+        .slice()
+        .sort((a, b) => String(a.sport ?? '').localeCompare(String(b.sport ?? '')));
+    });
+
     return map;
   }, [localSessions]);
 
   const stravaByDate = useMemo(() => normalizeStravaActivities(extraStravaActivities, timezone), [extraStravaActivities, timezone]);
-  const weeklyStats = useMemo(() => getWeeklyStats(localSessions, completed), [localSessions, completed]);
   const nextSession = useMemo(() => getNextSession(localSessions), [localSessions]);
+  const weeklyStats = useMemo(() => getWeeklyStats(localSessions, completed), [localSessions, completed]);
+
   const weekLabel = useMemo(() => {
     const now = new Date();
-    return `${format(startOfWeek(now, { weekStartsOn: 1 }), 'MMM d')} – ${format(endOfWeek(now, { weekStartsOn: 1 }), 'MMM d')}`;
+    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+    const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
+    return `${format(weekStart, 'MMM d')}–${format(weekEnd, 'MMM d')}`;
   }, []);
 
   const recentExecution = useMemo(() => {
     const cutoff = subDays(new Date(), 14);
     const completedKeys = new Set(
-      completed.filter((item) => (item.status ?? 'done') === 'done').map((item) => `${item.date}::${item.session_title}`)
+      completed
+        .filter((item) => (item.status ?? 'done') === 'done')
+        .map((item) => `${item.date}::${item.session_title}`)
     );
 
     const recentCompleted = localSessions.filter((session) => {
@@ -336,9 +340,9 @@ export default function CalendarShell({
 
   if (isMobileView) {
     return (
-      <main className="min-h-[100dvh] bg-[#FAFAF7] pb-[env(safe-area-inset-bottom)]">
+      <main className="min-h-[100dvh] bg-white pb-[env(safe-area-inset-bottom)]">
         <MobileCalendarView
-          sessions={localSessions as any}
+          sessions={localSessions}
           completedSessions={completed}
           stravaActivities={extraStravaActivities}
           onSessionDeleted={handleSessionDeleted}
@@ -349,68 +353,62 @@ export default function CalendarShell({
     );
   }
 
-  const daysToRace = raceGoal && nextSession?.date ? Math.max(0, differenceInCalendarDays(parseISO(nextSession.date), new Date())) : null;
+  const nextTitle = nextSession ? cleanTitle(nextSession.title) : null;
+  const nextDate = nextSession?.date ? format(parseISO(nextSession.date), 'EEE, MMM d') : null;
 
   return (
-    <main className="min-h-[100dvh] bg-[#FAFAF7] text-zinc-950">
+    <main className="min-h-[100dvh] bg-[#fbfbfa] text-zinc-950">
       <div className="flex min-h-[100dvh]">
-        <AppSidebar raceGoal={raceGoal} />
+        <AppRail raceGoal={raceGoal} />
 
         <div className="min-w-0 flex-1">
-          <header className="sticky top-0 z-30 border-b border-zinc-200 bg-[#FAFAF7]/90 backdrop-blur-xl">
-            <div className="flex h-16 items-center justify-between px-5 lg:px-8">
-              <div className="flex items-center gap-3">
-                <button type="button" onClick={goToPrevMonth} className="grid h-9 w-9 place-items-center rounded-xl border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50" aria-label="Previous month">
-                  <IconChevronLeft className="h-5 w-5" />
-                </button>
-                <button type="button" onClick={goToNextMonth} className="grid h-9 w-9 place-items-center rounded-xl border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50" aria-label="Next month">
-                  <IconChevronRight className="h-5 w-5" />
-                </button>
-                <div className="ml-2">
-                  <h1 className="text-[22px] font-semibold tracking-tight text-zinc-950">{format(currentMonth, 'MMMM yyyy')}</h1>
-                  <p className="text-[12px] text-zinc-500">{weekPhaseSummary || 'Your training calendar'}</p>
+          <header className="sticky top-0 z-30 border-b border-zinc-200 bg-[#fbfbfa]/90 backdrop-blur-xl">
+            <div className="flex min-h-20 items-center justify-between gap-4 px-5 py-4 lg:px-8">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h1 className="text-[24px] font-semibold tracking-tight text-zinc-950">Schedule</h1>
+                  <span className="hidden text-[13px] text-zinc-400 sm:inline">/</span>
+                  <span className="hidden text-[13px] font-medium text-zinc-500 sm:inline">{format(currentMonth, 'MMMM yyyy')}</span>
                 </div>
+                <p className="mt-1 truncate text-[13px] text-zinc-500">
+                  {nextTitle ? `Next: ${nextTitle}${nextDate ? ` · ${nextDate}` : ''}` : 'Your training calendar'}
+                </p>
               </div>
 
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={goToToday} className="h-9 rounded-xl border border-zinc-200 bg-white px-3 text-[13px] font-semibold text-zinc-700 hover:bg-zinc-50">
+              <div className="flex shrink-0 items-center gap-2">
+                <button type="button" onClick={goToPrevMonth} className="grid h-9 w-9 place-items-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50" aria-label="Previous month">
+                  <IconChevronLeft className="h-5 w-5" />
+                </button>
+                <button type="button" onClick={goToNextMonth} className="grid h-9 w-9 place-items-center rounded-lg border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50" aria-label="Next month">
+                  <IconChevronRight className="h-5 w-5" />
+                </button>
+                <button type="button" onClick={goToToday} className="h-9 rounded-lg border border-zinc-200 bg-white px-3 text-[13px] font-medium text-zinc-700 hover:bg-zinc-50">
                   Today
                 </button>
                 {onOpenWalkthroughAction ? (
-                  <button type="button" onClick={onOpenWalkthroughAction} disabled={walkthroughLoading} className="h-9 rounded-xl border border-zinc-200 bg-white px-3 text-[13px] font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-50">
+                  <button type="button" onClick={onOpenWalkthroughAction} disabled={walkthroughLoading} className="hidden h-9 rounded-lg border border-zinc-200 bg-white px-3 text-[13px] font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 sm:block">
                     {walkthroughLoading ? 'Opening…' : 'Walkthrough'}
                   </button>
                 ) : null}
-                <button type="button" onClick={() => setAddSessionDate(new Date())} className="h-9 rounded-xl bg-zinc-950 px-4 text-[13px] font-semibold text-white shadow-[0_10px_25px_rgba(15,23,42,0.18)] hover:bg-zinc-800">
+                <button type="button" onClick={() => setAddSessionDate(new Date())} className="h-9 rounded-lg bg-zinc-950 px-4 text-[13px] font-semibold text-white hover:bg-zinc-800">
                   + Add
                 </button>
               </div>
             </div>
+
+            <div className="border-t border-zinc-200 px-5 py-2 lg:px-8">
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[12px] text-zinc-500">
+                <span>{weekPhaseSummary || 'Active training block'}</span>
+                <span>{weeklyStats.planned ? `${weeklyStats.done}/${weeklyStats.planned} sessions complete` : 'No sessions this week'}</span>
+                <span>{weeklyStats.minutes ? `${formatMinutes(weeklyStats.minutes)} planned` : 'Volume not set'}</span>
+                <span>{weeklyStats.planned ? `${weeklyStats.adherence}% adherence` : null}</span>
+              </div>
+            </div>
           </header>
 
-          <div className="px-5 py-6 lg:px-8">
-            <section className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-4">
-              <div className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] lg:col-span-2">
-                <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  Current focus
-                </div>
-                <h2 className="text-[24px] font-semibold tracking-tight text-zinc-950">
-                  {todaySummary || nextSummary || 'Keep the week consistent.'}
-                </h2>
-                <p className="mt-2 max-w-2xl text-[14px] leading-6 text-zinc-500">
-                  {nextSession ? `Next up: ${nextSession.title}` : 'Open any session to review details, mark completion, or generate a structured workout.'}
-                </p>
-              </div>
-
-              <SummaryCard label="Weekly volume" value={formatMinutes(weeklyStats.minutes)} detail={`${weeklyStats.done} of ${weeklyStats.planned} sessions done`} />
-              <SummaryCard label="Adherence" value={weeklyStats.planned ? `${weeklyStats.adherence}%` : '—'} detail={weeklyStats.planned ? 'Current week' : 'No planned sessions'} />
-              <SummaryCard label="Next" value={nextSummary || 'No upcoming session'} detail={nextSession?.date ? format(parseISO(nextSession.date), 'EEE, MMM d') : undefined} />
-              <SummaryCard label="Race focus" value={raceGoal || 'Active plan'} detail={daysToRace !== null ? `${daysToRace} days to next key session` : undefined} />
-            </section>
-
+          <div className="px-5 py-5 lg:px-8">
             {saveState !== 'idle' ? (
-              <div className={`mb-4 rounded-2xl border px-4 py-3 text-[13px] font-medium ${
+              <div className={`mb-4 rounded-xl border px-4 py-3 text-[13px] font-medium ${
                 saveState === 'error'
                   ? 'border-rose-200 bg-rose-50 text-rose-700'
                   : saveState === 'saving'
