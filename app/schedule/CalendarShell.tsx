@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SVGProps } from 'react';
 import {
@@ -51,13 +50,6 @@ type CalendarShellProps = {
 };
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
-
-const NAV_ITEMS = [
-  { label: 'Schedule', href: '/schedule' },
-  { label: 'Coaching', href: '/coaching' },
-  { label: 'Plan', href: '/plan' },
-  { label: 'Settings', href: '/settings' },
-];
 
 function IconChevronLeft(props: SVGProps<SVGSVGElement>) {
   return (
@@ -134,43 +126,6 @@ function getNextSession(sessions: MergedSession[]) {
   return sessions
     .filter((session) => session.date && parseISO(session.date) >= today)
     .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime())[0] ?? null;
-}
-
-function AppRail({ raceGoal }: { raceGoal?: string | null }) {
-  return (
-    <aside className="hidden w-[184px] shrink-0 border-r border-zinc-200 bg-white px-4 py-5 lg:block">
-      <div className="mb-8 flex items-center gap-3">
-        <div className="grid h-8 w-8 place-items-center rounded-lg bg-zinc-950 text-[13px] font-semibold text-white">T</div>
-        <div className="min-w-0">
-          <div className="text-[14px] font-semibold tracking-tight text-zinc-950">TrainGPT</div>
-          <div className="truncate text-[11px] text-zinc-500">Plans · Calendar · Strava</div>
-        </div>
-      </div>
-
-      <nav className="space-y-1">
-        {NAV_ITEMS.map((item) => {
-          const active = item.href === '/schedule';
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`block rounded-lg px-3 py-2 text-[13px] font-medium transition-colors ${
-                active ? 'bg-zinc-100 text-zinc-950' : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-950'
-              }`}
-            >
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
-
-      <div className="mt-8 rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4">
-        <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Race focus</div>
-        <div className="mt-2 text-[13px] font-semibold leading-snug text-zinc-950">{raceGoal || 'Current plan'}</div>
-        <div className="mt-2 text-[12px] leading-5 text-zinc-500">Keep the plan simple. Protect the key sessions.</div>
-      </div>
-    </aside>
-  );
 }
 
 export default function CalendarShell({
@@ -358,10 +313,7 @@ export default function CalendarShell({
 
   return (
     <main className="min-h-[100dvh] bg-[#fbfbfa] text-zinc-950">
-      <div className="flex min-h-[100dvh]">
-        <AppRail raceGoal={raceGoal} />
-
-        <div className="min-w-0 flex-1">
+      <div className="min-w-0">
           <header className="sticky top-0 z-30 border-b border-zinc-200 bg-[#fbfbfa]/90 backdrop-blur-xl">
             <div className="flex min-h-20 items-center justify-between gap-4 px-5 py-4 lg:px-8">
               <div className="min-w-0">
@@ -432,7 +384,6 @@ export default function CalendarShell({
             </DndContext>
           </div>
         </div>
-      </div>
 
       <SessionModal
         session={selectedSession}

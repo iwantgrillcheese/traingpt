@@ -4,7 +4,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation';
 
 import CalendarShell from './CalendarShell';
-import Footer from '../components/footer';
 import PostPlanWalkthrough from '../plan/components/PostPlanWalkthrough';
 
 import { supabase } from '@/lib/supabase/client';
@@ -554,8 +553,7 @@ export default function SchedulePage() {
       ) : null}
 
       <main className="flex-grow">
-        <div className="relative left-1/2 w-screen -translate-x-1/2">
-          <CalendarShell
+        <CalendarShell
             sessions={enrichedSessions}
             completedSessions={completedSessions}
             extraStravaActivities={unmatchedActivities}
@@ -568,10 +566,7 @@ export default function SchedulePage() {
             weekPhaseSummary={scheduleSummary.weekPhase}
             raceGoal={raceHub?.raceType ?? raceHub?.raceName ?? null}
           />
-        </div>
       </main>
-
-      <Footer />
     </div>
   );
 }

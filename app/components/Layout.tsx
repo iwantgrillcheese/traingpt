@@ -1,33 +1,33 @@
 'use client';
 
-import { useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
 import ProfileAvatar from './profile avatar';
 
-type NavItem = {
-  label: string;
-  href: string;
-};
+const APP_ROUTES = ['/schedule', '/coaching', '/plan', '/settings'];
 
-const NAV: NavItem[] = [
+const NAV_ITEMS = [
   { label: 'Schedule', href: '/schedule' },
   { label: 'Coaching', href: '/coaching' },
   { label: 'Plan', href: '/plan' },
   { label: 'Settings', href: '/settings' },
 ];
 
+function isAppRoute(pathname: string | null) {
+  if (!pathname) return false;
+  return APP_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+}
+
 function isActive(pathname: string | null, href: string) {
   if (!pathname) return false;
-  if (href === '/') return pathname === '/';
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 function AppSidebar({ pathname }: { pathname: string | null }) {
   return (
-    <aside className="hidden border-r border-zinc-200 bg-[#fbfbfa] lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:flex lg:w-[244px] lg:flex-col">
-      <div className="px-5 pb-4 pt-6">
+    <aside className="hidden border-r border-zinc-200 bg-white lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:flex lg:w-[232px] lg:flex-col">
+      <div className="px-5 pb-5 pt-7">
         <Link href="/schedule" className="block">
           <div className="text-[17px] font-semibold tracking-tight text-zinc-950">TrainGPT</div>
           <div className="mt-1 text-xs text-zinc-500">Triathlon training</div>
@@ -36,7 +36,7 @@ function AppSidebar({ pathname }: { pathname: string | null }) {
 
       <nav className="flex flex-1 flex-col px-3 pb-4 text-sm">
         <div className="space-y-1 border-t border-zinc-200 pt-4">
-          {NAV.map((item) => {
+          {NAV_ITEMS.map((item) => {
             const active = isActive(pathname, item.href);
 
             return (
@@ -44,10 +44,10 @@ function AppSidebar({ pathname }: { pathname: string | null }) {
                 key={item.href}
                 href={item.href}
                 className={clsx(
-                  'flex items-center rounded-lg px-3 py-2.5 text-[14px] font-medium transition',
+                  'flex items-center rounded-lg px-3 py-2.5 text-[14px] font-medium transition-colors',
                   active
                     ? 'bg-zinc-950 text-white'
-                    : 'text-zinc-600 hover:bg-white hover:text-zinc-950'
+                    : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950'
                 )}
               >
                 {item.label}
@@ -66,7 +66,7 @@ function AppSidebar({ pathname }: { pathname: string | null }) {
 
 function MobileHeader() {
   return (
-    <header className="sticky top-0 z-40 border-b border-zinc-200 bg-white/90 backdrop-blur lg:hidden">
+    <header className="sticky top-0 z-40 border-b border-zinc-200 bg-white/95 backdrop-blur lg:hidden">
       <div className="flex h-14 items-center justify-between px-4">
         <Link href="/schedule" className="text-sm font-semibold tracking-tight text-zinc-950">
           TrainGPT
@@ -89,31 +89,25 @@ function MobileHeader() {
 export default function Layout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
-  const isLanding = pathname === '/';
-  const isSchedule = useMemo(
-    () => pathname === '/schedule' || pathname?.startsWith('/schedule/'),
-    [pathname]
-  );
-
-  if (isLanding) {
+  if (!isAppRoute(pathname)) {
     return <div className="min-h-[100dvh] bg-white text-zinc-950">{children}</div>;
   }
 
-  // Schedule currently owns custom calendar chrome. Keep it full-bleed until
-  // we consolidate the app shell across every product surface.
-  if (isSchedule) {
-    return <div className="min-h-[100dvh] bg-[#fbfbfa] text-zinc-950">{children}</div>;
-  }
+  const isSchedule = pathname === '/schedule' || pathname?.startsWith('/schedule/');
 
   return (
     <div className="min-h-[100dvh] bg-[#fbfbfa] text-zinc-950">
       <AppSidebar pathname={pathname} />
       <MobileHeader />
 
-      <main className="lg:pl-[244px]">
-        <div className="mx-auto w-full max-w-[1240px] px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
-          {children}
-        </div>
+      <main className="min-h-[100dvh] lg:pl-[232px]">
+        {isSchedule ? (
+          children
+        ) : (
+          <div className="mx-auto w-full max-w-[1200px] px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+            {children}
+          </div>
+        )}
       </main>
     </div>
   );
