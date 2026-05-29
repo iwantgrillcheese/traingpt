@@ -8,6 +8,24 @@ import {
   isHardRun,
 } from "@/utils/runTargets";
 
+type RunValidationSession =
+  | string
+  | {
+      sport?: string;
+      title?: string;
+      details?: string;
+      description?: string;
+    };
+
+function sessionToText(session: RunValidationSession): string {
+  if (typeof session === "string") return session;
+
+  return [session.sport, session.title, session.details, session.description]
+    .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
+    .join(" — ")
+    .trim();
+}
+
 const hasDuration = (s: string) =>
   /\b\d{1,3}\s*min(s)?\b/i.test(s) ||
   /\b\d+(?:\.\d+)?\s*(h|hr|hrs|hour|hours)\b/i.test(s) ||
@@ -35,11 +53,11 @@ export function validateRunWeek(args: {
     qualityDays: number;
     preferredLongRunDay: DayOfWeek;
 
-    // NEW (optional but strongly recommended)
+    // optional but strongly recommended
     targetLongRunMin?: number;
     minLongRunMin?: number;
     maxQualityMin?: number;
-    maxSingleRunMin?: number; // helps enforce "no 60min day one" even if LR max is loose
+    maxSingleRunMin?: number;
     raceFamily?: string;
   };
 
@@ -54,9 +72,10 @@ export function validateRunWeek(args: {
   const curr = summarizeRunWeek(week);
   const prev = summarizeRunWeek(prevWeek);
 
-  // 1) Ensure every run session includes a duration
+  // 1) Ensure every run session includes a duration.
   for (const [date, sessions] of Object.entries(week.days ?? {})) {
-    for (const s of sessions ?? []) {
+    for (const rawSession of sessions ?? []) {
+      const s = sessionToText(rawSession as RunValidationSession);
       if (!isRunSession(s)) continue;
       if (!hasDuration(s)) {
         errors.push(`Run session missing duration on ${date}: "${s}"`);
@@ -64,7 +83,7 @@ export function validateRunWeek(args: {
     }
   }
 
-  // 2) Weekly minutes band: only enforce if most run sessions are parseable
+  // 2) Weekly minutes band: only enforce if most run sessions are parseable.
   const parseableRatio =
     curr.totalRunSessions > 0 ? curr.parseableRunSessions / curr.totalRunSessions : 1;
 
@@ -78,7 +97,7 @@ export function validateRunWeek(args: {
     }
   }
 
-  // 3) Long run cap
+  // 3) Long run cap.
   if (curr.longRunMin > 0 && curr.longRunMin > targets.longRunMax) {
     errors.push(`Long run ${curr.longRunMin} exceeds max ${targets.longRunMax}.`);
   }
@@ -108,7 +127,7 @@ export function validateRunWeek(args: {
     errors.push(`Long run ${curr.longRunMin} below minimum floor ${targets.minLongRunMin}.`);
   }
 
-  // 4) Hard day count + no back-to-back hard days
+  // 4) Hard day count + no back-to-back hard days.
   if (curr.hardDays.length > targets.qualityDays) {
     errors.push(`Too many hard run days (${curr.hardDays.length}) > ${targets.qualityDays}.`);
   }
@@ -124,16 +143,17 @@ export function validateRunWeek(args: {
     }
   }
 
-  // 4b) NEW: Max total "quality minutes" (sum parsed minutes of hard runs)
+  // 4b) Max total quality minutes.
   if (typeof targets.maxQualityMin === "number" && targets.maxQualityMin > 0) {
     let hardMinTotal = 0;
 
     for (const sessions of Object.values(week.days ?? {})) {
-      for (const s of sessions ?? []) {
+      for (const rawSession of sessions ?? []) {
+        const s = sessionToText(rawSession as RunValidationSession);
         if (!isRunSession(s)) continue;
         if (!isHardRun(s)) continue;
-        const m = parseMinutesFromText(s);
-        if (m) hardMinTotal += m;
+        const minutes = parseMinutesFromText(s);
+        if (minutes) hardMinTotal += minutes;
       }
     }
 
@@ -145,9 +165,12 @@ export function validateRunWeek(args: {
     }
   }
 
-  // 5) No doubles unless Advanced (2+ run sessions in same day)
+  // 5) No doubles unless Advanced (2+ run sessions in same day).
   for (const [date, sessions] of Object.entries(week.days ?? {})) {
-    const runCount = (sessions ?? []).filter(isRunSession).length;
+    const runCount = (sessions ?? []).filter((rawSession) =>
+      isRunSession(sessionToText(rawSession as RunValidationSession))
+    ).length;
+
     if (runCount > 1 && !allowDoubles) {
       errors.push(
         `Multiple run sessions in one day (${runCount}) on ${date}. Doubles not allowed for ${userParams.experience}.`
@@ -155,31 +178,33 @@ export function validateRunWeek(args: {
     }
   }
 
-  // 5b) NEW: Max single run duration (optional but powerful for ramp)
+  // 5b) Max single run duration.
   if (typeof targets.maxSingleRunMin === "number" && targets.maxSingleRunMin > 0) {
     for (const [date, sessions] of Object.entries(week.days ?? {})) {
-      for (const s of sessions ?? []) {
+      for (const rawSession of sessions ?? []) {
+        const s = sessionToText(rawSession as RunValidationSession);
         if (!isRunSession(s)) continue;
-        const m = parseMinutesFromText(s);
-        if (!m) continue;
-        if (m > targets.maxSingleRunMin) {
+        const minutes = parseMinutesFromText(s);
+        if (!minutes) continue;
+        if (minutes > targets.maxSingleRunMin) {
           errors.push(
-            `Run duration ${m}min exceeds maxSingleRunMin ${targets.maxSingleRunMin} on ${date}: "${s}"`
+            `Run duration ${minutes}min exceeds maxSingleRunMin ${targets.maxSingleRunMin} on ${date}: "${s}"`
           );
         }
       }
     }
   }
 
-  // 6) Preferred long run day: longest run by duration must land on preferred DOW
+  // 6) Preferred long run day: longest run by duration must land on preferred DOW.
   if (curr.longRunMin > 0) {
     const maxDates: string[] = [];
     for (const [date, sessions] of Object.entries(week.days ?? {})) {
       let dayMax = 0;
-      for (const s of sessions ?? []) {
+      for (const rawSession of sessions ?? []) {
+        const s = sessionToText(rawSession as RunValidationSession);
         if (!isRunSession(s)) continue;
-        const m = parseMinutesFromText(s);
-        if (m) dayMax = Math.max(dayMax, m);
+        const minutes = parseMinutesFromText(s);
+        if (minutes) dayMax = Math.max(dayMax, minutes);
       }
       if (dayMax === curr.longRunMin) maxDates.push(date);
     }
@@ -194,7 +219,7 @@ export function validateRunWeek(args: {
     }
   }
 
-  // 7) Deload behavior: prefer volume reduction (if prev week parseable)
+  // 7) Deload behavior: prefer volume reduction (if prev week parseable).
   if (weekMeta.deload && prev.totalMin > 0 && curr.totalMin > 0) {
     if (curr.totalMin > Math.round(prev.totalMin * 0.9)) {
       errors.push(
@@ -207,12 +232,13 @@ export function validateRunWeek(args: {
     }
 
     for (const [date, sessions] of Object.entries(week.days ?? {})) {
-      for (const s of sessions ?? []) {
+      for (const rawSession of sessions ?? []) {
+        const s = sessionToText(rawSession as RunValidationSession);
         if (!isRunSession(s)) continue;
         if (!isHardRun(s)) continue;
-        const mins = parseMinutesFromText(s);
-        if (mins && mins > 40) {
-          errors.push(`Deload week hard run too long on ${date}: ${mins}min ("${s}")`);
+        const minutes = parseMinutesFromText(s);
+        if (minutes && minutes > 40) {
+          errors.push(`Deload week hard run too long on ${date}: ${minutes}min ("${s}")`);
         }
       }
     }
