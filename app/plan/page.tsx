@@ -1,267 +1,227 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState, Suspense } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Footer from '../components/footer';
 import { supabase } from '@/lib/supabase/client';
-import PostPlanWalkthrough from './components/PostPlanWalkthrough';
-import type { WalkthroughContext } from '@/types/coachGuides';
 import { track } from '@/lib/analytics/posthog-client';
 
 export const dynamic = 'force-dynamic';
 
-type FieldConfig = {
-  id: string;
-  label: string;
-  type: 'text' | 'number' | 'select' | 'date';
-  options?: string[];
-  placeholder?: string;
-};
+type DayName = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
+type StepKey = 'goal' | 'experience' | 'schedule' | 'history' | 'notes' | 'review';
 
-type VoicePlanSummary = {
+type FormState = {
   raceType: string;
   raceDate: string;
   experience: string;
-  goalTime: string;
-  concerns: string;
-  availability: string;
-  stravaBaseline: string;
+  maxHours: string;
+  restDay: DayName | '';
+  preferredLongRideDay: DayName | '';
+  preferredLongRunDay: DayName | '';
+  unavailableDays: DayName[];
+  swimComfort: string;
+  twoADaysAllowed: boolean;
+  athleteNotes: string;
+  coachingPriorities: string[];
+  bikeFTP: string;
+  runPace: string;
+  swimPace: string;
+  paceUnit: 'mi' | 'km';
 };
 
-type SpeechRecognitionEvent = Event & {
-  results: ArrayLike<{
-    isFinal: boolean;
-    0: {
-      transcript: string;
-    };
-  }>;
-};
+type LatestPlanParams = Partial<{
+  raceType: string;
+  raceDate: string;
+  experience: string;
+  maxHours: number | string;
+  restDay: DayName;
+  bikeFtp: number | string;
+  runPace: string;
+  swimPace: string;
+  paceUnit: 'mi' | 'km';
+  preferredLongRideDay: DayName;
+  preferredLongRunDay: DayName;
+  unavailableDays: DayName[];
+  swimComfort: string;
+  twoADaysAllowed: boolean;
+  athleteNotes: string;
+  coachingPriorities: string[];
+}>;
 
-type SpeechRecognitionInstance = {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  onresult: ((event: SpeechRecognitionEvent) => void) | null;
-  onerror: (() => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-};
+const DAYS: DayName[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-declare global {
-  interface Window {
-    webkitSpeechRecognition?: new () => SpeechRecognitionInstance;
-  }
-}
-
-const VOICE_PLAN_FIELDS: Array<{ key: keyof VoicePlanSummary; label: string; placeholder: string }> = [
-  { key: 'raceType', label: 'Race + target date', placeholder: 'First triathlon on Sept 14' },
-  { key: 'experience', label: 'Experience level', placeholder: 'Beginner, little swim history' },
-  { key: 'goalTime', label: 'Goal time / outcome', placeholder: 'Finish under 2:45' },
-  { key: 'concerns', label: 'Biggest worries', placeholder: 'Open-water anxiety and bike confidence' },
-  { key: 'availability', label: 'Availability', placeholder: '6–8 hours/week, long sessions on weekends' },
-  { key: 'stravaBaseline', label: 'Baseline notes', placeholder: 'Strava connected, mostly easy runs this month' },
+const RACE_TYPES = [
+  'Sprint',
+  'Olympic',
+  'Half Ironman (70.3)',
+  'Ironman (140.6)',
+  '5k',
+  '10k',
+  'Half Marathon',
+  'Marathon',
 ];
 
-const STEPS = [
-  'Locking in your race goals and timeline…',
-  'Scanning your notes like a seasoned coach…',
-  'Cooking up a strong base phase…',
-  'Dialing in your build block and key workouts…',
-  'Balancing rest, bricks, and long sessions…',
-  'Polishing the final weeks for race day…',
-  'Still working — longer plans can take 2–4 minutes. Keep this tab open.',
+const EXPERIENCE_OPTIONS = [
+  {
+    value: 'Beginner',
+    title: 'Newer athlete',
+    desc: 'I need a conservative build and clear structure.',
+  },
+  {
+    value: 'Intermediate',
+    title: 'Consistent trainer',
+    desc: 'I train regularly and want a realistic race build.',
+  },
+  {
+    value: 'Advanced',
+    title: 'Experienced racer',
+    desc: 'I can handle more specificity and bigger weeks.',
+  },
 ];
 
-/* -------------------------------- UI bits -------------------------------- */
+const SWIM_OPTIONS = [
+  { value: 'new', title: 'New to swimming', desc: 'More technique and confidence early.' },
+  { value: 'developing', title: 'Developing', desc: 'I can swim, but it is a limiter.' },
+  { value: 'comfortable', title: 'Comfortable', desc: 'Swim training can progress normally.' },
+  { value: 'strong', title: 'Strong swimmer', desc: 'Swim is not a limiter.' },
+];
 
-function PillLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-gray-600 shadow-sm">
-      {children}
-    </div>
-  );
+const PRIORITIES = [
+  'Swim technique',
+  'Run durability',
+  'Bike strength',
+  'Race pace confidence',
+  'Injury prevention',
+  'Consistency',
+];
+
+const STEPS: Array<{ key: StepKey; title: string; eyebrow: string }> = [
+  { key: 'goal', title: 'Race goal', eyebrow: 'Step 1' },
+  { key: 'experience', title: 'Current fitness', eyebrow: 'Step 2' },
+  { key: 'schedule', title: 'Training week', eyebrow: 'Step 3' },
+  { key: 'history', title: 'Training history', eyebrow: 'Step 4' },
+  { key: 'notes', title: 'Coach notes', eyebrow: 'Step 5' },
+  { key: 'review', title: 'Review', eyebrow: 'Step 6' },
+];
+
+const INITIAL_FORM: FormState = {
+  raceType: '',
+  raceDate: '',
+  experience: '',
+  maxHours: '',
+  restDay: 'Monday',
+  preferredLongRideDay: 'Saturday',
+  preferredLongRunDay: 'Sunday',
+  unavailableDays: [],
+  swimComfort: '',
+  twoADaysAllowed: false,
+  athleteNotes: '',
+  coachingPriorities: [],
+  bikeFTP: '',
+  runPace: '',
+  swimPace: '',
+  paceUnit: 'mi',
+};
+
+function isRunningRace(raceType: string) {
+  return ['5k', '10k', 'Half Marathon', 'Marathon'].includes(raceType);
 }
 
-function Row({
-  label,
-  hint,
-  children,
+function cx(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(' ');
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean);
+}
+
+function formatHours(value: number | null | undefined) {
+  if (!Number.isFinite(value ?? Number.NaN)) return '—';
+  return `${Number(value).toFixed(1)}h`;
+}
+
+function OptionCard({
+  active,
+  title,
+  desc,
+  onClick,
 }: {
-  label: string;
-  hint?: string;
-  children: React.ReactNode;
+  active: boolean;
+  title: string;
+  desc?: string;
+  onClick: () => void;
 }) {
   return (
-    <div className="py-3 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_260px] sm:gap-4 sm:items-start">
-      <div className="min-w-0 pr-0 sm:pr-2">
-        <div className="text-sm font-medium text-gray-900">{label}</div>
-        {hint ? (
-          <div className="mt-0.5 text-xs text-gray-500 break-words">{hint}</div>
-        ) : null}
-      </div>
-      <div className="min-w-0 w-full">{children}</div>
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      className={cx(
+        'w-full rounded-2xl border px-4 py-4 text-left transition',
+        active
+          ? 'border-zinc-950 bg-zinc-950 text-white shadow-sm'
+          : 'border-zinc-200 bg-white text-zinc-950 hover:border-zinc-300 hover:bg-zinc-50'
+      )}
+    >
+      <div className="text-sm font-semibold">{title}</div>
+      {desc ? <div className={cx('mt-1 text-sm leading-5', active ? 'text-white/70' : 'text-zinc-500')}>{desc}</div> : null}
+    </button>
   );
 }
 
-function InputBase(props: React.InputHTMLAttributes<HTMLInputElement>) {
+function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={[
-        'w-full max-w-full min-w-0 rounded-xl border border-gray-200 bg-white px-4 py-3 text-base sm:text-sm text-gray-900 shadow-sm outline-none',
-        'focus:border-gray-300 focus:ring-2 focus:ring-gray-100',
-        'placeholder:text-gray-400',
-        props.className ?? '',
-      ].join(' ')}
+      className={cx(
+        'w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-base text-zinc-950 outline-none transition placeholder:text-zinc-400 focus:border-zinc-400 focus:ring-4 focus:ring-zinc-100',
+        props.className
+      )}
     />
   );
 }
 
-function SelectBase(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
+function SelectInput(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
       {...props}
-      className={[
-        'w-full max-w-full min-w-0 rounded-xl border border-gray-200 bg-white px-4 py-3 text-base sm:text-sm text-gray-900 shadow-sm outline-none',
-        'focus:border-gray-300 focus:ring-2 focus:ring-gray-100',
-        'appearance-none',
-        props.className ?? '',
-      ].join(' ')}
+      className={cx(
+        'w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-base text-zinc-950 outline-none transition focus:border-zinc-400 focus:ring-4 focus:ring-zinc-100',
+        props.className
+      )}
     />
   );
 }
 
-function TextareaBase(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+function FieldLabel({ label, hint }: { label: string; hint?: string }) {
   return (
-    <textarea
-      {...props}
-      className={[
-        'w-full max-w-full min-w-0 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm outline-none',
-        'focus:border-gray-300 focus:ring-2 focus:ring-gray-100',
-        'placeholder:text-gray-400',
-        props.className ?? '',
-      ].join(' ')}
-    />
-  );
-}
-
-function Segmented({
-  value,
-  onChange,
-  options,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  options: Array<{ label: string; value: string }>;
-}) {
-  return (
-    <div className="inline-flex w-full rounded-full border border-gray-200 bg-white p-1 shadow-sm">
-      {options.map((opt) => {
-        const active = opt.value === value;
-        return (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => onChange(opt.value)}
-            className={[
-              'flex-1 rounded-full px-3 py-2 text-sm font-medium transition',
-              active ? 'bg-black text-white' : 'text-gray-700 hover:bg-gray-50',
-            ].join(' ')}
-            aria-pressed={active}
-          >
-            {opt.label}
-          </button>
-        );
-      })}
+    <div>
+      <label className="text-sm font-medium text-zinc-950">{label}</label>
+      {hint ? <p className="mt-1 text-sm leading-5 text-zinc-500">{hint}</p> : null}
     </div>
   );
 }
 
-function NoticeCard({
-  tone = 'neutral',
-  title,
-  desc,
-  primaryLabel,
-  onPrimary,
-  secondaryLabel,
-  onSecondary,
-}: {
-  tone?: 'neutral' | 'danger';
-  title: string;
-  desc?: string;
-  primaryLabel: string;
-  onPrimary: () => void;
-  secondaryLabel?: string;
-  onSecondary?: () => void;
-}) {
-  const tones =
-    tone === 'danger'
-      ? {
-          wrap: 'border-red-200 bg-red-50',
-          title: 'text-red-800',
-          desc: 'text-red-700/80',
-          secondary: 'border-red-200 hover:bg-red-100/60',
-        }
-      : {
-          wrap: 'border-gray-200 bg-gray-50',
-          title: 'text-gray-900',
-          desc: 'text-gray-600',
-          secondary: 'border-gray-200 hover:bg-gray-50',
-        };
-
+function DayToggle({ day, active, onClick }: { day: DayName; active: boolean; onClick: () => void }) {
   return (
-    <div className={`mb-6 rounded-2xl border ${tones.wrap} px-5 py-4`}>
-      <div className={`font-medium ${tones.title}`}>{title}</div>
-      {desc ? <div className={`mt-1 text-sm ${tones.desc}`}>{desc}</div> : null}
-      <div className="mt-4 flex flex-col sm:flex-row gap-3">
-        <button
-          type="button"
-          onClick={onPrimary}
-          className="bg-black text-white px-5 py-2.5 rounded-full text-sm font-medium hover:bg-gray-800 transition w-full sm:w-auto"
-        >
-          {primaryLabel}
-        </button>
-        {secondaryLabel && onSecondary ? (
-          <button
-            type="button"
-            onClick={onSecondary}
-            className={`px-5 py-2.5 rounded-full text-sm font-medium border bg-white transition w-full sm:w-auto ${tones.secondary}`}
-          >
-            {secondaryLabel}
-          </button>
-        ) : null}
-      </div>
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      className={cx(
+        'rounded-full border px-3 py-2 text-sm font-medium transition',
+        active ? 'border-zinc-950 bg-zinc-950 text-white' : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
+      )}
+    >
+      {day.slice(0, 3)}
+    </button>
   );
 }
-
-/* -------------------------------- Page -------------------------------- */
 
 function PlanPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-
-  const [formData, setFormData] = useState({
-    raceType: '',
-    raceDate: '',
-    bikeFTP: '',
-    runPace: '',
-    swimPace: '',
-    experience: '',
-    maxHours: '',
-    restDay: '',
-    paceUnit: 'mi' as 'mi' | 'km',
-  });
-
-  const [userNote, setUserNote] = useState('');
-  const [showAdvanced, setShowAdvanced] = useState(false);
-
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string>('');
-  const [notice, setNotice] = useState<string>('');
-
+  const [activeStep, setActiveStep] = useState(0);
+  const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [sessionChecked, setSessionChecked] = useState(false);
   const [hasPlan, setHasPlan] = useState(false);
   const [stravaConnected, setStravaConnected] = useState(false);
@@ -271,91 +231,19 @@ function PlanPageContent() {
     runCount: number;
     bikeCount: number;
     swimCount: number;
-    estimatedFtp: number | null;
-    estimatedLthr: number | null;
-    estimatedRunPace: string | null;
   } | null>(null);
-  const quickMode = false;
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [statusLine, setStatusLine] = useState('');
 
-  const [progress, setProgress] = useState(0);
-  const [stepIndex, setStepIndex] = useState(0);
-  const [statusLine, setStatusLine] = useState<string>('Starting…');
-  const [elapsedSec, setElapsedSec] = useState<number>(0);
-
-  const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const startTimeRef = useRef<number | null>(null);
-
-  // Walkthrough state (still supported for manual open, but we redirect on success)
-  const [walkthroughContext, setWalkthroughContext] = useState<WalkthroughContext | null>(null);
-  const [walkthroughOpen, setWalkthroughOpen] = useState(false);
-  const [planReady, setPlanReady] = useState(false);
-
-  const [voiceSupported, setVoiceSupported] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [voiceTranscript, setVoiceTranscript] = useState('');
-  const [voiceSummary, setVoiceSummary] = useState<VoicePlanSummary>({
-    raceType: '',
-    raceDate: '',
-    experience: '',
-    goalTime: '',
-    concerns: '',
-    availability: '',
-    stravaBaseline: '',
-  });
-
-  const speechRecognitionRef = useRef<SpeechRecognitionInstance | null>(null);
-  const stravaSourceTrackedRef = useRef(false);
-
-  const runningTypes = useMemo(() => ['5k', '10k', 'Half Marathon', 'Marathon'], []);
-  const isRunningPlan = runningTypes.includes(formData.raceType);
-
-  useEffect(() => {
-    const raceType = searchParams?.get('raceType');
-    const raceDate = searchParams?.get('raceDate');
-    const experience = searchParams?.get('experience');
-    const maxHours = searchParams?.get('maxHours');
-    const restDay = searchParams?.get('restDay') || searchParams?.get('advancedRestDay');
-    const bikeFTP = searchParams?.get('bikeFTP');
-    const runPace = searchParams?.get('runPace');
-    const swimPace = searchParams?.get('swimPace');
-    const userNoteParam = searchParams?.get('userNote');
-
-    if (!raceType && !raceDate && !experience && !maxHours && !restDay && !bikeFTP && !runPace && !swimPace && !userNoteParam) return;
-
-    setFormData((prev) => ({
-      ...prev,
-      raceType: raceType?.trim() || prev.raceType,
-      raceDate: /^\d{4}-\d{2}-\d{2}$/.test(raceDate?.trim() ?? '')
-        ? (raceDate as string)
-        : prev.raceDate,
-      experience: experience?.trim() || prev.experience,
-      maxHours: maxHours?.trim() || prev.maxHours,
-      restDay: restDay?.trim() || prev.restDay,
-      bikeFTP: bikeFTP?.trim() || prev.bikeFTP,
-      runPace: runPace?.trim() || prev.runPace,
-      swimPace: swimPace?.trim() || prev.swimPace,
-    }));
-
-    if (userNoteParam?.trim()) {
-      setUserNote(userNoteParam.trim());
-    }
-  }, [searchParams]);
-
-  useEffect(() => {
-    const source = searchParams?.get('source');
-    if (source !== 'strava' || stravaSourceTrackedRef.current) return;
-    stravaSourceTrackedRef.current = true;
-    track('strava_oauth_success');
-  }, [searchParams]);
+  const currentStep = STEPS[activeStep];
+  const isRunPlan = isRunningRace(form.raceType);
 
   const stravaConnectHref = useMemo(() => {
     const clientId = process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID;
-    if (!clientId) return '/settings';
+    if (!clientId || typeof window === 'undefined') return '/settings';
 
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    if (!origin) return '/settings';
-
-    const callback = `${origin}/api/strava/callback`;
+    const callback = `${window.location.origin}/api/strava/callback`;
     const returnTo = '/plan?source=strava';
 
     return `https://www.strava.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(
@@ -363,394 +251,27 @@ function PlanPageContent() {
     )}&scope=activity:read_all,profile:read_all&approval_prompt=auto&state=${encodeURIComponent(returnTo)}`;
   }, []);
 
-  /* -------------------- Clean up polling on unmount -------------------- */
   useEffect(() => {
-    return () => {
-      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-      pollTimerRef.current = null;
+    const prefillFromSearch = () => {
+      const next: Partial<FormState> = {};
+      const raceType = searchParams?.get('raceType')?.trim();
+      const raceDate = searchParams?.get('raceDate')?.trim();
+      if (raceType) next.raceType = raceType;
+      if (raceDate && /^\d{4}-\d{2}-\d{2}$/.test(raceDate)) next.raceDate = raceDate;
+      if (Object.keys(next).length) setForm((prev) => ({ ...prev, ...next }));
     };
-  }, []);
+
+    prefillFromSearch();
+  }, [searchParams]);
 
   useEffect(() => {
-    setVoiceSupported(typeof window !== 'undefined' && !!window.webkitSpeechRecognition);
-
-    return () => {
-      speechRecognitionRef.current?.stop();
-      speechRecognitionRef.current = null;
-    };
-  }, []);
-
-  const parseVoiceSummary = (transcript: string): VoicePlanSummary => {
-    const sections = transcript
-      .split(/\n|\.(?=\s+[A-Z]|\s*$)/)
-      .map((part) => part.trim())
-      .filter(Boolean);
-
-    return {
-      raceType: sections.find((part) => /triathlon|ironman|70\.3|olympic|sprint|marathon|5k|10k|race/i.test(part)) ?? '',
-      raceDate: sections.find((part) => /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d{1,2}[/-]\d{1,2}|\d{4})/i.test(part)) ?? '',
-      experience: sections.find((part) => /beginner|intermediate|advanced|first\s+triathlon|first\s+race/i.test(part)) ?? '',
-      goalTime: sections.find((part) => /goal|target|time|finish|sub-?\d/i.test(part)) ?? '',
-      concerns: sections.find((part) => /worr|concern|injury|swim|bike|run|confidence|anxiety/i.test(part)) ?? '',
-      availability: sections.find((part) => /hour|week|monday|tuesday|wednesday|thursday|friday|saturday|sunday|schedule|available/i.test(part)) ?? '',
-      stravaBaseline: sections.find((part) => /strava|baseline|history|load|recent/i.test(part)) ?? '',
-    };
-  };
-
-  const stopVoiceCapture = () => {
-    speechRecognitionRef.current?.stop();
-    setIsListening(false);
-  };
-
-  const startVoiceCapture = () => {
-    if (!voiceSupported || typeof window === 'undefined') return;
-
-    if (isListening) {
-      stopVoiceCapture();
-      return;
-    }
-
-    const RecognitionCtor = window.webkitSpeechRecognition;
-    if (!RecognitionCtor) return;
-
-    const recognition = new RecognitionCtor();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
-
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const nextTranscript = Array.from(event.results)
-        .map((result) => result[0].transcript)
-        .join(' ')
-        .trim();
-
-      setVoiceTranscript(nextTranscript);
-      setVoiceSummary(parseVoiceSummary(nextTranscript));
-    };
-
-    recognition.onerror = () => {
-      setIsListening(false);
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
-    speechRecognitionRef.current = recognition;
-    recognition.start();
-    setIsListening(true);
-  };
-
-  /* -------------------- Loading Animation -------------------- */
-  useEffect(() => {
-    if (!loading) {
-      setProgress(0);
-      setStepIndex(0);
-      setElapsedSec(0);
-      setStatusLine('Starting…');
-      startTimeRef.current = null;
-      return;
-    }
-
-    startTimeRef.current = Date.now();
-    let cancelled = false;
-
-    const tick = () => {
-      if (cancelled) return;
-
-      const startedAt = startTimeRef.current ?? Date.now();
-      const elapsed = Date.now() - startedAt;
-      const elapsedS = Math.floor(elapsed / 1000);
-      setElapsedSec(elapsedS);
-
-      const delay = elapsed > 45_000 ? 3500 : 1500;
-      setStepIndex((prev) => (prev + 1) % STEPS.length);
-
-      setProgress((prev) => {
-        if (prev >= 95) return prev;
-        const bump = elapsed > 60_000 ? 1 : 3;
-        return Math.min(95, prev + bump);
-      });
-
-      setTimeout(tick, delay);
-    };
-
-    const t = setTimeout(tick, 1200);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-  }, [loading]);
-
-  /* -------------------- Form Handling -------------------- */
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  // When user taps "Open Schedule" (during loading or after), use replace + refresh (mobile-safe)
-  const handleGoToSchedule = () => {
-    router.replace('/schedule');
-    router.refresh();
-  };
-
-  /* -------------------- Submit Handler -------------------- */
-  const handleFinalize = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-
-    const generationStartedAt = Date.now();
-    track('plan_generation_started', {
-      race_type: formData.raceType || null,
-      race_date: formData.raceDate || null,
-      experience: formData.experience || null,
-      max_hours: formData.maxHours || null,
-      rest_day: formData.restDay || null,
-    });
-
-    setLoading(true);
-    setError('');
-    setNotice('');
-    setPlanReady(false);
-    setWalkthroughOpen(false);
-    setWalkthroughContext(null);
-    setStatusLine('Starting generation…');
-
-    const POLL_INTERVAL_MS = 2500;
-    const POLL_TIMEOUT_MS = 4 * 60 * 1000; // 4 minutes
-
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      const access_token = session?.access_token || null;
-      const userId = session?.user?.id || null;
-
-      if (!access_token) throw new Error('No Supabase access token found.');
-      if (!userId) throw new Error('No user found.');
-
-      const planType = isRunningPlan ? 'running' : 'triathlon';
-
-      const payload = {
-        ...formData,
-        ...(quickMode
-          ? {
-              experience: '',
-              maxHours: '',
-              restDay: '',
-            }
-          : {}),
-      };
-      const combinedUserNote = userNote.trim();
-
-      const checkPlanExists = async (expectedPlanId?: string | null) => {
-        const q = supabase
-          .from('plans')
-          .select('id, created_at, race_type, race_date')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        const { data, error: planErr } = expectedPlanId
-          ? await q.eq('id', expectedPlanId).maybeSingle()
-          : await q.maybeSingle();
-
-        if (planErr) return { exists: false, id: null as string | null };
-        return { exists: !!data?.id, id: (data?.id as string) ?? null, row: data ?? null };
-      };
-
-      const checkSessionsReady = async (expectedPlanId?: string | null) => {
-        const q = supabase
-          .from('sessions')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', userId);
-
-        const { count, error: countErr } = expectedPlanId
-          ? await q.eq('plan_id', expectedPlanId)
-          : await q;
-
-        if (countErr) return { ready: false, count: 0 };
-        return { ready: (count ?? 0) > 0, count: count ?? 0 };
-      };
-
-      const fetchLatestPlanContext = async (): Promise<WalkthroughContext | null> => {
-        const { data: latestPlan, error: planErr } = await supabase
-          .from('plans')
-          .select('id, user_id, race_type, race_date, experience, max_hours, rest_day')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (planErr) return null;
-        if (!latestPlan?.id || !latestPlan?.user_id) return null;
-
-        return {
-          planId: String(latestPlan.id),
-          userId: String(latestPlan.user_id),
-          raceType: (latestPlan as any).race_type ?? null,
-          raceDate: (latestPlan as any).race_date ? String((latestPlan as any).race_date) : null,
-          experience: (latestPlan as any).experience ?? null,
-          maxHours:
-            (latestPlan as any).max_hours != null ? Number((latestPlan as any).max_hours) : null,
-          restDay: (latestPlan as any).rest_day ?? null,
-        };
-      };
-
-      const pollUntilReady = async (expectedPlanId?: string | null) => {
-        const startedAt = Date.now();
-
-        if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-
-        return await new Promise<void>((resolve, reject) => {
-          pollTimerRef.current = setInterval(async () => {
-            const elapsed = Date.now() - startedAt;
-
-            if (elapsed > 60_000) setProgress((p) => Math.max(p, 85));
-            if (elapsed > 120_000) setProgress((p) => Math.max(p, 92));
-
-            const [{ exists: planExists }, sessionsStatus] = await Promise.all([
-              checkPlanExists(expectedPlanId),
-              checkSessionsReady(expectedPlanId),
-            ]);
-
-            if (planExists && !sessionsStatus.ready) {
-              setStatusLine('Plan created — saving workouts to your calendar…');
-            } else if (!planExists) {
-              setStatusLine('Generating your plan…');
-            } else if (sessionsStatus.ready) {
-              setStatusLine('Done — your plan is ready.');
-            }
-
-            if (sessionsStatus.ready) {
-              if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-              pollTimerRef.current = null;
-
-              setProgress(100);
-              setStatusLine('Done — your plan is ready.');
-              setLoading(false);
-              setPlanReady(true);
-
-              track('plan_generation_completed', {
-                race_type: formData.raceType || null,
-                race_date: formData.raceDate || null,
-                experience: formData.experience || null,
-                max_hours: formData.maxHours || null,
-                rest_day: formData.restDay || null,
-                generation_time_ms: Date.now() - generationStartedAt,
-              });
-
-              // Fetch plan context (optional planId passthrough)
-              let ctx = await fetchLatestPlanContext();
-              if (!ctx) {
-                await new Promise((r) => setTimeout(r, 500));
-                ctx = await fetchLatestPlanContext();
-              }
-
-              // Redirect to schedule and auto-open walkthrough there
-              const planIdParam = ctx?.planId ? `&planId=${encodeURIComponent(ctx.planId)}` : '';
-              router.replace(`/schedule?walkthrough=1${planIdParam}`);
-              router.refresh();
-
-              resolve();
-              return;
-            }
-
-            if (elapsed >= POLL_TIMEOUT_MS) {
-              if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-              pollTimerRef.current = null;
-
-              reject(
-                new Error(
-                  'Your plan is still generating in the background. This can happen on longer plans. Open Schedule and refresh in a minute.'
-                )
-              );
-            }
-          }, POLL_INTERVAL_MS);
-        });
-      };
-
-      setStatusLine('Submitting your inputs…');
-
-      const mergedUserNote = userNote.trim();
-
-      let res: Response | null = null;
-      let resText = '';
-      let resJson: any = null;
-
-      try {
-        res = await fetch('/api/finalize-plan', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${access_token}`,
-          },
-          body: JSON.stringify({
-            ...payload,
-            userNote: mergedUserNote,
-            planType,
-            clientUserId: userId,
-          }),
-        });
-
-        resText = await res.text();
-        try {
-          resJson = JSON.parse(resText);
-        } catch {
-          resJson = null;
-        }
-      } catch {
-        res = null;
-        resJson = null;
-      }
-
-      if (res && !res.ok) {
-        throw new Error(resJson?.error || resText || 'Plan generation failed');
-      }
-
-      const expectedPlanId = typeof resJson?.planId === 'string' ? resJson.planId : null;
-
-      setStatusLine('Generating your plan…');
-      setProgress((prev) => (prev < 20 ? 20 : prev));
-
-      await pollUntilReady(expectedPlanId);
-    } catch (err: any) {
-      console.error('❌ Finalize plan error:', err);
-
-      track('plan_generation_failed', {
-        error_type: err?.message ? String(err.message).slice(0, 120) : 'unknown_error',
-        generation_time_ms: Date.now() - generationStartedAt,
-      });
-
-      const rawMsg = err?.message || 'Something went wrong while generating your plan. Please try again.';
-      const isHtmlBlob = /<!doctype html>|<html|cloudflare|error code 524|a timeout occurred/i.test(rawMsg);
-      const msg =
-        isHtmlBlob || rawMsg.length > 280
-          ? 'Plan generation timed out before the app got a clean response. Please open Schedule and refresh in ~30 seconds.'
-          : rawMsg;
-
-      if (/still generating|timed out|timeout|edge/i.test(msg)) {
-        setNotice(msg);
-        setError('');
-      } else {
-        setError(msg);
-        setNotice('');
-      }
-
-      setLoading(false);
-    }
-  };
-
-  /* -------------------- Check for Existing Plan -------------------- */
-  useEffect(() => {
-    const checkSessionAndPlan = async () => {
+    const load = async () => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
       if (!session?.user) {
-        setSessionChecked(true);
+        router.replace(`/login?next=${encodeURIComponent('/plan')}`);
         return;
       }
 
@@ -759,590 +280,573 @@ function PlanPageContent() {
       const [planRes, profileRes, stravaRes] = await Promise.all([
         supabase
           .from('plans')
-          .select('id,race_type,race_date,plan')
+          .select('race_type, race_date, plan')
           .eq('user_id', session.user.id)
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle(),
-        supabase
-          .from('profiles')
-          .select('strava_access_token')
-          .eq('id', session.user.id)
-          .maybeSingle(),
+        supabase.from('profiles').select('strava_access_token').eq('id', session.user.id).maybeSingle(),
         supabase
           .from('strava_activities')
-          .select('sport_type,moving_time,start_date,average_heartrate,average_speed,weighted_average_watts,average_watts')
+          .select('sport_type,moving_time,start_date')
           .eq('user_id', session.user.id)
-          .gte('start_date', sinceISO),
+          .gte('start_date', sinceISO)
+          .order('start_date', { ascending: false })
+          .limit(250),
       ]);
 
-      if (planRes.data?.id) {
+      if (planRes.data) {
         setHasPlan(true);
-
-        const latestParams = (planRes.data as any).plan?.params ?? null;
-        setFormData((prev) => ({
+        const params = ((planRes.data as any).plan?.params ?? {}) as LatestPlanParams;
+        setForm((prev) => ({
           ...prev,
-          raceType: (planRes.data as any).race_type ?? latestParams?.raceType ?? prev.raceType,
-          raceDate: (planRes.data as any).race_date ?? latestParams?.raceDate ?? prev.raceDate,
-          experience: latestParams?.experience ?? prev.experience,
-          maxHours:
-            latestParams?.maxHours != null && latestParams?.maxHours !== ''
-              ? String(latestParams.maxHours)
-              : prev.maxHours,
-          restDay: latestParams?.restDay ?? prev.restDay,
-          bikeFTP:
-            latestParams?.bikeFtp != null && latestParams?.bikeFtp !== ''
-              ? String(latestParams.bikeFtp)
-              : prev.bikeFTP,
-          runPace: latestParams?.runPace ?? prev.runPace,
-          swimPace: latestParams?.swimPace ?? prev.swimPace,
+          raceType: (planRes.data as any).race_type ?? params.raceType ?? prev.raceType,
+          raceDate: (planRes.data as any).race_date ?? params.raceDate ?? prev.raceDate,
+          experience: params.experience ?? prev.experience,
+          maxHours: params.maxHours != null ? String(params.maxHours) : prev.maxHours,
+          restDay: params.restDay ?? prev.restDay,
+          bikeFTP: params.bikeFtp != null ? String(params.bikeFtp) : prev.bikeFTP,
+          runPace: params.runPace ?? prev.runPace,
+          swimPace: params.swimPace ?? prev.swimPace,
+          paceUnit: params.paceUnit ?? prev.paceUnit,
+          preferredLongRideDay: params.preferredLongRideDay ?? prev.preferredLongRideDay,
+          preferredLongRunDay: params.preferredLongRunDay ?? prev.preferredLongRunDay,
+          unavailableDays: Array.isArray(params.unavailableDays) ? params.unavailableDays : prev.unavailableDays,
+          swimComfort: params.swimComfort ?? prev.swimComfort,
+          twoADaysAllowed: typeof params.twoADaysAllowed === 'boolean' ? params.twoADaysAllowed : prev.twoADaysAllowed,
+          athleteNotes: params.athleteNotes ?? prev.athleteNotes,
+          coachingPriorities: Array.isArray(params.coachingPriorities) ? params.coachingPriorities : prev.coachingPriorities,
         }));
       }
 
-      setStravaConnected(!!profileRes.data?.strava_access_token);
+      setStravaConnected(Boolean((profileRes.data as any)?.strava_access_token));
 
-      const source = searchParams?.get('source');
-      if (source === 'strava' && stravaSourceTrackedRef.current) {
-        track('strava_sync_completed', { activities_imported: stravaRes.data?.length ?? 0 });
-      }
-
-      if (stravaRes.data?.length) {
-        const rows = stravaRes.data;
-        const totalHours = rows.reduce(
-  (acc: number, row: any) => acc + ((row.moving_time ?? 0) / 3600),
-  0
-);
-        const runCount = rows.filter((row: any) => String(row.sport_type ?? '').toLowerCase() === 'run').length;
-        const bikeCount = rows.filter((row: any) => String(row.sport_type ?? '').toLowerCase() === 'bike').length;
-        const swimCount = rows.filter((row: any) => String(row.sport_type ?? '').toLowerCase() === 'swim').length;
-
-        const runCandidates = rows.filter(
-          (row: any) =>
-            String(row.sport_type ?? '').toLowerCase() === 'run' && (row.moving_time ?? 0) >= 20 * 60
-        );
-        const bikeCandidates = rows.filter(
-          (row: any) =>
-            String(row.sport_type ?? '').toLowerCase() === 'bike' && (row.moving_time ?? 0) >= 30 * 60
-        );
-
-        const runHrs = runCandidates
-          .map((row: any) => row.average_heartrate)
-          .filter((v: any) => Number.isFinite(v));
-        const estLthr = runHrs.length ? Math.round(Math.max(...runHrs)) : null;
-
-        const bikePowers = bikeCandidates
-          .map((row: any) => row.weighted_average_watts ?? row.average_watts)
-          .filter((v: any) => Number.isFinite(v) && v > 0);
-        const estFtp = bikePowers.length ? Math.round(Math.max(...bikePowers) * 0.95) : null;
-
-        const runSpeeds = runCandidates
-          .map((row: any) => row.average_speed)
-          .filter((v: any) => Number.isFinite(v) && v > 0);
-        const bestRunSpeed = runSpeeds.length ? Math.max(...runSpeeds) : null;
-        const estRunPace = bestRunSpeed
-          ? `${Math.floor((1000 / bestRunSpeed) / 60)}:${String(
-              Math.round((1000 / bestRunSpeed) % 60)
-            ).padStart(2, '0')} / km`
-          : null;
-
+      const rows = Array.isArray(stravaRes.data) ? stravaRes.data : [];
+      if (rows.length) {
+        const totalHours = rows.reduce((acc: number, row: any) => acc + ((row.moving_time ?? 0) / 3600), 0);
+        const sportCount = (sport: string) =>
+          rows.filter((row: any) => String(row.sport_type ?? '').toLowerCase() === sport).length;
         setStravaSummary({
           activityCount: rows.length,
           totalHours,
-          runCount,
-          bikeCount,
-          swimCount,
-          estimatedFtp: estFtp,
-          estimatedLthr: estLthr,
-          estimatedRunPace: estRunPace,
+          runCount: sportCount('run'),
+          bikeCount: sportCount('bike'),
+          swimCount: sportCount('swim'),
         });
-      } else {
-        setStravaSummary(null);
       }
 
       setSessionChecked(true);
     };
 
-    checkSessionAndPlan();
-  }, [searchParams]);
+    load().catch((err) => {
+      console.error('[plan] load failed', err);
+      setError('We could not load your plan settings. Refresh and try again.');
+      setSessionChecked(true);
+    });
+  }, [router]);
 
-  /* -------------------- Field Configs -------------------- */
-  const beginnerFields: FieldConfig[] = [
-    {
-      id: 'raceType',
-      label: 'Race',
-      type: 'select',
-      options: [
-        '5k',
-        '10k',
-        'Half Marathon',
-        'Marathon',
-        'Sprint',
-        'Olympic',
-        'Half Ironman (70.3)',
-        'Ironman (140.6)',
-      ],
-    },
-    { id: 'raceDate', label: 'Race date', type: 'date' },
-    { id: 'maxHours', label: 'Weekly time', type: 'number' },
-    {
-      id: 'experience',
-      label: 'Experience',
-      type: 'select',
-      options: ['Beginner', 'Intermediate', 'Advanced'],
-    },
+  const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const toggleUnavailableDay = (day: DayName) => {
+    setForm((prev) => ({
+      ...prev,
+      unavailableDays: prev.unavailableDays.includes(day)
+        ? prev.unavailableDays.filter((item) => item !== day)
+        : [...prev.unavailableDays, day],
+    }));
+  };
+
+  const togglePriority = (priority: string) => {
+    setForm((prev) => ({
+      ...prev,
+      coachingPriorities: prev.coachingPriorities.includes(priority)
+        ? prev.coachingPriorities.filter((item) => item !== priority)
+        : [...prev.coachingPriorities, priority],
+    }));
+  };
+
+  const canContinue = useMemo(() => {
+    if (currentStep.key === 'goal') return Boolean(form.raceType && form.raceDate);
+    if (currentStep.key === 'experience') return Boolean(form.experience && form.maxHours);
+    if (currentStep.key === 'schedule') return Boolean(form.restDay);
+    if (currentStep.key === 'history') return isRunPlan || Boolean(form.swimComfort);
+    return true;
+  }, [currentStep.key, form, isRunPlan]);
+
+  const nextStep = () => {
+    if (!canContinue) return;
+    setActiveStep((prev) => Math.min(prev + 1, STEPS.length - 1));
+  };
+
+  const prevStep = () => {
+    setActiveStep((prev) => Math.max(prev - 1, 0));
+  };
+
+  const submitPlan = async () => {
+    setError('');
+    setLoading(true);
+    setStatusLine('Building your plan around your race, schedule, and constraints…');
+
+    const startedAt = Date.now();
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.user) {
+        router.replace(`/login?next=${encodeURIComponent('/plan')}`);
+        return;
+      }
+
+      const raceType = form.raceType;
+      const planType = isRunningRace(raceType) ? 'running' : 'triathlon';
+
+      const preferencesText = [
+        form.preferredLongRideDay ? `Preferred long ride day: ${form.preferredLongRideDay}` : '',
+        form.preferredLongRunDay ? `Preferred long run day: ${form.preferredLongRunDay}` : '',
+        form.unavailableDays.length ? `Unavailable days: ${form.unavailableDays.join(', ')}` : '',
+        form.twoADaysAllowed ? 'Two-a-days are allowed when needed.' : 'Avoid two-a-days unless necessary.',
+        form.swimComfort ? `Swim comfort: ${form.swimComfort}` : '',
+        form.coachingPriorities.length ? `Training priorities: ${form.coachingPriorities.join(', ')}` : '',
+        form.athleteNotes.trim() ? `Athlete notes: ${form.athleteNotes.trim()}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      const res = await fetch('/api/finalize-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          raceType,
+          raceDate: form.raceDate,
+          experience: form.experience,
+          maxHours: Number(form.maxHours),
+          restDay: form.restDay || 'Monday',
+          bikeFTP: form.bikeFTP || undefined,
+          runPace: form.runPace || undefined,
+          swimPace: form.swimPace || undefined,
+          paceUnit: form.paceUnit,
+          planType,
+          preferencesText,
+          preferredLongRideDay: form.preferredLongRideDay || undefined,
+          preferredLongRunDay: form.preferredLongRunDay || undefined,
+          unavailableDays: form.unavailableDays,
+          swimComfort: form.swimComfort || undefined,
+          twoADaysAllowed: form.twoADaysAllowed,
+          athleteNotes: form.athleteNotes.trim() || undefined,
+          coachingPriorities: form.coachingPriorities,
+          clientUserId: session.user.id,
+        }),
+      });
+
+      const text = await res.text();
+      let json: any = null;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = null;
+      }
+
+      if (!res.ok) {
+        throw new Error(json?.error || text || 'Plan generation failed.');
+      }
+
+      track('plan_generation_completed', {
+        race_type: form.raceType,
+        race_date: form.raceDate,
+        experience: form.experience,
+        max_hours: form.maxHours,
+        generation_time_ms: Date.now() - startedAt,
+      });
+
+      const planIdParam = typeof json?.planId === 'string' ? `&planId=${encodeURIComponent(json.planId)}` : '';
+      router.replace(`/schedule?walkthrough=1${planIdParam}`);
+      router.refresh();
+    } catch (err: any) {
+      console.error('[plan] generation failed', err);
+      track('plan_generation_failed', {
+        error_type: String(err?.message ?? 'unknown').slice(0, 120),
+        generation_time_ms: Date.now() - startedAt,
+      });
+      setError(err?.message || 'Something went wrong while generating your plan. Please try again.');
+      setLoading(false);
+    }
+  };
+
+  const reviewRows = [
+    ['Race', form.raceType || 'Not selected'],
+    ['Race date', form.raceDate || 'Not selected'],
+    ['Experience', form.experience || 'Not selected'],
+    ['Weekly time', form.maxHours ? `${form.maxHours} hours` : 'Not selected'],
+    ['Rest day', form.restDay || 'Not selected'],
+    ['Long ride', isRunPlan ? 'Not applicable' : form.preferredLongRideDay || 'Default'],
+    ['Long run', form.preferredLongRunDay || 'Default'],
+    ['Unavailable', form.unavailableDays.length ? form.unavailableDays.join(', ') : 'None'],
+    ['Swim comfort', isRunPlan ? 'Not applicable' : form.swimComfort || 'Not selected'],
+    ['Priorities', form.coachingPriorities.length ? form.coachingPriorities.join(', ') : 'None'],
   ];
 
-  const advancedFields: FieldConfig[] = isRunningPlan
-    ? [
-        {
-          id: 'runPace',
-          label: 'Run threshold pace',
-          type: 'text',
-          placeholder: formData.paceUnit === 'km' ? 'e.g. 4:40 / km' : 'e.g. 7:30 / mi',
-        },
-        {
-          id: 'restDay',
-          label: 'Preferred rest day',
-          type: 'select',
-          options: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-        },
-      ]
-    : [
-        { id: 'bikeFTP', label: 'Bike FTP', type: 'number', placeholder: 'watts' },
-        {
-          id: 'runPace',
-          label: 'Run threshold pace',
-          type: 'text',
-          placeholder: formData.paceUnit === 'km' ? 'e.g. 4:40 / km' : 'e.g. 7:30 / mi',
-        },
-        {
-          id: 'swimPace',
-          label: 'Swim threshold pace',
-          type: 'text',
-          placeholder: 'e.g. 1:38 / 100m',
-        },
-        {
-          id: 'restDay',
-          label: 'Preferred rest day',
-          type: 'select',
-          options: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-        },
-      ];
-
-  /* -------------------- UI Render -------------------- */
   if (!sessionChecked) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-gray-600">
-        Checking your session…
-      </div>
+      <main className="min-h-[100dvh] bg-[#fbfbfa] px-6 py-12 text-zinc-600">
+        <div className="mx-auto max-w-3xl">Loading plan builder…</div>
+      </main>
     );
   }
 
-  const title = hasPlan ? 'Re-generate your plan' : 'Generate your plan';
-  const subtitle = quickMode
-    ? hasPlan
-      ? 'Build a fresh plan from your chosen event + date with Strava-calibrated fitness.'
-      : 'Choose your event + race date, sync Strava, and we’ll estimate the rest from recent training.'
-    : hasPlan
-      ? 'This will replace your current training plan.'
-      : 'We’ll personalize your training based on your inputs.';
-
-  const visibleBeginnerFields = quickMode
-    ? beginnerFields.filter((field) => field.id === 'raceType' || field.id === 'raceDate')
-    : beginnerFields;
-
   return (
-    <div className="min-h-screen bg-white text-gray-900 relative overflow-x-hidden">
-      {/* Controlled walkthrough modal (kept for manual open) */}
-      <PostPlanWalkthrough
-        context={walkthroughContext}
-        open={walkthroughOpen}
-        onClose={() => setWalkthroughOpen(false)}
-      />
-
-      {/* Loading Overlay */}
-      {loading && (
-        <div className="fixed inset-0 z-50 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center text-center px-6">
-          <div className="w-full max-w-lg">
-            <div className="mb-5">
-              <p className="text-sm font-medium text-gray-900">Generating your plan</p>
-              <p className="text-xs text-gray-500 mt-1">
-                {statusLine} {elapsedSec > 0 ? `• ${elapsedSec}s` : ''}
-              </p>
-            </div>
-
-            <div className="w-full bg-gray-200 rounded-full h-3 mb-3 overflow-hidden">
-              <div
-                className="bg-black h-3 rounded-full transition-all duration-700"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-
-            <p className="text-gray-700 text-sm mb-2">{STEPS[stepIndex]}</p>
-
-            {/* ONE CTA ONLY */}
-            <div className="mt-6 flex items-center justify-center">
-              <button
-                type="button"
-                onClick={handleGoToSchedule}
-                className="text-sm px-5 py-2.5 rounded-full border border-gray-200 bg-white hover:bg-gray-50 transition"
-              >
-                Open Schedule
-              </button>
-            </div>
-
-            <p className="text-[12px] text-gray-500 mt-4">
-              Tip: very long plans can take a couple minutes — don’t close this tab.
-            </p>
+    <main className="min-h-[100dvh] bg-[#fbfbfa] text-zinc-950">
+      {loading ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/90 px-6 backdrop-blur">
+          <div className="w-full max-w-md rounded-[2rem] border border-zinc-200 bg-white p-8 text-center shadow-sm">
+            <div className="mx-auto mb-6 h-10 w-10 animate-spin rounded-full border-2 border-zinc-200 border-t-zinc-950" />
+            <h2 className="text-xl font-semibold tracking-tight">Generating your plan</h2>
+            <p className="mt-3 text-sm leading-6 text-zinc-500">{statusLine}</p>
+            <p className="mt-4 text-xs text-zinc-400">Longer race plans can take a couple minutes. Keep this tab open.</p>
           </div>
         </div>
-      )}
+      ) : null}
 
-      <Suspense fallback={<div className="py-32 text-center text-gray-400">Loading…</div>}>
-        {/* Subtle background wash (matches landing) */}
-        <div className="relative overflow-hidden">
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute -top-40 left-1/2 -translate-x-1/2 h-[560px] w-[980px] rounded-full bg-gray-100 blur-3xl opacity-70" />
-            <div className="absolute top-24 right-[-160px] h-[360px] w-[360px] rounded-full bg-gray-100 blur-3xl opacity-60" />
-            <div className="absolute top-64 left-[-180px] h-[360px] w-[360px] rounded-full bg-gray-100 blur-3xl opacity-60" />
+      <div className="mx-auto flex min-h-[100dvh] w-full max-w-7xl flex-col px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mb-8 flex flex-col gap-4 border-b border-zinc-200 pb-6 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-zinc-400">Plan builder</p>
+            <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
+              {hasPlan ? 'Rebuild your training plan.' : 'Build your training plan.'}
+            </h1>
+            <p className="mt-4 max-w-2xl text-base leading-7 text-zinc-600">
+              A guided setup for your race, schedule, training background, and real-world constraints.
+            </p>
           </div>
+          {stravaConnected ? (
+            <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-600">
+              <span className="font-medium text-zinc-950">Strava connected</span>
+              {stravaSummary ? ` · ${stravaSummary.activityCount} recent activities · ${formatHours(stravaSummary.totalHours)}` : ''}
+            </div>
+          ) : null}
+        </div>
 
-          <main className="relative max-w-4xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
-            <div className="text-center mb-10">
-              <PillLabel>{hasPlan ? 'Plan management' : 'Plan generator'}</PillLabel>
-              <h1 className="mt-4 text-4xl font-semibold tracking-tight">{title}</h1>
-              <p className="mt-3 text-gray-500 text-lg">{subtitle}</p>
+        <div className="grid flex-1 gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+          <aside className="hidden lg:block">
+            <div className="sticky top-6 space-y-2">
+              {STEPS.map((step, index) => {
+                const active = index === activeStep;
+                const complete = index < activeStep;
+                return (
+                  <button
+                    key={step.key}
+                    type="button"
+                    onClick={() => setActiveStep(index)}
+                    className={cx(
+                      'flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm transition',
+                      active ? 'bg-zinc-950 text-white' : 'text-zinc-600 hover:bg-white hover:text-zinc-950'
+                    )}
+                  >
+                    <span
+                      className={cx(
+                        'flex h-7 w-7 items-center justify-center rounded-full border text-xs font-semibold',
+                        active
+                          ? 'border-white/20 bg-white text-zinc-950'
+                          : complete
+                            ? 'border-zinc-950 bg-zinc-950 text-white'
+                            : 'border-zinc-200 bg-white text-zinc-500'
+                      )}
+                    >
+                      {complete ? '✓' : index + 1}
+                    </span>
+                    <span>
+                      <span className="block text-xs opacity-60">{step.eyebrow}</span>
+                      <span className="block font-medium">{step.title}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </aside>
+
+          <section className="rounded-[2rem] border border-zinc-200 bg-white p-5 shadow-sm sm:p-8 lg:p-10">
+            <div className="mb-8 flex items-center justify-between gap-4">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-400">{currentStep.eyebrow}</p>
+                <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{currentStep.title}</h2>
+              </div>
+              <div className="text-sm text-zinc-400">{activeStep + 1} / {STEPS.length}</div>
             </div>
 
-            {/* Plan Ready (kept; user will usually be redirected) */}
-            {planReady && (
-              <NoticeCard
-                title="Your plan is ready."
-                desc="A quick walkthrough is available, then head to your Schedule."
-                primaryLabel="Open Schedule"
-                onPrimary={handleGoToSchedule}
-                secondaryLabel={walkthroughContext ? 'View walkthrough' : undefined}
-                onSecondary={() => {
-                  if (!walkthroughContext) return;
-                  setWalkthroughContext({ ...(walkthroughContext as any), mode: 'manual' });
-                  setWalkthroughOpen(true);
-                }}
-              />
-            )}
+            {error ? (
+              <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+            ) : null}
 
-            {/* Notice (non-blocking) */}
-            {notice && (
-              <NoticeCard
-                title={notice}
-                desc="If you just submitted, your plan may have saved successfully. Open Schedule and refresh."
-                primaryLabel="Open Schedule"
-                onPrimary={handleGoToSchedule}
-                secondaryLabel="Dismiss"
-                onSecondary={() => setNotice('')}
-              />
-            )}
-
-            {/* Error (blocking) */}
-            {error && (
-              <NoticeCard
-                tone="danger"
-                title={error}
-                desc="Try again — and if you just submitted, check Schedule first in case it already saved."
-                primaryLabel="Open Schedule"
-                onPrimary={handleGoToSchedule}
-                secondaryLabel="Dismiss"
-                onSecondary={() => setError('')}
-              />
-            )}
-
-            {/* Generator-style card (matches landing) */}
-            <form
-              onSubmit={handleFinalize}
-              className="w-full max-w-full rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden"
-            >
-              <div className="px-5 sm:px-6 py-5 border-b border-gray-100 flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold text-gray-900">
-                    {hasPlan ? 'Update your inputs' : quickMode ? 'Quick start from Strava' : 'Create your training plan'}
-                  </div>
-                  <div className="mt-1 text-xs text-gray-500">
-                    {quickMode
-                      ? 'Pick an event + race date and connect Strava. We calibrate the plan from your recent training history.'
-                      : 'Built around your race and weekly time. Adjust anytime.'}
-                  </div>
+            {currentStep.key === 'goal' ? (
+              <div className="space-y-6">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {RACE_TYPES.map((race) => (
+                    <OptionCard
+                      key={race}
+                      active={form.raceType === race}
+                      title={race}
+                      onClick={() => setField('raceType', race)}
+                    />
+                  ))}
                 </div>
-
-                {null}
+                <div className="grid gap-3 sm:grid-cols-[1fr_260px] sm:items-center">
+                  <FieldLabel label="Race date" hint="Your plan will build backward from this date." />
+                  <TextInput type="date" value={form.raceDate} onChange={(e) => setField('raceDate', e.target.value)} />
+                </div>
               </div>
+            ) : null}
 
-              <div className="px-5 sm:px-6 py-4">
-                <div className="divide-y divide-gray-100">
-                  {visibleBeginnerFields.map(({ id, label, type, options, placeholder }) => {
-                    const required = !['bikeFTP', 'runPace', 'swimPace', 'restDay', 'paceUnit'].includes(
-                      id
-                    );
-                    const value = formData[id as keyof typeof formData] as any;
+            {currentStep.key === 'experience' ? (
+              <div className="space-y-6">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {EXPERIENCE_OPTIONS.map((option) => (
+                    <OptionCard
+                      key={option.value}
+                      active={form.experience === option.value}
+                      title={option.title}
+                      desc={option.desc}
+                      onClick={() => setField('experience', option.value)}
+                    />
+                  ))}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-[1fr_260px] sm:items-center">
+                  <FieldLabel label="Weekly training time" hint="Use a realistic typical week, not your absolute best week." />
+                  <TextInput
+                    type="number"
+                    min="1"
+                    max="30"
+                    inputMode="numeric"
+                    placeholder="8"
+                    value={form.maxHours}
+                    onChange={(e) => setField('maxHours', e.target.value)}
+                  />
+                </div>
+              </div>
+            ) : null}
 
-                    const hint =
-                      id === 'raceType'
-                        ? quickMode
-                          ? 'Choose your event (running or triathlon)'
-                          : 'Sprint, Olympic, 70.3, Ironman or running events'
-                        : id === 'raceDate'
-                        ? 'Your goal day'
-                        : id === 'maxHours'
-                        ? 'Max available training time'
-                        : id === 'experience'
-                        ? 'How long you’ve trained'
-                        : undefined;
-
-                    const raceOptions = quickMode
-                      ? ['5k', '10k', 'Half Marathon', 'Marathon', 'Sprint', 'Olympic', 'Half Ironman (70.3)', 'Ironman (140.6)']
-                      : options;
-
-                    return (
-                      <Row key={id} label={label} hint={hint}>
-                        {type === 'select' ? (
-                          <SelectBase
-                            id={id}
-                            name={id}
-                            value={value}
-                            onChange={handleChange}
-                            required={required}
-                          >
-                            <option value="">Select…</option>
-                            {raceOptions?.map((opt) => (
-                              <option key={opt} value={opt}>
-                                {opt}
-                              </option>
-                            ))}
-                          </SelectBase>
-                        ) : (
-                          <InputBase
-                            type={type}
-                            id={id}
-                            name={id}
-                            placeholder={placeholder}
-                            value={value}
-                            onChange={handleChange}
-                            required={required}
-                          />
-                        )}
-                      </Row>
-                    );
-                  })}
+            {currentStep.key === 'schedule' ? (
+              <div className="space-y-7">
+                <div className="grid gap-3 sm:grid-cols-[1fr_260px] sm:items-center">
+                  <FieldLabel label="Preferred rest day" hint="We’ll avoid scheduling training here where possible." />
+                  <SelectInput value={form.restDay} onChange={(e) => setField('restDay', e.target.value as DayName)}>
+                    {DAYS.map((day) => <option key={day}>{day}</option>)}
+                  </SelectInput>
                 </div>
 
-                {quickMode ? (
-                  <div className="mt-5 rounded-2xl border border-gray-200 bg-gray-50 p-4">
-                    <div className="text-sm font-medium text-gray-900">Strava sync</div>
-                    <p className="mt-1 text-xs text-gray-600">
-                      Connect Strava and we’ll calibrate {hasPlan ? 'your new plan' : 'your first plan'} from recent training history.
-                    </p>
+                {!isRunPlan ? (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <FieldLabel label="Long ride day" hint="Useful for shift work or non-standard weekends." />
+                      <SelectInput className="mt-3" value={form.preferredLongRideDay} onChange={(e) => setField('preferredLongRideDay', e.target.value as DayName)}>
+                        <option value="">Use default</option>
+                        {DAYS.map((day) => <option key={day}>{day}</option>)}
+                      </SelectInput>
+                    </div>
+                    <div>
+                      <FieldLabel label="Long run day" hint="We’ll separate long sessions when possible." />
+                      <SelectInput className="mt-3" value={form.preferredLongRunDay} onChange={(e) => setField('preferredLongRunDay', e.target.value as DayName)}>
+                        <option value="">Use default</option>
+                        {DAYS.map((day) => <option key={day}>{day}</option>)}
+                      </SelectInput>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <FieldLabel label="Long run day" hint="Pick the day that usually works best for longer runs." />
+                    <SelectInput className="mt-3 max-w-xs" value={form.preferredLongRunDay} onChange={(e) => setField('preferredLongRunDay', e.target.value as DayName)}>
+                      <option value="">Use default</option>
+                      {DAYS.map((day) => <option key={day}>{day}</option>)}
+                    </SelectInput>
+                  </div>
+                )}
 
-                    {stravaSummary ? (
-                      <div className="mt-3 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700">
-                        Using last 365 days: {stravaSummary.activityCount} activities • {stravaSummary.totalHours.toFixed(1)}h
-                        total • Run {stravaSummary.runCount} • Bike {stravaSummary.bikeCount} • Swim {stravaSummary.swimCount}
-                        <br />
-                        Baselines: FTP {stravaSummary.estimatedFtp ? `~${stravaSummary.estimatedFtp}w` : 'unknown'} • LTHR{' '}
-                        {stravaSummary.estimatedLthr ? `~${stravaSummary.estimatedLthr} bpm` : 'unknown'} • Threshold pace{' '}
-                        {stravaSummary.estimatedRunPace ?? 'unknown'}
-                      </div>
-                    ) : (
-                      <div className="mt-3 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-600">
-                        Once connected, we’ll analyze your last 365 days of Strava data and auto-calibrate your plan.
-                      </div>
-                    )}
+                <div>
+                  <FieldLabel label="Days you usually can’t train" hint="Optional. We’ll treat these as hard constraints where possible." />
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {DAYS.map((day) => (
+                      <DayToggle key={day} day={day} active={form.unavailableDays.includes(day)} onClick={() => toggleUnavailableDay(day)} />
+                    ))}
+                  </div>
+                </div>
 
-                    <div className="mt-3 flex flex-col sm:flex-row gap-3">
-                      {stravaConnected ? (
-                        <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700">
-                          <img src="/strava-2.svg" alt="Strava" className="h-4 w-4" />
-                          Strava connected
-                        </div>
-                      ) : (
-                        <a
-                          href={stravaConnectHref}
-                          onClick={() => track('strava_connect_clicked')}
-                          className="inline-flex items-center justify-center rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-100"
-                        >
-                          Connect Strava
-                        </a>
-                      )}
+                <label className="flex items-start gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4">
+                  <input
+                    type="checkbox"
+                    checked={form.twoADaysAllowed}
+                    onChange={(e) => setField('twoADaysAllowed', e.target.checked)}
+                    className="mt-1 h-4 w-4 rounded border-zinc-300"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-zinc-950">Two-a-days are okay when needed</span>
+                    <span className="mt-1 block text-sm text-zinc-500">Useful for busy athletes, but we’ll avoid stacking hard sessions.</span>
+                  </span>
+                </label>
+              </div>
+            ) : null}
 
-                      <button
-                        type="button"
-                        onClick={() => {}}
-                        className="inline-flex items-center justify-center rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      >
-                        {hasPlan ? 'Regenerate with full inputs' : 'Enter all inputs manually'}
-                      </button>
+            {currentStep.key === 'history' ? (
+              <div className="space-y-7">
+                {!isRunPlan ? (
+                  <div>
+                    <FieldLabel label="How comfortable are you in the swim?" hint="This helps early weeks emphasize technique or normal progression." />
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      {SWIM_OPTIONS.map((option) => (
+                        <OptionCard
+                          key={option.value}
+                          active={form.swimComfort === option.value}
+                          title={option.title}
+                          desc={option.desc}
+                          onClick={() => setField('swimComfort', option.value)}
+                        />
+                      ))}
                     </div>
                   </div>
                 ) : null}
 
-                {null}
-
-                {/* Optional note */}
-                {!quickMode ? <div className="mt-4">
-                  <div className="text-sm font-medium text-gray-900">
-                    Customize your plan (optional)
-                  </div>
-                  <div className="mt-2">
-                    <TextareaBase
-                      id="userNote"
-                      name="userNote"
-                      rows={3}
-                      placeholder="E.g. I prefer long rides on Saturdays and long runs on Sundays. I’m targeting sub-5 at Santa Cruz."
-                      value={userNote}
-                      onChange={(e) => setUserNote(e.target.value)}
-                    />
-                  </div>
-                  <div className="mt-2 text-xs text-gray-500">
-                    The more specific you are, the more “coach-like” the plan will feel.
-                  </div>
-                </div> : null}
-
-                {/* Advanced toggle */}
-                {!quickMode ? <div className="mt-5 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 overflow-hidden">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium text-gray-900">Advanced options</div>
-                      <div className="text-xs text-gray-500 mt-0.5">
-                        Add thresholds + preferences for a more personalized plan.
-                      </div>
+                <div className="rounded-3xl border border-zinc-200 bg-zinc-50 p-5">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold text-zinc-950">Use your recent training history</h3>
+                      <p className="mt-1 text-sm leading-6 text-zinc-500">
+                        Connect Strava so TrainGPT can calibrate your plan from recent volume and sport balance.
+                      </p>
                     </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setShowAdvanced((v) => !v)}
-                      className={`shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        showAdvanced ? 'bg-black' : 'bg-gray-300'
-                      }`}
-                      aria-label="Toggle advanced options"
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          showAdvanced ? 'translate-x-5' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
+                    {stravaConnected ? (
+                      <span className="rounded-full bg-white px-4 py-2 text-sm font-medium text-zinc-700 ring-1 ring-zinc-200">Connected</span>
+                    ) : (
+                      <a href={stravaConnectHref} className="rounded-full bg-zinc-950 px-5 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800">
+                        Connect Strava
+                      </a>
+                    )}
                   </div>
-
-                  {showAdvanced ? (
-                    <div className="mt-3 divide-y divide-gray-200/70">
-                      {/* Pace units toggle (running plans only, for now) */}
-                      {isRunningPlan ? (
-                        <Row label="Pace units" hint="Used for run pacing across your plan">
-                          <Segmented
-                            value={formData.paceUnit}
-                            onChange={(v) =>
-                              setFormData((prev) => ({
-                                ...prev,
-                                paceUnit: v as 'mi' | 'km',
-                              }))
-                            }
-                            options={[
-                              { label: 'Miles', value: 'mi' },
-                              { label: 'Kilometers', value: 'km' },
-                            ]}
-                          />
-                        </Row>
-                      ) : null}
-
-                      {advancedFields.map(({ id, label, type, options, placeholder }) => {
-                        const value = formData[id as keyof typeof formData] as any;
-
-                        const hint =
-                          id === 'bikeFTP'
-                            ? 'Used for bike effort guidance'
-                            : id === 'runPace'
-                            ? 'Used for run effort guidance'
-                            : id === 'swimPace'
-                            ? 'Used for swim effort guidance'
-                            : id === 'restDay'
-                            ? 'We’ll anchor recovery here'
-                            : undefined;
-
-                        return (
-                          <Row key={id} label={label} hint={hint}>
-                            {type === 'select' ? (
-                              <SelectBase id={id} name={id} value={value} onChange={handleChange}>
-                                <option value="">Select…</option>
-                                {options?.map((opt) => (
-                                  <option key={opt} value={opt}>
-                                    {opt}
-                                  </option>
-                                ))}
-                              </SelectBase>
-                            ) : (
-                              <InputBase
-                                type={type}
-                                id={id}
-                                name={id}
-                                placeholder={placeholder}
-                                value={value}
-                                onChange={handleChange}
-                              />
-                            )}
-                          </Row>
-                        );
-                      })}
+                  {stravaSummary ? (
+                    <div className="mt-5 grid gap-3 text-sm sm:grid-cols-4">
+                      <div><span className="block text-zinc-400">Activities</span><span className="font-medium text-zinc-950">{stravaSummary.activityCount}</span></div>
+                      <div><span className="block text-zinc-400">Time</span><span className="font-medium text-zinc-950">{formatHours(stravaSummary.totalHours)}</span></div>
+                      <div><span className="block text-zinc-400">Run / Bike / Swim</span><span className="font-medium text-zinc-950">{stravaSummary.runCount} / {stravaSummary.bikeCount} / {stravaSummary.swimCount}</span></div>
+                      <div><span className="block text-zinc-400">Used now</span><span className="font-medium text-zinc-950">Light calibration</span></div>
                     </div>
                   ) : null}
-                </div> : null}
+                </div>
 
-                {/* Primary submit only */}
-                <div className="mt-6 flex flex-col items-center text-center">
-                  <button
-                    type="submit"
-                    disabled={loading || (quickMode && !stravaConnected)}
-                    className="bg-black text-white px-8 py-3 rounded-full font-medium hover:bg-gray-800 disabled:opacity-50 w-full sm:w-auto max-w-full"
-                  >
-                    {loading
-                      ? 'Generating…'
-                      : hasPlan
-                      ? quickMode
-                        ? 'Regenerate from Strava'
-                        : 'Re-generate plan'
-                      : quickMode
-                      ? 'Build first plan from Strava'
-                      : 'Generate plan'}
-                  </button>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div>
+                    <FieldLabel label="Bike FTP" hint="Optional" />
+                    <TextInput className="mt-3" type="number" placeholder="240" value={form.bikeFTP} onChange={(e) => setField('bikeFTP', e.target.value)} />
+                  </div>
+                  <div>
+                    <FieldLabel label="Run threshold pace" hint="Optional" />
+                    <TextInput className="mt-3" placeholder={form.paceUnit === 'km' ? '4:40 / km' : '7:30 / mi'} value={form.runPace} onChange={(e) => setField('runPace', e.target.value)} />
+                  </div>
+                  {!isRunPlan ? (
+                    <div>
+                      <FieldLabel label="Swim threshold pace" hint="Optional" />
+                      <TextInput className="mt-3" placeholder="1:40 / 100m" value={form.swimPace} onChange={(e) => setField('swimPace', e.target.value)} />
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
 
-                  <div className="mt-3 text-xs text-gray-500">
-                    {quickMode
-                      ? 'We’ll estimate timeline and weekly volume, then tune as your data accumulates.'
-                      : 'Plans usually take 20–60 seconds. Full-distance or far-out races can take longer.'}
+            {currentStep.key === 'notes' ? (
+              <div className="space-y-7">
+                <div>
+                  <FieldLabel label="What should your plan know?" hint="Tell us about work schedule, weak disciplines, injury history, travel, or preferences." />
+                  <textarea
+                    value={form.athleteNotes}
+                    onChange={(e) => setField('athleteNotes', e.target.value)}
+                    rows={7}
+                    placeholder="Examples: I work shifts and need long rides on Wednesdays. I’m new at swimming and want technique early. I hate running two days in a row."
+                    className="mt-3 w-full rounded-3xl border border-zinc-200 bg-white px-4 py-4 text-base text-zinc-950 outline-none transition placeholder:text-zinc-400 focus:border-zinc-400 focus:ring-4 focus:ring-zinc-100"
+                  />
+                </div>
+                <div>
+                  <FieldLabel label="Training priorities" hint="Optional. Pick the things you want the plan to emphasize." />
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {PRIORITIES.map((priority) => (
+                      <button
+                        key={priority}
+                        type="button"
+                        onClick={() => togglePriority(priority)}
+                        className={cx(
+                          'rounded-full border px-4 py-2 text-sm font-medium transition',
+                          form.coachingPriorities.includes(priority)
+                            ? 'border-zinc-950 bg-zinc-950 text-white'
+                            : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
+                        )}
+                      >
+                        {priority}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
-            </form>
+            ) : null}
 
-            {/* One quiet “back” link only */}
-            <div className="mt-6 text-center text-sm text-gray-500">
-              Prefer to manage training from your calendar?{' '}
+            {currentStep.key === 'review' ? (
+              <div className="space-y-6">
+                <div className="rounded-3xl border border-zinc-200 bg-zinc-50 p-5">
+                  <h3 className="text-sm font-semibold text-zinc-950">Your plan will be built around</h3>
+                  <div className="mt-4 divide-y divide-zinc-200">
+                    {reviewRows.map(([label, value]) => (
+                      <div key={label} className="flex items-center justify-between gap-4 py-3 text-sm">
+                        <span className="text-zinc-500">{label}</span>
+                        <span className="text-right font-medium text-zinc-950">{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {form.athleteNotes.trim() ? (
+                  <div className="rounded-3xl border border-zinc-200 bg-white p-5">
+                    <h3 className="text-sm font-semibold text-zinc-950">Coach notes</h3>
+                    <p className="mt-2 text-sm leading-6 text-zinc-600">{form.athleteNotes.trim()}</p>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="mt-10 flex flex-col-reverse gap-3 border-t border-zinc-200 pt-6 sm:flex-row sm:items-center sm:justify-between">
               <button
                 type="button"
-                onClick={handleGoToSchedule}
-                className="underline underline-offset-4 hover:text-gray-900"
+                onClick={prevStep}
+                disabled={activeStep === 0}
+                className="rounded-full border border-zinc-200 bg-white px-5 py-3 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Go to Schedule
+                Back
               </button>
-            </div>
-          </main>
-        </div>
-      </Suspense>
 
-      <Footer />
-    </div>
+              {currentStep.key === 'review' ? (
+                <button
+                  type="button"
+                  onClick={submitPlan}
+                  className="rounded-full bg-zinc-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800"
+                >
+                  {hasPlan ? 'Re-generate plan' : 'Generate plan'}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={nextStep}
+                  disabled={!canContinue}
+                  className="rounded-full bg-zinc-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Continue
+                </button>
+              )}
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
   );
 }
 
 export default function PlanPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-white" />}>
+    <Suspense fallback={<main className="min-h-[100dvh] bg-[#fbfbfa]" />}>
       <PlanPageContent />
     </Suspense>
   );

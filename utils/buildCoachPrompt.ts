@@ -4,6 +4,16 @@ import type { WeekMeta, UserParams } from '@/types/plan';
 const dayName = (d: number) =>
   ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d];
 
+function listOrNone(items?: string[]) {
+  return items?.length ? items.join(', ') : 'none';
+}
+
+function yesNo(value?: boolean) {
+  if (value === true) return 'Yes';
+  if (value === false) return 'No';
+  return 'Not specified';
+}
+
 export function buildCoachPrompt({
   userParams,
   weekMeta,
@@ -34,10 +44,19 @@ You are creating ${weekMeta.label} for a ${userParams.raceType} plan.
 - Start Date: ${weekMeta.startDate}
 - Deload: ${weekMeta.deload ? 'Yes' : 'No'}
 
-## Preferences (honor if provided; otherwise use sensible defaults)
-- Long Ride Day: ${dayName(longRideDay)} (${longRideDay})
-- Long Run Day: ${dayName(longRunDay)} (${longRunDay})
+## Scheduling Preferences and Constraints
+- Long Ride Day: ${userParams.preferredLongRideDay ?? dayName(longRideDay)} (${longRideDay})
+- Long Run Day: ${userParams.preferredLongRunDay ?? dayName(longRunDay)} (${longRunDay})
 - Brick Allowed Day(s): ${brickDays.map(dayName).join(', ')} (${brickDays.join(',')})
+- Rest Day: ${userParams.restDay}
+- Unavailable Days: ${listOrNone(userParams.unavailableDays)}
+- Two-a-days allowed: ${yesNo(userParams.twoADaysAllowed)}
+
+## Athlete Context From Onboarding
+- Swim comfort: ${userParams.swimComfort ?? 'not specified'}
+- Coaching priorities: ${listOrNone(userParams.coachingPriorities)}
+- Athlete notes: ${userParams.athleteNotes?.trim() || 'none'}
+- Parsed constraints summary: ${userParams.constraintsSummary?.trim() || 'none'}
 
 ## Metrics
 - Bike FTP: ${userParams.bikeFtp ?? 'unknown'}
@@ -49,7 +68,10 @@ ${userParams.stravaHistorySummary ? userParams.stravaHistorySummary : 'No recent
 
 ## Instructions
 - Generate 5–6 balanced sessions plus the Rest Day.
-- Place long ride/run/brick according to Preferences above.
+- Treat Scheduling Preferences and Constraints as hard constraints unless they are unsafe or impossible.
+- Place long ride/run/brick according to the preferred days above.
+- Never schedule workouts on unavailable days unless the athlete explicitly allows it.
+- If the athlete is new/developing in swim comfort, bias early weeks toward technique, consistency, and confidence before heavy swim intensity.
 - Tie intensities to metrics when available.
 - If Strava history exists, use it to calibrate starting load and discipline balance while still honoring race goals.
 - Return ONLY valid JSON matching the schema in the system message.

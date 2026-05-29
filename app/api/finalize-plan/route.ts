@@ -219,6 +219,67 @@ function computeTotalWeeks(todayISO: string, raceDateISO: string): number {
   return Math.max(1, diff);
 }
 
+
+const DAY_TO_INDEX: Record<string, 0 | 1 | 2 | 3 | 4 | 5 | 6> = {
+  sunday: 0,
+  monday: 1,
+  tuesday: 2,
+  wednesday: 3,
+  thursday: 4,
+  friday: 5,
+  saturday: 6,
+};
+
+function normalizeDayName(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const cleaned = value.trim();
+  if (!cleaned) return undefined;
+  const key = cleaned.toLowerCase();
+  if (!(key in DAY_TO_INDEX)) return undefined;
+  return cleaned[0].toUpperCase() + cleaned.slice(1).toLowerCase();
+}
+
+function dayIndex(value: unknown): 0 | 1 | 2 | 3 | 4 | 5 | 6 | undefined {
+  const normalized = normalizeDayName(value);
+  if (!normalized) return undefined;
+  return DAY_TO_INDEX[normalized.toLowerCase()];
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter(Boolean);
+}
+
+function buildConstraintsSummary({
+  preferredLongRideDay,
+  preferredLongRunDay,
+  unavailableDays,
+  swimComfort,
+  twoADaysAllowed,
+  athleteNotes,
+  coachingPriorities,
+}: {
+  preferredLongRideDay?: string;
+  preferredLongRunDay?: string;
+  unavailableDays: string[];
+  swimComfort?: string;
+  twoADaysAllowed?: boolean;
+  athleteNotes?: string;
+  coachingPriorities: string[];
+}) {
+  const lines: string[] = [];
+  if (preferredLongRideDay) lines.push(`Long rides should usually land on ${preferredLongRideDay}.`);
+  if (preferredLongRunDay) lines.push(`Long runs should usually land on ${preferredLongRunDay}.`);
+  if (unavailableDays.length) lines.push(`Avoid scheduling training on: ${unavailableDays.join(", ")}.`);
+  if (swimComfort) lines.push(`Swim comfort is ${swimComfort}; adjust early swim progression accordingly.`);
+  if (typeof twoADaysAllowed === "boolean") lines.push(`Two-a-days allowed: ${twoADaysAllowed ? "yes" : "no"}.`);
+  if (coachingPriorities.length) lines.push(`Priorities: ${coachingPriorities.join(", ")}.`);
+  if (athleteNotes?.trim()) lines.push(`Athlete notes: ${athleteNotes.trim()}`);
+  return lines.join(" ");
+}
+
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
@@ -270,6 +331,13 @@ export async function POST(req: Request) {
       swimPace,
       planType,
       preferencesText,
+      preferredLongRideDay,
+      preferredLongRunDay,
+      unavailableDays,
+      swimComfort,
+      twoADaysAllowed,
+      athleteNotes,
+      coachingPriorities,
       paceUnit,
       clientUserId,
     } = body ?? {};
@@ -309,7 +377,37 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Missing race type" }, { status: 400 });
     }
 
-    const trainingPrefs = extractPrefs(preferencesText);
+    const preferredLongRideDayResolved = normalizeDayName(preferredLongRideDay);
+    const preferredLongRunDayResolved = normalizeDayName(preferredLongRunDay);
+    const unavailableDaysResolved = normalizeStringArray(unavailableDays)
+      .map(normalizeDayName)
+      .filter((day): day is string => !!day);
+    const athleteNotesResolved = typeof athleteNotes === "string" ? athleteNotes.trim() : "";
+    const swimComfortResolved = typeof swimComfort === "string" && swimComfort.trim() ? swimComfort.trim() : undefined;
+    const coachingPrioritiesResolved = normalizeStringArray(coachingPriorities);
+    const twoADaysAllowedResolved = typeof twoADaysAllowed === "boolean" ? twoADaysAllowed : undefined;
+
+    const constraintsSummary = buildConstraintsSummary({
+      preferredLongRideDay: preferredLongRideDayResolved,
+      preferredLongRunDay: preferredLongRunDayResolved,
+      unavailableDays: unavailableDaysResolved,
+      swimComfort: swimComfortResolved,
+      twoADaysAllowed: twoADaysAllowedResolved,
+      athleteNotes: athleteNotesResolved,
+      coachingPriorities: coachingPrioritiesResolved,
+    });
+
+    const preferenceTextParts = [preferencesText, constraintsSummary].filter(Boolean).join("\n");
+    const trainingPrefs = extractPrefs(preferenceTextParts);
+    const longRideIdx = dayIndex(preferredLongRideDayResolved);
+    const longRunIdx = dayIndex(preferredLongRunDayResolved);
+    if (longRideIdx !== undefined) {
+      trainingPrefs.longRideDay = longRideIdx;
+      trainingPrefs.brickDays = [longRideIdx];
+    }
+    if (longRunIdx !== undefined) {
+      trainingPrefs.longRunDay = longRunIdx;
+    }
 
     const ftpRaw = bikeFtp ?? bikeFTP;
     const ftpNormalized =
@@ -404,6 +502,14 @@ export async function POST(req: Request) {
       paceUnit: paceUnitResolved,
       trainingPrefs,
       stravaHistorySummary: stravaHistorySummary || undefined,
+      preferredLongRideDay: preferredLongRideDayResolved,
+      preferredLongRunDay: preferredLongRunDayResolved,
+      unavailableDays: unavailableDaysResolved,
+      swimComfort: swimComfortResolved,
+      twoADaysAllowed: twoADaysAllowedResolved,
+      athleteNotes: athleteNotesResolved || undefined,
+      coachingPriorities: coachingPrioritiesResolved,
+      constraintsSummary: constraintsSummary || undefined,
     };
 
     const todayISO = safeDateISO(new Date());
@@ -428,6 +534,10 @@ export async function POST(req: Request) {
       planTypeResolved,
       raceType,
       raceDate: raceDateResolved,
+      preferredLongRideDay: preferredLongRideDayResolved ?? null,
+      preferredLongRunDay: preferredLongRunDayResolved ?? null,
+      unavailableDays: unavailableDaysResolved,
+      swimComfort: swimComfortResolved ?? null,
     });
 
     const genStart = Date.now();

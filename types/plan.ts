@@ -34,6 +34,16 @@ export type UserParams = {
 
   // Optional Strava context for plan calibration
   stravaHistorySummary?: string;
+
+  // Guided onboarding context. These describe the athlete's real-world constraints.
+  preferredLongRideDay?: string;
+  preferredLongRunDay?: string;
+  unavailableDays?: string[];
+  swimComfort?: 'new' | 'developing' | 'comfortable' | 'strong' | string;
+  twoADaysAllowed?: boolean;
+  athleteNotes?: string;
+  coachingPriorities?: string[];
+  constraintsSummary?: string;
 };
 
 export type WeekMeta = {
