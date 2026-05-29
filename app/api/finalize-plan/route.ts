@@ -9,7 +9,7 @@ import {
   isLeapYear,
 } from "date-fns";
 
-import type { UserParams, WeekMeta, PlanType, GeneratedPlan, WeekJson } from "@/types/plan";
+import type { UserParams, WeekMeta, PlanType, GeneratedPlan, WeekJson, DayOfWeek, TrainingPrefs } from "@/types/plan";
 import { extractPrefs } from "@/utils/extractPrefs";
 import { convertPlanToSessions } from "@/utils/convertPlanToSessions";
 import { validateGeneratedPlan } from "@/utils/validateGeneratedPlan";
@@ -19,7 +19,6 @@ import { AuthError, assertSameUser, createRouteSupabaseClient, requireUser } fro
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
-import type { DayOfWeek, TrainingPrefs } from '@/types/plan';
 
 /* ---------- helpers ---------- */
 
@@ -758,14 +757,12 @@ export async function POST(req: Request) {
           : "",
       ]
         .filter(Boolean)
-        .join("
-");
+        .join("\n");
 
       const retryParams: UserParams = {
         ...userParams,
         constraintsSummary: retryContext,
-        athleteNotes: [userParams.athleteNotes, retryContext].filter(Boolean).join("
-"),
+        athleteNotes: [userParams.athleteNotes, retryContext].filter(Boolean).join("\n"),
       };
 
       attemptResult = await generatePlanAttempt(2, retryParams);
