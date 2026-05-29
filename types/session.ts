@@ -16,7 +16,5 @@ export type Session = {
 export type CompletedSession = {
   date: string;
   session_title: string;
-  strava_id?: string;
-  session_id?: string | null;
   status?: 'done' | 'skipped';
 };

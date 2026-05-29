@@ -1,17 +1,15 @@
 'use client';
 
 import {
-  startOfMonth,
-  endOfMonth,
-  startOfWeek,
-  endOfWeek,
   addDays,
-  isSameMonth,
+  endOfMonth,
+  endOfWeek,
   format,
-  isToday,
+  isSameMonth,
+  startOfMonth,
+  startOfWeek,
 } from 'date-fns';
 import { useMemo } from 'react';
-import clsx from 'clsx';
 import DayCell from './DayCell';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 import type { StravaActivity } from '@/types/strava';
@@ -24,6 +22,7 @@ type MonthGridProps = {
   stravaByDate: Record<string, StravaActivity[]>;
   onSessionClick?: (session: MergedSession) => void;
   onStravaActivityClick?: (activity: StravaActivity) => void;
+  onAddSessionClick?: (date: Date) => void;
 };
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -35,85 +34,53 @@ export default function MonthGrid({
   stravaByDate,
   onSessionClick,
   onStravaActivityClick,
+  onAddSessionClick,
 }: MonthGridProps) {
   const days = useMemo(() => {
     const start = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 1 });
     const end = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 1 });
+    const result: Date[] = [];
+    let cursor = start;
 
-    const arr: Date[] = [];
-    let d = start;
-    while (d <= end) {
-      arr.push(d);
-      d = addDays(d, 1);
+    while (cursor <= end) {
+      result.push(cursor);
+      cursor = addDays(cursor, 1);
     }
-    return arr;
+
+    return result;
   }, [currentMonth]);
 
   return (
-    <div className="w-full min-w-[1450px]">
-      <div
-        className={clsx(
-          'overflow-hidden rounded-2xl border border-black/10 bg-zinc-100/60',
-          'shadow-[0_1px_2px_rgba(0,0,0,0.05)]'
-        )}
-      >
-        <div className="grid grid-cols-7 border-b border-black/10 bg-zinc-100">
-          {WEEKDAYS.map((d) => (
-            <div
-              key={d}
-              className="px-3 py-2.5 text-center text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-600"
-            >
-              {d}
-            </div>
-          ))}
-        </div>
-
-        <div
-          className="grid grid-cols-7"
-          style={{
-            gridAutoRows: 'minmax(220px, 1fr)',
-          }}
-        >
-          {days.map((dateObj, idx) => {
-            const dayKey = format(dateObj, 'yyyy-MM-dd');
-            const outside = !isSameMonth(dateObj, currentMonth);
-            const today = isToday(dateObj);
-
-            const col = idx % 7;
-            const row = Math.floor(idx / 7);
-
-            const showLeft = col !== 0;
-            const showTop = row !== 0;
-
-            return (
-              <div
-                key={dayKey}
-                className={clsx(
-                  showLeft && 'border-l border-black/10',
-                  showTop && 'border-t border-black/10',
-                  outside ? 'bg-zinc-50/70' : 'bg-zinc-50/20',
-                  today && 'bg-white',
-                  'transition-colors hover:bg-white/80'
-                )}
-              >
-                <DayCell
-                  date={dateObj}
-                  sessions={sessionsByDate?.[dayKey] ?? []}
-                  isOutside={outside}
-                  completedSessions={completedSessions}
-                  extraActivities={stravaByDate?.[dayKey] ?? []}
-                  onSessionClick={onSessionClick}
-                  onStravaActivityClick={onStravaActivityClick}
-                />
-              </div>
-            );
-          })}
-        </div>
+    <section className="overflow-hidden rounded-[28px] border border-zinc-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
+      <div className="grid grid-cols-7 border-b border-zinc-200 bg-zinc-50/80">
+        {WEEKDAYS.map((weekday) => (
+          <div
+            key={weekday}
+            className="px-3 py-3 text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500"
+          >
+            {weekday}
+          </div>
+        ))}
       </div>
 
-      <div className="mt-2 text-[11px] text-zinc-500">
-        Click a session to review details, completion status, and workout structure.
+      <div className="grid grid-cols-7">
+        {days.map((date) => {
+          const dayKey = format(date, 'yyyy-MM-dd');
+          return (
+            <DayCell
+              key={dayKey}
+              date={date}
+              sessions={sessionsByDate[dayKey] ?? []}
+              isOutside={!isSameMonth(date, currentMonth)}
+              completedSessions={completedSessions}
+              extraActivities={stravaByDate[dayKey] ?? []}
+              onSessionClick={onSessionClick}
+              onStravaActivityClick={onStravaActivityClick}
+              onAddSessionClick={onAddSessionClick}
+            />
+          );
+        })}
       </div>
-    </div>
+    </section>
   );
 }
