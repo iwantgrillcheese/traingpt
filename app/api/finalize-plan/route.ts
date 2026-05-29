@@ -12,6 +12,7 @@ import {
 import type { UserParams, WeekMeta, PlanType, GeneratedPlan, WeekJson } from "@/types/plan";
 import { extractPrefs } from "@/utils/extractPrefs";
 import { convertPlanToSessions } from "@/utils/convertPlanToSessions";
+import { validateGeneratedPlan } from "@/utils/validateGeneratedPlan";
 import { AuthError, assertSameUser, createRouteSupabaseClient, requireUser } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -617,6 +618,35 @@ export async function POST(req: Request) {
       params: userParams,
       createdAt: new Date().toISOString(),
     };
+
+    const validation = validateGeneratedPlan({
+      plan: generatedPlan,
+      expectedWeeks: totalWeeks,
+      userParams,
+    });
+
+    console.log("[plan-validation] completed", {
+      userId,
+      score: validation.score,
+      ok: validation.ok,
+      stats: validation.stats,
+      warnings: validation.warnings.slice(0, 12),
+      errors: validation.errors.slice(0, 12),
+    });
+
+    if (!validation.ok) {
+      console.error("[plan-validation] critical validation failure", {
+        userId,
+        raceType,
+        raceDate: raceDateResolved,
+        errors: validation.errors,
+        warnings: validation.warnings.slice(0, 20),
+      });
+
+      throw new Error(
+        "We couldn’t finish your plan because the generated schedule was incomplete. Please try again."
+      );
+    }
 
     const { data: upserted, error: upsertErr } = await supabase
       .from("plans")
