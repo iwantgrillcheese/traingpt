@@ -63,6 +63,17 @@ function cleanTitle(title?: string | null) {
     .trim();
 }
 
+function cleanPlannedDetails(value?: string | null) {
+  const text = String(value ?? '')
+    .replace(/(details\s*[—–-]\s*){2,}/gi, '')
+    .replace(/details\s+details/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+  if (!text || /^(details\s*)+$/i.test(text)) return '';
+  return text;
+}
+
 function formatMinutes(value?: number | null) {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return null;
   if (value < 60) return `${Math.round(value)} min`;
@@ -148,7 +159,7 @@ export default function SessionModal({
   const [loading, setLoading] = useState(false);
   const [marking, setMarking] = useState(false);
   const [output, setOutput] = useState<string | null>(session?.structured_workout ?? null);
-  const [notesDraft, setNotesDraft] = useState(session?.details ?? '');
+  const [notesDraft, setNotesDraft] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
   const [fuelingEnabled, setFuelingEnabled] = useState(false);
   const [bodyWeightKg, setBodyWeightKg] = useState('');
@@ -158,7 +169,7 @@ export default function SessionModal({
 
   useEffect(() => {
     setOutput(session?.structured_workout ?? null);
-    setNotesDraft(session?.details ?? '');
+    setNotesDraft('');
     setErrorMessage(null);
   }, [session?.id, session?.structured_workout, session?.details]);
 
@@ -192,7 +203,7 @@ export default function SessionModal({
   const workoutSections = useMemo(() => parseWorkout(output), [output]);
   const isCompleted = Boolean(stravaActivity) || manualStatus === 'done';
   const isSkipped = !stravaActivity && manualStatus === 'skipped';
-  const notesChanged = notesDraft !== (session?.details ?? '');
+  const notesChanged = notesDraft.trim().length > 0;
 
   if (!session) return null;
 
@@ -202,6 +213,7 @@ export default function SessionModal({
   const completedDistance = formatDistance(stravaActivity?.distance ?? null);
   const title = cleanTitle(session.title);
   const sport = normalizeSport(session.sport);
+  const plannedDetails = cleanPlannedDetails(session.details);
 
   const applyLocalStatus = (nextStatus: 'done' | 'skipped' | null) => {
     const base = completedSessions.filter((item) => item.date !== session.date || item.session_title !== session.title);
@@ -359,15 +371,19 @@ export default function SessionModal({
             ) : null}
 
             <section className="rounded-2xl border border-zinc-200 bg-zinc-50/60 p-4">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Objective</div>
-              <p className="mt-2 text-[14px] leading-6 text-zinc-700">{getObjective(session)}</p>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Planned session</div>
+              {plannedDetails ? (
+                <p className="mt-2 whitespace-pre-wrap text-[14px] leading-6 text-zinc-700">{plannedDetails}</p>
+              ) : (
+                <p className="mt-2 text-[14px] leading-6 text-zinc-500">No detailed prescription was saved for this session. Generate a structured workout below.</p>
+              )}
             </section>
 
             <section className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4">
               <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Workout</div>
-                  <div className="mt-1 text-[15px] font-semibold text-zinc-950">{workoutSections.length ? 'Structured workout' : 'Not generated yet'}</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Detailed workout</div>
+                  <div className="mt-1 text-[15px] font-semibold text-zinc-950">{workoutSections.length ? 'Warm-up, main set, cooldown' : 'Optional generated structure'}</div>
                 </div>
                 <button
                   type="button"
@@ -398,7 +414,7 @@ export default function SessionModal({
                 </div>
               ) : (
                 <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-8 text-center text-[14px] leading-6 text-zinc-500">
-                  Generate a clear version of this session with warm-up, main set, and cool-down steps.
+                  Generate a more structured version with warm-up, main set, and cool-down steps.
                 </div>
               )}
             </section>
@@ -437,18 +453,10 @@ export default function SessionModal({
             </div>
 
             <section className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4">
-              <div className="mb-3 flex items-center justify-between">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Notes</div>
-                <button type="button" onClick={handleSaveNotes} disabled={!notesChanged || savingNotes} className="text-[12px] font-semibold text-zinc-950 disabled:text-zinc-300">
-                  {savingNotes ? 'Saving…' : 'Save'}
-                </button>
-              </div>
-              <textarea
-                value={notesDraft}
-                onChange={(event) => setNotesDraft(event.target.value)}
-                placeholder="Add how you felt, what changed, or anything your coach should know."
-                className="min-h-[105px] w-full resize-none rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-[14px] leading-6 text-zinc-800 outline-none focus:border-zinc-400 focus:bg-white"
-              />
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Notes</div>
+              <p className="mt-2 text-[14px] leading-6 text-zinc-500">
+                Athlete notes will live here once notes are stored separately from the planned workout prescription.
+              </p>
             </section>
 
             <section className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4">

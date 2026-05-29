@@ -82,6 +82,10 @@ ${userParams.stravaHistorySummary ? userParams.stravaHistorySummary : 'No recent
 - Do NOT put duration, pace, FTP, interval prescriptions, yardage, or long explanations in the title. Put those specifics in details/description.
 - Good title examples: "Run Easy", "Run Threshold", "Long Run", "Bike Endurance", "Bike Threshold", "Long Ride", "Swim Technique", "Swim Endurance", "Strength Core", "Brick Run".
 - Bad title examples: "Threshold — 50min including 5x5min", "Long — 1h45 at 8:00-8:30/mi", "Technique — 2000m drills focusing on stroke efficiency".
+- Preferred output shape for each session item inside days: an object with { sport, title, details }. The title must be short and the details must contain the actual prescription.
+- Do not output placeholder details such as "Details", "Details Details", "TBD", "Not specified", or repeated labels. Details must be useful enough for an athlete to execute the workout.
+- Example session object: { "sport": "run", "title": "Run Threshold", "details": "50min total. Main set: 5x5min near threshold with 2min easy jog recoveries. Keep the final rep controlled." }
+- Example swim object: { "sport": "swim", "title": "Swim Technique", "details": "1500m total with 300m easy warmup, 8x50m drills, 6x100m smooth aerobic, 200m cooldown." }
 - Every non-rest session must include useful detail/description. For swim sessions, always include purpose or set structure. For bike/run quality sessions, include the main set or intensity target in details, not the title.
 - Return ONLY valid JSON matching the schema in the system message.
 `.trim();

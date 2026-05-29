@@ -377,7 +377,7 @@ export function validateGeneratedPlan({
   const score = Math.max(0, Math.min(100, 100 - penalty));
 
   return {
-    ok: errors.length === 0,
+    ok: errors.length === 0 && score >= 70,
     score,
     errors,
     warnings,

@@ -106,9 +106,9 @@ function deriveCalendarTitle(sport: Sport | 'brick', source: string): string {
 }
 
 function joinDetails(parts: string[], fallback: string, title: string): string | null {
-  const cleanedParts = parts.map(cleanTitle).filter(Boolean);
+  const cleanedParts = parts.map(cleanDetails).filter((part): part is string => Boolean(part));
   const detailText = cleanedParts.join(' — ').trim();
-  const cleanedFallback = cleanTitle(fallback);
+  const cleanedFallback = cleanDetails(fallback);
 
   if (detailText && detailText.toLowerCase() !== title.toLowerCase()) return detailText;
   if (cleanedFallback && cleanedFallback.toLowerCase() !== title.toLowerCase()) return cleanedFallback;
@@ -145,7 +145,7 @@ function detectSport(text: string): Sport | 'brick' {
 
 function parseStringItem(str: string): ParsedSession | null {
   if (!str || !str.trim()) return null;
-  if (isRestLike(str)) return null;
+  if (isRestLike(str) || isDetailsPlaceholder(str)) return null;
 
   // Strip leading emoji(s)
   const emojiMatch = str.match(
@@ -164,10 +164,11 @@ function parseStringItem(str: string): ParsedSession | null {
     .map((p) => p.trim())
     .filter(Boolean);
 
-  // Drop trailing "Details" placeholder
-  if (parts.length && /^details$/i.test(parts[parts.length - 1].trim())) {
+  // Drop trailing placeholder detail tokens. If the whole item is just placeholder text, skip it.
+  while (parts.length && isDetailsPlaceholder(parts[parts.length - 1])) {
     parts = parts.slice(0, -1);
   }
+  if (!parts.length || isDetailsPlaceholder(parts[0])) return null;
 
   const sport = (emoji && EmojiSportMap[emoji]) || detectSport(withoutEmoji);
   const hasExplicitSportPrefix = parts.length > 1 && /^(swim|bike|ride|run|strength|gym|brick)$/i.test(parts[0]);
@@ -307,7 +308,7 @@ function rowsFromParsedSession({
   }
 
   const { bikeTitle, runTitle } = extractBrickDurations(text);
-  const sharedDetails = parsed.details ?? (cleanTitle(text) || 'Part of brick workout.');
+  const sharedDetails = parsed.details ?? cleanDetails(text) ?? 'Part of brick workout.';
 
   return [
     buildRow({ userId, planId, date, sport: 'bike', title: bikeTitle, details: sharedDetails, raw: parsed.raw }),
@@ -318,10 +319,18 @@ function rowsFromParsedSession({
 function parseObjectItem(item: any): ParsedSession | null {
   if (!item || typeof item !== 'object') return null;
   const originalTitle = cleanTitle(item?.title ?? item?.session_title ?? item?.name ?? 'Session');
-  const originalDetails = typeof item?.details === 'string' ? item.details : typeof item?.description === 'string' ? item.description : null;
+  const originalDetails = cleanDetails(
+    typeof item?.details === 'string'
+      ? item.details
+      : typeof item?.description === 'string'
+        ? item.description
+        : typeof item?.detail === 'string'
+          ? item.detail
+          : null
+  );
   const sportText = [item?.sport, originalTitle, originalDetails].filter(Boolean).join(' ');
 
-  if (isRestLike(sportText)) return null;
+  if (isRestLike(sportText) || isDetailsPlaceholder(originalTitle)) return null;
 
   const sport = detectSport(sportText);
   const title = deriveCalendarTitle(sport, sportText);

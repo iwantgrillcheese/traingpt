@@ -693,17 +693,22 @@ export async function POST(req: Request) {
       errors: validation.errors.slice(0, 12),
     });
 
-    if (!validation.ok) {
-      console.error("[plan-validation] critical validation failure", {
+    const minimumPlanQualityScore = Number(process.env.MIN_PLAN_QUALITY_SCORE ?? 70);
+    if (!validation.ok || validation.score < minimumPlanQualityScore) {
+      console.error("[plan-validation] quality gate failed", {
         userId,
         raceType,
         raceDate: raceDateResolved,
+        score: validation.score,
+        minimumPlanQualityScore,
         errors: validation.errors,
-        warnings: validation.warnings.slice(0, 20),
+        warnings: validation.warnings.slice(0, 30),
       });
 
       throw new Error(
-        "We couldn’t finish your plan because the generated schedule was incomplete. Please try again."
+        validation.errors.length
+          ? "We couldn’t finish your plan because the generated schedule was incomplete. Please try again."
+          : "We couldn’t generate a complete enough plan. Please try again."
       );
     }
 
