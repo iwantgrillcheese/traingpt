@@ -435,10 +435,10 @@ export default function CoachingDashboard({
             detail={plannedThisWeek.length > 0 ? `${completionPct}% of this week` : 'No planned sessions this week'}
           />
           <MetricTile
-            label="Plan to date"
-            value={`${weeklySummary?.planToDate?.completed ?? completedSessions.length}`}
-            detail={`${weeklySummary?.planToDate?.planned ?? sessions.length} planned sessions total`}
-          />
+  label="Plan to date"
+  value={`${completedSessions.length}`}
+  detail={`${sessions.length} planned sessions total`}
+/>
         </section>
 
         <section className="mb-6 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
