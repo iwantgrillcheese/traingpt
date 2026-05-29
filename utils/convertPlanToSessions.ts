@@ -105,18 +105,41 @@ function buildCanonicalWeekDates(weekStartISO: string): string[] {
  * then map day items onto those dates. This prevents invalid dates like
  * "2026-02-29" from ever reaching Postgres.
  */
+function safeWeekDays(value: unknown): Record<string, any[]> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, items]) => [
+      String(key),
+      Array.isArray(items) ? items.filter((item) => typeof item === 'string' || (!!item && typeof item === 'object')) : [],
+    ])
+  );
+}
+
 export function convertPlanToSessions(userId: string, planId: string, planJson: any): SessionRow[] {
   const rows: SessionRow[] = [];
+  const weeks = Array.isArray(planJson?.weeks) ? planJson.weeks : [];
 
-  for (const week of planJson?.weeks ?? []) {
-    const canonical = buildCanonicalWeekDates(week.startDate);
-    if (canonical.length !== 7) continue;
+  for (const week of weeks) {
+    if (!week || typeof week !== 'object') {
+      console.error('[convertPlanToSessions] skipping malformed week object', { week });
+      continue;
+    }
+
+    const canonical = buildCanonicalWeekDates(String(week.startDate ?? ''));
+    if (canonical.length !== 7) {
+      console.error('[convertPlanToSessions] skipping week with invalid startDate', {
+        label: week?.label,
+        startDate: week?.startDate,
+      });
+      continue;
+    }
 
     const canonicalSet = new Set(canonical);
     const mapped: Record<string, any[]> = Object.fromEntries(canonical.map((d) => [d, []]));
     const extras: Array<{ key: string; items: any[] }> = [];
 
-    const entries = Object.entries<any>(week.days ?? {});
+    const entries = Object.entries<any[]>(safeWeekDays(week.days));
     entries.sort(([a], [b]) => String(a).localeCompare(String(b)));
 
     for (const [key, items] of entries) {
@@ -159,7 +182,7 @@ export function convertPlanToSessions(userId: string, planId: string, planJson: 
             user_id: userId,
             plan_id: planId,
             date,
-            sport: detectSport(JSON.stringify(item)),
+            sport: detectSport(JSON.stringify(item ?? {})),
             title,
             session_title: title, // keep both populated
             details: item?.details ?? null,

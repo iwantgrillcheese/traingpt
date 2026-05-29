@@ -219,6 +219,36 @@ function computeTotalWeeks(todayISO: string, raceDateISO: string): number {
   return Math.max(1, diff);
 }
 
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeWeekDays(value: unknown): Record<string, any[]> {
+  if (!isPlainRecord(value)) return {};
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, items]) => [
+      String(key),
+      Array.isArray(items) ? items.filter((item) => typeof item === "string" || isPlainRecord(item)) : [],
+    ])
+  );
+}
+
+function normalizeGeneratedWeek(raw: unknown, meta: WeekMeta): WeekJson {
+  const source = isPlainRecord(raw) ? raw : {};
+  const rawStartDate = typeof source.startDate === "string" ? source.startDate : "";
+  const parsedStartDate = rawStartDate ? parseISO(rawStartDate) : null;
+
+  return {
+    label: typeof source.label === "string" && source.label.trim() ? source.label : meta.label,
+    phase: typeof source.phase === "string" && source.phase.trim() ? source.phase : meta.phase,
+    startDate: parsedStartDate && isValidDate(parsedStartDate) ? rawStartDate : meta.startDate,
+    deload: typeof source.deload === "boolean" ? source.deload : meta.deload,
+    days: normalizeWeekDays(source.days) as Record<string, string[]>,
+    debug: typeof source.debug === "string" ? source.debug : undefined,
+  };
+}
+
 /* ----------------------------- route ----------------------------- */
 
 export async function POST(req: Request) {
@@ -425,15 +455,22 @@ export async function POST(req: Request) {
           prevWeek,
         });
 
-        const guarded = guardWeek(raw, userParams.trainingPrefs);
+        const normalizedRaw = normalizeGeneratedWeek(raw, planMeta[i]);
 
-        return {
-          ...guarded,
-          days:
-            guarded?.days && typeof guarded.days === 'object' && !Array.isArray(guarded.days)
-              ? guarded.days
-              : {},
-        } as WeekJson;
+        try {
+          return normalizeGeneratedWeek(
+            guardWeek(normalizedRaw, userParams.trainingPrefs),
+            planMeta[i]
+          );
+        } catch (guardErr) {
+          console.error("[finalize-plan] guardWeek failed; using normalized generated week", {
+            weekIndex: i,
+            weekLabel: planMeta[i]?.label,
+            error: guardErr instanceof Error ? guardErr.message : String(guardErr),
+          });
+
+          return normalizedRaw;
+        }
       })();
 
       weeks.push(singleWeek);
@@ -573,8 +610,14 @@ export async function POST(req: Request) {
       );
     }
 
+    const rawMessage = String(err?.message ?? "");
+    const safeMessage =
+      rawMessage.includes("Cannot convert undefined or null to object")
+        ? "We couldn’t generate your plan because one generated week was incomplete. Please try again."
+        : rawMessage || "Internal error";
+
     return NextResponse.json(
-      { error: err?.message ?? "Internal error" },
+      { ok: false, error: safeMessage },
       { status: 500 }
     );
   }
