@@ -61,6 +61,33 @@ function raceFamily(raceType: string): 'sprint' | 'olympic' | 'half' | 'ironman'
   return 'triathlon';
 }
 
+
+function cleanMetric(value: unknown): string | null {
+  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+  return text && text.toLowerCase() !== 'unknown' ? text : null;
+}
+
+function ftpRange(ftp: unknown, low: number, high: number): string | null {
+  const value = typeof ftp === 'number' && Number.isFinite(ftp) ? ftp : Number.parseFloat(String(ftp ?? ''));
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return `${Math.round(value * low)}-${Math.round(value * high)}W (${Math.round(low * 100)}-${Math.round(high * 100)}% FTP)`;
+}
+
+function bikeMetricCue(userParams: UserParams, low: number, high: number, fallbackLabel: string): string {
+  const range = ftpRange(userParams.bikeFtp, low, high);
+  return range ? `Use your FTP to anchor the work: ${range}.` : fallbackLabel;
+}
+
+function runMetricCue(userParams: UserParams, label: string): string {
+  const threshold = cleanMetric(userParams.runPace);
+  return threshold ? `${label} Use your run threshold pace (${threshold}) as the anchor, but adjust by feel if fatigue is high.` : label;
+}
+
+function swimMetricCue(userParams: UserParams, label: string): string {
+  const css = cleanMetric(userParams.swimPace);
+  return css ? `${label} Use your swim threshold/CSS (${css}) as the anchor for controlled repeats, staying relaxed rather than forcing pace.` : label;
+}
+
 function phaseIntensity(phase: string, deload: boolean) {
   const lower = phase.toLowerCase();
   if (deload || lower.includes('recovery')) return 'recovery';
@@ -75,61 +102,61 @@ function getLongRideDetails(userParams: UserParams, weekMeta: WeekMeta) {
   const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
 
   if (phase === 'taper') {
-    return 'Reduced aerobic long ride. Stay mostly Z2, include a few short relaxed race-effort pickups if fresh, and finish feeling sharp.';
+    return `Reduced aerobic long ride. Stay mostly Z2, include a few short relaxed race-effort pickups if fresh, and finish feeling sharp. ${bikeMetricCue(userParams, 0.62, 0.72, 'Keep the effort clearly aerobic.')}`;
   }
 
   if (family === 'half') {
-    return 'Aerobic long ride for 70.3 durability. Stay mostly Z2, practice fueling every 20-30min, and finish controlled rather than depleted.';
+    return `Aerobic long ride for 70.3 durability. Practice fueling every 20-30min and finish controlled rather than depleted. ${bikeMetricCue(userParams, 0.65, 0.75, 'Keep most of the ride in Z2 / conversational endurance effort.')}`;
   }
 
   if (family === 'ironman') {
-    return 'Long aerobic ride focused on steady pacing, fueling practice, and staying relaxed. Keep the effort sustainable from start to finish.';
+    return `Long aerobic ride focused on steady pacing, fueling practice, and staying relaxed. ${bikeMetricCue(userParams, 0.63, 0.72, 'Keep the effort sustainable from start to finish.')}`;
   }
 
   if (family === 'sprint' || family === 'olympic') {
-    return 'Aerobic endurance ride with a few controlled race-effort segments. Keep the final 10min smooth and confident.';
+    return `Aerobic endurance ride with a few controlled race-effort segments. Keep the final 10min smooth and confident. ${bikeMetricCue(userParams, 0.7, 0.85, 'Use controlled race-effort, not all-out intensity.')}`;
   }
 
-  return 'Aerobic long ride focused on durability, fueling, and controlled pacing.';
+  return `Aerobic long ride focused on durability, fueling, and controlled pacing. ${bikeMetricCue(userParams, 0.65, 0.75, 'Keep effort controlled and aerobic.')}`;
 }
 
 function getBrickRunDetails(userParams: UserParams, weekMeta: WeekMeta) {
   const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
-  if (phase === 'taper') return '10-15min very easy off the bike. Keep cadence quick, shoulders relaxed, and effort light.';
-  if (phase === 'base') return '10-15min easy off the bike. Focus on quick cadence and relaxed form, not pace.';
-  if (phase === 'peak') return '20-30min controlled off the bike. Start easy, then settle into realistic race effort only if fresh.';
-  return '15-25min easy-to-steady off the bike. Practice transition rhythm, posture, and controlled pacing.';
+  if (phase === 'taper') return runMetricCue(userParams, '10-15min very easy off the bike. Keep cadence quick, shoulders relaxed, and effort light.');
+  if (phase === 'base') return runMetricCue(userParams, '10-15min easy off the bike. Focus on quick cadence and relaxed form, not pace.');
+  if (phase === 'peak') return runMetricCue(userParams, '20-30min controlled off the bike. Start easy, then settle into realistic race effort only if fresh.');
+  return runMetricCue(userParams, '15-25min easy-to-steady off the bike. Practice transition rhythm, posture, and controlled pacing.');
 }
 
 function getLongRunDetails(userParams: UserParams, weekMeta: WeekMeta) {
   const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
-  if (phase === 'taper') return 'Reduced long run. Keep it easy and relaxed with no forced pace work.';
-  if (phase === 'peak') return 'Long aerobic run with controlled pacing. Keep effort sustainable and avoid turning it into a race.';
-  return 'Long easy aerobic run. Stay conversational and build durability without excess fatigue.';
+  if (phase === 'taper') return runMetricCue(userParams, 'Reduced long run. Keep it easy and relaxed with no forced pace work.');
+  if (phase === 'peak') return runMetricCue(userParams, 'Long aerobic run with controlled pacing. Keep effort sustainable and avoid turning it into a race.');
+  return runMetricCue(userParams, 'Long easy aerobic run. Stay conversational and build durability without excess fatigue.');
 }
 
 function getRunQualityDetails(userParams: UserParams, weekMeta: WeekMeta) {
   const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
-  if (phase === 'recovery' || phase === 'taper') return 'Easy aerobic run with 4-6 relaxed strides if fresh. Keep the session light.';
-  if (phase === 'base') return 'Controlled aerobic run with short strides. Build rhythm without heavy intensity.';
-  return 'Threshold-focused run. Include a steady main set at controlled threshold effort with easy recoveries.';
+  if (phase === 'recovery' || phase === 'taper') return runMetricCue(userParams, 'Easy aerobic run with 4-6 relaxed strides if fresh. Keep the session light.');
+  if (phase === 'base') return runMetricCue(userParams, 'Controlled aerobic run with short strides. Build rhythm without heavy intensity.');
+  return runMetricCue(userParams, 'Threshold-focused run. Include a steady main set at controlled threshold effort with easy recoveries.');
 }
 
 function getBikeMidweekDetails(userParams: UserParams, weekMeta: WeekMeta) {
   const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
-  if (phase === 'recovery' || phase === 'taper') return 'Easy aerobic spin. Keep cadence smooth and effort relaxed.';
-  if (phase === 'base') return 'Aerobic bike with steady Z2 work. Keep effort controlled and build consistency.';
-  return 'Bike strength or tempo session. Include controlled steady intervals while keeping the weekend endurance ride protected.';
+  if (phase === 'recovery' || phase === 'taper') return `Easy aerobic spin. Keep cadence smooth and effort relaxed. ${bikeMetricCue(userParams, 0.55, 0.68, 'Stay very comfortable.')}`;
+  if (phase === 'base') return `Aerobic bike with steady Z2 work. Keep effort controlled and build consistency. ${bikeMetricCue(userParams, 0.65, 0.75, 'Stay aerobic throughout.')}`;
+  return `Bike strength or tempo session. Include controlled steady intervals while keeping the weekend endurance ride protected. ${bikeMetricCue(userParams, 0.82, 0.9, 'Keep tempo controlled, not maximal.')}`;
 }
 
 function getSwimDetails(kind: 'Technique' | 'Endurance', userParams: UserParams, weekMeta: WeekMeta) {
   const comfort = String(userParams.swimComfort ?? '').toLowerCase();
 
   if (kind === 'Technique' || comfort === 'new' || comfort === 'developing') {
-    return 'Technique-focused swim. Include easy warmup, drill work, short relaxed repeats, and smooth cooldown. Prioritize body position, breathing, and comfort.';
+    return swimMetricCue(userParams, 'Technique-focused swim. Include easy warmup, drill work, short relaxed repeats, and smooth cooldown. Prioritize body position, breathing, and comfort.');
   }
 
-  return 'Endurance swim. Include easy warmup, steady aerobic repeats, and cooldown. Keep pacing smooth and sustainable rather than forcing speed.';
+  return swimMetricCue(userParams, 'Endurance swim. Include easy warmup, steady aerobic repeats, and cooldown. Keep pacing smooth and sustainable rather than forcing speed.');
 }
 
 function findAvailableDay(preferred: number, blocked: Set<number>, used: Set<number>, allowUsed = false): number {

@@ -83,7 +83,7 @@ ${userParams.stravaHistorySummary ? userParams.stravaHistorySummary : 'No recent
 - Place long ride/run/brick according to the preferred days above. The selected rest day overrides any default template. Do not add Tuesday as a habitual second rest day.
 - Never schedule workouts on unavailable days unless the athlete explicitly allows it.
 - If the athlete is new/developing in swim comfort, bias early weeks toward technique, consistency, and confidence before heavy swim intensity.
-- Tie intensities to metrics when available.
+- Tie intensities to metrics consistently when available: bike workouts should reference FTP ranges, run workouts should reference threshold pace when appropriate, and swim workouts should reference swim CSS/threshold pace for controlled repeats. Easy sessions can use zones/effort language, but intensity sessions should be clearly anchored to the athlete's data.
 - If Strava history exists, use it to calibrate starting load and discipline balance while still honoring race goals.
 - Session titles must be concise, calendar-friendly labels of 2–4 words. Do NOT begin session titles with punctuation such as "—", "–", "-", ":", bullets, or emoji.
 - Do NOT put duration, pace, FTP, interval prescriptions, yardage, or long explanations in the title. Put those specifics in details/description.
