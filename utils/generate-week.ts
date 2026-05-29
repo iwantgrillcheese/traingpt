@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import { COACH_SYSTEM_PROMPT } from "@/lib/coachPrompt";
 import { RUNNING_SYSTEM_PROMPT } from "@/lib/runningPrompt";
 import { buildCoachPrompt } from "./buildCoachPrompt";
+import { applyTriathlonScaffold, buildTriathlonWeekScaffold } from "./buildTriathlonScaffold";
 import { buildRunningPrompt } from "./buildRunningPrompt";
 import { computeRunTargets } from "@/utils/runTargets";
 import { validateRunWeek } from "@/utils/validateRunWeek";
@@ -169,5 +170,6 @@ Important: Every run must include duration and longest run must be on the prefer
     return bestWeek;
   }
 
-  return currentWeek;
+  const scaffold = buildTriathlonWeekScaffold({ userParams, weekMeta, index: weekIndex });
+  return applyTriathlonScaffold({ generatedWeek: currentWeek, scaffold });
 }

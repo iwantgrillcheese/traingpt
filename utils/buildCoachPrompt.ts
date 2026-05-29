@@ -1,5 +1,6 @@
 // utils/buildCoachPrompt.ts
 import type { WeekMeta, UserParams } from '@/types/plan';
+import { buildTriathlonWeekScaffold, scaffoldSummary } from './buildTriathlonScaffold';
 
 const dayName = (d: number) =>
   ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d];
@@ -27,6 +28,7 @@ export function buildCoachPrompt({
   const longRideDay = prefs.longRideDay ?? 6; // default Saturday
   const longRunDay  = prefs.longRunDay  ?? 0; // default Sunday
   const brickDays   = (prefs.brickDays?.length ? prefs.brickDays : [6]); // default Saturday
+  const scaffold = buildTriathlonWeekScaffold({ userParams, weekMeta, index });
 
   return `
 You are creating ${weekMeta.label} for a ${userParams.raceType} plan.
@@ -43,6 +45,10 @@ You are creating ${weekMeta.label} for a ${userParams.raceType} plan.
 - Phase: ${weekMeta.phase}
 - Start Date: ${weekMeta.startDate}
 - Deload: ${weekMeta.deload ? 'Yes' : 'No'}
+
+## Deterministic Week Scaffold
+The weekly structure below is the source of truth. Do not move, add, or remove sessions. Fill the existing slots with useful details only.
+${scaffoldSummary(scaffold)}
 
 ## Scheduling Preferences and Constraints
 - Long Ride Day: ${userParams.preferredLongRideDay ?? dayName(longRideDay)} (${longRideDay})
@@ -67,6 +73,7 @@ You are creating ${weekMeta.label} for a ${userParams.raceType} plan.
 ${userParams.stravaHistorySummary ? userParams.stravaHistorySummary : 'No recent Strava data available. Build from goals and experience defaults.'}
 
 ## Instructions
+- CRITICAL: Follow the Deterministic Week Scaffold exactly for dates, sports, and session titles. GPT's job is to enrich workout details, not decide the weekly skeleton.
 - Generate a realistic week for the athlete's stated max hours. Most 70.3 weeks should have 6–9 total sessions, not 10–12+ unless the athlete explicitly supports that load.
 - IMPORTANT: Brick workouts are REQUIRED in every triathlon plan. A brick is not a sport value; it is a same-day bike + run pairing. Represent each brick as TWO sessions on the same date: one Bike session and one short Run session. Example: { "sport": "bike", "title": "Long Ride", "details": "2h Z2..." } and { "sport": "run", "title": "Brick Run", "details": "15min easy off the bike..." }. Never output sport/title text where the sport itself is "brick".
 - Brick frequency rule: Sprint/Olympic plans need periodic brick runs; 70.3 and Ironman plans need brick runs in most Build/Peak weeks and some Base weeks. The brick run should usually follow the long ride on the preferred long ride day. The bike portion should usually BE the long ride. Do not add a separate endurance bike, threshold bike, and brick bike on the same day.
