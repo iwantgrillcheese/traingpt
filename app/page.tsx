@@ -13,8 +13,6 @@ const BIKE_IMAGE =
   'https://images.unsplash.com/photo-1541625602330-2277a4c46182?auto=format&fit=crop&w=1800&q=85';
 const RUN_IMAGE =
   'https://images.unsplash.com/photo-1552674605-db6ffd4facb5?auto=format&fit=crop&w=1800&q=85';
-const HERO_IMAGE =
-  'https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&w=2200&q=85';
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(' ');
@@ -132,46 +130,91 @@ function MarketingHeader({
   );
 }
 
-function HeroProductPreview() {
-  const week = [
-    ['Mon', 'Swim', 'Technique', '45m'],
-    ['Tue', 'Bike', 'Endurance', '75m'],
-    ['Thu', 'Run', 'Threshold', '50m'],
-    ['Sat', 'Brick', 'Bike + run', '90m'],
-  ];
+function PlanGeneratorCard({ authed, onStart }: { authed: boolean; onStart: () => void }) {
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    onStart();
+  };
 
   return (
-    <div className="relative">
-      <div className="overflow-hidden rounded-[2rem] border border-zinc-200 bg-zinc-100 shadow-sm">
-        <div
-          className="h-[440px] bg-cover bg-center sm:h-[520px]"
-          style={{ backgroundImage: `url(${HERO_IMAGE})` }}
+    <form
+      onSubmit={handleSubmit}
+      className="rounded-[2rem] border border-zinc-200 bg-white p-5 shadow-[0_24px_90px_rgba(15,23,42,0.10)] sm:p-6"
+    >
+      <div className="flex items-start justify-between gap-4 border-b border-zinc-100 pb-5">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-400">Plan generator</p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">Start with your race.</h2>
+        </div>
+        <span className="rounded-full bg-zinc-950 px-3 py-1 text-xs font-medium text-white">~60 sec</span>
+      </div>
+
+      <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <label className="block">
+          <span className="text-xs font-medium text-zinc-500">Race</span>
+          <select
+            defaultValue="70.3"
+            className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm text-zinc-950 outline-none transition focus:border-zinc-400"
+          >
+            <option value="Sprint">Sprint</option>
+            <option value="Olympic">Olympic</option>
+            <option value="70.3">70.3</option>
+            <option value="Ironman">Ironman</option>
+          </select>
+        </label>
+
+        <label className="block">
+          <span className="text-xs font-medium text-zinc-500">Race date</span>
+          <input
+            type="date"
+            className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm text-zinc-950 outline-none transition focus:border-zinc-400"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-xs font-medium text-zinc-500">Experience</span>
+          <select
+            defaultValue="Intermediate"
+            className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm text-zinc-950 outline-none transition focus:border-zinc-400"
+          >
+            <option>Beginner</option>
+            <option>Intermediate</option>
+            <option>Advanced</option>
+          </select>
+        </label>
+
+        <label className="block">
+          <span className="text-xs font-medium text-zinc-500">Weekly hours</span>
+          <input
+            defaultValue="8"
+            inputMode="numeric"
+            className="mt-2 h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm text-zinc-950 outline-none transition focus:border-zinc-400"
+          />
+        </label>
+      </div>
+
+      <label className="mt-4 block">
+        <span className="text-xs font-medium text-zinc-500">Optional note</span>
+        <textarea
+          rows={3}
+          placeholder="I prefer long rides Saturday, long runs Sunday, and one rest day."
+          className="mt-2 w-full resize-none rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-950 outline-none transition placeholder:text-zinc-400 focus:border-zinc-400"
         />
-      </div>
+      </label>
 
-      <div className="absolute -bottom-8 left-4 right-4 rounded-[1.75rem] border border-zinc-200 bg-white/95 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.14)] backdrop-blur sm:left-8 sm:right-8 sm:p-5">
-        <div className="flex items-center justify-between border-b border-zinc-100 pb-4">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-400">Training week</p>
-            <h3 className="mt-1 text-lg font-semibold tracking-tight text-zinc-950">May 25 – May 31</h3>
-          </div>
-          <span className="rounded-full border border-zinc-200 px-3 py-1 text-xs text-zinc-600">Strava connected</span>
-        </div>
+      <button
+        type="submit"
+        className="mt-5 w-full rounded-full bg-zinc-950 px-6 py-4 text-sm font-semibold text-white transition hover:bg-zinc-800"
+      >
+        {authed ? 'Open plan' : 'Sign in to generate plan'}
+      </button>
 
-        <div className="mt-4 grid gap-2 sm:grid-cols-2">
-          {week.map(([day, sport, focus, duration]) => (
-            <div key={`${day}-${sport}`} className="rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-xs font-medium text-zinc-400">{day}</span>
-                <span className="rounded-full bg-white px-2 py-0.5 text-[11px] text-zinc-500 ring-1 ring-zinc-200">{duration}</span>
-              </div>
-              <p className="mt-3 text-sm font-semibold text-zinc-950">{sport}</p>
-              <p className="mt-0.5 text-xs text-zinc-500">{focus}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
+      <p className="mt-4 text-center text-xs text-zinc-500">
+        {authed
+          ? 'Open your plan generator to create or update your training block.'
+          : 'Create an account first. Your plan is generated inside the app.'}
+      </p>
+    </form>
   );
 }
 
@@ -359,7 +402,7 @@ export default function Home() {
           </div>
 
           <div className="lg:col-span-6">
-            <HeroProductPreview />
+            <PlanGeneratorCard authed={authed} onStart={startPlan} />
           </div>
         </div>
       </section>
