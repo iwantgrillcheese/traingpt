@@ -1,58 +1,70 @@
-'use client';
-
 import Link from 'next/link';
+
+const productLinks = [
+  { href: '/plan', label: 'Plan generator' },
+  { href: '/schedule', label: 'Schedule' },
+  { href: '/coaching', label: 'Coaching' },
+  { href: '/settings', label: 'Settings' },
+];
+
+const resourceLinks = [
+  { href: '/blog/ai-triathlon-coach', label: 'AI triathlon coach' },
+  { href: '/blog/70-3-training-plan', label: '70.3 training plan' },
+  { href: '/blog/best-triathlon-training-plan', label: 'Training plan guide' },
+  { href: '/blog', label: 'All articles' },
+];
 
 export default function Footer() {
   return (
-    <footer className="border-t border-gray-200 px-6 py-16 text-sm text-gray-600 mt-24">
-      <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-12">
-        <div>
-          <h3 className="text-xs font-semibold text-gray-400 uppercase mb-4">TRAINGPT</h3>
-          <ul className="space-y-2">
-            <li>
-              <Link href="/about" className="text-sm text-gray-400 hover:text-black transition">
-                About this project
-              </Link>
-            </li>
-            <li><Link href="/">Plan Generator</Link></li>
-            <li><Link href="/schedule">My Schedule</Link></li>
-            <li><Link href="/coaching">Coaching</Link></li>
-            <li><Link href="/settings">Settings</Link></li>
-            <li><Link href="/privacy">Privacy</Link></li>
-            <li><Link href="/terms">Terms</Link></li>
-          </ul>
-        </div>
-
-        <div>
-          <h3 className="text-xs font-semibold text-gray-400 uppercase mb-4">BLOG</h3>
-          <ul className="space-y-2">
-            <li><Link href="/blog/ai-triathlon-coach">AI Triathlon Coach</Link></li>
-            <li><Link href="/blog/70-3-training-plan">70.3 Training Plan</Link></li>
-            <li><Link href="/blog/best-triathlon-training-plan">Best Triathlon Training Plan</Link></li>
-          </ul>
-        </div>
-
-        <div className="flex flex-col items-center justify-center md:items-end">
-          <p className="text-xs text-gray-400">
-            © {new Date().getFullYear()} TrainGPT. All rights reserved.
-          </p>
-          <p className="text-xs text-gray-400 mt-2">
-            Questions or feedback?{' '}
-            <a
-              href="mailto:hello@traingpt.co"
-              className="underline hover:text-black"
-            >
-              hello@traingpt.co
-            </a>
-          </p>
-          <div className="flex space-x-4 mt-4 text-gray-400">
-            <a href="https://www.strava.com/athletes/44311272" target="_blank" rel="noreferrer" aria-label="Strava" className="hover:text-black">Strava</a>
-            <a href="https://youtube.com" target="_blank" rel="noreferrer" aria-label="YouTube" className="hover:text-black">YouTube</a>
-            <a href="https://www.linkedin.com/in/cameronmcdiarmid/" target="_blank" rel="noreferrer" aria-label="LinkedIn" className="hover:text-black">LinkedIn</a>
-            <a href="https://github.com" target="_blank" rel="noreferrer" aria-label="GitHub" className="hover:text-black">GitHub</a>
-            <a href="https://tiktok.com/xxxstrikerxxx" target="_blank" rel="noreferrer" aria-label="TikTok" className="hover:text-black">TikTok</a>
-            <a href="https://discord.com" target="_blank" rel="noreferrer" aria-label="Discord" className="hover:text-black">Discord</a>
+    <footer className="border-t border-zinc-200 bg-[#fbfaf8] px-4 py-14 sm:px-6 lg:px-8">
+      <div className="mx-auto grid max-w-7xl gap-10 md:grid-cols-12">
+        <div className="md:col-span-5">
+          <div className="flex items-center gap-3">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-950 text-xs font-semibold text-white">
+              T
+            </span>
+            <span className="text-sm font-semibold tracking-tight text-zinc-950">TrainGPT</span>
           </div>
+          <p className="mt-5 max-w-sm text-sm leading-6 text-zinc-600">
+            Personalized triathlon training plans, Strava-connected tracking, and coaching guidance for race day.
+          </p>
+          <p className="mt-6 text-xs text-zinc-400">© {new Date().getFullYear()} TrainGPT.</p>
+        </div>
+
+        <div className="md:col-span-2 md:col-start-7">
+          <h3 className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-400">Product</h3>
+          <ul className="mt-4 space-y-3">
+            {productLinks.map((link) => (
+              <li key={link.href}>
+                <Link href={link.href} className="text-sm text-zinc-600 transition hover:text-zinc-950">
+                  {link.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="md:col-span-2">
+          <h3 className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-400">Resources</h3>
+          <ul className="mt-4 space-y-3">
+            {resourceLinks.map((link) => (
+              <li key={link.href}>
+                <Link href={link.href} className="text-sm text-zinc-600 transition hover:text-zinc-950">
+                  {link.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="md:col-span-2">
+          <h3 className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-400">Company</h3>
+          <ul className="mt-4 space-y-3">
+            <li><Link href="/about" className="text-sm text-zinc-600 transition hover:text-zinc-950">About</Link></li>
+            <li><Link href="/privacy" className="text-sm text-zinc-600 transition hover:text-zinc-950">Privacy</Link></li>
+            <li><Link href="/terms" className="text-sm text-zinc-600 transition hover:text-zinc-950">Terms</Link></li>
+            <li><a href="mailto:hello@traingpt.co" className="text-sm text-zinc-600 transition hover:text-zinc-950">Contact</a></li>
+          </ul>
         </div>
       </div>
     </footer>

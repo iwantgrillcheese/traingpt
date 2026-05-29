@@ -1,456 +1,176 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Session } from '@supabase/supabase-js';
+import type { AuthChangeEvent, Session as SupabaseSession } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase/client';
 import Footer from './components/footer';
 import BlogPreview from './components/blog/BlogPreview';
-import type { AuthChangeEvent, Session as SupabaseSession } from '@supabase/supabase-js';
 
-/* ------------------------------ tiny animation helpers (no deps) ------------------------------ */
+type PlanInputs = {
+  raceType: string;
+  raceDate: string;
+  experience: string;
+  maxHours: string;
+  restDay: string;
+  userNote: string;
+  bikeFTP: string;
+  runPace: string;
+  swimPace: string;
+};
 
-function useRevealOnScroll() {
-  useEffect(() => {
-    const els = Array.from(document.querySelectorAll('[data-reveal]')) as HTMLElement[];
-    if (!els.length) return;
+const HERO_IMAGE =
+  'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=2400&q=85';
+const SWIM_IMAGE =
+  'https://images.unsplash.com/photo-1530549387789-4c1017266635?auto=format&fit=crop&w=1800&q=85';
+const BIKE_IMAGE =
+  'https://images.unsplash.com/photo-1541625602330-2277a4c46182?auto=format&fit=crop&w=1800&q=85';
+const RUN_IMAGE =
+  'https://images.unsplash.com/photo-1552674605-db6ffd4facb5?auto=format&fit=crop&w=1800&q=85';
 
-    const obs = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting) {
-            (e.target as HTMLElement).dataset.revealed = 'true';
-            obs.unobserve(e.target);
-          }
-        }
-      },
-      { root: null, rootMargin: '0px 0px -10% 0px', threshold: 0.12 }
-    );
-
-    els.forEach((el) => obs.observe(el));
-    return () => obs.disconnect();
-  }, []);
+function cx(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(' ');
 }
 
-/* ------------------------------ reveal (no tailwind data-variants) ------------------------------ */
+function resolvePlanPath(inputs: PlanInputs) {
+  const params = new URLSearchParams();
 
-function Reveal({
-  children,
-  className = '',
-  delayMs = 0,
-}: {
-  children: React.ReactNode;
-  className?: string;
-  delayMs?: number;
-}) {
-  const ref = React.useRef<HTMLDivElement | null>(null);
-  const [shown, setShown] = React.useState(false);
+  if (inputs.raceType) params.set('raceType', inputs.raceType);
+  if (inputs.raceDate) params.set('raceDate', inputs.raceDate);
+  if (inputs.experience) params.set('experience', inputs.experience);
+  if (inputs.maxHours) params.set('maxHours', inputs.maxHours);
+  if (inputs.restDay) params.set('restDay', inputs.restDay);
+  if (inputs.userNote) params.set('userNote', inputs.userNote);
+  if (inputs.bikeFTP) params.set('bikeFTP', inputs.bikeFTP);
+  if (inputs.runPace) params.set('runPace', inputs.runPace);
+  if (inputs.swimPace) params.set('swimPace', inputs.swimPace);
 
-  React.useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+  const query = params.toString();
+  return query ? `/plan?${query}` : '/plan';
+}
 
-    const obs = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-        if (entry?.isIntersecting) {
-          setShown(true);
-          obs.disconnect();
-        }
-      },
-      { root: null, rootMargin: '0px 0px -10% 0px', threshold: 0.12 }
-    );
-
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, []);
-
+function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div
-      ref={ref}
-      style={{ transitionDelay: `${delayMs}ms` }}
-      className={[
-        'transition-all duration-700 ease-out will-change-transform',
-        shown ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3',
-        className,
-      ].join(' ')}
-    >
+    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-500">
       {children}
-    </div>
+    </p>
   );
 }
-
-
-function ShineDivider({ dark }: { dark?: boolean }) {
-  return (
-    <div
-      className={
-        dark
-          ? 'h-px w-full bg-gradient-to-r from-transparent via-white/25 to-transparent opacity-70'
-          : 'h-px w-full bg-gradient-to-r from-transparent via-gray-200 to-transparent opacity-90'
-      }
-    />
-  );
-}
-
-/* ------------------------------ UI bits ------------------------------ */
-
-function Pill({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="inline-flex items-center rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-white/80">
-      {children}
-    </span>
-  );
-}
-
-function Field({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4 py-3">
-      <div className="min-w-0">
-        <div className="text-sm font-medium text-gray-900">{label}</div>
-        {hint ? <div className="mt-0.5 text-xs text-gray-500">{hint}</div> : null}
-      </div>
-      <div className="shrink-0">
-        <div className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-700 shadow-sm">
-          {value}
-          <span className="ml-2 text-gray-400">▾</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function GeneratorCard({
-  onPrimary,
-  primaryLabel,
-  onSecondary,
-  secondaryLabel,
-  onTertiary,
-  tertiaryLabel,
-}: {
-  onPrimary: () => void;
-  primaryLabel: string;
-  onSecondary: () => void;
-  secondaryLabel: string;
-  onTertiary?: () => void;
-  tertiaryLabel?: string;
-}) {
-  return (
-    <div className="rounded-3xl border border-gray-200 bg-white shadow-sm overflow-hidden transition-transform duration-200 hover:-translate-y-0.5">
-      <div className="px-6 py-5 border-b border-gray-100">
-        <div className="flex items-center justify-between gap-4">
-          <div className="min-w-0">
-            <div className="text-sm font-semibold text-gray-900">Create your plan</div>
-            <div className="mt-1 text-xs text-gray-500">
-              Built around your race, your available time, and your training history.
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="px-6 py-4">
-        <div className="divide-y divide-gray-100">
-          <Field label="Race" value="70.3" hint="Sprint, Olympic, 70.3, Ironman" />
-          <Field label="Race date" value="Sep 21, 2025" hint="Your goal day" />
-          <Field label="Weekly time" value="8 hours" hint="Max available training time" />
-          <Field label="Experience" value="Intermediate" hint="How long you've trained" />
-        </div>
-
-        <div className="mt-5 flex flex-col sm:flex-row gap-3">
-          <button
-            onClick={onPrimary}
-            className="w-full sm:w-auto bg-black text-white px-5 py-3 rounded-full text-sm font-medium hover:bg-gray-800"
-          >
-            {primaryLabel}
-          </button>
-
-          <button
-            onClick={onSecondary}
-            className="w-full sm:w-auto bg-white text-gray-900 px-5 py-3 rounded-full text-sm font-medium hover:bg-gray-50 border border-gray-200"
-          >
-            {secondaryLabel}
-          </button>
-        </div>
-
-        {onTertiary && tertiaryLabel ? (
-          <div className="mt-3 text-sm">
-            <button
-              onClick={onTertiary}
-              className="text-gray-500 underline underline-offset-4 hover:text-gray-900"
-            >
-              {tertiaryLabel}
-            </button>
-          </div>
-        ) : null}
-
-        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-500">
-          <span className="inline-flex items-center gap-2">
-            <span className="h-1 w-1 rounded-full bg-gray-400" />
-            Calendar view + checkoffs
-          </span>
-          <span className="inline-flex items-center gap-2">
-            <span className="h-1 w-1 rounded-full bg-gray-400" />
-            Strava sync supported
-          </span>
-          <span className="inline-flex items-center gap-2">
-            <span className="h-1 w-1 rounded-full bg-gray-400" />
-            Detailed workouts on demand
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function FeatureCard({ title, desc }: { title: string; desc: string }) {
-  return (
-    <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm transition-transform duration-200 hover:-translate-y-0.5">
-      <div className="text-base font-semibold text-gray-900">{title}</div>
-      <p className="mt-2 text-sm text-gray-600 leading-relaxed">{desc}</p>
-    </div>
-  );
-}
-
-function DarkCard({ title, desc }: { title: string; desc: string }) {
-  return (
-    <div className="rounded-3xl border border-white/10 bg-white/5 p-6 transition-transform duration-200 hover:-translate-y-0.5">
-      <div className="text-sm font-semibold text-white">{title}</div>
-      <p className="mt-2 text-sm text-white/70 leading-relaxed">{desc}</p>
-    </div>
-  );
-}
-
-/* ------------------------------ Marketing Header (TP-style) ------------------------------ */
 
 function MarketingHeader({
   authed,
-  onLogin,
+  onStart,
   onSchedule,
 }: {
   authed: boolean;
-  onLogin: () => void;
+  onStart: () => void;
   onSchedule: () => void;
 }) {
-  const [scrolled, setScrolled] = React.useState(false);
-  const [open, setOpen] = React.useState(false);
-  const [activeId, setActiveId] = React.useState<string>('home');
+  const [scrolled, setScrolled] = useState(false);
+  const [open, setOpen] = useState(false);
 
-  const NAV = [
-    { id: 'features', label: 'Features' },
-    { id: 'strava', label: 'Strava' },
-    { id: 'how-it-works', label: 'How it works' },
-    { id: 'blog', label: 'Resources' },
-  ];
-
-  React.useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 12);
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  React.useEffect(() => {
-    const ids = ['home', ...NAV.map((n) => n.id)];
-    const els = ids
-      .map((id) => document.getElementById(id))
-      .filter(Boolean) as HTMLElement[];
-
-    if (!els.length) return;
-
-    const obs = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => (b.intersectionRatio ?? 0) - (a.intersectionRatio ?? 0))[0];
-
-        if (visible?.target?.id) setActiveId(visible.target.id);
-      },
-      { root: null, rootMargin: '-20% 0px -70% 0px', threshold: [0.05, 0.1, 0.2, 0.3] }
-    );
-
-    els.forEach((el) => obs.observe(el));
-    return () => obs.disconnect();
-  }, []);
-
-  const scrollTo = (id: string) => {
-    setOpen(false);
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
-  const headerClass = scrolled
-    ? 'bg-white/80 backdrop-blur border-b border-gray-100 shadow-[0_1px_0_rgba(0,0,0,0.04)]'
-    : 'bg-transparent border-b border-transparent';
-
-  const brandText = scrolled ? 'text-gray-900' : 'text-white';
-  const navText = scrolled ? 'text-gray-700' : 'text-white/75';
-  const navHover = scrolled ? 'hover:text-gray-900' : 'hover:text-white';
-  const navActive = scrolled ? 'text-gray-900' : 'text-white';
-
-  const outlineBtn = scrolled
-    ? 'border-gray-200 bg-white hover:bg-gray-50 text-gray-900'
-    : 'border-white/20 bg-white/5 hover:bg-white/10 text-white';
-
-  const primaryBtn = scrolled
-    ? 'bg-gray-900 text-white hover:bg-gray-800'
-    : 'bg-white text-gray-900 hover:bg-white/90';
+  const navItems = [
+    { href: '#plan', label: 'Plan' },
+    { href: '#schedule', label: 'Schedule' },
+    { href: '#coaching', label: 'Coaching' },
+    { href: '#resources', label: 'Resources' },
+  ];
 
   return (
-    <header className={`fixed top-0 inset-x-0 z-50 transition-colors duration-200 ${headerClass}`}>
-     <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between gap-6">
-
-        {/* Brand */}
+    <header
+      className={cx(
+        'fixed inset-x-0 top-0 z-50 transition-all duration-300',
+        scrolled ? 'border-b border-black/10 bg-white/85 backdrop-blur-xl' : 'bg-transparent'
+      )}
+    >
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <button
-          onClick={() => scrollTo('home')}
-          className="flex items-center gap-3 select-none shrink-0"
+          type="button"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="group flex items-center gap-3"
           aria-label="Go to top"
         >
-          <div
-            className={`h-8 w-8 rounded-xl flex items-center justify-center text-[12px] font-semibold transition-colors ${
-              scrolled ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
-            }`}
+          <span
+            className={cx(
+              'flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold transition-colors',
+              scrolled ? 'bg-zinc-950 text-white' : 'bg-white text-zinc-950'
+            )}
           >
             T
-          </div>
-
-          <div className="flex flex-col leading-none">
-            <span className={`text-[15px] font-semibold tracking-tight ${brandText}`}>
-              TrainGPT
-            </span>
-            <span
-              className={`mt-1 hidden sm:block text-[11px] ${
-                scrolled ? 'text-gray-500' : 'text-white/55'
-              }`}
-            >
-              Plans • Calendar • Strava
-            </span>
-          </div>
+          </span>
+          <span className={cx('text-sm font-semibold tracking-tight', scrolled ? 'text-zinc-950' : 'text-white')}>
+            TrainGPT
+          </span>
         </button>
 
-        {/* Desktop nav */}
-        <nav className="hidden md:flex items-center gap-1">
-          {NAV.map((item) => {
-            const isActive = activeId === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => scrollTo(item.id)}
-                className={`px-3 py-2 rounded-full text-sm transition-colors ${
-                  isActive ? `${navActive} bg-black/5 ${!scrolled ? 'bg-white/10' : ''}` : navText
-                } ${navHover}`}
-              >
-                {item.label}
-              </button>
-            );
-          })}
+        <nav className="hidden items-center gap-1 md:flex">
+          {navItems.map((item) => (
+            <a
+              key={item.href}
+              href={item.href}
+              className={cx(
+                'rounded-full px-3 py-2 text-sm transition-colors',
+                scrolled ? 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950' : 'text-white/75 hover:bg-white/10 hover:text-white'
+              )}
+            >
+              {item.label}
+            </a>
+          ))}
         </nav>
 
-        {/* Right actions */}
         <div className="flex items-center gap-2">
-          {/* Mobile menu button */}
           <button
-            onClick={() => setOpen((v) => !v)}
-            className={`md:hidden inline-flex items-center justify-center h-10 w-10 rounded-full border transition-colors ${outlineBtn}`}
-            aria-label="Open menu"
+            type="button"
+            onClick={() => setOpen((value) => !value)}
+            className={cx(
+              'inline-flex h-10 w-10 items-center justify-center rounded-full border text-lg md:hidden',
+              scrolled ? 'border-zinc-200 bg-white text-zinc-950' : 'border-white/20 bg-white/10 text-white'
+            )}
+            aria-label="Open navigation"
           >
-            <span className="text-lg leading-none">{open ? '×' : '≡'}</span>
+            {open ? '×' : '≡'}
           </button>
 
-          {authed ? (
-            <>
-              <button
-                onClick={onSchedule}
-                className={`hidden sm:inline-flex text-sm px-4 py-2 rounded-full border transition-colors ${outlineBtn}`}
-              >
-                Open schedule
-              </button>
-              <button
-                onClick={onSchedule}
-                className={`hidden md:inline-flex text-sm px-4 py-2 rounded-full transition-colors ${primaryBtn}`}
-              >
-                Continue
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                onClick={onLogin}
-                className={`hidden sm:inline-flex text-sm px-4 py-2 rounded-full border transition-colors ${outlineBtn}`}
-              >
-                Log in
-              </button>
-              <button
-                onClick={onLogin}
-                className={`hidden md:inline-flex text-sm px-4 py-2 rounded-full transition-colors ${primaryBtn}`}
-              >
-                Get started
-              </button>
-            </>
-          )}
+          <button
+            type="button"
+            onClick={authed ? onSchedule : onStart}
+            className={cx(
+              'hidden rounded-full px-4 py-2 text-sm font-medium transition-colors sm:inline-flex',
+              scrolled ? 'bg-zinc-950 text-white hover:bg-zinc-800' : 'bg-white text-zinc-950 hover:bg-white/90'
+            )}
+          >
+            {authed ? 'Open schedule' : 'Generate plan'}
+          </button>
         </div>
       </div>
 
-      {/* Mobile drawer */}
       {open ? (
-        <div
-          className={`md:hidden border-t ${
-            scrolled
-              ? 'border-gray-100 bg-white/90 backdrop-blur'
-              : 'border-white/10 bg-[#070A12]/95 backdrop-blur'
-          }`}
-        >
-          <div className="max-w-6xl mx-auto px-6 py-4 flex flex-col gap-2">
-            {NAV.map((item) => {
-              const isActive = activeId === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => scrollTo(item.id)}
-                  className={`w-full text-left px-4 py-3 rounded-2xl text-sm border transition-colors ${
-                    scrolled
-                      ? isActive
-                        ? 'border-gray-200 bg-gray-50 text-gray-900'
-                        : 'border-gray-100 bg-white text-gray-700 hover:bg-gray-50'
-                      : isActive
-                      ? 'border-white/15 bg-white/10 text-white'
-                      : 'border-white/10 bg-white/5 text-white/80 hover:bg-white/10'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
-
-            <div className="pt-2 flex gap-2">
-              {authed ? (
-                <button
-                  onClick={onSchedule}
-                  className={`w-full text-sm px-4 py-3 rounded-2xl transition-colors ${
-                    scrolled ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
-                  }`}
-                >
-                  Open schedule
-                </button>
-              ) : (
-                <button
-                  onClick={onLogin}
-                  className={`w-full text-sm px-4 py-3 rounded-2xl transition-colors ${
-                    scrolled ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'
-                  }`}
-                >
-                  Log in
-                </button>
-              )}
-            </div>
+        <div className="border-t border-black/10 bg-white px-4 py-3 md:hidden">
+          <div className="mx-auto flex max-w-7xl flex-col gap-1">
+            {navItems.map((item) => (
+              <a
+                key={item.href}
+                href={item.href}
+                onClick={() => setOpen(false)}
+                className="rounded-2xl px-4 py-3 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
+              >
+                {item.label}
+              </a>
+            ))}
+            <button
+              type="button"
+              onClick={authed ? onSchedule : onStart}
+              className="mt-2 rounded-full bg-zinc-950 px-4 py-3 text-sm font-semibold text-white"
+            >
+              {authed ? 'Open schedule' : 'Generate plan'}
+            </button>
           </div>
         </div>
       ) : null}
@@ -458,261 +178,206 @@ function MarketingHeader({
   );
 }
 
-/* ------------------------------ Bands ------------------------------ */
-
-function BandTitle({
-  eyebrow,
-  title,
-  desc,
-  dark,
+function PlanGeneratorCard({
+  inputs,
+  setInputs,
+  onSubmit,
 }: {
-  eyebrow?: string;
-  title: string;
-  desc?: string;
-  dark?: boolean;
+  inputs: PlanInputs;
+  setInputs: React.Dispatch<React.SetStateAction<PlanInputs>>;
+  onSubmit: () => void;
 }) {
-  return (
-    <div>
-      {eyebrow ? (
-        <div
-          className={
-            dark
-              ? 'inline-flex items-center rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-white/80'
-              : 'inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-gray-600 shadow-sm'
-          }
-        >
-          {eyebrow}
-        </div>
-      ) : null}
+  const update = (key: keyof PlanInputs, value: string) => {
+    setInputs((prev) => ({ ...prev, [key]: value }));
+  };
 
-      <h2
-        className={
-          dark
-            ? 'mt-4 text-3xl md:text-4xl font-semibold tracking-tight text-white leading-tight'
-            : 'mt-4 text-3xl md:text-4xl font-semibold tracking-tight text-gray-900 leading-tight'
-        }
+  return (
+    <div id="plan" className="rounded-[2rem] border border-white/20 bg-white/95 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur md:p-5">
+      <div className="flex items-start justify-between gap-4 border-b border-zinc-200 pb-4">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">Plan generator</p>
+          <h2 className="mt-2 text-xl font-semibold tracking-tight text-zinc-950">Start with your race.</h2>
+        </div>
+        <span className="rounded-full bg-zinc-950 px-3 py-1 text-xs font-medium text-white">~60 sec</span>
+      </div>
+
+      <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <label className="space-y-1.5">
+          <span className="text-xs font-medium text-zinc-500">Race</span>
+          <select
+            value={inputs.raceType}
+            onChange={(e) => update('raceType', e.target.value)}
+            className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-3 text-sm text-zinc-950 outline-none transition focus:border-zinc-950"
+          >
+            <option>Sprint</option>
+            <option>Olympic</option>
+            <option>70.3</option>
+            <option>Ironman</option>
+          </select>
+        </label>
+
+        <label className="space-y-1.5">
+          <span className="text-xs font-medium text-zinc-500">Race date</span>
+          <input
+            type="date"
+            value={inputs.raceDate}
+            onChange={(e) => update('raceDate', e.target.value)}
+            className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-3 text-sm text-zinc-950 outline-none transition focus:border-zinc-950"
+          />
+        </label>
+
+        <label className="space-y-1.5">
+          <span className="text-xs font-medium text-zinc-500">Experience</span>
+          <select
+            value={inputs.experience}
+            onChange={(e) => update('experience', e.target.value)}
+            className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-3 text-sm text-zinc-950 outline-none transition focus:border-zinc-950"
+          >
+            <option>Beginner</option>
+            <option>Intermediate</option>
+            <option>Advanced</option>
+          </select>
+        </label>
+
+        <label className="space-y-1.5">
+          <span className="text-xs font-medium text-zinc-500">Weekly hours</span>
+          <input
+            type="number"
+            min="3"
+            max="24"
+            value={inputs.maxHours}
+            onChange={(e) => update('maxHours', e.target.value)}
+            className="h-11 w-full rounded-2xl border border-zinc-200 bg-white px-3 text-sm text-zinc-950 outline-none transition focus:border-zinc-950"
+          />
+        </label>
+      </div>
+
+      <label className="mt-3 block space-y-1.5">
+        <span className="text-xs font-medium text-zinc-500">Optional note</span>
+        <textarea
+          rows={3}
+          value={inputs.userNote}
+          onChange={(e) => update('userNote', e.target.value)}
+          placeholder="I prefer long rides Saturday, long runs Sunday, and one rest day."
+          className="w-full rounded-2xl border border-zinc-200 bg-white px-3 py-3 text-sm text-zinc-950 outline-none transition placeholder:text-zinc-400 focus:border-zinc-950"
+        />
+      </label>
+
+      <button
+        type="button"
+        onClick={onSubmit}
+        className="mt-4 h-12 w-full rounded-full bg-zinc-950 text-sm font-semibold text-white transition hover:bg-zinc-800"
       >
-        {title}
-      </h2>
+        Generate my plan
+      </button>
 
-      {desc ? (
-        <p
-          className={
-            dark
-              ? 'mt-3 text-lg text-white/70 leading-relaxed max-w-2xl'
-              : 'mt-3 text-lg text-gray-600 leading-relaxed max-w-2xl'
-          }
-        >
-          {desc}
-        </p>
-      ) : null}
+      <p className="mt-3 text-center text-xs text-zinc-500">
+        Personalized around your race, schedule, and current fitness.
+      </p>
     </div>
   );
 }
 
-/**
- * A “product preview” panel that feels like enterprise software.
- * Later you can swap this for a looping mp4/webm.
- */
-function ProductPreviewPanel() {
+function ProductCard() {
+  const sessions = [
+    ['Mon', 'Swim', '2,000m technique', 'Done'],
+    ['Tue', 'Bike', '75min endurance', 'Planned'],
+    ['Wed', 'Run', '45min tempo', 'Planned'],
+    ['Sat', 'Brick', 'Bike + run transition', 'Key'],
+  ];
+
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/5 shadow-[0_30px_80px_rgba(0,0,0,0.35)] overflow-hidden transition-transform duration-200 hover:-translate-y-0.5">
-      <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-white/30" />
-          <span className="h-2 w-2 rounded-full bg-white/30" />
-          <span className="h-2 w-2 rounded-full bg-white/30" />
+    <div className="rounded-[2rem] border border-zinc-200 bg-white p-4 shadow-sm md:p-5">
+      <div className="flex items-center justify-between border-b border-zinc-100 pb-4">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-400">Week 8 · Build</p>
+          <h3 className="mt-1 text-lg font-semibold tracking-tight text-zinc-950">Race week clarity</h3>
         </div>
-        <div className="text-xs text-white/60">Calendar • Plan • Strava</div>
+        <span className="rounded-full border border-zinc-200 px-3 py-1 text-xs text-zinc-600">Strava synced</span>
       </div>
-
-      <div className="p-5">
-        <div className="grid grid-cols-12 gap-4">
-          <div className="col-span-7">
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div className="text-xs text-white/60">Next up</div>
-              <div className="mt-2 text-white font-semibold">Bike • 75 min • Endurance</div>
-              <div className="mt-1 text-white/60 text-sm">Z2 with 3×6 min tempo</div>
-
-              <div className="mt-4 flex items-center gap-2">
-                <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs text-white/70">
-                  Planned
-                </span>
-                <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs text-white/70">
-                  Detail on demand
-                </span>
+      <div className="mt-4 space-y-2">
+        {sessions.map(([day, sport, title, status]) => (
+          <div key={`${day}-${sport}`} className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-zinc-50/70 px-3 py-3">
+            <div className="flex items-center gap-3">
+              <span className="w-9 text-xs font-medium text-zinc-400">{day}</span>
+              <span className="h-2 w-2 rounded-full bg-zinc-950" />
+              <div>
+                <p className="text-sm font-medium text-zinc-950">{sport}</p>
+                <p className="text-xs text-zinc-500">{title}</p>
               </div>
             </div>
-
-            <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div className="text-xs text-white/60">This week</div>
-              <div className="mt-3 grid grid-cols-7 gap-2">
-                {Array.from({ length: 7 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-10 rounded-xl border border-white/10 bg-white/5 relative overflow-hidden"
-                  >
-                    <div className="absolute bottom-2 left-2 h-1.5 w-6 rounded-full bg-white/25" />
-                  </div>
-                ))}
-              </div>
-            </div>
+            <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-600 ring-1 ring-zinc-200">
+              {status}
+            </span>
           </div>
-
-          <div className="col-span-5">
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div className="text-xs text-white/60">Strava sync</div>
-              <div className="mt-2 text-white font-semibold">Planned vs Completed</div>
-              <div className="mt-3 space-y-2">
-                <div className="flex items-center justify-between text-sm text-white/70">
-                  <span>Bike</span>
-                  <span>✔ 2 / 3</span>
-                </div>
-                <div className="flex items-center justify-between text-sm text-white/70">
-                  <span>Run</span>
-                  <span>✔ 2 / 2</span>
-                </div>
-                <div className="flex items-center justify-between text-sm text-white/70">
-                  <span>Swim</span>
-                  <span>✔ 1 / 2</span>
-                </div>
-              </div>
-
-              <div className="mt-4 h-24 rounded-xl border border-white/10 bg-gradient-to-b from-white/10 to-transparent" />
-              <div className="mt-3 text-xs text-white/55">
-                Activities flow in automatically when connected.
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-5 h-2 w-full rounded-full bg-gradient-to-r from-white/10 via-white/20 to-white/10 opacity-80" />
+        ))}
       </div>
     </div>
   );
 }
 
-function LogoPills() {
-  const items = ['Strava', 'Garmin', 'Wahoo', 'Apple Watch', 'COROS'];
+function ImagePanel({ image, label, title }: { image: string; label: string; title: string }) {
   return (
-    <div className="flex flex-wrap gap-2">
-      {items.map((x) => (
-        <span
-          key={x}
-          className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-gray-700"
-        >
-          {x}
-        </span>
-      ))}
+    <div className="group relative min-h-[360px] overflow-hidden rounded-[2rem] bg-zinc-200 md:min-h-[520px]">
+      <div
+        className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
+        style={{ backgroundImage: `url(${image})` }}
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
+      <div className="absolute bottom-0 left-0 right-0 p-6 text-white md:p-8">
+        <p className="text-xs font-medium uppercase tracking-[0.18em] text-white/70">{label}</p>
+        <h3 className="mt-3 max-w-md text-2xl font-semibold tracking-tight md:text-3xl">{title}</h3>
+      </div>
     </div>
   );
 }
 
-/* ------------------------------ Page ------------------------------ */
+function HowItWorks() {
+  const steps = [
+    {
+      number: '01',
+      title: 'Tell us the race.',
+      copy: 'Choose your distance, race date, weekly hours, experience, and any constraints that matter.',
+    },
+    {
+      number: '02',
+      title: 'Generate the plan.',
+      copy: 'TrainGPT builds a periodized swim, bike, and run schedule with recovery, long sessions, and key bricks.',
+    },
+    {
+      number: '03',
+      title: 'Train with feedback.',
+      copy: 'Follow the calendar, sync Strava, generate detailed workouts, and ask your coach what to adjust.',
+    },
+  ];
+
+  return (
+    <section id="how-it-works" className="border-t border-zinc-200 bg-[#fbfaf8] px-4 py-20 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl">
+        <div className="max-w-2xl">
+          <SectionLabel>How it works</SectionLabel>
+          <h2 className="mt-4 text-3xl font-semibold tracking-tight text-zinc-950 md:text-5xl">
+            From blank calendar to race-ready structure.
+          </h2>
+        </div>
+        <div className="mt-12 grid gap-4 md:grid-cols-3">
+          {steps.map((step) => (
+            <div key={step.number} className="rounded-[1.75rem] border border-zinc-200 bg-white p-6 shadow-sm">
+              <p className="text-xs font-medium text-zinc-400">{step.number}</p>
+              <h3 className="mt-10 text-xl font-semibold tracking-tight text-zinc-950">{step.title}</h3>
+              <p className="mt-3 text-sm leading-6 text-zinc-600">{step.copy}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
 
 export default function Home() {
-  
-
   const router = useRouter();
-
-  const [session, setSession] = useState<Session | null>(null);
-  const [authReady, setAuthReady] = useState(false);
-  const [hasPlan, setHasPlan] = useState(false);
-  const [stravaConnected, setStravaConnected] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-
-    const loadUserState = async (userId: string) => {
-      const [planRes, profileRes] = await Promise.all([
-        supabase
-          .from('plans')
-          .select('id')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-        supabase.from('profiles').select('strava_access_token').eq('id', userId).maybeSingle(),
-      ]);
-
-      if (!alive) return;
-
-      if (planRes.error) {
-        console.warn('[home] plan lookup error', planRes.error);
-        setHasPlan(false);
-      } else {
-        setHasPlan(!!planRes.data?.id);
-      }
-
-      if (profileRes.error) {
-        console.warn('[home] profile lookup error', profileRes.error);
-        setStravaConnected(false);
-      } else {
-        setStravaConnected(!!profileRes.data?.strava_access_token);
-      }
-    };
-
-    const syncSession = async () => {
-      try {
-        const { data, error } = await supabase.auth.getSession();
-        if (!alive) return;
-
-        if (error) console.warn('[home] getSession error', error);
-
-        const nextSession = data.session ?? null;
-        setSession(nextSession);
-        setAuthReady(true);
-
-        if (nextSession?.user?.id) await loadUserState(nextSession.user.id);
-        else {
-          setHasPlan(false);
-          setStravaConnected(false);
-        }
-      } catch (e) {
-        if (!alive) return;
-        console.warn('[home] getSession threw', e);
-        setSession(null);
-        setHasPlan(false);
-        setStravaConnected(false);
-        setAuthReady(true);
-      }
-    };
-
-    syncSession();
-
-const { data: listener } = supabase.auth.onAuthStateChange(
-  (_event: AuthChangeEvent, s: SupabaseSession | null) => {
-    if (!alive) return;
-
-    setSession(s ?? null);
-    setAuthReady(true);
-
-    if (s?.user?.id) {
-      loadUserState(s.user.id);
-    } else {
-      setHasPlan(false);
-      setStravaConnected(false);
-    }
-  }
-);
-
-    const onFocus = () => syncSession();
-    window.addEventListener('focus', onFocus);
-
-    const timeout = window.setTimeout(() => {
-      if (!alive) return;
-      setAuthReady(true);
-    }, 1500);
-
-    return () => {
-      alive = false;
-      window.removeEventListener('focus', onFocus);
-      window.clearTimeout(timeout);
-      listener?.subscription.unsubscribe();
-    };
-  }, []);
-
-  const [generatorInputs, setGeneratorInputs] = useState({
+  const [session, setSession] = useState<SupabaseSession | null>(null);
+  const [inputs, setInputs] = useState<PlanInputs>({
     raceType: '70.3',
     raceDate: '',
     experience: 'Intermediate',
@@ -722,34 +387,37 @@ const { data: listener } = supabase.auth.onAuthStateChange(
     bikeFTP: '',
     runPace: '',
     swimPace: '',
-    advancedRestDay: '',
   });
-  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
 
-  const authed = !!session;
+  useEffect(() => {
+    let alive = true;
 
-  const scrollHowItWorks = () => {
-    const el = document.querySelector('#how-it-works');
-    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
+    const syncSession = async () => {
+      const { data, error } = await supabase.auth.getSession();
+      if (!alive) return;
+      if (error) console.warn('[home] getSession error', error);
+      setSession(data.session ?? null);
+    };
 
-  const buildPlanPath = () => {
-    const params = new URLSearchParams();
-    if (generatorInputs.raceType) params.set('raceType', generatorInputs.raceType);
-    if (generatorInputs.raceDate) params.set('raceDate', generatorInputs.raceDate);
-    if (generatorInputs.experience) params.set('experience', generatorInputs.experience);
-    if (generatorInputs.maxHours) params.set('maxHours', generatorInputs.maxHours);
-    if (generatorInputs.restDay) params.set('restDay', generatorInputs.restDay);
-    if (generatorInputs.userNote) params.set('userNote', generatorInputs.userNote);
-    if (generatorInputs.bikeFTP) params.set('bikeFTP', generatorInputs.bikeFTP);
-    if (generatorInputs.runPace) params.set('runPace', generatorInputs.runPace);
-    if (generatorInputs.swimPace) params.set('swimPace', generatorInputs.swimPace);
-    if (generatorInputs.advancedRestDay) params.set('advancedRestDay', generatorInputs.advancedRestDay);
-    return `/plan?${params.toString()}`;
-  };
+    syncSession();
 
-  const handlePrimary = () => {
-    const planPath = buildPlanPath();
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_event: AuthChangeEvent, nextSession: SupabaseSession | null) => {
+        if (!alive) return;
+        setSession(nextSession ?? null);
+      }
+    );
+
+    return () => {
+      alive = false;
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  const authed = !!session?.user;
+  const planPath = useMemo(() => resolvePlanPath(inputs), [inputs]);
+
+  const startPlan = () => {
     if (authed) {
       router.push(planPath);
       return;
@@ -758,357 +426,149 @@ const { data: listener } = supabase.auth.onAuthStateChange(
     router.push(`/login?next=${encodeURIComponent(planPath)}`);
   };
 
-  const handleSecondary = () => scrollHowItWorks();
-
   return (
-    <div className="min-h-screen bg-white text-gray-900">
-      <MarketingHeader
-        authed={authed}
-        onLogin={() => router.push('/login')}
-        onSchedule={() => router.push('/schedule')}
-      />
+    <main className="min-h-screen bg-[#fbfaf8] text-zinc-950">
+      <MarketingHeader authed={authed} onStart={startPlan} onSchedule={() => router.push('/schedule')} />
 
-      {/* 1) HERO */}
-      <section id="home" className="bg-white pt-16 md:pt-20 scroll-mt-24">
-        <div className="max-w-6xl mx-auto px-6 py-12 md:py-16">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
-            <div className="lg:col-span-6">
-              <Reveal>
-                <h1 className="text-4xl md:text-5xl font-semibold tracking-tight leading-[1.05] text-gray-900">
-                  A smarter training plan for your next triathlon
-                </h1>
-                <p className="mt-4 text-lg text-gray-600 leading-relaxed max-w-2xl">
-                  Built around your race date, experience, and weekly availability. TrainGPT creates a structured plan and syncs your completed workouts automatically with Strava.
-                </p>
-              </Reveal>
+      <section className="relative min-h-screen overflow-hidden bg-zinc-950 pt-16 text-white">
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-70"
+          style={{ backgroundImage: `url(${HERO_IMAGE})` }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/55 to-black/10" />
+        <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#fbfaf8] to-transparent" />
 
-              <Reveal delayMs={100}>
-                <div className="mt-7 flex flex-col sm:flex-row gap-3">
-                  <button
-                    onClick={handlePrimary}
-                    className="bg-black text-white px-6 py-3 rounded-full text-sm font-medium hover:bg-gray-800"
-                  >
-                    Create Your Training Plan
-                  </button>
-                  <button
-                    onClick={scrollHowItWorks}
-                    className="bg-white text-gray-900 px-6 py-3 rounded-full text-sm font-medium border border-gray-200 hover:bg-gray-50"
-                  >
-                    See How It Works
-                  </button>
-                </div>
-              </Reveal>
-            </div>
-
-            <div className="lg:col-span-6">
-              <Reveal delayMs={120}>
-                <div className="rounded-3xl border border-gray-200 bg-white p-5 md:p-6 shadow-sm">
-                  <div className="text-base font-semibold text-gray-900">Build your training plan</div>
-
-                  <div className="mt-4 space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <label className="space-y-1">
-                        <span className="text-xs font-medium uppercase tracking-wide text-gray-500">Race</span>
-                        <select
-                          value={generatorInputs.raceType}
-                          onChange={(e) => setGeneratorInputs((p) => ({ ...p, raceType: e.target.value }))}
-                          className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
-                        >
-                          <option>Sprint</option>
-                          <option>Olympic</option>
-                          <option>70.3</option>
-                          <option>Ironman</option>
-                        </select>
-                      </label>
-
-                      <label className="space-y-1">
-                        <span className="text-xs font-medium uppercase tracking-wide text-gray-500">Race date</span>
-                        <input
-                          type="date"
-                          value={generatorInputs.raceDate}
-                          onChange={(e) => setGeneratorInputs((p) => ({ ...p, raceDate: e.target.value }))}
-                          className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
-                        />
-                      </label>
-
-                      <label className="space-y-1">
-                        <span className="text-xs font-medium uppercase tracking-wide text-gray-500">Experience level</span>
-                        <select
-                          value={generatorInputs.experience}
-                          onChange={(e) => setGeneratorInputs((p) => ({ ...p, experience: e.target.value }))}
-                          className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
-                        >
-                          <option>Beginner</option>
-                          <option>Intermediate</option>
-                          <option>Advanced</option>
-                        </select>
-                      </label>
-
-                      <label className="space-y-1">
-                        <span className="text-xs font-medium uppercase tracking-wide text-gray-500">Weekly training hours</span>
-                        <input
-                          type="number"
-                          min={1}
-                          max={25}
-                          placeholder="8"
-                          value={generatorInputs.maxHours}
-                          onChange={(e) => setGeneratorInputs((p) => ({ ...p, maxHours: e.target.value }))}
-                          className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
-                        />
-                      </label>
-
-                      <label className="space-y-1 sm:col-span-2">
-                        <span className="text-xs font-medium uppercase tracking-wide text-gray-500">Rest day</span>
-                        <select
-                          value={generatorInputs.restDay}
-                          onChange={(e) => setGeneratorInputs((p) => ({ ...p, restDay: e.target.value }))}
-                          className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
-                        >
-                          <option value="">Rest day (optional)</option>
-                          <option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option>
-                        </select>
-                      </label>
-                    </div>
-
-                    <label className="space-y-1 block">
-                      <span className="text-xs font-medium uppercase tracking-wide text-gray-500">Optional coaching notes</span>
-                      <textarea
-                        rows={3}
-                        value={generatorInputs.userNote}
-                        onChange={(e) => setGeneratorInputs((p) => ({ ...p, userNote: e.target.value }))}
-                        placeholder="I prefer long rides on Saturdays and long runs on Sundays. I’m targeting sub-5 at Santa Cruz."
-                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
-                      />
-                    </label>
-
-                    <div className="rounded-xl border border-gray-200 bg-gray-50/60 px-3 py-2.5">
-                      <button
-                        type="button"
-                        onClick={() => setShowAdvancedSettings((v) => !v)}
-                        className="w-full flex items-center justify-between text-sm font-medium text-gray-800"
-                      >
-                        <span>Advanced training settings</span>
-                        <span className="text-gray-500">{showAdvancedSettings ? 'Hide' : 'Show'}</span>
-                      </button>
-
-                      {showAdvancedSettings ? (
-                        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <label className="space-y-1">
-                            <span className="text-xs font-medium uppercase tracking-wide text-gray-500">Bike FTP</span>
-                            <input
-                              type="number"
-                              value={generatorInputs.bikeFTP}
-                              onChange={(e) => setGeneratorInputs((p) => ({ ...p, bikeFTP: e.target.value }))}
-                              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
-                            />
-                          </label>
-                          <label className="space-y-1">
-                            <span className="text-xs font-medium uppercase tracking-wide text-gray-500">Run threshold pace</span>
-                            <input
-                              type="text"
-                              value={generatorInputs.runPace}
-                              onChange={(e) => setGeneratorInputs((p) => ({ ...p, runPace: e.target.value }))}
-                              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
-                            />
-                          </label>
-                          <label className="space-y-1">
-                            <span className="text-xs font-medium uppercase tracking-wide text-gray-500">Swim threshold pace</span>
-                            <input
-                              type="text"
-                              value={generatorInputs.swimPace}
-                              onChange={(e) => setGeneratorInputs((p) => ({ ...p, swimPace: e.target.value }))}
-                              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
-                            />
-                          </label>
-                          <label className="space-y-1">
-                            <span className="text-xs font-medium uppercase tracking-wide text-gray-500">Preferred rest day</span>
-                            <select
-                              value={generatorInputs.advancedRestDay}
-                              onChange={(e) => setGeneratorInputs((p) => ({ ...p, advancedRestDay: e.target.value, restDay: e.target.value || p.restDay }))}
-                              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
-                            >
-                              <option value="">None</option>
-                              <option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option>
-                            </select>
-                          </label>
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={handlePrimary}
-                    className="mt-4 w-full bg-black text-white px-5 py-3 rounded-full text-sm font-medium hover:bg-gray-800"
-                  >
-                    Generate my plan
-                  </button>
-                  <p className="mt-2 text-xs text-gray-500">You’ll log in before we generate your plan.</p>
-                </div>
-              </Reveal>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-gray-50 h-px" />
-
-      {/* 2) INSTANT PLAN GENERATION */}
-      <section id="how-it-works" className="bg-white scroll-mt-24">
-        <div className="max-w-6xl mx-auto px-6 py-14 md:py-16">
-          <Reveal>
-            <BandTitle
-              eyebrow="Instant plan generation"
-              title="Build a full training plan in seconds"
-              desc="Tell TrainGPT your race date, experience level, and weekly training time. The system generates a structured swim, bike, and run plan designed around your goal race. Each week includes balanced training volume, long sessions, recovery weeks, and brick workouts. This gives athletes a clear structure to follow without needing to piece together training plans manually."
-            />
-          </Reveal>
-
-          <Reveal delayMs={120}>
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-3">
-              {['Race', 'Plan', 'Calendar'].map((step, idx) => (
-                <div key={step} className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
-                  <div className="text-xs text-gray-500">{idx + 1}</div>
-                  <div className="mt-1 text-base font-semibold text-gray-900">{step}</div>
-                </div>
-              ))}
-            </div>
-          </Reveal>
-        </div>
-      </section>
-
-      <section className="bg-gray-50 h-px" />
-
-      {/* 3) TRAINING CALENDAR */}
-      <section id="features" className="bg-white scroll-mt-24">
-        <div className="max-w-6xl mx-auto px-6 py-14 md:py-16">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
-            <div className="lg:col-span-6">
-              <Reveal>
-                <BandTitle
-                  eyebrow="Training calendar"
-                  title="Know exactly what to train each day"
-                  desc="Your entire training block lives in a clean, simple calendar. Each day shows the session for that workout, including duration and intensity. This removes the guesswork and makes it easier to stay consistent throughout the season."
-                />
-              </Reveal>
-            </div>
-            <div className="lg:col-span-6">
-              <Reveal delayMs={120}>
-                <div className="rounded-3xl border border-gray-200 bg-gray-50 p-6">
-                  <div className="grid grid-cols-2 gap-3">
-                    {['Swim · 45 min', 'Bike · 75 min', 'Run · 50 min', 'Brick · 60 min'].map((x, i) => (
-                      <div key={x} className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700">
-                        <span className={`mr-2 inline-block h-2 w-2 rounded-full ${i % 3 === 0 ? 'bg-blue-300' : i % 3 === 1 ? 'bg-emerald-300' : 'bg-orange-300'}`} />
-                        {x}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </Reveal>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-gray-50 h-px" />
-
-      {/* 4) STRAVA */}
-      <section id="strava" className="bg-white scroll-mt-24">
-        <div className="max-w-6xl mx-auto px-6 py-14 md:py-16">
-          <Reveal>
-            <BandTitle
-              eyebrow="Strava integration"
-              title="Your real workouts sync automatically"
-              desc="TrainGPT connects with Strava so completed workouts appear alongside your planned sessions. You can see how your training compares to the plan and track weekly volume across swim, bike, and run. This keeps your training organized without requiring manual logging."
-            />
-          </Reveal>
-
-          <Reveal delayMs={120}>
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
-                <div className="text-sm font-semibold text-gray-900">Planned</div>
-                <div className="mt-3 space-y-2 text-sm text-gray-600">
-                  <div>Swim · 2 sessions</div>
-                  <div>Bike · 3 sessions</div>
-                  <div>Run · 3 sessions</div>
-                </div>
-              </div>
-              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
-                <div className="text-sm font-semibold text-gray-900">Completed</div>
-                <div className="mt-3 space-y-2 text-sm text-gray-600">
-                  <div>Swim · 2 sessions</div>
-                  <div>Bike · 2 sessions</div>
-                  <div>Run · 3 sessions</div>
-                </div>
-              </div>
-            </div>
-          </Reveal>
-        </div>
-      </section>
-
-      <section className="bg-gray-50 h-px" />
-
-      {/* 5) FUELING + TRAINING TOOLS */}
-      <section className="bg-white">
-        <div className="max-w-6xl mx-auto px-6 py-14 md:py-16">
-          <Reveal>
-            <BandTitle
-              eyebrow="Fueling + training tools"
-              title="Training support beyond the plan"
-              desc="TrainGPT also includes tools designed to support the rest of your training process. Athletes can explore fueling guidance, review training patterns, and adjust workouts when schedules change. The goal is to make the entire training process easier to manage from one place."
-            />
-          </Reveal>
-        </div>
-      </section>
-
-      <section className="bg-gray-50 h-px" />
-
-      {/* 6) AI COACH */}
-      <section className="bg-white">
-        <div className="max-w-6xl mx-auto px-6 py-14 md:py-16">
-          <Reveal>
-            <div className="rounded-3xl border border-gray-200 bg-gray-50 p-8 md:p-10">
-              <h3 className="text-xl md:text-2xl font-semibold tracking-tight text-gray-900">
-                Ask questions about your training
-              </h3>
-              <p className="mt-3 text-gray-600 leading-relaxed max-w-3xl">
-                If questions come up during your training block, the built-in coach can help explain workouts or provide guidance. Because it understands your plan, the responses stay relevant to your training.
-              </p>
-            </div>
-          </Reveal>
-        </div>
-      </section>
-
-      <section className="bg-gray-50 h-px" />
-
-      {/* 7) BLOG PREVIEW */}
-      <div id="blog" className="max-w-6xl mx-auto px-6 py-10 scroll-mt-24">
-        <Reveal>
-          <BlogPreview />
-        </Reveal>
-      </div>
-
-      <section className="bg-gray-50 h-px" />
-
-      {/* 8) FINAL CTA */}
-      <section className="bg-white">
-        <div className="max-w-6xl mx-auto px-6 py-14 md:py-16">
-          <Reveal>
-            <div className="rounded-3xl border border-gray-200 bg-white p-8 md:p-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-              <h3 className="text-2xl font-semibold tracking-tight text-gray-900">
-                Start your next training block with a plan built for you.
-              </h3>
+        <div className="relative mx-auto grid min-h-[calc(100vh-4rem)] max-w-7xl grid-cols-1 items-center gap-12 px-4 py-16 sm:px-6 lg:grid-cols-12 lg:px-8">
+          <div className="lg:col-span-6">
+            <p className="text-xs font-medium uppercase tracking-[0.22em] text-white/65">
+              AI triathlon planning
+            </p>
+            <h1 className="mt-5 max-w-4xl text-5xl font-semibold tracking-[-0.055em] text-white sm:text-6xl lg:text-7xl">
+              Your triathlon training plan, generated in seconds.
+            </h1>
+            <p className="mt-6 max-w-xl text-lg leading-8 text-white/75">
+              Build a personalized swim, bike, and run plan around your race, schedule, and fitness. Then follow it with Strava-connected tracking and coach guidance.
+            </p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <button
-                onClick={handlePrimary}
-                className="bg-black text-white px-6 py-3 rounded-full text-sm font-medium hover:bg-gray-800 w-full md:w-auto"
+                type="button"
+                onClick={startPlan}
+                className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-white/90"
               >
-                Create your training plan
+                Generate your plan
               </button>
+              <a
+                href="#how-it-works"
+                className="rounded-full border border-white/25 px-6 py-3 text-center text-sm font-semibold text-white transition hover:bg-white/10"
+              >
+                See how it works
+              </a>
             </div>
-          </Reveal>
+            <div className="mt-10 grid max-w-lg grid-cols-3 gap-6 border-t border-white/20 pt-6">
+              <div>
+                <p className="text-2xl font-semibold">4</p>
+                <p className="mt-1 text-xs text-white/60">Race distances</p>
+              </div>
+              <div>
+                <p className="text-2xl font-semibold">3</p>
+                <p className="mt-1 text-xs text-white/60">Sports balanced</p>
+              </div>
+              <div>
+                <p className="text-2xl font-semibold">1</p>
+                <p className="mt-1 text-xs text-white/60">Clear calendar</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="lg:col-span-5 lg:col-start-8">
+            <PlanGeneratorCard inputs={inputs} setInputs={setInputs} onSubmit={startPlan} />
+          </div>
         </div>
+      </section>
+
+      <section className="bg-[#fbfaf8] px-4 py-16 sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-7xl gap-4 md:grid-cols-3">
+          <ImagePanel image={SWIM_IMAGE} label="Swim" title="Build technique and endurance without guessing what belongs in the week." />
+          <ImagePanel image={BIKE_IMAGE} label="Bike" title="Structure your long rides, bricks, and intensity around the race you actually have." />
+          <ImagePanel image={RUN_IMAGE} label="Run" title="Progress the run safely while balancing the fatigue of swim and bike training." />
+        </div>
+      </section>
+
+      <HowItWorks />
+
+      <section id="schedule" className="bg-white px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-12">
+          <div className="lg:col-span-5">
+            <SectionLabel>Training calendar</SectionLabel>
+            <h2 className="mt-4 text-3xl font-semibold tracking-tight text-zinc-950 md:text-5xl">
+              Know exactly what to train each day.
+            </h2>
+            <p className="mt-5 text-base leading-8 text-zinc-600">
+              Every generated plan becomes a simple calendar with daily sessions, detailed workout generation, completion tracking, and Strava activity overlays.
+            </p>
+          </div>
+          <div className="lg:col-span-7">
+            <ProductCard />
+          </div>
+        </div>
+      </section>
+
+      <section id="coaching" className="border-y border-zinc-200 bg-[#fbfaf8] px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-12">
+          <div className="lg:col-span-6">
+            <div className="rounded-[2rem] border border-zinc-200 bg-white p-6 shadow-sm">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-400">Coach brief</p>
+              <h3 className="mt-4 text-2xl font-semibold tracking-tight text-zinc-950">
+                This week: keep the bike aerobic and protect the long run.
+              </h3>
+              <div className="mt-6 space-y-3">
+                {[
+                  'Key session: Saturday 90min endurance ride with short tempo blocks.',
+                  'Risk: avoid turning easy runs into threshold efforts.',
+                  'Adjustment: if fatigue is high, shorten Friday swim by 400m.',
+                ].map((item) => (
+                  <div key={item} className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-700">
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="lg:col-span-5 lg:col-start-8">
+            <SectionLabel>AI coaching</SectionLabel>
+            <h2 className="mt-4 text-3xl font-semibold tracking-tight text-zinc-950 md:text-5xl">
+              Get clarity when training gets messy.
+            </h2>
+            <p className="mt-5 text-base leading-8 text-zinc-600">
+              Ask why a workout matters, how to adjust after a missed session, or what to focus on this week. TrainGPT keeps the guidance connected to your actual plan.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-zinc-950 px-4 py-20 text-white sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-8 md:flex-row md:items-end">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.22em] text-white/50">Start training</p>
+            <h2 className="mt-4 max-w-3xl text-4xl font-semibold tracking-tight md:text-6xl">
+              Build your next race plan in seconds.
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={startPlan}
+            className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-white/90"
+          >
+            Generate your plan
+          </button>
+        </div>
+      </section>
+
+      <section id="resources" className="bg-white">
+        <BlogPreview />
       </section>
 
       <Footer />
-    </div>
+    </main>
   );
 }
