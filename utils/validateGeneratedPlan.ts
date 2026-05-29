@@ -108,6 +108,14 @@ function structuredType(item: unknown): string | null {
   return typeof value === 'string' ? value.trim().toLowerCase() : null;
 }
 
+
+function structuredDurationMinutes(item: unknown): number | null {
+  if (!isRecord(item)) return null;
+  const value = item.durationMinutes;
+  const minutes = typeof value === 'number' ? value : Number.parseFloat(String(value ?? ''));
+  return Number.isFinite(minutes) && minutes > 0 ? minutes : null;
+}
+
 function isUnsupportedDbSportValue(item: unknown): string | null {
   const sport = objectSportValue(item);
   if (!sport) return null;
@@ -132,6 +140,13 @@ function parseDurationMinutes(text: string): number | null {
   }
 
   return null;
+}
+
+
+function itemHasDuration(item: unknown): boolean {
+  if (structuredDurationMinutes(item) !== null) return true;
+  const text = `${rawDetailsText(item)} ${itemText(item)}`.trim();
+  return parseDurationMinutes(text) !== null;
 }
 
 function looksLikeLongRide(item: unknown) {
@@ -423,6 +438,10 @@ export function validateGeneratedPlan({
 
         if (missingUsefulDetails(item)) {
           warnings.push(`${label}: session is missing useful details (${date}).`);
+        }
+
+        if (isTrainingSession(item) && !hasSport(item, 'strength') && !itemHasDuration(item)) {
+          warnings.push(`${label}: session is missing duration (${date}).`);
         }
 
         const unsupportedSport = isUnsupportedDbSportValue(item);

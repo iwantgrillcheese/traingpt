@@ -7,6 +7,7 @@ type ScaffoldSession = {
   sport: ScaffoldSport;
   title: string;
   details: string;
+  durationMinutes: number;
   type:
     | 'swim_technique'
     | 'swim_endurance'
@@ -184,6 +185,182 @@ function phaseIntensity(phase: string, deload: boolean) {
   return 'base';
 }
 
+
+type PhaseIntensity = ReturnType<typeof phaseIntensity>;
+type DurationSessionType = ScaffoldSession['type'];
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, Math.round(value)));
+}
+
+function experienceModifier(experience: unknown): number {
+  const text = String(experience ?? '').toLowerCase();
+  if (text.includes('beginner') || text.includes('new')) return -0.08;
+  if (text.includes('advanced') || text.includes('competitive')) return 0.08;
+  return 0;
+}
+
+function weekLoadIndex(index: number, phase: PhaseIntensity): number {
+  // Progress three weeks up, then pull back slightly on recovery/deload weeks.
+  // We use the absolute index because total plan length is dynamic and phase is
+  // already computed upstream. Caps inside each duration function prevent runaway growth.
+  if (phase === 'recovery') return 0;
+  if (phase === 'taper') return 0;
+  return Math.max(0, index);
+}
+
+function maxHourModifier(maxHours: unknown): number {
+  const hours = typeof maxHours === 'number' ? maxHours : Number.parseFloat(String(maxHours ?? ''));
+  if (!Number.isFinite(hours) || hours <= 0) return 0;
+  if (hours <= 5) return -0.16;
+  if (hours <= 7) return -0.08;
+  if (hours >= 12) return 0.08;
+  if (hours >= 10) return 0.04;
+  return 0;
+}
+
+function durationScale(userParams: UserParams): number {
+  return clamp((1 + experienceModifier(userParams.experience) + maxHourModifier(userParams.maxHours)) * 100, 78, 112) / 100;
+}
+
+function minutesForSession(
+  type: DurationSessionType,
+  userParams: UserParams,
+  weekMeta: WeekMeta,
+  index: number
+): number {
+  const family = raceFamily(userParams.raceType);
+  const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
+  const loadIndex = weekLoadIndex(index, phase);
+  const scale = durationScale(userParams);
+
+  const scaled = (minutes: number, min: number, max: number) => clamp(minutes * scale, min, max);
+
+  if (type === 'strength') {
+    if (phase === 'taper' || phase === 'recovery') return 20;
+    return 30;
+  }
+
+  if (type === 'brick_run') {
+    if (phase === 'taper') return 10;
+    if (phase === 'recovery') return 10;
+    if (family === 'sprint') return scaled(8 + Math.min(loadIndex, 8), 8, 15);
+    if (family === 'olympic') return scaled(10 + Math.min(loadIndex, 10), 10, 22);
+    if (family === 'ironman') return scaled(12 + Math.min(loadIndex, 16), 10, 28);
+    return scaled(12 + Math.min(loadIndex, 16), 10, 30);
+  }
+
+  if (type === 'long_ride') {
+    if (phase === 'taper') return family === 'sprint' || family === 'olympic' ? 45 : 60;
+    if (phase === 'recovery') return family === 'ironman' ? 120 : family === 'half' ? 90 : 60;
+
+    if (family === 'sprint') return scaled(45 + loadIndex * 4, 40, 75);
+    if (family === 'olympic') return scaled(65 + loadIndex * 5, 60, 110);
+    if (family === 'ironman') {
+      if (phase === 'peak') return scaled(210 + Math.min(loadIndex, 4) * 10, 180, 300);
+      if (phase === 'build') return scaled(150 + Math.min(loadIndex, 10) * 9, 130, 240);
+      return scaled(110 + Math.min(loadIndex, 8) * 8, 90, 165);
+    }
+    // 70.3 / default long-course progression
+    if (phase === 'peak') return scaled(180 + Math.min(loadIndex, 4) * 8, 165, 210);
+    if (phase === 'build') return scaled(135 + Math.min(loadIndex, 10) * 7, 120, 185);
+    return scaled(90 + Math.min(loadIndex, 7) * 7, 75, 140);
+  }
+
+  if (type === 'long_run') {
+    if (phase === 'taper') return family === 'sprint' || family === 'olympic' ? 30 : 45;
+    if (phase === 'recovery') return family === 'ironman' ? 70 : family === 'half' ? 50 : 35;
+
+    if (family === 'sprint') return scaled(30 + loadIndex * 3, 25, 55);
+    if (family === 'olympic') return scaled(40 + loadIndex * 4, 35, 75);
+    if (family === 'ironman') {
+      if (phase === 'peak') return scaled(110 + Math.min(loadIndex, 4) * 5, 95, 135);
+      if (phase === 'build') return scaled(80 + Math.min(loadIndex, 10) * 4, 70, 115);
+      return scaled(55 + Math.min(loadIndex, 7) * 4, 45, 85);
+    }
+    if (phase === 'peak') return scaled(90 + Math.min(loadIndex, 4) * 4, 80, 105);
+    if (phase === 'build') return scaled(70 + Math.min(loadIndex, 10) * 3, 60, 95);
+    return scaled(50 + Math.min(loadIndex, 7) * 4, 40, 75);
+  }
+
+  if (type === 'bike_quality') {
+    if (phase === 'taper' || phase === 'recovery') return 45;
+    if (family === 'ironman') return scaled(65 + Math.min(loadIndex, 6) * 3, 55, 90);
+    if (family === 'half') return scaled(60 + Math.min(loadIndex, 6) * 3, 50, 80);
+    return scaled(45 + Math.min(loadIndex, 5) * 3, 35, 65);
+  }
+
+  if (type === 'bike_endurance') {
+    if (phase === 'taper' || phase === 'recovery') return 40;
+    if (family === 'ironman') return scaled(60 + Math.min(loadIndex, 6) * 3, 45, 85);
+    if (family === 'half') return scaled(50 + Math.min(loadIndex, 6) * 2, 40, 70);
+    return scaled(40 + Math.min(loadIndex, 5) * 2, 30, 55);
+  }
+
+  if (type === 'run_quality') {
+    if (phase === 'taper' || phase === 'recovery') return 35;
+    if (family === 'ironman') return scaled(45 + Math.min(loadIndex, 5) * 2, 40, 60);
+    if (family === 'half') return scaled(45 + Math.min(loadIndex, 5) * 2, 35, 60);
+    return scaled(35 + Math.min(loadIndex, 4) * 2, 30, 50);
+  }
+
+  if (type === 'run_easy') {
+    if (phase === 'taper' || phase === 'recovery') return 30;
+    return scaled(35 + Math.min(loadIndex, 4) * 2, 25, 50);
+  }
+
+  if (type === 'swim_technique') {
+    if (phase === 'taper' || phase === 'recovery') return 35;
+    return scaled(40 + Math.min(loadIndex, 4) * 2, 30, 55);
+  }
+
+  if (type === 'swim_endurance') {
+    if (phase === 'taper' || phase === 'recovery') return 35;
+    if (family === 'ironman') return scaled(50 + Math.min(loadIndex, 6) * 2, 40, 70);
+    if (family === 'half') return scaled(45 + Math.min(loadIndex, 6) * 2, 35, 65);
+    return scaled(35 + Math.min(loadIndex, 5) * 2, 30, 50);
+  }
+
+  return 45;
+}
+
+function formatDuration(minutes: number): string {
+  const rounded = Math.max(1, Math.round(minutes));
+  if (rounded < 60) return `${rounded}min`;
+  const hours = Math.floor(rounded / 60);
+  const remainder = rounded % 60;
+  return remainder ? `${hours}h ${remainder}min` : `${hours}h`;
+}
+
+function hasDurationText(details: string): boolean {
+  return /\b\d+\s*(?:min|mins|minutes|m)\b|\b\d+(?:\.\d+)?\s*h(?:r|rs|our|ours)?\b/i.test(details);
+}
+
+function withDuration(minutes: number, details: string): string {
+  const clean = details.replace(/\s+/g, ' ').trim();
+  if (!clean) return formatDuration(minutes);
+  return hasDurationText(clean) ? clean : `${formatDuration(minutes)}. ${clean}`;
+}
+
+function makeSession(
+  type: DurationSessionType,
+  sport: ScaffoldSport,
+  title: string,
+  rawDetails: string,
+  userParams: UserParams,
+  weekMeta: WeekMeta,
+  index: number
+): ScaffoldSession {
+  const durationMinutes = minutesForSession(type, userParams, weekMeta, index);
+  return {
+    sport,
+    title,
+    type,
+    durationMinutes,
+    details: withDuration(durationMinutes, rawDetails),
+  };
+}
+
 function getLongRideDetails(userParams: UserParams, weekMeta: WeekMeta) {
   const family = raceFamily(userParams.raceType);
   const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
@@ -331,30 +508,39 @@ export function buildTriathlonWeekScaffold({
   // long ride / brick / long run structure into race week.
   if (isRaceWeek) {
     const easySwimDay = findAvailableDay(2, blocked, used); // Tue
-    addSession(days, weekMeta.startDate, easySwimDay, {
-      sport: 'swim',
-      title: 'Swim Easy',
-      type: 'swim_technique',
-      details: 'Short relaxed swim with a few smooth pickups. Keep effort easy and focus on feeling comfortable in the water.',
-    });
+    addSession(days, weekMeta.startDate, easySwimDay, makeSession(
+      'swim_technique',
+      'swim',
+      'Swim Easy',
+      'Short relaxed swim with a few smooth pickups. Keep effort easy and focus on feeling comfortable in the water.',
+      userParams,
+      weekMeta,
+      index
+    ));
     used.add(easySwimDay);
 
     const easyBikeDay = findAvailableDay(3, blocked, used); // Wed
-    addSession(days, weekMeta.startDate, easyBikeDay, {
-      sport: 'bike',
-      title: 'Bike Easy',
-      type: 'bike_endurance',
-      details: 'Short aerobic spin with a few light cadence pickups. Keep the legs fresh and avoid fatigue.',
-    });
+    addSession(days, weekMeta.startDate, easyBikeDay, makeSession(
+      'bike_endurance',
+      'bike',
+      'Bike Easy',
+      'Short aerobic spin with a few light cadence pickups. Keep the legs fresh and avoid fatigue.',
+      userParams,
+      weekMeta,
+      index
+    ));
     used.add(easyBikeDay);
 
     const easyRunDay = findAvailableDay(4, blocked, used); // Thu
-    addSession(days, weekMeta.startDate, easyRunDay, {
-      sport: 'run',
-      title: 'Run Easy',
-      type: 'run_easy',
-      details: 'Short easy run with relaxed strides if fresh. Finish feeling better than you started.',
-    });
+    addSession(days, weekMeta.startDate, easyRunDay, makeSession(
+      'run_easy',
+      'run',
+      'Run Easy',
+      'Short easy run with relaxed strides if fresh. Finish feeling better than you started.',
+      userParams,
+      weekMeta,
+      index
+    ));
 
     return {
       label: weekMeta.label,
@@ -367,68 +553,89 @@ export function buildTriathlonWeekScaffold({
 
   // Key sessions. These are non-negotiable structure slots.
   const safeLongRideDay = findAvailableDay(longRideDay, blocked, used, true);
-  addSession(days, weekMeta.startDate, safeLongRideDay, {
-    sport: 'bike',
-    title: 'Long Ride',
-    type: 'long_ride',
-    details: getLongRideDetails(userParams, weekMeta),
-  });
+  addSession(days, weekMeta.startDate, safeLongRideDay, makeSession(
+    'long_ride',
+    'bike',
+    'Long Ride',
+    getLongRideDetails(userParams, weekMeta),
+    userParams,
+    weekMeta,
+    index
+  ));
   used.add(safeLongRideDay);
 
   // Every non-race triathlon week gets brick practice appropriate to phase/race.
   {
-    addSession(days, weekMeta.startDate, safeLongRideDay, {
-      sport: 'run',
-      title: 'Brick Run',
-      type: 'brick_run',
-      details: getBrickRunDetails(userParams, weekMeta),
-    });
+    addSession(days, weekMeta.startDate, safeLongRideDay, makeSession(
+      'brick_run',
+      'run',
+      'Brick Run',
+      getBrickRunDetails(userParams, weekMeta),
+      userParams,
+      weekMeta,
+      index
+    ));
   }
 
   const safeLongRunDay = findAvailableDay(longRunDay, blocked, used, true);
-  addSession(days, weekMeta.startDate, safeLongRunDay, {
-    sport: 'run',
-    title: phase === 'taper' ? 'Run Easy' : 'Long Run',
-    type: phase === 'taper' ? 'run_easy' : 'long_run',
-    details: getLongRunDetails(userParams, weekMeta),
-  });
+  addSession(days, weekMeta.startDate, safeLongRunDay, makeSession(
+    phase === 'taper' ? 'run_easy' : 'long_run',
+    'run',
+    phase === 'taper' ? 'Run Easy' : 'Long Run',
+    getLongRunDetails(userParams, weekMeta),
+    userParams,
+    weekMeta,
+    index
+  ));
   used.add(safeLongRunDay);
 
   // Supporting sessions.
   const swimTechniqueDay = findAvailableDay(2, blocked, used); // Tue
-  addSession(days, weekMeta.startDate, swimTechniqueDay, {
-    sport: 'swim',
-    title: 'Swim Technique',
-    type: 'swim_technique',
-    details: getSwimDetails('Technique', userParams, weekMeta),
-  });
+  addSession(days, weekMeta.startDate, swimTechniqueDay, makeSession(
+    'swim_technique',
+    'swim',
+    'Swim Technique',
+    getSwimDetails('Technique', userParams, weekMeta),
+    userParams,
+    weekMeta,
+    index
+  ));
   used.add(swimTechniqueDay);
 
   const bikeDay = findAvailableDay(4, blocked, used); // Thu
-  addSession(days, weekMeta.startDate, bikeDay, {
-    sport: 'bike',
-    title: phase === 'build' || phase === 'peak' ? 'Bike Threshold' : 'Bike Endurance',
-    type: phase === 'build' || phase === 'peak' ? 'bike_quality' : 'bike_endurance',
-    details: getBikeMidweekDetails(userParams, weekMeta),
-  });
+  addSession(days, weekMeta.startDate, bikeDay, makeSession(
+    phase === 'build' || phase === 'peak' ? 'bike_quality' : 'bike_endurance',
+    'bike',
+    phase === 'build' || phase === 'peak' ? 'Bike Threshold' : 'Bike Endurance',
+    getBikeMidweekDetails(userParams, weekMeta),
+    userParams,
+    weekMeta,
+    index
+  ));
   used.add(bikeDay);
 
   const swimEnduranceDay = findAvailableDay(5, blocked, used); // Fri
-  addSession(days, weekMeta.startDate, swimEnduranceDay, {
-    sport: 'swim',
-    title: 'Swim Endurance',
-    type: 'swim_endurance',
-    details: getSwimDetails('Endurance', userParams, weekMeta),
-  });
+  addSession(days, weekMeta.startDate, swimEnduranceDay, makeSession(
+    'swim_endurance',
+    'swim',
+    'Swim Endurance',
+    getSwimDetails('Endurance', userParams, weekMeta),
+    userParams,
+    weekMeta,
+    index
+  ));
   used.add(swimEnduranceDay);
 
   const runQualityDay = findAvailableDay(3, blocked, used); // Wed
-  addSession(days, weekMeta.startDate, runQualityDay, {
-    sport: 'run',
-    title: phase === 'build' || phase === 'peak' ? 'Run Threshold' : 'Run Easy',
-    type: phase === 'build' || phase === 'peak' ? 'run_quality' : 'run_easy',
-    details: getRunQualityDetails(userParams, weekMeta),
-  });
+  addSession(days, weekMeta.startDate, runQualityDay, makeSession(
+    phase === 'build' || phase === 'peak' ? 'run_quality' : 'run_easy',
+    'run',
+    phase === 'build' || phase === 'peak' ? 'Run Threshold' : 'Run Easy',
+    getRunQualityDetails(userParams, weekMeta),
+    userParams,
+    weekMeta,
+    index
+  ));
   used.add(runQualityDay);
 
   // Optional strength. Keep secondary and never duplicate.
@@ -436,12 +643,15 @@ export function buildTriathlonWeekScaffold({
   const wantsStrength = /strength|lift|gym|weights/.test(notes);
   if (wantsStrength || String(userParams.experience).toLowerCase().includes('advanced')) {
     const strengthDay = findAvailableDay(3, blocked, new Set([safeLongRideDay, safeLongRunDay]), true);
-    addSession(days, weekMeta.startDate, strengthDay, {
-      sport: 'strength',
-      title: 'Strength',
-      type: 'strength',
-      details: 'Short general strength session for durability. Keep it controlled, avoid heavy fatigue, and keep triathlon sessions as the priority.',
-    });
+    addSession(days, weekMeta.startDate, strengthDay, makeSession(
+      'strength',
+      'strength',
+      'Strength',
+      'Short general strength session for durability. Keep it controlled, avoid heavy fatigue, and keep triathlon sessions as the priority.',
+      userParams,
+      weekMeta,
+      index
+    ));
   }
 
   return {
@@ -477,9 +687,11 @@ export function applyTriathlonScaffold({
       const generatedMatch = generatedSessions.find((candidate) => isMatchingGeneratedSession(slot, candidate));
       const generatedDetails = usefulGeneratedDetails(generatedMatch);
 
+      const details = generatedDetails ?? slot.details;
+
       return {
         ...slot,
-        details: generatedDetails ?? slot.details,
+        details: withDuration(slot.durationMinutes, details),
       };
     });
   }
