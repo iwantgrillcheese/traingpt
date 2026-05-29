@@ -7,7 +7,7 @@ import type { AuthChangeEvent, Session as SupabaseSession, User } from '@supabas
 import { supabase } from '@/lib/supabase/client';
 
 type ProfileAvatarProps = {
-  variant?: 'compact' | 'sidebar';
+  variant?: 'compact' | 'sidebar' | 'rail';
 };
 
 function getInitials(user: User | null) {
@@ -123,6 +123,55 @@ export default function ProfileAvatar({ variant = 'compact' }: ProfileAvatarProp
       >
         Sign in
       </Link>
+    );
+  }
+
+  if (variant === 'rail') {
+    return (
+      <div ref={menuRef} className="relative">
+        <button
+          type="button"
+          onClick={() => setMenuOpen((open) => !open)}
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-950 text-[11px] font-semibold text-white transition hover:bg-zinc-800"
+          aria-label="Open account menu"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          title={displayName}
+        >
+          {initials}
+        </button>
+
+        {menuOpen ? (
+          <div
+            role="menu"
+            className="absolute bottom-0 left-[calc(100%+10px)] z-50 w-64 overflow-hidden rounded-2xl border border-zinc-200 bg-white text-left shadow-[0_18px_50px_rgba(24,24,27,0.14)]"
+          >
+            <div className="border-b border-zinc-100 px-4 py-3">
+              <div className="truncate text-sm font-medium text-zinc-950">{displayName}</div>
+              <div className="mt-0.5 truncate text-xs text-zinc-500">{email}</div>
+            </div>
+
+            <Link
+              href="/settings"
+              role="menuitem"
+              onClick={() => setMenuOpen(false)}
+              className="block px-4 py-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 hover:text-zinc-950"
+            >
+              Settings
+            </Link>
+
+            <button
+              type="button"
+              role="menuitem"
+              onClick={handleSignOut}
+              disabled={signingOut}
+              className="block w-full px-4 py-3 text-left text-sm font-medium text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {signingOut ? 'Signing out…' : 'Log out'}
+            </button>
+          </div>
+        ) : null}
+      </div>
     );
   }
 

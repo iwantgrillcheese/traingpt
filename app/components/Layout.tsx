@@ -1,18 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
 import ProfileAvatar from './profile avatar';
 
 const APP_ROUTES = ['/schedule', '/coaching', '/plan', '/settings'];
+const SIDEBAR_STORAGE_KEY = 'traingpt.sidebarCollapsed';
 
 const DESKTOP_NAV_ITEMS = [
-  { label: 'Schedule', href: '/schedule' },
-  { label: 'Coaching', href: '/coaching' },
-  { label: 'Plan', href: '/plan' },
-  { label: 'Settings', href: '/settings' },
+  { label: 'Schedule', href: '/schedule', shortLabel: 'S' },
+  { label: 'Coaching', href: '/coaching', shortLabel: 'C' },
+  { label: 'Plan', href: '/plan', shortLabel: 'P' },
+  { label: 'Settings', href: '/settings', shortLabel: '⚙' },
 ];
 
 const MOBILE_PRIMARY_NAV_ITEMS = [
@@ -31,18 +32,87 @@ function isActive(pathname: string | null, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function AppSidebar({ pathname }: { pathname: string | null }) {
+function useSidebarCollapsed() {
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
+      if (stored === 'true') setCollapsed(true);
+      if (stored === 'false') setCollapsed(false);
+    } catch {
+      // localStorage can be unavailable in private contexts. Default expanded.
+    }
+  }, []);
+
+  const updateCollapsed = (next: boolean) => {
+    setCollapsed(next);
+
+    try {
+      window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
+    } catch {
+      // Non-critical preference persistence.
+    }
+  };
+
+  return { collapsed, setCollapsed: updateCollapsed };
+}
+
+function AppSidebar({
+  pathname,
+  collapsed,
+  onToggleCollapsed,
+}: {
+  pathname: string | null;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
+}) {
   return (
-    <aside className="hidden border-r border-zinc-200 bg-white lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:flex lg:w-[232px] lg:flex-col">
-      <div className="px-5 pb-5 pt-7">
-        <Link href="/schedule" className="block">
-          <div className="text-[17px] font-semibold tracking-tight text-zinc-950">TrainGPT</div>
-          <div className="mt-1 text-xs text-zinc-500">Triathlon training</div>
+    <aside
+      className={clsx(
+        'hidden border-r border-zinc-200 bg-white lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:flex lg:flex-col lg:transition-[width] lg:duration-200 lg:ease-out',
+        collapsed ? 'lg:w-[64px]' : 'lg:w-[232px]'
+      )}
+    >
+      <div
+        className={clsx(
+          'flex items-center border-b border-zinc-100',
+          collapsed ? 'justify-center px-2 py-4' : 'justify-between px-4 py-5'
+        )}
+      >
+        <Link
+          href="/schedule"
+          className={clsx(
+            'min-w-0 font-semibold tracking-tight text-zinc-950',
+            collapsed ? 'sr-only' : 'block text-[17px]'
+          )}
+        >
+          TrainGPT
         </Link>
+
+        {collapsed ? null : (
+          <Link href="/schedule" className="hidden">
+            TrainGPT
+          </Link>
+        )}
+
+        <button
+          type="button"
+          onClick={onToggleCollapsed}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className={clsx(
+            'inline-flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-500 transition hover:bg-zinc-50 hover:text-zinc-950',
+            collapsed && 'mx-auto'
+          )}
+        >
+          <span aria-hidden="true" className="text-[15px] leading-none">
+            {collapsed ? '›' : '‹'}
+          </span>
+        </button>
       </div>
 
-      <nav className="flex flex-1 flex-col px-3 pb-4 text-sm">
-        <div className="space-y-1 border-t border-zinc-200 pt-4">
+      <nav className={clsx('flex flex-1 flex-col text-sm', collapsed ? 'px-2 py-3' : 'px-3 py-4')}>
+        <div className="space-y-1">
           {DESKTOP_NAV_ITEMS.map((item) => {
             const active = isActive(pathname, item.href);
 
@@ -50,21 +120,30 @@ function AppSidebar({ pathname }: { pathname: string | null }) {
               <Link
                 key={item.href}
                 href={item.href}
+                title={collapsed ? item.label : undefined}
+                aria-label={collapsed ? item.label : undefined}
                 className={clsx(
-                  'flex items-center rounded-lg px-3 py-2.5 text-[14px] font-medium transition-colors',
+                  'flex items-center rounded-xl font-medium transition-colors',
+                  collapsed ? 'h-10 justify-center px-0 text-[13px]' : 'px-3 py-2.5 text-[14px]',
                   active
-                    ? 'bg-zinc-950 text-white'
+                    ? 'bg-zinc-100 text-zinc-950'
                     : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950'
                 )}
               >
-                {item.label}
+                {collapsed ? (
+                  <span className="flex h-6 w-6 items-center justify-center rounded-md text-[12px]">
+                    {item.shortLabel}
+                  </span>
+                ) : (
+                  item.label
+                )}
               </Link>
             );
           })}
         </div>
 
-        <div className="mt-auto border-t border-zinc-200 pt-4">
-          <ProfileAvatar variant="sidebar" />
+        <div className={clsx('mt-auto border-t border-zinc-100 pt-3', collapsed && 'flex justify-center')}>
+          <ProfileAvatar variant={collapsed ? 'rail' : 'sidebar'} />
         </div>
       </nav>
     </aside>
@@ -173,6 +252,12 @@ function MobileBottomNav({ pathname }: { pathname: string | null }) {
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { collapsed, setCollapsed } = useSidebarCollapsed();
+
+  const shellOffsetClass = useMemo(
+    () => (collapsed ? 'lg:pl-[64px]' : 'lg:pl-[232px]'),
+    [collapsed]
+  );
 
   if (!isAppRoute(pathname)) {
     return <div className="min-h-[100dvh] bg-white text-zinc-950">{children}</div>;
@@ -182,10 +267,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-[100dvh] bg-[#fbfbfa] text-zinc-950">
-      <AppSidebar pathname={pathname} />
+      <AppSidebar
+        pathname={pathname}
+        collapsed={collapsed}
+        onToggleCollapsed={() => setCollapsed(!collapsed)}
+      />
       <MobileHeader />
 
-      <main className="min-h-[100dvh] pb-24 lg:pb-0 lg:pl-[232px]">
+      <main className={clsx('min-h-[100dvh] pb-24 transition-[padding] duration-200 ease-out lg:pb-0', shellOffsetClass)}>
         {isSchedule ? (
           children
         ) : (
