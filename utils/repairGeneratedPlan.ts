@@ -133,6 +133,86 @@ function isRaceWeek(week: WeekJson, raceDate?: string) {
   return canonicalWeekDates(week.startDate).includes(raceDate);
 }
 
+function isTriathlonPlan(userParams: UserParams): boolean {
+  const race = String(userParams.raceType ?? '').toLowerCase();
+  return /triathlon|sprint|olympic|70\.3|half ironman|ironman|140\.6/.test(race);
+}
+
+function shouldRequireBrickRun({
+  week,
+  weekIndex,
+  userParams,
+}: {
+  week: WeekJson;
+  weekIndex: number;
+  userParams: UserParams;
+}): boolean {
+  if (!isTriathlonPlan(userParams)) return false;
+  if (isRaceWeek(week, userParams.raceDate)) return false;
+
+  const phase = String(week.phase ?? '').toLowerCase();
+  const race = String(userParams.raceType ?? '').toLowerCase();
+
+  // Do not force bricks in taper. The model may still prescribe a short one, but repair should not add load here.
+  if (phase.includes('taper')) return false;
+
+  // 70.3 and Ironman athletes should rehearse running off the bike frequently.
+  if (/70\.3|half ironman|ironman|140\.6/.test(race)) {
+    return phase.includes('build') || phase.includes('peak') || weekIndex % 2 === 0;
+  }
+
+  // Sprint/Olympic: periodic bricks are still required, just less frequent.
+  if (/sprint|olympic/.test(race)) {
+    return phase.includes('build') || phase.includes('peak') || weekIndex % 3 === 0;
+  }
+
+  return phase.includes('build') || phase.includes('peak') || weekIndex % 2 === 0;
+}
+
+function makeBrickRunForWeek(week: WeekJson): Record<string, string> {
+  const phase = String(week.phase ?? '').toLowerCase();
+  const minutes = phase.includes('peak')
+    ? 25
+    : phase.includes('build')
+      ? 20
+      : 15;
+
+  return {
+    sport: 'run',
+    title: 'Brick Run',
+    details: `${minutes}min easy transition run immediately off the bike. Keep effort controlled and focus on relaxed cadence, not pace.`,
+  };
+}
+
+function ensureBrickRunOnLongRideDay({
+  week,
+  weekIndex,
+  userParams,
+  days,
+  preferredLongRideDate,
+  changes,
+}: {
+  week: WeekJson;
+  weekIndex: number;
+  userParams: UserParams;
+  days: Record<string, unknown[]>;
+  preferredLongRideDate: string | null;
+  changes: string[];
+}) {
+  if (!preferredLongRideDate) return;
+  if (!shouldRequireBrickRun({ week, weekIndex, userParams })) return;
+
+  const longRideDayItems = days[preferredLongRideDate] ?? [];
+  const hasLongRide = longRideDayItems.some((item) => isTrainingSession(item) && looksLikeLongRide(item));
+  if (!hasLongRide) return;
+
+  const hasBrickRun = longRideDayItems.some((item) => isTrainingSession(item) && hasSport(item, 'run') && isBrickRun(item));
+  if (hasBrickRun) return;
+
+  days[preferredLongRideDate] = [...longRideDayItems, makeBrickRunForWeek(week)];
+  changes.push(`${week.label}: added Brick Run on long ride day ${dayNameFromISO(preferredLongRideDate) ?? preferredLongRideDate}.`);
+}
+
 function ensureCanonicalDays(week: WeekJson): Record<string, unknown[]> {
   const canonical = canonicalWeekDates(week.startDate);
   const existing = week.days && typeof week.days === 'object' && !Array.isArray(week.days) ? week.days : {};
@@ -306,6 +386,7 @@ function cleanupOverloadedDay({
   while (currentTraining.length > 3) {
     const removable = [...currentTraining]
       .filter((item) => !looksLikeLongRide(item) && !looksLikeLongRun(item))
+      .filter((item) => !(isPreferredLongRideDay && isBrickRun(item)))
       .sort((a, b) => sessionLoadScore(a) - sessionLoadScore(b))[0];
 
     if (!removable || !removeItem(days, date, removable)) break;
@@ -356,7 +437,7 @@ export function repairGeneratedPlan({
   const preferredLongRideDay = normalizeDayName(userParams.preferredLongRideDay);
   const preferredLongRunDay = normalizeDayName(userParams.preferredLongRunDay);
 
-  for (const week of weeks) {
+  for (const [weekIndex, week] of weeks.entries()) {
     if (!week || typeof week !== 'object') continue;
     const canonicalDates = canonicalWeekDates(week.startDate);
     if (canonicalDates.length !== 7) continue;
@@ -419,6 +500,15 @@ export function repairGeneratedPlan({
         }
       }
     }
+
+    ensureBrickRunOnLongRideDay({
+      week,
+      weekIndex,
+      userParams,
+      days,
+      preferredLongRideDate,
+      changes,
+    });
 
     for (const date of canonicalDates) {
       cleanupOverloadedDay({

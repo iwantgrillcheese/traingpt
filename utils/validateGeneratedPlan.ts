@@ -209,6 +209,39 @@ function isRaceWeek(week: WeekJson, raceDate?: string) {
   return canonicalWeekDates(week.startDate).includes(raceDate);
 }
 
+function isTriathlonPlan(userParams: UserParams): boolean {
+  const race = String(userParams.raceType ?? '').toLowerCase();
+  return /triathlon|sprint|olympic|70\.3|half ironman|ironman|140\.6/.test(race);
+}
+
+function shouldExpectBrickRun({
+  week,
+  weekIndex,
+  userParams,
+}: {
+  week: WeekJson;
+  weekIndex: number;
+  userParams: UserParams;
+}): boolean {
+  if (!isTriathlonPlan(userParams)) return false;
+  if (isRaceWeek(week, userParams.raceDate)) return false;
+
+  const phase = String(week.phase ?? '').toLowerCase();
+  const race = String(userParams.raceType ?? '').toLowerCase();
+
+  if (phase.includes('taper')) return false;
+
+  if (/70\.3|half ironman|ironman|140\.6/.test(race)) {
+    return phase.includes('build') || phase.includes('peak') || weekIndex % 2 === 0;
+  }
+
+  if (/sprint|olympic/.test(race)) {
+    return phase.includes('build') || phase.includes('peak') || weekIndex % 3 === 0;
+  }
+
+  return phase.includes('build') || phase.includes('peak') || weekIndex % 2 === 0;
+}
+
 export function validateGeneratedPlan({
   plan,
   expectedWeeks,
@@ -239,6 +272,9 @@ export function validateGeneratedPlan({
   const preferredLongRunDay = normalizeDayName(userParams.preferredLongRunDay);
   const twoADaysAllowed = userParams.twoADaysAllowed !== false;
 
+  let expectedBrickWeeks = 0;
+  let actualBrickWeeks = 0;
+
   weeks.forEach((week, weekIndex) => {
     const label = week?.label || `Week ${weekIndex + 1}`;
     const canonicalDates = canonicalWeekDates(week?.startDate ?? '');
@@ -263,6 +299,8 @@ export function validateGeneratedPlan({
 
     const allTrainingItems: Array<{ date: string; item: unknown }> = [];
     const skipLongSessionChecks = isRaceWeek(week, userParams.raceDate) || String(week.phase ?? '').toLowerCase().includes('taper');
+    const expectBrickRunThisWeek = shouldExpectBrickRun({ week, weekIndex, userParams });
+    if (expectBrickRunThisWeek) expectedBrickWeeks += 1;
 
     for (const date of canonicalDates) {
       const items = Array.isArray(days[date]) ? days[date] : [];
@@ -366,8 +404,30 @@ export function validateGeneratedPlan({
           warnings.push(`${label}: long run appears on ${dayNameFromISO(badRun.date) ?? badRun.date}, expected ${preferredLongRunDay}.`);
         }
       }
+
+      if (expectBrickRunThisWeek) {
+        const longRideDate = preferredLongRideDay
+          ? longRides.find(({ date }) => dayNameFromISO(date) === preferredLongRideDay)?.date
+          : longRides[0]?.date;
+
+        if (longRideDate) {
+          const hasSameDayBrickRun = allTrainingItems.some(
+            ({ date, item }) => date === longRideDate && hasSport(item, 'run') && isBrickRun(item)
+          );
+
+          if (hasSameDayBrickRun) {
+            actualBrickWeeks += 1;
+          } else {
+            warnings.push(`${label}: missing Brick Run on long ride day.`);
+          }
+        }
+      }
     }
   });
+
+  if (expectedBrickWeeks > 0 && actualBrickWeeks === 0 && isTriathlonPlan(userParams)) {
+    warnings.push('Triathlon plan has no brick runs. Every triathlon plan should include bike + run brick practice.');
+  }
 
   if (totalSessions === 0) {
     errors.push('Plan produced zero training sessions.');

@@ -544,6 +544,12 @@ export async function POST(req: Request) {
 
     const minimumPlanQualityScore = Number(process.env.MIN_PLAN_QUALITY_SCORE ?? 70);
 
+    function hasCriticalPlanWarnings(warnings: string[]): boolean {
+      return warnings.some((warning) =>
+        /long ride appears|long run appears|selected rest day|unavailable day|missing Brick Run|no brick runs|stacks extra bike work|likely overloaded|duplicate bike|duplicate run/i.test(warning)
+      );
+    }
+
     async function generatePlanAttempt(attempt: number, paramsForAttempt: UserParams) {
       const genStart = Date.now();
       const weeks: WeekJson[] = new Array(planMeta.length);
@@ -551,6 +557,15 @@ export async function POST(req: Request) {
         1,
         Math.min(4, Number(process.env.PLAN_GENERATION_CONCURRENCY ?? 3) || 3)
       );
+
+      const guardTrainingPrefs = {
+        ...(paramsForAttempt.trainingPrefs ?? {}),
+        brickDays: Array.isArray(paramsForAttempt.trainingPrefs?.brickDays)
+          ? paramsForAttempt.trainingPrefs?.brickDays
+          : paramsForAttempt.trainingPrefs?.longRideDay !== undefined
+            ? [paramsForAttempt.trainingPrefs.longRideDay]
+            : [6],
+      };
 
       async function generateOneWeek(i: number, prevWeek?: WeekJson): Promise<WeekJson> {
         const elapsed = Date.now() - startedAt;
@@ -584,7 +599,7 @@ export async function POST(req: Request) {
         let safeWeek: WeekJson;
         try {
           safeWeek = normalizeGeneratedWeek(
-            guardWeek(normalizedRaw, paramsForAttempt.trainingPrefs),
+            guardWeek(normalizedRaw, guardTrainingPrefs),
             planMeta[i]
           );
         } catch (guardErr) {
@@ -709,7 +724,7 @@ export async function POST(req: Request) {
 
     let attemptResult = await generatePlanAttempt(1, userParams);
 
-    if (!attemptResult.validation.ok || attemptResult.validation.score < minimumPlanQualityScore) {
+    if (!attemptResult.validation.ok || attemptResult.validation.score < minimumPlanQualityScore || hasCriticalPlanWarnings(attemptResult.validation.warnings)) {
       console.warn("[plan-validation] quality gate retrying", {
         userId,
         raceType,
@@ -718,11 +733,12 @@ export async function POST(req: Request) {
         minimumPlanQualityScore,
         errors: attemptResult.validation.errors.slice(0, 12),
         warnings: attemptResult.validation.warnings.slice(0, 20),
+        criticalWarnings: hasCriticalPlanWarnings(attemptResult.validation.warnings),
       });
 
       const retryContext = [
         userParams.constraintsSummary,
-        "STRICT RETRY: the previous generated plan was rejected by quality validation. Every non-rest session must include useful planned details, keep calendar titles short, avoid fake detail-only sessions, keep long rides/runs on the selected days, and preserve a realistic weekly session load.",
+        "STRICT RETRY: the previous generated plan was rejected by quality validation. Every non-rest session must include useful planned details, keep calendar titles short, avoid fake detail-only sessions, keep long rides/runs on the selected days, include required bike + Brick Run pairings for triathlon plans, and preserve a realistic weekly session load.",
         attemptResult.validation.warnings.length
           ? `Validation warnings to fix: ${attemptResult.validation.warnings.slice(0, 12).join(" | ")}`
           : "",
@@ -742,7 +758,7 @@ export async function POST(req: Request) {
     const finalValidation = attemptResult.validation;
     const finalPlan = attemptResult.plan;
 
-    if (!finalValidation.ok || finalValidation.score < minimumPlanQualityScore) {
+    if (!finalValidation.ok || finalValidation.score < minimumPlanQualityScore || hasCriticalPlanWarnings(finalValidation.warnings)) {
       console.error("[plan-validation] quality gate failed after retry", {
         userId,
         raceType,
@@ -751,6 +767,7 @@ export async function POST(req: Request) {
         minimumPlanQualityScore,
         errors: finalValidation.errors,
         warnings: finalValidation.warnings.slice(0, 30),
+        criticalWarnings: hasCriticalPlanWarnings(finalValidation.warnings),
       });
 
       throw new Error(

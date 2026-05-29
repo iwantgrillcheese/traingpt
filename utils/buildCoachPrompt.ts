@@ -68,8 +68,8 @@ ${userParams.stravaHistorySummary ? userParams.stravaHistorySummary : 'No recent
 
 ## Instructions
 - Generate a realistic week for the athlete's stated max hours. Most 70.3 weeks should have 6–9 total sessions, not 10–12+ unless the athlete explicitly supports that load.
-- IMPORTANT: A brick is not a sport value. A brick workout must be represented as TWO sessions on the same date: one Bike session and one short Run session. Example: "Bike — Long Ride 2h Z2" and "Run — Brick Run 15min easy off the bike". Never output sport/title text where the sport itself is "brick".
-- Brick day rule: if a brick is prescribed on the long ride day, the bike portion should usually BE the long ride. Do not add a separate endurance bike, threshold bike, and brick bike on the same day.
+- IMPORTANT: Brick workouts are REQUIRED in every triathlon plan. A brick is not a sport value; it is a same-day bike + run pairing. Represent each brick as TWO sessions on the same date: one Bike session and one short Run session. Example: { "sport": "bike", "title": "Long Ride", "details": "2h Z2..." } and { "sport": "run", "title": "Brick Run", "details": "15min easy off the bike..." }. Never output sport/title text where the sport itself is "brick".
+- Brick frequency rule: Sprint/Olympic plans need periodic brick runs; 70.3 and Ironman plans need brick runs in most Build/Peak weeks and some Base weeks. The brick run should usually follow the long ride on the preferred long ride day. The bike portion should usually BE the long ride. Do not add a separate endurance bike, threshold bike, and brick bike on the same day.
 - Day loading rule: do not schedule more than two endurance sessions on the same day, except a bike + short brick run. Never schedule three bike sessions on one day.
 - Strength rule: strength is accessory work. Cap it at three short sessions per week, never put two strength sessions on the same day, and avoid heavy lower-body strength before key run/ride sessions.
 - Treat Scheduling Preferences and Constraints as hard constraints unless they are unsafe or impossible.
