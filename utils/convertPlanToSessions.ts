@@ -105,6 +105,67 @@ function deriveCalendarTitle(sport: Sport | 'brick', source: string): string {
   return cleaned || 'Session';
 }
 
+
+
+function isDetailsPlaceholder(value: unknown): boolean {
+  const raw = String(value ?? '').trim();
+  const text = raw.replace(/\s+/g, ' ').toLowerCase();
+
+  if (!text) return true;
+
+  const placeholders = new Set([
+    'details',
+    'detail',
+    'details details',
+    'details details details',
+    'tbd',
+    'n/a',
+    'na',
+    'none',
+    'null',
+    'undefined',
+    'workout details',
+    'session details',
+  ]);
+
+  if (placeholders.has(text)) return true;
+
+  // Examples: "Run Threshold — Details", "Swim Endurance: Details".
+  if (/^[a-z0-9\s+&/()]+[-—–:]\s*(details?|session details|workout details)$/i.test(raw)) {
+    return true;
+  }
+
+  return false;
+}
+
+function cleanDetails(value: unknown): string | null {
+  const text = String(value ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!text) return null;
+
+  const lowered = text.toLowerCase();
+
+  const junkValues = new Set([
+    'details',
+    'details details',
+    'details details details',
+    'tbd',
+    'n/a',
+    'none',
+    'null',
+    'undefined',
+  ]);
+
+  if (junkValues.has(lowered)) return null;
+
+  // Avoid storing fake placeholders like "Run Threshold — Details".
+  if (/^[a-z\s]+[-—–:]\s*details$/i.test(text)) return null;
+
+  return text;
+}
+
 function joinDetails(parts: string[], fallback: string, title: string): string | null {
   const cleanedParts = parts.map(cleanDetails).filter((part): part is string => Boolean(part));
   const detailText = cleanedParts.join(' — ').trim();
