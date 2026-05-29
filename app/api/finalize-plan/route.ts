@@ -398,7 +398,7 @@ export async function POST(req: Request) {
     });
 
     const preferenceTextParts = [preferencesText, constraintsSummary].filter(Boolean).join("\n");
-    const trainingPrefs = extractPrefs(preferenceTextParts);
+    const trainingPrefs: NonNullable<UserParams["trainingPrefs"]> = extractPrefs(preferenceTextParts) ?? {};
     const longRideIdx = dayIndex(preferredLongRideDayResolved);
     const longRunIdx = dayIndex(preferredLongRunDayResolved);
     if (longRideIdx !== undefined) {
