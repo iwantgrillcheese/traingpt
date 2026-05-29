@@ -74,19 +74,31 @@ function getLongRideDetails(userParams: UserParams, weekMeta: WeekMeta) {
   const family = raceFamily(userParams.raceType);
   const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
 
-  if (phase === 'taper') return 'Aerobic long ride with reduced volume. Keep the effort mostly Z2 and finish feeling fresh.';
-  if (family === 'half') return 'Aerobic long ride for 70.3 durability. Ride mostly Z2 with a controlled steady finish if feeling good.';
-  if (family === 'ironman') return 'Long aerobic ride focused on fueling practice, steady pacing, and staying relaxed for the full duration.';
-  if (family === 'sprint' || family === 'olympic') return 'Aerobic endurance ride with a few controlled race-effort segments. Keep the final 10min smooth.';
+  if (phase === 'taper') {
+    return 'Reduced aerobic long ride. Stay mostly Z2, include a few short relaxed race-effort pickups if fresh, and finish feeling sharp.';
+  }
+
+  if (family === 'half') {
+    return 'Aerobic long ride for 70.3 durability. Stay mostly Z2, practice fueling every 20-30min, and finish controlled rather than depleted.';
+  }
+
+  if (family === 'ironman') {
+    return 'Long aerobic ride focused on steady pacing, fueling practice, and staying relaxed. Keep the effort sustainable from start to finish.';
+  }
+
+  if (family === 'sprint' || family === 'olympic') {
+    return 'Aerobic endurance ride with a few controlled race-effort segments. Keep the final 10min smooth and confident.';
+  }
+
   return 'Aerobic long ride focused on durability, fueling, and controlled pacing.';
 }
 
 function getBrickRunDetails(userParams: UserParams, weekMeta: WeekMeta) {
   const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
-  if (phase === 'taper') return '10-15min very easy off the bike. Keep cadence quick and effort relaxed.';
-  if (phase === 'base') return '10-15min easy off the bike. Focus on smooth cadence and relaxed form, not pace.';
-  if (phase === 'peak') return '20-30min controlled off the bike. Start easy, then settle into realistic race effort if fresh.';
-  return '15-25min easy-to-steady off the bike. Practice transition rhythm and controlled pacing.';
+  if (phase === 'taper') return '10-15min very easy off the bike. Keep cadence quick, shoulders relaxed, and effort light.';
+  if (phase === 'base') return '10-15min easy off the bike. Focus on quick cadence and relaxed form, not pace.';
+  if (phase === 'peak') return '20-30min controlled off the bike. Start easy, then settle into realistic race effort only if fresh.';
+  return '15-25min easy-to-steady off the bike. Practice transition rhythm, posture, and controlled pacing.';
 }
 
 function getLongRunDetails(userParams: UserParams, weekMeta: WeekMeta) {
@@ -112,10 +124,12 @@ function getBikeMidweekDetails(userParams: UserParams, weekMeta: WeekMeta) {
 
 function getSwimDetails(kind: 'Technique' | 'Endurance', userParams: UserParams, weekMeta: WeekMeta) {
   const comfort = String(userParams.swimComfort ?? '').toLowerCase();
+
   if (kind === 'Technique' || comfort === 'new' || comfort === 'developing') {
-    return 'Technique-focused swim with easy warmup, drill work, short relaxed repeats, and smooth cooldown. Prioritize form and comfort.';
+    return 'Technique-focused swim. Include easy warmup, drill work, short relaxed repeats, and smooth cooldown. Prioritize body position, breathing, and comfort.';
   }
-  return 'Endurance swim with warmup, steady aerobic repeats, and cooldown. Keep pacing smooth and sustainable.';
+
+  return 'Endurance swim. Include easy warmup, steady aerobic repeats, and cooldown. Keep pacing smooth and sustainable rather than forcing speed.';
 }
 
 function findAvailableDay(preferred: number, blocked: Set<number>, used: Set<number>, allowUsed = false): number {
@@ -279,7 +293,7 @@ export function buildTriathlonWeekScaffold({
   const bikeDay = findAvailableDay(4, blocked, used); // Thu
   addSession(days, weekMeta.startDate, bikeDay, {
     sport: 'bike',
-    title: phase === 'build' || phase === 'peak' ? 'Bike Tempo' : 'Bike Endurance',
+    title: phase === 'build' || phase === 'peak' ? 'Bike Threshold' : 'Bike Endurance',
     type: phase === 'build' || phase === 'peak' ? 'bike_quality' : 'bike_endurance',
     details: getBikeMidweekDetails(userParams, weekMeta),
   });
@@ -310,9 +324,9 @@ export function buildTriathlonWeekScaffold({
     const strengthDay = findAvailableDay(3, blocked, new Set([safeLongRideDay, safeLongRunDay]), true);
     addSession(days, weekMeta.startDate, strengthDay, {
       sport: 'strength',
-      title: 'Strength Core',
+      title: 'Strength',
       type: 'strength',
-      details: 'Short accessory strength session focused on core, mobility, and durability. Keep it controlled and secondary to triathlon training.',
+      details: 'Short general strength session for durability. Keep it controlled, avoid heavy fatigue, and keep triathlon sessions as the priority.',
     });
   }
 

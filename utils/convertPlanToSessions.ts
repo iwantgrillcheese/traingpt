@@ -53,15 +53,7 @@ function stripInstructionalNoise(value: string): string {
     .trim();
 }
 
-function compactStrengthTitle(text: string): string {
-  const t = text.toLowerCase();
-  if (/\bcore\b/.test(t) && /\blower\b/.test(t)) return 'Strength Lower + Core';
-  if (/\bupper\b/.test(t) && /\bcore\b/.test(t)) return 'Strength Upper + Core';
-  if (/\blower\b/.test(t)) return 'Strength Lower';
-  if (/\bupper\b/.test(t)) return 'Strength Upper';
-  if (/\bcore\b/.test(t)) return 'Strength Core';
-  if (/\bfull body\b|\bfull-body\b|\bcircuit\b/.test(t)) return 'Strength Full Body';
-  if (/\bmobility\b|\bactivation\b/.test(t)) return 'Mobility';
+function compactStrengthTitle(_text: string): string {
   return 'Strength';
 }
 
@@ -83,7 +75,6 @@ function deriveCalendarTitle(sport: Sport | 'brick', source: string): string {
   }
 
   if (sport === 'bike') {
-    if (/\bbrick\b/.test(t)) return 'Brick Bike';
     if (/\blong\b/.test(t)) return 'Long Ride';
     if (/\bthreshold\b|\bftp\b|\binterval\b|\b90\s*-?\s*95\b|\bvo2\b/.test(t)) return 'Bike Threshold';
     if (/\btempo\b|\bsweet spot\b/.test(t)) return 'Bike Tempo';
@@ -326,7 +317,7 @@ function extractBrickDurations(text: string): { bikeTitle: string; runTitle: str
     null;
 
   return {
-    bikeTitle: 'Brick Bike',
+    bikeTitle: 'Long Ride',
     runTitle: 'Brick Run',
   };
 }
@@ -377,8 +368,33 @@ function rowsFromParsedSession({
   ];
 }
 
+function normalizeObjectSport(value: unknown): Sport | null {
+  const sport = String(value ?? '').toLowerCase().trim();
+  if (sport === 'swim' || sport === 'bike' || sport === 'run' || sport === 'strength' || sport === 'other') {
+    return sport;
+  }
+  return null;
+}
+
+function normalizeStructuredTitle(sport: Sport | 'brick', title: string, type?: string): string {
+  const clean = cleanTitle(title);
+
+  if (sport === 'strength') return 'Strength';
+  if (sport === 'run' && (type === 'brick_run' || /\bbrick\b/i.test(clean))) return 'Brick Run';
+  if (sport === 'bike' && type === 'long_ride') return 'Long Ride';
+  if (sport === 'run' && type === 'long_run') return 'Long Run';
+
+  if (clean && clean.length <= 32 && !/[0-9]{1,3}\s*(?:min|mi|km|m|yd|ftp|watts?|%)/i.test(clean)) {
+    return sport === 'strength' ? 'Strength' : clean;
+  }
+
+  return deriveCalendarTitle(sport, clean);
+}
+
 function parseObjectItem(item: any): ParsedSession | null {
   if (!item || typeof item !== 'object') return null;
+
+  const explicitSport = normalizeObjectSport(item?.sport);
   const originalTitle = cleanTitle(item?.title ?? item?.session_title ?? item?.name ?? 'Session');
   const originalDetails = cleanDetails(
     typeof item?.details === 'string'
@@ -389,10 +405,28 @@ function parseObjectItem(item: any): ParsedSession | null {
           ? item.detail
           : null
   );
+  const type = typeof item?.type === 'string' ? item.type : undefined;
+
+  if (isRestLike([originalTitle, originalDetails].filter(Boolean).join(' ')) || isDetailsPlaceholder(originalTitle)) {
+    return null;
+  }
+
+  // Structured scaffold sessions are already trustworthy. Do not re-detect sport
+  // from details like "off the bike", because that turns Brick Run into a fake
+  // bike + run brick and creates the phantom Brick Bike card.
+  if (explicitSport) {
+    const title = normalizeStructuredTitle(explicitSport, originalTitle, type);
+    const details = joinDetails([], originalDetails ?? originalTitle, title);
+
+    return {
+      sport: explicitSport,
+      title,
+      details,
+      raw: item,
+    };
+  }
+
   const sportText = [item?.sport, originalTitle, originalDetails].filter(Boolean).join(' ');
-
-  if (isRestLike(sportText) || isDetailsPlaceholder(originalTitle)) return null;
-
   const sport = detectSport(sportText);
   const title = deriveCalendarTitle(sport, sportText);
   const details = joinDetails([], [originalDetails, originalTitle].filter(Boolean).join(' — '), title);
