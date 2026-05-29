@@ -50,6 +50,8 @@ function normalizeSport(value?: string | null) {
 function cleanTitle(title?: string | null) {
   return String(title ?? 'Untitled session')
     .replace(/^\p{Extended_Pictographic}\s*/u, '')
+    .replace(/^[\s—–-]+/, '')
+    .replace(/^[\s:•·]+/, '')
     .replace(/\s{2,}/g, ' ')
     .trim();
 }

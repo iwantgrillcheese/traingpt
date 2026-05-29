@@ -74,6 +74,8 @@ ${userParams.stravaHistorySummary ? userParams.stravaHistorySummary : 'No recent
 - If the athlete is new/developing in swim comfort, bias early weeks toward technique, consistency, and confidence before heavy swim intensity.
 - Tie intensities to metrics when available.
 - If Strava history exists, use it to calibrate starting load and discipline balance while still honoring race goals.
+- Session titles must be concise and clean. Do NOT begin session titles with punctuation such as "—", "–", "-", ":", bullets, or emoji.
+- Avoid stuffing the full workout into the title. Use clear titles like "Bike Threshold", "Swim Technique", "Long Run", or "Brick Session"; put set details in the session details/description instead.
 - Return ONLY valid JSON matching the schema in the system message.
 `.trim();
 }

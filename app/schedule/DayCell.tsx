@@ -34,6 +34,8 @@ function normalizeSport(value?: string | null): SportKey {
 function cleanTitle(title?: string | null) {
   return String(title ?? 'Untitled')
     .replace(/^\p{Extended_Pictographic}\s*/u, '')
+    .replace(/^[\s—–-]+/, '')
+    .replace(/^[\s:•·]+/, '')
     .replace(/\s{2,}/g, ' ')
     .trim();
 }
