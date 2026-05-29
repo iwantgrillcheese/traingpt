@@ -143,6 +143,67 @@ function hasLeadingTitleJunk(item: unknown) {
   return /^[\s—–\-:•*]+/.test(text);
 }
 
+
+function rawTitleText(item: unknown): string {
+  if (typeof item === 'string') {
+    const withoutEmoji = item.replace(/^\s*[\p{Extended_Pictographic}\u200d\ufe0f]+\s*/u, '').trim();
+    const parts = withoutEmoji.split(/\s*[—–]\s*/g).map((part) => part.trim()).filter(Boolean);
+    if (parts.length >= 2 && /^(swim|bike|ride|run|strength|gym|brick)$/i.test(parts[0])) return parts[1];
+    return parts[0] ?? withoutEmoji;
+  }
+
+  if (isRecord(item)) {
+    return typeof item.title === 'string'
+      ? item.title
+      : typeof item.session_title === 'string'
+        ? item.session_title
+        : typeof item.name === 'string'
+          ? item.name
+          : '';
+  }
+
+  return '';
+}
+
+function rawDetailsText(item: unknown): string {
+  if (typeof item === 'string') {
+    const withoutEmoji = item.replace(/^\s*[\p{Extended_Pictographic}\u200d\ufe0f]+\s*/u, '').trim();
+    const parts = withoutEmoji.split(/\s*[—–]\s*/g).map((part) => part.trim()).filter(Boolean);
+    const hasSportPrefix = parts.length >= 2 && /^(swim|bike|ride|run|strength|gym|brick)$/i.test(parts[0]);
+    return (hasSportPrefix ? parts.slice(2) : parts.slice(1)).join(' — ');
+  }
+
+  if (isRecord(item)) {
+    return typeof item.details === 'string'
+      ? item.details
+      : typeof item.description === 'string'
+        ? item.description
+        : '';
+  }
+
+  return '';
+}
+
+function titleLooksVerbose(item: unknown): boolean {
+  const title = rawTitleText(item).trim();
+  if (!title) return false;
+  if (title.length > 42) return true;
+  if (/\b\d+(?:\.\d+)?\s*(?:min|mins|minutes|mi|miles|km|m|yd|yards|h|hr|hrs|hour|hours)\b/i.test(title)) return true;
+  if (/\b\d+\s*[x×]\s*\d+/i.test(title)) return true;
+  if (/\b\d{1,2}:\d{2}\s*(?:\/\s*(?:mi|mile|km|100m))?\b/i.test(title)) return true;
+  if (/\b(?:including|focused on|focusing on|with|at)\b/i.test(title)) return true;
+  return false;
+}
+
+function missingUsefulDetails(item: unknown): boolean {
+  const text = itemText(item).toLowerCase();
+  if (!isTrainingSession(item)) return false;
+  if (hasSport(item, 'strength')) return false;
+  const details = rawDetailsText(item).trim();
+  if (details.length >= 12) return false;
+  return hasSport(item, 'swim') || hasSport(item, 'bike') || hasSport(item, 'run');
+}
+
 function isRaceWeek(week: WeekJson, raceDate?: string) {
   if (!raceDate) return false;
   return canonicalWeekDates(week.startDate).includes(raceDate);
@@ -258,6 +319,14 @@ export function validateGeneratedPlan({
       for (const item of items) {
         if (hasLeadingTitleJunk(item)) {
           warnings.push(`${label}: session title begins with punctuation (${date}).`);
+        }
+
+        if (titleLooksVerbose(item)) {
+          warnings.push(`${label}: session title is too verbose or contains workout details (${date}).`);
+        }
+
+        if (missingUsefulDetails(item)) {
+          warnings.push(`${label}: session is missing useful details (${date}).`);
         }
 
         const unsupportedSport = isUnsupportedDbSportValue(item);

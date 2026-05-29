@@ -78,8 +78,11 @@ ${userParams.stravaHistorySummary ? userParams.stravaHistorySummary : 'No recent
 - If the athlete is new/developing in swim comfort, bias early weeks toward technique, consistency, and confidence before heavy swim intensity.
 - Tie intensities to metrics when available.
 - If Strava history exists, use it to calibrate starting load and discipline balance while still honoring race goals.
-- Session titles must be concise and clean. Do NOT begin session titles with punctuation such as "—", "–", "-", ":", bullets, or emoji.
-- Avoid stuffing the full workout into the title. Use clear titles like "Bike Threshold", "Swim Technique", "Long Run", "Brick Bike", or "Brick Run"; put set details in the session details/description instead.
+- Session titles must be concise, calendar-friendly labels of 2–4 words. Do NOT begin session titles with punctuation such as "—", "–", "-", ":", bullets, or emoji.
+- Do NOT put duration, pace, FTP, interval prescriptions, yardage, or long explanations in the title. Put those specifics in details/description.
+- Good title examples: "Run Easy", "Run Threshold", "Long Run", "Bike Endurance", "Bike Threshold", "Long Ride", "Swim Technique", "Swim Endurance", "Strength Core", "Brick Run".
+- Bad title examples: "Threshold — 50min including 5x5min", "Long — 1h45 at 8:00-8:30/mi", "Technique — 2000m drills focusing on stroke efficiency".
+- Every non-rest session must include useful detail/description. For swim sessions, always include purpose or set structure. For bike/run quality sessions, include the main set or intensity target in details, not the title.
 - Return ONLY valid JSON matching the schema in the system message.
 `.trim();
 }

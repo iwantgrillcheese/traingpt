@@ -38,6 +38,83 @@ function cleanTitle(value: unknown): string {
     .trim();
 }
 
+
+function stripInstructionalNoise(value: string): string {
+  return cleanTitle(value)
+    .replace(/\b(?:around|about|approximately)\s+/gi, '')
+    .replace(/\([^)]*(?:min|mins|minutes|mi|mile|miles|km|ftp|watts?|pace|css|z2|zone|threshold)[^)]*\)/gi, '')
+    .replace(/\b\d+(?:\.\d+)?\s*(?:min|mins|minutes|miles?|mi|km|m|yd|yards?|h|hr|hrs|hour|hours)\b/gi, '')
+    .replace(/\b\d+\s*[x×]\s*\d+[^,;)]*/gi, '')
+    .replace(/\b\d{1,2}:\d{2}\s*(?:\/\s*(?:mi|mile|km|100m))?\b/gi, '')
+    .replace(/\b\d+\s*-\s*\d+\s*(?:%|watts?|ftp|bpm)?\b/gi, '')
+    .replace(/\b(?:at|with|including|focused on|focusing on)\b.*$/gi, '')
+    .replace(/[()]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function compactStrengthTitle(text: string): string {
+  const t = text.toLowerCase();
+  if (/\bcore\b/.test(t) && /\blower\b/.test(t)) return 'Strength Lower + Core';
+  if (/\bupper\b/.test(t) && /\bcore\b/.test(t)) return 'Strength Upper + Core';
+  if (/\blower\b/.test(t)) return 'Strength Lower';
+  if (/\bupper\b/.test(t)) return 'Strength Upper';
+  if (/\bcore\b/.test(t)) return 'Strength Core';
+  if (/\bfull body\b|\bfull-body\b|\bcircuit\b/.test(t)) return 'Strength Full Body';
+  if (/\bmobility\b|\bactivation\b/.test(t)) return 'Mobility';
+  return 'Strength';
+}
+
+function deriveCalendarTitle(sport: Sport | 'brick', source: string): string {
+  const cleaned = stripInstructionalNoise(source);
+  const t = `${source} ${cleaned}`.toLowerCase();
+
+  if (sport === 'brick') return 'Brick Workout';
+
+  if (sport === 'strength') return compactStrengthTitle(source);
+
+  if (sport === 'swim') {
+    if (/\btechnique\b|\bdrill\b|\bstroke\b|\bform\b/.test(t)) return 'Swim Technique';
+    if (/\bthreshold\b|\bcss\b|\binterval\b|\btempo\b/.test(t)) return 'Swim Threshold';
+    if (/\bopen water\b/.test(t)) return 'Open Water Swim';
+    if (/\bendurance\b|\bbase\b|\bsteady\b|\baerobic\b|\bmoderate\b/.test(t)) return 'Swim Endurance';
+    if (/\beasy\b|\brecovery\b/.test(t)) return 'Swim Easy';
+    return cleaned && cleaned.length <= 24 && /^swim/i.test(cleaned) ? cleaned : 'Swim';
+  }
+
+  if (sport === 'bike') {
+    if (/\bbrick\b/.test(t)) return 'Brick Bike';
+    if (/\blong\b/.test(t)) return 'Long Ride';
+    if (/\bthreshold\b|\bftp\b|\binterval\b|\b90\s*-?\s*95\b|\bvo2\b/.test(t)) return 'Bike Threshold';
+    if (/\btempo\b|\bsweet spot\b/.test(t)) return 'Bike Tempo';
+    if (/\bendurance\b|\bbase\b|\bz2\b|\bzone 2\b|\baerobic\b|\bsteady\b/.test(t)) return 'Bike Endurance';
+    if (/\beasy\b|\brecovery\b/.test(t)) return 'Bike Easy';
+    return cleaned && cleaned.length <= 24 && /bike|ride/i.test(cleaned) ? cleaned : 'Bike';
+  }
+
+  if (sport === 'run') {
+    if (/\bbrick\b|\boff the bike\b|\btransition\b/.test(t)) return 'Brick Run';
+    if (/\blong\b/.test(t)) return 'Long Run';
+    if (/\bthreshold\b/.test(t)) return 'Run Threshold';
+    if (/\binterval\b|\brepeats\b|\b5k\b|\b10k\b/.test(t)) return 'Run Intervals';
+    if (/\btempo\b|\brace pace\b/.test(t)) return 'Run Tempo';
+    if (/\beasy\b|\brecovery\b|\bz2\b|\bzone 2\b|\baerobic\b/.test(t)) return 'Run Easy';
+    return cleaned && cleaned.length <= 24 && /^run/i.test(cleaned) ? cleaned : 'Run';
+  }
+
+  return cleaned || 'Session';
+}
+
+function joinDetails(parts: string[], fallback: string, title: string): string | null {
+  const cleanedParts = parts.map(cleanTitle).filter(Boolean);
+  const detailText = cleanedParts.join(' — ').trim();
+  const cleanedFallback = cleanTitle(fallback);
+
+  if (detailText && detailText.toLowerCase() !== title.toLowerCase()) return detailText;
+  if (cleanedFallback && cleanedFallback.toLowerCase() !== title.toLowerCase()) return cleanedFallback;
+  return null;
+}
+
 function isRestLike(text: string): boolean {
   const t = text.toLowerCase();
   return /\b(rest day|day off|off day|complete rest|recovery day)\b/.test(t);
@@ -93,8 +170,11 @@ function parseStringItem(str: string): ParsedSession | null {
   }
 
   const sport = (emoji && EmojiSportMap[emoji]) || detectSport(withoutEmoji);
-  const title = cleanTitle(parts.join(' — ').trim() || withoutEmoji || str);
-  const details = parts.length >= 3 ? parts.slice(2).join(' — ').trim() : null;
+  const hasExplicitSportPrefix = parts.length > 1 && /^(swim|bike|ride|run|strength|gym|brick)$/i.test(parts[0]);
+  const titleSource = hasExplicitSportPrefix ? parts[1] : (parts[0] || withoutEmoji || str);
+  const title = deriveCalendarTitle(sport, [parts[0], titleSource, withoutEmoji].filter(Boolean).join(' '));
+  const detailParts = hasExplicitSportPrefix ? parts.slice(2) : parts.slice(1);
+  const details = joinDetails(detailParts, withoutEmoji, title);
 
   if (!title) return null;
   return { sport, title, details, raw: str };
@@ -184,8 +264,8 @@ function extractBrickDurations(text: string): { bikeTitle: string; runTitle: str
     null;
 
   return {
-    bikeTitle: cleanTitle(`Brick Bike${bikeDuration ? ` — ${bikeDuration}` : ''}`),
-    runTitle: cleanTitle(`Brick Run${runDuration ? ` — ${runDuration}` : ' — short easy transition run'}`),
+    bikeTitle: 'Brick Bike',
+    runTitle: 'Brick Run',
   };
 }
 
@@ -227,7 +307,7 @@ function rowsFromParsedSession({
   }
 
   const { bikeTitle, runTitle } = extractBrickDurations(text);
-  const sharedDetails = parsed.details ?? 'Part of brick workout.';
+  const sharedDetails = parsed.details ?? cleanTitle(text) || 'Part of brick workout.';
 
   return [
     buildRow({ userId, planId, date, sport: 'bike', title: bikeTitle, details: sharedDetails, raw: parsed.raw }),
@@ -237,14 +317,18 @@ function rowsFromParsedSession({
 
 function parseObjectItem(item: any): ParsedSession | null {
   if (!item || typeof item !== 'object') return null;
-  const title = cleanTitle(item?.title ?? item?.session_title ?? item?.name ?? 'Session');
-  const details = typeof item?.details === 'string' ? item.details : typeof item?.description === 'string' ? item.description : null;
-  const sportText = [item?.sport, title, details].filter(Boolean).join(' ');
+  const originalTitle = cleanTitle(item?.title ?? item?.session_title ?? item?.name ?? 'Session');
+  const originalDetails = typeof item?.details === 'string' ? item.details : typeof item?.description === 'string' ? item.description : null;
+  const sportText = [item?.sport, originalTitle, originalDetails].filter(Boolean).join(' ');
 
   if (isRestLike(sportText)) return null;
 
+  const sport = detectSport(sportText);
+  const title = deriveCalendarTitle(sport, sportText);
+  const details = joinDetails([], [originalDetails, originalTitle].filter(Boolean).join(' — '), title);
+
   return {
-    sport: detectSport(sportText),
+    sport,
     title,
     details,
     raw: item,
