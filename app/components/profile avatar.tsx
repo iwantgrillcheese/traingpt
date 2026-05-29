@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase/client';
+import type { AuthChangeEvent, Session as SupabaseSession } from '@supabase/supabase-js';
 
 type ProfileAvatarProps = {
   variant?: 'compact' | 'sidebar';
@@ -61,9 +62,11 @@ export default function ProfileAvatar({ variant = 'compact' }: ProfileAvatarProp
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
+} = supabase.auth.onAuthStateChange(
+  (_event: AuthChangeEvent, session: SupabaseSession | null) => {
+    setUser(session?.user ?? null);
+  }
+);
 
     return () => {
       cancelled = true;
