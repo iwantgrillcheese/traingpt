@@ -1,25 +1,36 @@
 import { addDays, formatISO, isValid, parseISO } from 'date-fns';
 import type { UserParams, WeekJson, WeekMeta } from '@/types/plan';
 
-type ScaffoldSport = 'swim' | 'bike' | 'run' | 'strength';
+type ScaffoldSport = 'swim' | 'bike' | 'run' | 'strength' | 'other';
+
+export type TriathlonSessionType =
+  | 'race_day'
+  | 'swim_technique'
+  | 'swim_endurance'
+  | 'swim_race_prep'
+  | 'bike_endurance'
+  | 'bike_quality'
+  | 'long_ride'
+  | 'bike_opener'
+  | 'run_easy'
+  | 'run_quality'
+  | 'long_run'
+  | 'brick_run'
+  | 'run_opener'
+  | 'strength';
 
 type ScaffoldSession = {
   sport: ScaffoldSport;
   title: string;
   details: string;
   durationMinutes: number;
-  type:
-    | 'swim_technique'
-    | 'swim_endurance'
-    | 'bike_endurance'
-    | 'bike_quality'
-    | 'long_ride'
-    | 'run_easy'
-    | 'run_quality'
-    | 'long_run'
-    | 'brick_run'
-    | 'strength';
+  type: TriathlonSessionType;
+  priority?: 'anchor' | 'key' | 'support' | 'optional';
 };
+
+type RaceFamily = 'sprint' | 'olympic' | 'half' | 'ironman' | 'triathlon';
+type ExperienceTier = 'beginner' | 'intermediate' | 'advanced';
+type PhaseIntensity = 'base' | 'build' | 'peak' | 'taper' | 'recovery';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
 
@@ -37,8 +48,6 @@ function dayNameToIndex(day?: string | null): number | null {
 function dateForJsDay(weekStartISO: string, jsDay: number): string | null {
   const start = parseISO(weekStartISO);
   if (!isValid(start)) return null;
-
-  // weekStartISO is expected to be Monday. JS day: Sunday = 0 ... Saturday = 6.
   const mondayBasedOffset = jsDay === 0 ? 6 : jsDay - 1;
   return isoDate(addDays(start, mondayBasedOffset));
 }
@@ -50,28 +59,69 @@ function canonicalWeekDates(weekStartISO: string): string[] {
 }
 
 function isTriathlonRace(raceType: string) {
-  return /tri|sprint|olympic|70\.3|half iron|ironman/i.test(raceType);
+  return /tri|sprint|olympic|70\.3|half iron|ironman|140\.6/i.test(raceType);
 }
 
-function raceFamily(raceType: string): 'sprint' | 'olympic' | 'half' | 'ironman' | 'triathlon' {
+function raceFamily(raceType: string): RaceFamily {
   const lower = raceType.toLowerCase();
   if (lower.includes('70.3') || lower.includes('half iron')) return 'half';
-  if (lower.includes('ironman')) return 'ironman';
+  if (lower.includes('ironman') || lower.includes('140.6')) return 'ironman';
   if (lower.includes('olympic')) return 'olympic';
   if (lower.includes('sprint')) return 'sprint';
   return 'triathlon';
 }
 
+function experienceTier(experience: unknown): ExperienceTier {
+  const text = String(experience ?? '').toLowerCase();
+  if (text.includes('beginner') || text.includes('new')) return 'beginner';
+  if (text.includes('advanced') || text.includes('competitive') || text.includes('experienced')) return 'advanced';
+  return 'intermediate';
+}
+
+function phaseIntensity(phase: string, deload: boolean): PhaseIntensity {
+  const lower = phase.toLowerCase();
+  if (deload || lower.includes('recovery') || lower.includes('deload')) return 'recovery';
+  if (lower.includes('taper')) return 'taper';
+  if (lower.includes('peak')) return 'peak';
+  if (lower.includes('build')) return 'build';
+  return 'base';
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, Math.round(value)));
+}
+
+function numericMaxHours(value: unknown): number {
+  const n = typeof value === 'number' ? value : Number.parseFloat(String(value ?? ''));
+  return Number.isFinite(n) && n > 0 ? n : 8;
+}
+
+function taperWeeksForRace(family: RaceFamily): number {
+  if (family === 'ironman') return 3;
+  if (family === 'half') return 2;
+  return 1;
+}
+
+function trainingProgress(index: number, totalWeeks: number, family: RaceFamily, phase: PhaseIntensity): number {
+  if (phase === 'taper') return 1;
+  const taperWeeks = taperWeeksForRace(family);
+  const buildWeeks = Math.max(1, totalWeeks - taperWeeks - 1);
+  return clamp((index / buildWeeks) * 100, 0, 100) / 100;
+}
+
+function smoothProgress(index: number, totalWeeks: number, family: RaceFamily, phase: PhaseIntensity): number {
+  const p = trainingProgress(index, totalWeeks, family, phase);
+  // Ease-in curve: early weeks climb gently, later build/peak weeks reach full race-specific demand.
+  return Math.pow(p, 0.8);
+}
 
 function cleanMetric(value: unknown): string | null {
   const text = String(value ?? '').replace(/\s+/g, ' ').trim();
   return text && text.toLowerCase() !== 'unknown' ? text : null;
 }
 
-
 function parsePaceToSeconds(value: unknown): number | null {
   const text = String(value ?? '').trim();
-  if (!text) return null;
   const match = text.match(/(\d{1,2})\s*:\s*(\d{2})/);
   if (!match) return null;
   const minutes = Number(match[1]);
@@ -101,21 +151,19 @@ function runPaceRange(userParams: UserParams, addLowSeconds: number, addHighSeco
   return `${formatPace(thresholdSeconds + addLowSeconds, unit)}-${formatPace(thresholdSeconds + addHighSeconds, unit)}`;
 }
 
-function runThresholdRange(userParams: UserParams): string | null {
+function easyRunRange(userParams: UserParams) {
+  return runPaceRange(userParams, 75, 115);
+}
+
+function steadyRunRange(userParams: UserParams) {
+  return runPaceRange(userParams, 35, 65);
+}
+
+function thresholdRunRange(userParams: UserParams) {
   const thresholdSeconds = parsePaceToSeconds(userParams.runPace);
   if (!thresholdSeconds) return null;
   const unit = inferRunUnit(userParams);
   return `${formatPace(thresholdSeconds - 5, unit)}-${formatPace(thresholdSeconds + 10, unit)}`;
-}
-
-function easyRunRange(userParams: UserParams): string | null {
-  // Long/easy running should usually be comfortably slower than threshold.
-  // This range is intentionally conservative for triathlon durability.
-  return runPaceRange(userParams, 75, 115);
-}
-
-function steadyRunRange(userParams: UserParams): string | null {
-  return runPaceRange(userParams, 35, 65);
 }
 
 function ftpRange(ftp: unknown, low: number, high: number): string | null {
@@ -124,204 +172,14 @@ function ftpRange(ftp: unknown, low: number, high: number): string | null {
   return `${Math.round(value * low)}-${Math.round(value * high)}W (${Math.round(low * 100)}-${Math.round(high * 100)}% FTP)`;
 }
 
-function bikeMetricCue(userParams: UserParams, low: number, high: number, fallbackLabel: string): string {
+function bikeCue(userParams: UserParams, low: number, high: number, fallback: string): string {
   const range = ftpRange(userParams.bikeFtp, low, high);
-  return range ? `Use your FTP to anchor the work: ${range}.` : fallbackLabel;
+  return range ? `Target ${range}.` : fallback;
 }
 
-function runMetricCue(userParams: UserParams, label: string): string {
-  const threshold = cleanMetric(userParams.runPace);
-  return threshold ? `${label} Threshold reference: ${threshold}. Use effort first if heat, hills, or fatigue make pace unrealistic.` : label;
-}
-
-function longRunCue(userParams: UserParams, baseLabel: string, phase: ReturnType<typeof phaseIntensity>): string {
-  const easyRange = easyRunRange(userParams);
-  const steadyRange = steadyRunRange(userParams);
-
-  if (!easyRange) return baseLabel;
-
-  if (phase === 'peak' || phase === 'build') {
-    return `${baseLabel} Target most of the run around ${easyRange}. If feeling controlled late, finish the final 10-20min closer to steady 70.3 effort (${steadyRange ?? 'controlled steady effort'}), not threshold.`;
-  }
-
-  if (phase === 'taper') {
-    return `${baseLabel} Keep most of it around ${easyRange} or easier. No forced pace work.`;
-  }
-
-  return `${baseLabel} Target roughly ${easyRange}, staying conversational from start to finish.`;
-}
-
-function easyRunCue(userParams: UserParams, baseLabel: string): string {
-  const easyRange = easyRunRange(userParams);
-  return easyRange ? `${baseLabel} Keep it relaxed around ${easyRange}; this should feel clearly easier than threshold.` : baseLabel;
-}
-
-function thresholdRunCue(userParams: UserParams, baseLabel: string): string {
-  const thresholdRange = runThresholdRange(userParams);
-  return thresholdRange ? `${baseLabel} Aim for controlled reps around ${thresholdRange}; stop short of straining.` : runMetricCue(userParams, baseLabel);
-}
-
-function brickRunCue(userParams: UserParams, baseLabel: string, phase: ReturnType<typeof phaseIntensity>): string {
-  const easyRange = easyRunRange(userParams);
-  const steadyRange = steadyRunRange(userParams);
-  if (!easyRange) return baseLabel;
-  if (phase === 'peak' || phase === 'build') {
-    return `${baseLabel} Start around ${easyRange}. Only let it progress toward ${steadyRange ?? 'steady race effort'} if the bike was controlled.`;
-  }
-  return `${baseLabel} Keep it easy around ${easyRange} or slower; the goal is transition rhythm, not pace.`;
-}
-
-function swimMetricCue(userParams: UserParams, label: string): string {
+function swimCue(userParams: UserParams, fallback: string): string {
   const css = cleanMetric(userParams.swimPace);
-  return css ? `${label} Use your swim threshold/CSS (${css}) as the anchor for controlled repeats, staying relaxed rather than forcing pace.` : label;
-}
-
-function phaseIntensity(phase: string, deload: boolean) {
-  const lower = phase.toLowerCase();
-  if (deload || lower.includes('recovery')) return 'recovery';
-  if (lower.includes('taper')) return 'taper';
-  if (lower.includes('peak')) return 'peak';
-  if (lower.includes('build')) return 'build';
-  return 'base';
-}
-
-
-type PhaseIntensity = ReturnType<typeof phaseIntensity>;
-type DurationSessionType = ScaffoldSession['type'];
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, Math.round(value)));
-}
-
-function experienceModifier(experience: unknown): number {
-  const text = String(experience ?? '').toLowerCase();
-  if (text.includes('beginner') || text.includes('new')) return -0.08;
-  if (text.includes('advanced') || text.includes('competitive')) return 0.08;
-  return 0;
-}
-
-function weekLoadIndex(index: number, phase: PhaseIntensity): number {
-  // Progress three weeks up, then pull back slightly on recovery/deload weeks.
-  // We use the absolute index because total plan length is dynamic and phase is
-  // already computed upstream. Caps inside each duration function prevent runaway growth.
-  if (phase === 'recovery') return 0;
-  if (phase === 'taper') return 0;
-  return Math.max(0, index);
-}
-
-function maxHourModifier(maxHours: unknown): number {
-  const hours = typeof maxHours === 'number' ? maxHours : Number.parseFloat(String(maxHours ?? ''));
-  if (!Number.isFinite(hours) || hours <= 0) return 0;
-  if (hours <= 5) return -0.16;
-  if (hours <= 7) return -0.08;
-  if (hours >= 12) return 0.08;
-  if (hours >= 10) return 0.04;
-  return 0;
-}
-
-function durationScale(userParams: UserParams): number {
-  return clamp((1 + experienceModifier(userParams.experience) + maxHourModifier(userParams.maxHours)) * 100, 78, 112) / 100;
-}
-
-function minutesForSession(
-  type: DurationSessionType,
-  userParams: UserParams,
-  weekMeta: WeekMeta,
-  index: number
-): number {
-  const family = raceFamily(userParams.raceType);
-  const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
-  const loadIndex = weekLoadIndex(index, phase);
-  const scale = durationScale(userParams);
-
-  const scaled = (minutes: number, min: number, max: number) => clamp(minutes * scale, min, max);
-
-  if (type === 'strength') {
-    if (phase === 'taper' || phase === 'recovery') return 20;
-    return 30;
-  }
-
-  if (type === 'brick_run') {
-    if (phase === 'taper') return 10;
-    if (phase === 'recovery') return 10;
-    if (family === 'sprint') return scaled(8 + Math.min(loadIndex, 8), 8, 15);
-    if (family === 'olympic') return scaled(10 + Math.min(loadIndex, 10), 10, 22);
-    if (family === 'ironman') return scaled(12 + Math.min(loadIndex, 16), 10, 28);
-    return scaled(12 + Math.min(loadIndex, 16), 10, 30);
-  }
-
-  if (type === 'long_ride') {
-    if (phase === 'taper') return family === 'sprint' || family === 'olympic' ? 45 : 60;
-    if (phase === 'recovery') return family === 'ironman' ? 120 : family === 'half' ? 90 : 60;
-
-    if (family === 'sprint') return scaled(45 + loadIndex * 4, 40, 75);
-    if (family === 'olympic') return scaled(65 + loadIndex * 5, 60, 110);
-    if (family === 'ironman') {
-      if (phase === 'peak') return scaled(210 + Math.min(loadIndex, 4) * 10, 180, 300);
-      if (phase === 'build') return scaled(150 + Math.min(loadIndex, 10) * 9, 130, 240);
-      return scaled(110 + Math.min(loadIndex, 8) * 8, 90, 165);
-    }
-    // 70.3 / default long-course progression
-    if (phase === 'peak') return scaled(180 + Math.min(loadIndex, 4) * 8, 165, 210);
-    if (phase === 'build') return scaled(135 + Math.min(loadIndex, 10) * 7, 120, 185);
-    return scaled(90 + Math.min(loadIndex, 7) * 7, 75, 140);
-  }
-
-  if (type === 'long_run') {
-    if (phase === 'taper') return family === 'sprint' || family === 'olympic' ? 30 : 45;
-    if (phase === 'recovery') return family === 'ironman' ? 70 : family === 'half' ? 50 : 35;
-
-    if (family === 'sprint') return scaled(30 + loadIndex * 3, 25, 55);
-    if (family === 'olympic') return scaled(40 + loadIndex * 4, 35, 75);
-    if (family === 'ironman') {
-      if (phase === 'peak') return scaled(110 + Math.min(loadIndex, 4) * 5, 95, 135);
-      if (phase === 'build') return scaled(80 + Math.min(loadIndex, 10) * 4, 70, 115);
-      return scaled(55 + Math.min(loadIndex, 7) * 4, 45, 85);
-    }
-    if (phase === 'peak') return scaled(90 + Math.min(loadIndex, 4) * 4, 80, 105);
-    if (phase === 'build') return scaled(70 + Math.min(loadIndex, 10) * 3, 60, 95);
-    return scaled(50 + Math.min(loadIndex, 7) * 4, 40, 75);
-  }
-
-  if (type === 'bike_quality') {
-    if (phase === 'taper' || phase === 'recovery') return 45;
-    if (family === 'ironman') return scaled(65 + Math.min(loadIndex, 6) * 3, 55, 90);
-    if (family === 'half') return scaled(60 + Math.min(loadIndex, 6) * 3, 50, 80);
-    return scaled(45 + Math.min(loadIndex, 5) * 3, 35, 65);
-  }
-
-  if (type === 'bike_endurance') {
-    if (phase === 'taper' || phase === 'recovery') return 40;
-    if (family === 'ironman') return scaled(60 + Math.min(loadIndex, 6) * 3, 45, 85);
-    if (family === 'half') return scaled(50 + Math.min(loadIndex, 6) * 2, 40, 70);
-    return scaled(40 + Math.min(loadIndex, 5) * 2, 30, 55);
-  }
-
-  if (type === 'run_quality') {
-    if (phase === 'taper' || phase === 'recovery') return 35;
-    if (family === 'ironman') return scaled(45 + Math.min(loadIndex, 5) * 2, 40, 60);
-    if (family === 'half') return scaled(45 + Math.min(loadIndex, 5) * 2, 35, 60);
-    return scaled(35 + Math.min(loadIndex, 4) * 2, 30, 50);
-  }
-
-  if (type === 'run_easy') {
-    if (phase === 'taper' || phase === 'recovery') return 30;
-    return scaled(35 + Math.min(loadIndex, 4) * 2, 25, 50);
-  }
-
-  if (type === 'swim_technique') {
-    if (phase === 'taper' || phase === 'recovery') return 35;
-    return scaled(40 + Math.min(loadIndex, 4) * 2, 30, 55);
-  }
-
-  if (type === 'swim_endurance') {
-    if (phase === 'taper' || phase === 'recovery') return 35;
-    if (family === 'ironman') return scaled(50 + Math.min(loadIndex, 6) * 2, 40, 70);
-    if (family === 'half') return scaled(45 + Math.min(loadIndex, 6) * 2, 35, 65);
-    return scaled(35 + Math.min(loadIndex, 5) * 2, 30, 50);
-  }
-
-  return 45;
+  return css ? `${fallback} Use CSS/threshold ${css} only as a guide; stay smooth and relaxed.` : fallback;
 }
 
 function formatDuration(minutes: number): string {
@@ -342,20 +200,161 @@ function withDuration(minutes: number, details: string): string {
   return hasDurationText(clean) ? clean : `${formatDuration(minutes)}. ${clean}`;
 }
 
+type AnchorTargets = {
+  longRideStart: number;
+  longRidePeak: number;
+  longRunStart: number;
+  longRunPeak: number;
+  brickStart: number;
+  brickPeak: number;
+};
+
+const ANCHOR_TARGETS: Record<RaceFamily, Record<ExperienceTier, AnchorTargets>> = {
+  sprint: {
+    beginner: { longRideStart: 35, longRidePeak: 55, longRunStart: 20, longRunPeak: 35, brickStart: 5, brickPeak: 10 },
+    intermediate: { longRideStart: 45, longRidePeak: 75, longRunStart: 25, longRunPeak: 45, brickStart: 8, brickPeak: 12 },
+    advanced: { longRideStart: 55, longRidePeak: 90, longRunStart: 30, longRunPeak: 55, brickStart: 8, brickPeak: 15 },
+  },
+  olympic: {
+    beginner: { longRideStart: 55, longRidePeak: 85, longRunStart: 30, longRunPeak: 50, brickStart: 8, brickPeak: 15 },
+    intermediate: { longRideStart: 70, longRidePeak: 110, longRunStart: 40, longRunPeak: 65, brickStart: 10, brickPeak: 20 },
+    advanced: { longRideStart: 80, longRidePeak: 135, longRunStart: 45, longRunPeak: 75, brickStart: 12, brickPeak: 25 },
+  },
+  half: {
+    beginner: { longRideStart: 90, longRidePeak: 150, longRunStart: 45, longRunPeak: 80, brickStart: 10, brickPeak: 20 },
+    intermediate: { longRideStart: 105, longRidePeak: 180, longRunStart: 55, longRunPeak: 95, brickStart: 12, brickPeak: 25 },
+    advanced: { longRideStart: 120, longRidePeak: 210, longRunStart: 60, longRunPeak: 105, brickStart: 12, brickPeak: 30 },
+  },
+  ironman: {
+    beginner: { longRideStart: 120, longRidePeak: 240, longRunStart: 60, longRunPeak: 115, brickStart: 10, brickPeak: 25 },
+    intermediate: { longRideStart: 150, longRidePeak: 300, longRunStart: 70, longRunPeak: 135, brickStart: 12, brickPeak: 35 },
+    advanced: { longRideStart: 180, longRidePeak: 330, longRunStart: 80, longRunPeak: 150, brickStart: 15, brickPeak: 45 },
+  },
+  triathlon: {
+    beginner: { longRideStart: 55, longRidePeak: 90, longRunStart: 30, longRunPeak: 55, brickStart: 8, brickPeak: 15 },
+    intermediate: { longRideStart: 75, longRidePeak: 135, longRunStart: 40, longRunPeak: 75, brickStart: 10, brickPeak: 22 },
+    advanced: { longRideStart: 90, longRidePeak: 165, longRunStart: 50, longRunPeak: 90, brickStart: 12, brickPeak: 25 },
+  },
+};
+
+function adjustAnchorsForTime(targets: AnchorTargets, family: RaceFamily, tier: ExperienceTier, maxHours: number): AnchorTargets {
+  // Key sessions are protected. Low maxHours trims the peak modestly but does not
+  // turn long-course plans into fake short-course plans. Supporting sessions should shrink first.
+  const result = { ...targets };
+
+  if (family === 'half') {
+    if (maxHours < 7) result.longRidePeak = Math.max(tier === 'advanced' ? 165 : 135, Math.min(result.longRidePeak, 165));
+    else if (maxHours < 9) result.longRidePeak = Math.max(tier === 'advanced' ? 180 : 150, Math.min(result.longRidePeak, 180));
+    else if (maxHours < 11) result.longRidePeak = Math.max(tier === 'advanced' ? 195 : 165, Math.min(result.longRidePeak, 195));
+  }
+
+  if (family === 'ironman') {
+    if (maxHours < 10) result.longRidePeak = Math.max(tier === 'advanced' ? 240 : 210, Math.min(result.longRidePeak, 240));
+    else if (maxHours < 12) result.longRidePeak = Math.max(tier === 'advanced' ? 270 : 240, Math.min(result.longRidePeak, 270));
+  }
+
+  if (family === 'olympic') {
+    if (maxHours < 6) result.longRidePeak = Math.max(85, Math.min(result.longRidePeak, 105));
+  }
+
+  if (family === 'sprint') {
+    if (maxHours < 4) result.longRidePeak = Math.max(45, Math.min(result.longRidePeak, 65));
+  }
+
+  result.longRideStart = Math.min(result.longRideStart, result.longRidePeak - 20);
+  result.longRunStart = Math.min(result.longRunStart, result.longRunPeak - 10);
+  result.brickStart = Math.min(result.brickStart, result.brickPeak);
+  return result;
+}
+
+function interpolate(start: number, peak: number, progress: number): number {
+  return start + (peak - start) * clamp(progress * 100, 0, 100) / 100;
+}
+
+function weekReduction(phase: PhaseIntensity): number {
+  if (phase === 'recovery') return 0.72;
+  if (phase === 'taper') return 0.55;
+  return 1;
+}
+
+function minutesForSession(
+  type: TriathlonSessionType,
+  userParams: UserParams,
+  weekMeta: WeekMeta,
+  index: number,
+  totalWeeks = 16
+): number {
+  const family = raceFamily(userParams.raceType);
+  const tier = experienceTier(userParams.experience);
+  const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
+  const maxHours = numericMaxHours(userParams.maxHours);
+  const progress = smoothProgress(index, totalWeeks, family, phase);
+  const anchors = adjustAnchorsForTime(ANCHOR_TARGETS[family][tier], family, tier, maxHours);
+  const reduced = weekReduction(phase);
+
+  if (type === 'race_day') {
+    if (family === 'sprint') return 90;
+    if (family === 'olympic') return 180;
+    if (family === 'half') return 330;
+    if (family === 'ironman') return 720;
+    return 180;
+  }
+
+  if (type === 'long_ride') {
+    if (phase === 'taper') return family === 'sprint' || family === 'olympic' ? 40 : family === 'half' ? 60 : 75;
+    const duration = interpolate(anchors.longRideStart, anchors.longRidePeak, progress) * reduced;
+    const floor = phase === 'recovery' ? anchors.longRideStart * 0.75 : anchors.longRideStart;
+    return clamp(duration, floor, anchors.longRidePeak);
+  }
+
+  if (type === 'long_run') {
+    if (phase === 'taper') return family === 'sprint' || family === 'olympic' ? 25 : family === 'half' ? 45 : 55;
+    const duration = interpolate(anchors.longRunStart, anchors.longRunPeak, progress) * reduced;
+    const floor = phase === 'recovery' ? anchors.longRunStart * 0.75 : anchors.longRunStart;
+    return clamp(duration, floor, anchors.longRunPeak);
+  }
+
+  if (type === 'brick_run') {
+    if (phase === 'taper') return 10;
+    const duration = interpolate(anchors.brickStart, anchors.brickPeak, progress) * reduced;
+    return clamp(duration, 8, anchors.brickPeak);
+  }
+
+  // Support sessions are where maxHours flexes. These shrink before anchors.
+  const constrained = maxHours <= 6;
+  const moderate = maxHours <= 8;
+
+  if (type === 'strength') return phase === 'taper' || phase === 'recovery' ? 20 : constrained ? 20 : 30;
+  if (type === 'bike_quality') return phase === 'taper' || phase === 'recovery' ? 35 : family === 'sprint' ? 40 : constrained ? 45 : moderate ? 55 : 65;
+  if (type === 'bike_endurance') return phase === 'taper' || phase === 'recovery' ? 35 : constrained ? 35 : moderate ? 45 : 55;
+  if (type === 'bike_opener') return family === 'sprint' || family === 'olympic' ? 25 : 35;
+  if (type === 'run_quality') return phase === 'taper' || phase === 'recovery' ? 30 : constrained ? 35 : moderate ? 45 : 55;
+  if (type === 'run_easy') return phase === 'taper' || phase === 'recovery' ? 25 : constrained ? 25 : 35;
+  if (type === 'run_opener') return family === 'sprint' || family === 'olympic' ? 15 : 20;
+  if (type === 'swim_technique') return phase === 'taper' || phase === 'recovery' ? 30 : constrained ? 30 : moderate ? 40 : 50;
+  if (type === 'swim_endurance') return phase === 'taper' || phase === 'recovery' ? 30 : constrained ? 35 : moderate ? 45 : 60;
+  if (type === 'swim_race_prep') return family === 'sprint' || family === 'olympic' ? 20 : 30;
+
+  return 45;
+}
+
 function makeSession(
-  type: DurationSessionType,
+  type: TriathlonSessionType,
   sport: ScaffoldSport,
   title: string,
   rawDetails: string,
   userParams: UserParams,
   weekMeta: WeekMeta,
-  index: number
+  index: number,
+  totalWeeks?: number,
+  priority: ScaffoldSession['priority'] = 'support'
 ): ScaffoldSession {
-  const durationMinutes = minutesForSession(type, userParams, weekMeta, index);
+  const durationMinutes = minutesForSession(type, userParams, weekMeta, index, totalWeeks);
   return {
     sport,
     title,
     type,
+    priority,
     durationMinutes,
     details: withDuration(durationMinutes, rawDetails),
   };
@@ -366,85 +365,229 @@ function getLongRideDetails(userParams: UserParams, weekMeta: WeekMeta) {
   const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
 
   if (phase === 'taper') {
-    return `Reduced aerobic long ride. Stay mostly Z2, include a few short relaxed race-effort pickups if fresh, and finish feeling sharp. ${bikeMetricCue(userParams, 0.62, 0.72, 'Keep the effort clearly aerobic.')}`;
+    return `Reduced aerobic ride. Stay mostly easy with a few short relaxed race-effort pickups if fresh. ${bikeCue(userParams, 0.62, 0.72, 'Keep the effort clearly aerobic.')}`;
   }
 
   if (family === 'half') {
-    return `Aerobic long ride for 70.3 durability. Practice fueling every 20-30min and finish controlled rather than depleted. ${bikeMetricCue(userParams, 0.65, 0.75, 'Keep most of the ride in Z2 / conversational endurance effort.')}`;
+    return `Race-specific 70.3 endurance ride. Keep most of the ride aerobic, practice fueling every 20-30min, and finish controlled. ${bikeCue(userParams, 0.65, 0.75, 'Keep most of the ride in Z2 / conversational endurance effort.')}`;
   }
 
   if (family === 'ironman') {
-    return `Long aerobic ride focused on steady pacing, fueling practice, and staying relaxed. ${bikeMetricCue(userParams, 0.63, 0.72, 'Keep the effort sustainable from start to finish.')}`;
+    return `Long aerobic ride focused on steady pacing, fueling, and durable position. Do not chase power late. ${bikeCue(userParams, 0.63, 0.72, 'Keep the effort sustainable from start to finish.')}`;
   }
 
   if (family === 'sprint' || family === 'olympic') {
-    return `Aerobic endurance ride with a few controlled race-effort segments. Keep the final 10min smooth and confident. ${bikeMetricCue(userParams, 0.7, 0.85, 'Use controlled race-effort, not all-out intensity.')}`;
+    return `Aerobic endurance ride with controlled race-effort segments. Keep the final 10min smooth. ${bikeCue(userParams, 0.7, 0.85, 'Use controlled race-effort, not all-out intensity.')}`;
   }
 
-  return `Aerobic long ride focused on durability, fueling, and controlled pacing. ${bikeMetricCue(userParams, 0.65, 0.75, 'Keep effort controlled and aerobic.')}`;
+  return `Aerobic long ride focused on durability, fueling, and controlled pacing. ${bikeCue(userParams, 0.65, 0.75, 'Keep effort controlled and aerobic.')}`;
 }
 
 function getBrickRunDetails(userParams: UserParams, weekMeta: WeekMeta) {
   const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
-  if (phase === 'taper') return brickRunCue(userParams, '10-15min very easy off the bike. Keep cadence quick, shoulders relaxed, and effort light.', phase);
-  if (phase === 'base') return brickRunCue(userParams, '10-15min easy off the bike. Focus on quick cadence and relaxed form.', phase);
-  if (phase === 'peak') return brickRunCue(userParams, '20-30min controlled off the bike. Start easy, then settle into realistic race effort only if fresh.', phase);
-  return brickRunCue(userParams, '15-25min easy-to-steady off the bike. Practice transition rhythm, posture, and controlled pacing.', phase);
+  const easy = easyRunRange(userParams);
+  const steady = steadyRunRange(userParams);
+  const target = easy ? ` Start around ${easy}${phase === 'build' || phase === 'peak' ? ` and only progress toward ${steady ?? 'steady race effort'} if controlled` : ' or slower'}.` : '';
+
+  if (phase === 'taper') return `Very easy transition run off the bike. Keep cadence quick, shoulders relaxed, and effort light.${target}`;
+  if (phase === 'base') return `Easy transition run off the bike. Focus on quick cadence and relaxed form.${target}`;
+  if (phase === 'peak') return `Controlled race-specific run off the bike. Start easy, settle gradually, and avoid forcing pace.${target}`;
+  return `Easy-to-steady run off the bike. Practice transition rhythm, posture, and controlled pacing.${target}`;
 }
 
 function getLongRunDetails(userParams: UserParams, weekMeta: WeekMeta) {
   const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
-  if (phase === 'taper') return longRunCue(userParams, 'Reduced long run. Keep it easy and relaxed with no forced pace work.', phase);
-  if (phase === 'peak') return longRunCue(userParams, 'Long aerobic run with controlled pacing. Keep effort sustainable and avoid turning it into a race.', phase);
-  return longRunCue(userParams, 'Long easy aerobic run. Stay conversational and build durability without excess fatigue.', phase);
+  const easy = easyRunRange(userParams);
+  const steady = steadyRunRange(userParams);
+
+  if (phase === 'taper') {
+    return easy
+      ? `Reduced long run. Keep it easy around ${easy} or slower with no forced pace work.`
+      : 'Reduced long run. Keep it easy and relaxed with no forced pace work.';
+  }
+
+  if (phase === 'build' || phase === 'peak') {
+    return easy
+      ? `Long aerobic run. Keep most of it around ${easy}; if controlled, finish the final 10-20min closer to steady 70.3 effort (${steady ?? 'controlled steady effort'}). Do not run threshold.`
+      : 'Long aerobic run with controlled pacing. Keep effort sustainable and avoid turning it into a race.';
+  }
+
+  return easy
+    ? `Long easy aerobic run. Target ${easy}, staying conversational and controlled from start to finish.`
+    : 'Long easy aerobic run. Stay conversational and build durability without excess fatigue.';
 }
 
 function getRunQualityDetails(userParams: UserParams, weekMeta: WeekMeta) {
   const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
-  if (phase === 'recovery' || phase === 'taper') return easyRunCue(userParams, 'Easy aerobic run with 4-6 relaxed strides if fresh. Keep the session light.');
-  if (phase === 'base') return easyRunCue(userParams, 'Controlled aerobic run with short strides. Build rhythm without heavy intensity.');
-  return thresholdRunCue(userParams, 'Threshold-focused run. Include a steady main set at controlled threshold effort with easy recoveries.');
+  const threshold = thresholdRunRange(userParams);
+  const easy = easyRunRange(userParams);
+  if (phase === 'recovery' || phase === 'taper') return easy ? `Easy aerobic run around ${easy} with 4-6 relaxed strides if fresh.` : 'Easy aerobic run with 4-6 relaxed strides if fresh.';
+  if (phase === 'base') return easy ? `Controlled aerobic run around ${easy} with short relaxed strides. Build rhythm without heavy intensity.` : 'Controlled aerobic run with short strides. Build rhythm without heavy intensity.';
+  return threshold ? `Threshold-focused run. Main set should stay controlled around ${threshold} with easy recoveries; stop short of straining.` : 'Threshold-focused run. Include controlled steady reps with easy recoveries.';
 }
 
 function getBikeMidweekDetails(userParams: UserParams, weekMeta: WeekMeta) {
   const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
-  if (phase === 'recovery' || phase === 'taper') return `Easy aerobic spin. Keep cadence smooth and effort relaxed. ${bikeMetricCue(userParams, 0.55, 0.68, 'Stay very comfortable.')}`;
-  if (phase === 'base') return `Aerobic bike with steady Z2 work. Keep effort controlled and build consistency. ${bikeMetricCue(userParams, 0.65, 0.75, 'Stay aerobic throughout.')}`;
-  return `Bike strength or tempo session. Include controlled steady intervals while keeping the weekend endurance ride protected. ${bikeMetricCue(userParams, 0.82, 0.9, 'Keep tempo controlled, not maximal.')}`;
+  if (phase === 'recovery' || phase === 'taper') return `Easy aerobic spin. Keep cadence smooth and effort relaxed. ${bikeCue(userParams, 0.55, 0.68, 'Stay very comfortable.')}`;
+  if (phase === 'base') return `Aerobic bike with steady Z2 work. Keep effort controlled and build consistency. ${bikeCue(userParams, 0.65, 0.75, 'Stay aerobic throughout.')}`;
+  return `Bike strength / tempo session. Include controlled steady intervals while keeping the weekend long ride protected. ${bikeCue(userParams, 0.82, 0.9, 'Keep tempo controlled, not maximal.')}`;
 }
 
-function getSwimDetails(kind: 'Technique' | 'Endurance', userParams: UserParams, weekMeta: WeekMeta) {
+function getSwimDetails(kind: 'Technique' | 'Endurance' | 'Race Prep', userParams: UserParams) {
   const comfort = String(userParams.swimComfort ?? '').toLowerCase();
 
-  if (kind === 'Technique' || comfort === 'new' || comfort === 'developing') {
-    return swimMetricCue(userParams, 'Technique-focused swim. Include easy warmup, drill work, short relaxed repeats, and smooth cooldown. Prioritize body position, breathing, and comfort.');
+  if (kind === 'Race Prep') {
+    return swimCue(userParams, 'Short relaxed swim with a few smooth pickups. Focus on rhythm, breathing, and confidence.');
   }
 
-  return swimMetricCue(userParams, 'Endurance swim. Include easy warmup, steady aerobic repeats, and cooldown. Keep pacing smooth and sustainable rather than forcing speed.');
+  if (kind === 'Technique' || comfort === 'new' || comfort === 'developing') {
+    return swimCue(userParams, 'Technique-focused swim. Include easy warmup, drill work, short relaxed repeats, and smooth cooldown. Prioritize body position, breathing, and comfort.');
+  }
+
+  return swimCue(userParams, 'Endurance swim. Include easy warmup, steady aerobic repeats, and cooldown. Keep pacing smooth and sustainable rather than forcing speed.');
 }
 
 function findAvailableDay(preferred: number, blocked: Set<number>, used: Set<number>, allowUsed = false): number {
   if (!blocked.has(preferred) && (allowUsed || !used.has(preferred))) return preferred;
-
-  const priority = [2, 3, 4, 5, 1, 6, 0]; // Tue, Wed, Thu, Fri, Mon, Sat, Sun
+  const priority = [2, 3, 4, 5, 1, 6, 0];
   return priority.find((day) => !blocked.has(day) && (allowUsed || !used.has(day))) ?? preferred;
 }
 
-function addSession(
-  days: Record<string, ScaffoldSession[]>,
-  weekStartISO: string,
-  jsDay: number,
-  session: ScaffoldSession
-) {
+function addSession(days: Record<string, ScaffoldSession[]>, weekStartISO: string, jsDay: number, session: ScaffoldSession) {
   const date = dateForJsDay(weekStartISO, jsDay);
   if (!date) return;
   days[date] = [...(days[date] ?? []), session];
 }
 
+function isRecoveryOrTaper(phase: PhaseIntensity) {
+  return phase === 'recovery' || phase === 'taper';
+}
+
+function shouldIncludeStrength(userParams: UserParams, phase: PhaseIntensity) {
+  if (phase === 'taper' || phase === 'recovery') return false;
+  const notes = `${userParams.athleteNotes ?? ''} ${(userParams.coachingPriorities ?? []).join(' ')}`.toLowerCase();
+  return /strength|lift|gym|weights/.test(notes) || String(userParams.experience).toLowerCase().includes('advanced');
+}
+
+function shouldIncludeRunQuality(family: RaceFamily, phase: PhaseIntensity) {
+  if (phase === 'recovery' || phase === 'taper') return false;
+  return family !== 'ironman' || phase === 'build' || phase === 'peak';
+}
+
+function shouldIncludeSecondSwim(userParams: UserParams, phase: PhaseIntensity) {
+  if (phase === 'taper') return false;
+  if (phase === 'recovery') return false;
+  if (numericMaxHours(userParams.maxHours) <= 5) return false;
+  return true;
+}
+
+function shouldIncludeMidweekBike(userParams: UserParams, phase: PhaseIntensity) {
+  if (phase === 'taper') return false;
+  if (phase === 'recovery') return numericMaxHours(userParams.maxHours) >= 7;
+  return true;
+}
+
+export function buildTriathlonWeekScaffold({
+  userParams,
+  weekMeta,
+  index = 0,
+  totalWeeks = 16,
+}: {
+  userParams: UserParams;
+  weekMeta: WeekMeta;
+  index?: number;
+  totalWeeks?: number;
+}): WeekJson | null {
+  if (!isTriathlonRace(userParams.raceType)) return null;
+
+  const weekDates = canonicalWeekDates(weekMeta.startDate);
+  const days: Record<string, ScaffoldSession[]> = Object.fromEntries(weekDates.map((date) => [date, []]));
+
+  const prefs = userParams.trainingPrefs ?? {};
+  const restDay = dayNameToIndex(userParams.restDay) ?? 1;
+  const longRideDay = prefs.longRideDay ?? dayNameToIndex(userParams.preferredLongRideDay) ?? 6;
+  const longRunDay = prefs.longRunDay ?? dayNameToIndex(userParams.preferredLongRunDay) ?? 0;
+  const unavailableDays = (userParams.unavailableDays ?? [])
+    .map((day) => dayNameToIndex(day))
+    .filter((value): value is number => value !== null);
+  const blocked = new Set<number>([restDay, ...unavailableDays]);
+
+  const used = new Set<number>();
+  const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
+  const family = raceFamily(userParams.raceType);
+  const isRaceWeek = Boolean(userParams.raceDate && weekDates.includes(userParams.raceDate));
+
+  if (isRaceWeek) {
+    const easySwimDay = findAvailableDay(2, blocked, used);
+    addSession(days, weekMeta.startDate, easySwimDay, makeSession('swim_race_prep', 'swim', 'Swim Easy', getSwimDetails('Race Prep', userParams), userParams, weekMeta, index, totalWeeks, 'support'));
+    used.add(easySwimDay);
+
+    const easyBikeDay = findAvailableDay(3, blocked, used);
+    addSession(days, weekMeta.startDate, easyBikeDay, makeSession('bike_opener', 'bike', 'Bike Easy', `Short aerobic spin with a few light cadence pickups. Keep the legs fresh and avoid fatigue. ${bikeCue(userParams, 0.55, 0.68, 'Stay very comfortable.')}`, userParams, weekMeta, index, totalWeeks, 'support'));
+    used.add(easyBikeDay);
+
+    const easyRunDay = findAvailableDay(4, blocked, used);
+    addSession(days, weekMeta.startDate, easyRunDay, makeSession('run_opener', 'run', 'Run Easy', getRunQualityDetails(userParams, weekMeta), userParams, weekMeta, index, totalWeeks, 'support'));
+    used.add(easyRunDay);
+
+    const raceDate = userParams.raceDate;
+    if (raceDate && days[raceDate]) {
+      addSession(days, weekMeta.startDate, new Date(`${raceDate}T00:00:00`).getUTCDay(), makeSession('race_day', 'other', 'Race Day', `Race day for ${userParams.raceType}. Execute the plan: calm swim, controlled bike pacing, steady fueling, and patient run execution.`, userParams, weekMeta, index, totalWeeks, 'anchor'));
+    }
+
+    return { label: weekMeta.label, phase: weekMeta.phase, startDate: weekMeta.startDate, deload: weekMeta.deload, days } as WeekJson;
+  }
+
+  const safeLongRideDay = findAvailableDay(longRideDay, blocked, used, true);
+  addSession(days, weekMeta.startDate, safeLongRideDay, makeSession('long_ride', 'bike', 'Long Ride', getLongRideDetails(userParams, weekMeta), userParams, weekMeta, index, totalWeeks, 'anchor'));
+  used.add(safeLongRideDay);
+
+  // Brick is modeled as the long ride plus a short same-day run. Never add a separate Brick Bike.
+  addSession(days, weekMeta.startDate, safeLongRideDay, makeSession('brick_run', 'run', 'Brick Run', getBrickRunDetails(userParams, weekMeta), userParams, weekMeta, index, totalWeeks, 'key'));
+
+  const safeLongRunDay = findAvailableDay(longRunDay, blocked, used, true);
+  addSession(days, weekMeta.startDate, safeLongRunDay, makeSession(isRecoveryOrTaper(phase) ? 'run_easy' : 'long_run', 'run', isRecoveryOrTaper(phase) ? 'Run Easy' : 'Long Run', getLongRunDetails(userParams, weekMeta), userParams, weekMeta, index, totalWeeks, 'anchor'));
+  used.add(safeLongRunDay);
+
+  const swimTechniqueDay = findAvailableDay(2, blocked, used);
+  addSession(days, weekMeta.startDate, swimTechniqueDay, makeSession('swim_technique', 'swim', 'Swim Technique', getSwimDetails('Technique', userParams), userParams, weekMeta, index, totalWeeks, 'support'));
+  used.add(swimTechniqueDay);
+
+  if (shouldIncludeMidweekBike(userParams, phase)) {
+    const bikeDay = findAvailableDay(4, blocked, used);
+    addSession(days, weekMeta.startDate, bikeDay, makeSession(phase === 'build' || phase === 'peak' ? 'bike_quality' : 'bike_endurance', 'bike', phase === 'build' || phase === 'peak' ? 'Bike Threshold' : 'Bike Endurance', getBikeMidweekDetails(userParams, weekMeta), userParams, weekMeta, index, totalWeeks, 'key'));
+    used.add(bikeDay);
+  }
+
+  if (shouldIncludeSecondSwim(userParams, phase)) {
+    const swimEnduranceDay = findAvailableDay(5, blocked, used);
+    addSession(days, weekMeta.startDate, swimEnduranceDay, makeSession('swim_endurance', 'swim', 'Swim Endurance', getSwimDetails('Endurance', userParams), userParams, weekMeta, index, totalWeeks, 'support'));
+    used.add(swimEnduranceDay);
+  }
+
+  if (shouldIncludeRunQuality(family, phase)) {
+    const runQualityDay = findAvailableDay(3, blocked, used);
+    addSession(days, weekMeta.startDate, runQualityDay, makeSession(phase === 'build' || phase === 'peak' ? 'run_quality' : 'run_easy', 'run', phase === 'build' || phase === 'peak' ? 'Run Threshold' : 'Run Easy', getRunQualityDetails(userParams, weekMeta), userParams, weekMeta, index, totalWeeks, 'key'));
+    used.add(runQualityDay);
+  }
+
+  if (shouldIncludeStrength(userParams, phase)) {
+    const strengthDay = findAvailableDay(3, blocked, new Set([safeLongRideDay, safeLongRunDay]), true);
+    addSession(days, weekMeta.startDate, strengthDay, makeSession('strength', 'strength', 'Strength', 'Controlled general strength. Keep it smooth and avoid heavy lower-body fatigue before key bike/run sessions.', userParams, weekMeta, index, totalWeeks, 'optional'));
+  }
+
+  return { label: weekMeta.label, phase: weekMeta.phase, startDate: weekMeta.startDate, deload: weekMeta.deload, days } as WeekJson;
+}
+
+export function scaffoldSummary(scaffold: WeekJson | null): string {
+  if (!scaffold) return 'No deterministic scaffold provided.';
+  return JSON.stringify(scaffold.days, null, 2);
+}
+
 function sessionKey(session: unknown) {
   if (!session || typeof session !== 'object' || Array.isArray(session)) return '';
   const record = session as Record<string, unknown>;
-  return `${String(record.sport ?? '').toLowerCase()} ${String(record.title ?? '').toLowerCase()} ${String(record.details ?? '').toLowerCase()}`;
+  return `${String(record.sport ?? '').toLowerCase()} ${String(record.type ?? '').toLowerCase()} ${String(record.title ?? '').toLowerCase()} ${String(record.details ?? '').toLowerCase()}`;
 }
 
 function usefulGeneratedDetails(session: unknown): string | null {
@@ -465,207 +608,17 @@ function isMatchingGeneratedSession(slot: ScaffoldSession, generated: unknown) {
   const key = sessionKey(generated);
   if (!key) return false;
   const sport = slot.sport.toLowerCase();
+  const type = slot.type.toLowerCase();
   const title = slot.title.toLowerCase();
-
   if (!key.includes(sport)) return false;
-
-  if (title.includes('long ride')) return /long ride|endurance ride|bike endurance/.test(key);
-  if (title.includes('brick run')) return /brick run|off the bike|transition run/.test(key);
+  if (key.includes(type)) return true;
+  if (title.includes('long ride')) return /long ride/.test(key);
+  if (title.includes('brick run')) return /brick run|transition run|off the bike/.test(key);
   if (title.includes('long run')) return /long run/.test(key);
   if (title.includes('threshold')) return /threshold|tempo|interval/.test(key);
   if (title.includes('technique')) return /technique|drill/.test(key);
   if (title.includes('endurance')) return /endurance|aerobic|steady/.test(key);
-
   return key.includes(title);
-}
-
-export function buildTriathlonWeekScaffold({
-  userParams,
-  weekMeta,
-  index = 0,
-}: {
-  userParams: UserParams;
-  weekMeta: WeekMeta;
-  index?: number;
-}): WeekJson | null {
-  if (!isTriathlonRace(userParams.raceType)) return null;
-
-  const weekDates = canonicalWeekDates(weekMeta.startDate);
-  const days: Record<string, ScaffoldSession[]> = Object.fromEntries(weekDates.map((date) => [date, []]));
-
-  const prefs = userParams.trainingPrefs ?? {};
-  const restDay = dayNameToIndex(userParams.restDay) ?? 1;
-  const longRideDay = prefs.longRideDay ?? dayNameToIndex(userParams.preferredLongRideDay) ?? 6;
-  const longRunDay = prefs.longRunDay ?? dayNameToIndex(userParams.preferredLongRunDay) ?? 0;
-  const unavailable = new Set((userParams.unavailableDays ?? []).map(dayNameToIndex).filter((v): v is number => v !== null));
-  const blocked = new Set<number>([restDay, ...Array.from(unavailable)]);
-
-  const used = new Set<number>();
-  const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
-  const isRaceWeek = Boolean(userParams.raceDate && weekDates.includes(userParams.raceDate));
-
-  // Race week should be light and confidence-building. Do not force normal
-  // long ride / brick / long run structure into race week.
-  if (isRaceWeek) {
-    const easySwimDay = findAvailableDay(2, blocked, used); // Tue
-    addSession(days, weekMeta.startDate, easySwimDay, makeSession(
-      'swim_technique',
-      'swim',
-      'Swim Easy',
-      'Short relaxed swim with a few smooth pickups. Keep effort easy and focus on feeling comfortable in the water.',
-      userParams,
-      weekMeta,
-      index
-    ));
-    used.add(easySwimDay);
-
-    const easyBikeDay = findAvailableDay(3, blocked, used); // Wed
-    addSession(days, weekMeta.startDate, easyBikeDay, makeSession(
-      'bike_endurance',
-      'bike',
-      'Bike Easy',
-      'Short aerobic spin with a few light cadence pickups. Keep the legs fresh and avoid fatigue.',
-      userParams,
-      weekMeta,
-      index
-    ));
-    used.add(easyBikeDay);
-
-    const easyRunDay = findAvailableDay(4, blocked, used); // Thu
-    addSession(days, weekMeta.startDate, easyRunDay, makeSession(
-      'run_easy',
-      'run',
-      'Run Easy',
-      'Short easy run with relaxed strides if fresh. Finish feeling better than you started.',
-      userParams,
-      weekMeta,
-      index
-    ));
-
-    return {
-      label: weekMeta.label,
-      phase: weekMeta.phase,
-      startDate: weekMeta.startDate,
-      deload: weekMeta.deload,
-      days,
-    } as WeekJson;
-  }
-
-  // Key sessions. These are non-negotiable structure slots.
-  const safeLongRideDay = findAvailableDay(longRideDay, blocked, used, true);
-  addSession(days, weekMeta.startDate, safeLongRideDay, makeSession(
-    'long_ride',
-    'bike',
-    'Long Ride',
-    getLongRideDetails(userParams, weekMeta),
-    userParams,
-    weekMeta,
-    index
-  ));
-  used.add(safeLongRideDay);
-
-  // Every non-race triathlon week gets brick practice appropriate to phase/race.
-  {
-    addSession(days, weekMeta.startDate, safeLongRideDay, makeSession(
-      'brick_run',
-      'run',
-      'Brick Run',
-      getBrickRunDetails(userParams, weekMeta),
-      userParams,
-      weekMeta,
-      index
-    ));
-  }
-
-  const safeLongRunDay = findAvailableDay(longRunDay, blocked, used, true);
-  addSession(days, weekMeta.startDate, safeLongRunDay, makeSession(
-    phase === 'taper' ? 'run_easy' : 'long_run',
-    'run',
-    phase === 'taper' ? 'Run Easy' : 'Long Run',
-    getLongRunDetails(userParams, weekMeta),
-    userParams,
-    weekMeta,
-    index
-  ));
-  used.add(safeLongRunDay);
-
-  // Supporting sessions.
-  const swimTechniqueDay = findAvailableDay(2, blocked, used); // Tue
-  addSession(days, weekMeta.startDate, swimTechniqueDay, makeSession(
-    'swim_technique',
-    'swim',
-    'Swim Technique',
-    getSwimDetails('Technique', userParams, weekMeta),
-    userParams,
-    weekMeta,
-    index
-  ));
-  used.add(swimTechniqueDay);
-
-  const bikeDay = findAvailableDay(4, blocked, used); // Thu
-  addSession(days, weekMeta.startDate, bikeDay, makeSession(
-    phase === 'build' || phase === 'peak' ? 'bike_quality' : 'bike_endurance',
-    'bike',
-    phase === 'build' || phase === 'peak' ? 'Bike Threshold' : 'Bike Endurance',
-    getBikeMidweekDetails(userParams, weekMeta),
-    userParams,
-    weekMeta,
-    index
-  ));
-  used.add(bikeDay);
-
-  const swimEnduranceDay = findAvailableDay(5, blocked, used); // Fri
-  addSession(days, weekMeta.startDate, swimEnduranceDay, makeSession(
-    'swim_endurance',
-    'swim',
-    'Swim Endurance',
-    getSwimDetails('Endurance', userParams, weekMeta),
-    userParams,
-    weekMeta,
-    index
-  ));
-  used.add(swimEnduranceDay);
-
-  const runQualityDay = findAvailableDay(3, blocked, used); // Wed
-  addSession(days, weekMeta.startDate, runQualityDay, makeSession(
-    phase === 'build' || phase === 'peak' ? 'run_quality' : 'run_easy',
-    'run',
-    phase === 'build' || phase === 'peak' ? 'Run Threshold' : 'Run Easy',
-    getRunQualityDetails(userParams, weekMeta),
-    userParams,
-    weekMeta,
-    index
-  ));
-  used.add(runQualityDay);
-
-  // Optional strength. Keep secondary and never duplicate.
-  const notes = `${userParams.athleteNotes ?? ''} ${(userParams.coachingPriorities ?? []).join(' ')}`.toLowerCase();
-  const wantsStrength = /strength|lift|gym|weights/.test(notes);
-  if (wantsStrength || String(userParams.experience).toLowerCase().includes('advanced')) {
-    const strengthDay = findAvailableDay(3, blocked, new Set([safeLongRideDay, safeLongRunDay]), true);
-    addSession(days, weekMeta.startDate, strengthDay, makeSession(
-      'strength',
-      'strength',
-      'Strength',
-      'Short general strength session for durability. Keep it controlled, avoid heavy fatigue, and keep triathlon sessions as the priority.',
-      userParams,
-      weekMeta,
-      index
-    ));
-  }
-
-  return {
-    label: weekMeta.label,
-    phase: weekMeta.phase,
-    startDate: weekMeta.startDate,
-    deload: weekMeta.deload,
-    days,
-  } as WeekJson;
-}
-
-export function scaffoldSummary(scaffold: WeekJson | null): string {
-  if (!scaffold) return 'No deterministic scaffold provided.';
-  return JSON.stringify(scaffold.days, null, 2);
 }
 
 export function applyTriathlonScaffold({
@@ -686,13 +639,9 @@ export function applyTriathlonScaffold({
     days[date] = slots.map((slot) => {
       const generatedMatch = generatedSessions.find((candidate) => isMatchingGeneratedSession(slot, candidate));
       const generatedDetails = usefulGeneratedDetails(generatedMatch);
-
       const details = generatedDetails ?? slot.details;
 
-      return {
-        ...slot,
-        details: withDuration(slot.durationMinutes, details),
-      };
+      return { ...slot, details: withDuration(slot.durationMinutes, details) };
     });
   }
 
@@ -703,10 +652,7 @@ export function applyTriathlonScaffold({
     startDate: scaffold.startDate,
     deload: scaffold.deload,
     days,
-    debug: [
-      generatedWeek.debug,
-      'Applied deterministic triathlon scaffold. GPT was used for workout detail enrichment, not weekly structure.',
-    ]
+    debug: [generatedWeek.debug, 'Applied dynamic triathlon plan engine scaffold. GPT enriched workout details only.']
       .filter(Boolean)
       .join('\n'),
   } as WeekJson;

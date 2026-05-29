@@ -18,12 +18,14 @@ export async function generateWeek({
   planType = "triathlon",
   index,
   prevWeek,
+  totalWeeks,
 }: {
   weekMeta: WeekMeta;
   userParams: UserParams;
   planType?: PlanType;
   index?: number;
   prevWeek?: WeekJson;
+  totalWeeks?: number;
 }): Promise<WeekJson> {
   const isRunPlan = planType === "running" || planType === "run";
   const runModel = process.env.RUNNING_PLAN_MODEL ?? process.env.PLAN_MODEL ?? "gpt-5-mini";
@@ -62,7 +64,7 @@ export async function generateWeek({
           prevLongRunMin: targets?.prevLongRunMin ?? undefined,
         },
       })
-    : buildCoachPrompt({ userParams, weekMeta, index: weekIndex });
+    : buildCoachPrompt({ userParams, weekMeta, index: weekIndex, totalWeeks });
 
   const systemPrompt = isRunPlan ? RUNNING_SYSTEM_PROMPT : COACH_SYSTEM_PROMPT;
 
@@ -86,7 +88,7 @@ export async function generateWeek({
     return JSON.parse(content) as WeekJson;
   }
 
-  const scaffold = isRunPlan ? null : buildTriathlonWeekScaffold({ userParams, weekMeta, index: weekIndex });
+  const scaffold = isRunPlan ? null : buildTriathlonWeekScaffold({ userParams, weekMeta, index: weekIndex, totalWeeks });
 
   // First attempt. For triathlon, the scaffold is the source of truth and GPT is
   // only used to enrich details. If GPT fails or returns weak structure, keep the

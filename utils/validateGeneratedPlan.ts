@@ -287,6 +287,33 @@ function isTriathlonPlan(userParams: UserParams): boolean {
   return /triathlon|sprint|olympic|70\.3|half ironman|ironman|140\.6/.test(race);
 }
 
+function raceFamilyForValidation(raceType: string): 'sprint' | 'olympic' | 'half' | 'ironman' | 'triathlon' {
+  const lower = raceType.toLowerCase();
+  if (lower.includes('70.3') || lower.includes('half iron')) return 'half';
+  if (lower.includes('ironman') || lower.includes('140.6')) return 'ironman';
+  if (lower.includes('olympic')) return 'olympic';
+  if (lower.includes('sprint')) return 'sprint';
+  return 'triathlon';
+}
+
+function experienceTierForValidation(experience: unknown): 'beginner' | 'intermediate' | 'advanced' {
+  const text = String(experience ?? '').toLowerCase();
+  if (text.includes('beginner') || text.includes('new')) return 'beginner';
+  if (text.includes('advanced') || text.includes('competitive') || text.includes('experienced')) return 'advanced';
+  return 'intermediate';
+}
+
+function expectedPeakFloors(userParams: UserParams) {
+  const family = raceFamilyForValidation(userParams.raceType);
+  const tier = experienceTierForValidation(userParams.experience);
+
+  if (family === 'sprint') return { longRide: tier === 'advanced' ? 70 : 50, longRun: tier === 'advanced' ? 45 : 30, brickRun: 8 };
+  if (family === 'olympic') return { longRide: tier === 'advanced' ? 105 : tier === 'intermediate' ? 90 : 70, longRun: tier === 'advanced' ? 60 : 50, brickRun: 12 };
+  if (family === 'half') return { longRide: tier === 'advanced' ? 180 : tier === 'intermediate' ? 150 : 120, longRun: tier === 'advanced' ? 90 : tier === 'intermediate' ? 75 : 65, brickRun: tier === 'advanced' ? 20 : 15 };
+  if (family === 'ironman') return { longRide: tier === 'advanced' ? 270 : tier === 'intermediate' ? 240 : 210, longRun: tier === 'advanced' ? 120 : tier === 'intermediate' ? 105 : 90, brickRun: 15 };
+  return { longRide: 90, longRun: 60, brickRun: 10 };
+}
+
 function shouldExpectBrickRun({
   week,
   weekIndex,
@@ -347,6 +374,9 @@ export function validateGeneratedPlan({
 
   let expectedBrickWeeks = 0;
   let actualBrickWeeks = 0;
+  let maxLongRideMinutes = 0;
+  let maxLongRunMinutes = 0;
+  let maxBrickRunMinutes = 0;
 
   weeks.forEach((week, weekIndex) => {
     const label = week?.label || `Week ${weekIndex + 1}`;
@@ -380,7 +410,15 @@ export function validateGeneratedPlan({
       const trainingItems = items.filter(isTrainingSession);
       weekSessionCount += trainingItems.length;
       totalSessions += trainingItems.length;
-      trainingItems.forEach((item) => allTrainingItems.push({ date, item }));
+      trainingItems.forEach((item) => {
+        allTrainingItems.push({ date, item });
+        const minutes = structuredDurationMinutes(item) ?? parseDurationMinutes(`${rawDetailsText(item)} ${itemText(item)}`);
+        if (minutes) {
+          if (looksLikeLongRide(item)) maxLongRideMinutes = Math.max(maxLongRideMinutes, minutes);
+          if (looksLikeLongRun(item)) maxLongRunMinutes = Math.max(maxLongRunMinutes, minutes);
+          if (isBrickRun(item)) maxBrickRunMinutes = Math.max(maxBrickRunMinutes, minutes);
+        }
+      });
 
       const dayName = dayNameFromISO(date);
       if (dayName && unavailableDays.has(dayName) && trainingItems.length > 0) {
@@ -504,6 +542,19 @@ export function validateGeneratedPlan({
 
   if (expectedBrickWeeks > 0 && actualBrickWeeks === 0 && isTriathlonPlan(userParams)) {
     warnings.push('Triathlon plan has no brick runs. Every triathlon plan should include bike + run brick practice.');
+  }
+
+  if (isTriathlonPlan(userParams)) {
+    const floors = expectedPeakFloors(userParams);
+    if (maxLongRideMinutes > 0 && maxLongRideMinutes < floors.longRide) {
+      warnings.push(`Peak long ride is only ${maxLongRideMinutes}min; expected at least ${floors.longRide}min for this race/experience profile.`);
+    }
+    if (maxLongRunMinutes > 0 && maxLongRunMinutes < floors.longRun) {
+      warnings.push(`Peak long run is only ${maxLongRunMinutes}min; expected at least ${floors.longRun}min for this race/experience profile.`);
+    }
+    if (expectedBrickWeeks > 0 && maxBrickRunMinutes > 0 && maxBrickRunMinutes < floors.brickRun) {
+      warnings.push(`Peak brick run is only ${maxBrickRunMinutes}min; expected at least ${floors.brickRun}min for this race/experience profile.`);
+    }
   }
 
   if (totalSessions === 0) {
