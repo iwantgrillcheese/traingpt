@@ -1,14 +1,14 @@
 import Link from 'next/link';
 
 const productLinks = [
-  { href: '/plan', label: 'Plan generator' },
+  { href: '/plan', label: 'Generate plan' },
   { href: '/schedule', label: 'Schedule' },
   { href: '/coaching', label: 'Coaching' },
   { href: '/settings', label: 'Settings' },
 ];
 
 const resourceLinks = [
-  { href: '/blog/ai-triathlon-coach', label: 'AI triathlon coach' },
+  { href: '/blog/ai-triathlon-coach', label: 'Triathlon coaching guide' },
   { href: '/blog/70-3-training-plan', label: '70.3 training plan' },
   { href: '/blog/best-triathlon-training-plan', label: 'Training plan guide' },
   { href: '/blog', label: 'All articles' },
