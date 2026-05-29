@@ -542,171 +542,219 @@ export async function POST(req: Request) {
       swimComfort: swimComfortResolved ?? null,
     });
 
-    const genStart = Date.now();
-    const weeks: WeekJson[] = new Array(planMeta.length);
-    const generationConcurrency = Math.max(
-      1,
-      Math.min(4, Number(process.env.PLAN_GENERATION_CONCURRENCY ?? 3) || 3)
-    );
+    const minimumPlanQualityScore = Number(process.env.MIN_PLAN_QUALITY_SCORE ?? 70);
 
-    async function generateOneWeek(i: number, prevWeek?: WeekJson): Promise<WeekJson> {
-      const elapsed = Date.now() - startedAt;
-      if (elapsed > HARD_BUDGET_MS) {
-        throw new Error(`Plan generation exceeded time budget (${Math.round(elapsed / 1000)}s).`);
-      }
+    async function generatePlanAttempt(attempt: number, paramsForAttempt: UserParams) {
+      const genStart = Date.now();
+      const weeks: WeekJson[] = new Array(planMeta.length);
+      const generationConcurrency = Math.max(
+        1,
+        Math.min(4, Number(process.env.PLAN_GENERATION_CONCURRENCY ?? 3) || 3)
+      );
 
-      const w0 = Date.now();
-      const { generateWeek } = await import("@/utils/generate-week");
-      const { guardWeek } = await import("@/utils/planGuard");
+      async function generateOneWeek(i: number, prevWeek?: WeekJson): Promise<WeekJson> {
+        const elapsed = Date.now() - startedAt;
+        if (elapsed > HARD_BUDGET_MS) {
+          throw new Error(`Plan generation exceeded time budget (${Math.round(elapsed / 1000)}s).`);
+        }
 
-      console.log("[finalize-plan] week generation started", {
-        weekIndex: i,
-        weekLabel: planMeta[i]?.label,
-        phase: planMeta[i]?.phase,
-        concurrency: planTypeResolved === "triathlon" ? generationConcurrency : 1,
-        elapsedSec: Math.round((Date.now() - startedAt) / 1000),
-      });
+        const w0 = Date.now();
+        const { generateWeek } = await import("@/utils/generate-week");
+        const { guardWeek } = await import("@/utils/planGuard");
 
-      const raw: WeekJson = await generateWeek({
-        weekMeta: planMeta[i],
-        userParams,
-        planType: planTypeResolved,
-        index: i,
-        prevWeek,
-      });
-
-      const normalizedRaw = normalizeGeneratedWeek(raw, planMeta[i]);
-
-      let safeWeek: WeekJson;
-      try {
-        safeWeek = normalizeGeneratedWeek(
-          guardWeek(normalizedRaw, userParams.trainingPrefs),
-          planMeta[i]
-        );
-      } catch (guardErr) {
-        console.error("[finalize-plan] guardWeek failed; using normalized generated week", {
+        console.log("[finalize-plan] week generation started", {
+          attempt,
           weekIndex: i,
           weekLabel: planMeta[i]?.label,
-          error: guardErr instanceof Error ? guardErr.message : String(guardErr),
+          phase: planMeta[i]?.phase,
+          concurrency: planTypeResolved === "triathlon" ? generationConcurrency : 1,
+          elapsedSec: Math.round((Date.now() - startedAt) / 1000),
         });
 
-        safeWeek = normalizedRaw;
+        const raw: WeekJson = await generateWeek({
+          weekMeta: planMeta[i],
+          userParams: paramsForAttempt,
+          planType: planTypeResolved,
+          index: i,
+          prevWeek,
+        });
+
+        const normalizedRaw = normalizeGeneratedWeek(raw, planMeta[i]);
+
+        let safeWeek: WeekJson;
+        try {
+          safeWeek = normalizeGeneratedWeek(
+            guardWeek(normalizedRaw, paramsForAttempt.trainingPrefs),
+            planMeta[i]
+          );
+        } catch (guardErr) {
+          console.error("[finalize-plan] guardWeek failed; using normalized generated week", {
+            attempt,
+            weekIndex: i,
+            weekLabel: planMeta[i]?.label,
+            error: guardErr instanceof Error ? guardErr.message : String(guardErr),
+          });
+
+          safeWeek = normalizedRaw;
+        }
+
+        const w1 = Date.now();
+        console.log("[finalize-plan] week generated", {
+          attempt,
+          weekIndex: i,
+          weekLabel: planMeta[i]?.label,
+          phase: planMeta[i]?.phase,
+          ms: w1 - w0,
+          elapsedSec: Math.round((w1 - startedAt) / 1000),
+        });
+
+        return safeWeek;
       }
 
-      const w1 = Date.now();
-      console.log("[finalize-plan] week generated", {
-        weekIndex: i,
-        weekLabel: planMeta[i]?.label,
-        phase: planMeta[i]?.phase,
-        ms: w1 - w0,
-        elapsedSec: Math.round((w1 - startedAt) / 1000),
+      if (planTypeResolved === "running" || planTypeResolved === "run") {
+        // Running generation uses previous-week context heavily, so keep it sequential.
+        for (let i = 0; i < planMeta.length; i++) {
+          weeks[i] = await generateOneWeek(i, weeks[i - 1]);
+        }
+      } else {
+        // Triathlon weeks are scaffolded independently enough to generate safely in small batches.
+        // Avoid full Promise.all fan-out so we stay kind to rate limits and keep logs readable.
+        for (let offset = 0; offset < planMeta.length; offset += generationConcurrency) {
+          const batchIndexes = planMeta
+            .slice(offset, offset + generationConcurrency)
+            .map((_, batchOffset) => offset + batchOffset);
+
+          const batchStartedAt = Date.now();
+          console.log("[finalize-plan] week batch started", {
+            attempt,
+            indexes: batchIndexes,
+            concurrency: generationConcurrency,
+            elapsedSec: Math.round((Date.now() - startedAt) / 1000),
+          });
+
+          const batchResults = await Promise.all(
+            batchIndexes.map((weekIndex) => generateOneWeek(weekIndex))
+          );
+
+          batchResults.forEach((week, idx) => {
+            weeks[batchIndexes[idx]] = week;
+          });
+
+          console.log("[finalize-plan] week batch completed", {
+            attempt,
+            indexes: batchIndexes,
+            ms: Date.now() - batchStartedAt,
+            elapsedSec: Math.round((Date.now() - startedAt) / 1000),
+          });
+        }
+      }
+
+      console.log("[finalize-plan] all weeks generated", {
+        attempt,
+        ms: Date.now() - genStart,
+        elapsedSec: Math.round((Date.now() - startedAt) / 1000),
+        concurrency: planTypeResolved === "triathlon" ? generationConcurrency : 1,
       });
 
-      return safeWeek;
-    }
+      if (weeks.length > 0) weeks[weeks.length - 1].phase = "Taper";
 
-    if (planTypeResolved === "running" || planTypeResolved === "run") {
-      // Running generation uses previous-week context heavily, so keep it sequential.
-      for (let i = 0; i < planMeta.length; i++) {
-        weeks[i] = await generateOneWeek(i, weeks[i - 1]);
+      const raceDay = safeDateISO(parseISO(raceDateResolved));
+      const lastWeek = weeks[weeks.length - 1];
+      if (lastWeek) {
+        if (!lastWeek.days || typeof lastWeek.days !== 'object' || Array.isArray(lastWeek.days)) {
+          lastWeek.days = {};
+        }
+        lastWeek.days[raceDay] = [`🏁 ${raceType} Race Day`];
       }
-    } else {
-      // Triathlon weeks are scaffolded independently enough to generate safely in small batches.
-      // Avoid full Promise.all fan-out so we stay kind to rate limits and keep logs readable.
-      for (let offset = 0; offset < planMeta.length; offset += generationConcurrency) {
-        const batchIndexes = planMeta
-          .slice(offset, offset + generationConcurrency)
-          .map((_, batchOffset) => offset + batchOffset);
 
-        const batchStartedAt = Date.now();
-        console.log("[finalize-plan] week batch started", {
-          indexes: batchIndexes,
-          concurrency: generationConcurrency,
-          elapsedSec: Math.round((Date.now() - startedAt) / 1000),
-        });
+      const generatedPlan: GeneratedPlan = {
+        planType: planTypeResolved,
+        weeks,
+        params: paramsForAttempt,
+        createdAt: new Date().toISOString(),
+      };
 
-        const batchResults = await Promise.all(
-          batchIndexes.map((weekIndex) => generateOneWeek(weekIndex))
-        );
+      const repair = repairGeneratedPlan({
+        plan: generatedPlan,
+        userParams: paramsForAttempt,
+      });
 
-        batchResults.forEach((week, idx) => {
-          weeks[batchIndexes[idx]] = week;
-        });
-
-        console.log("[finalize-plan] week batch completed", {
-          indexes: batchIndexes,
-          ms: Date.now() - batchStartedAt,
-          elapsedSec: Math.round((Date.now() - startedAt) / 1000),
+      if (repair.changes.length > 0) {
+        console.log("[plan-repair] applied", {
+          attempt,
+          userId,
+          changes: repair.changes.slice(0, 20),
+          totalChanges: repair.changes.length,
         });
       }
-    }
 
-    console.log("[finalize-plan] all weeks generated", {
-      ms: Date.now() - genStart,
-      elapsedSec: Math.round((Date.now() - startedAt) / 1000),
-      concurrency: planTypeResolved === "triathlon" ? generationConcurrency : 1,
-    });
+      const validation = validateGeneratedPlan({
+        plan: repair.plan,
+        expectedWeeks: totalWeeks,
+        userParams: paramsForAttempt,
+      });
 
-    if (weeks.length > 0) weeks[weeks.length - 1].phase = "Taper";
-
-    const raceDay = safeDateISO(parseISO(raceDateResolved));
-    const lastWeek = weeks[weeks.length - 1];
-    if (lastWeek) {
-      if (!lastWeek.days || typeof lastWeek.days !== 'object' || Array.isArray(lastWeek.days)) {
-        lastWeek.days = {};
-      }
-      lastWeek.days[raceDay] = [`🏁 ${raceType} Race Day`];
-    }
-
-    const generatedPlan: GeneratedPlan = {
-      planType: planTypeResolved,
-      weeks,
-      params: userParams,
-      createdAt: new Date().toISOString(),
-    };
-
-    const repair = repairGeneratedPlan({
-      plan: generatedPlan,
-      userParams,
-    });
-
-    if (repair.changes.length > 0) {
-      console.log("[plan-repair] applied", {
+      console.log("[plan-validation] completed", {
+        attempt,
         userId,
-        changes: repair.changes.slice(0, 20),
-        totalChanges: repair.changes.length,
+        score: validation.score,
+        ok: validation.ok,
+        stats: validation.stats,
+        warnings: validation.warnings.slice(0, 12),
+        errors: validation.errors.slice(0, 12),
       });
+
+      return { plan: repair.plan, validation };
     }
 
-    const validation = validateGeneratedPlan({
-      plan: repair.plan,
-      expectedWeeks: totalWeeks,
-      userParams,
-    });
+    let attemptResult = await generatePlanAttempt(1, userParams);
 
-    console.log("[plan-validation] completed", {
-      userId,
-      score: validation.score,
-      ok: validation.ok,
-      stats: validation.stats,
-      warnings: validation.warnings.slice(0, 12),
-      errors: validation.errors.slice(0, 12),
-    });
-
-    const minimumPlanQualityScore = Number(process.env.MIN_PLAN_QUALITY_SCORE ?? 70);
-    if (!validation.ok || validation.score < minimumPlanQualityScore) {
-      console.error("[plan-validation] quality gate failed", {
+    if (!attemptResult.validation.ok || attemptResult.validation.score < minimumPlanQualityScore) {
+      console.warn("[plan-validation] quality gate retrying", {
         userId,
         raceType,
         raceDate: raceDateResolved,
-        score: validation.score,
+        score: attemptResult.validation.score,
         minimumPlanQualityScore,
-        errors: validation.errors,
-        warnings: validation.warnings.slice(0, 30),
+        errors: attemptResult.validation.errors.slice(0, 12),
+        warnings: attemptResult.validation.warnings.slice(0, 20),
+      });
+
+      const retryContext = [
+        userParams.constraintsSummary,
+        "STRICT RETRY: the previous generated plan was rejected by quality validation. Every non-rest session must include useful planned details, keep calendar titles short, avoid fake detail-only sessions, keep long rides/runs on the selected days, and preserve a realistic weekly session load.",
+        attemptResult.validation.warnings.length
+          ? `Validation warnings to fix: ${attemptResult.validation.warnings.slice(0, 12).join(" | ")}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      const retryParams: UserParams = {
+        ...userParams,
+        constraintsSummary: retryContext,
+        athleteNotes: [userParams.athleteNotes, retryContext].filter(Boolean).join("\n"),
+      };
+
+      attemptResult = await generatePlanAttempt(2, retryParams);
+    }
+
+    const finalValidation = attemptResult.validation;
+    const finalPlan = attemptResult.plan;
+
+    if (!finalValidation.ok || finalValidation.score < minimumPlanQualityScore) {
+      console.error("[plan-validation] quality gate failed after retry", {
+        userId,
+        raceType,
+        raceDate: raceDateResolved,
+        score: finalValidation.score,
+        minimumPlanQualityScore,
+        errors: finalValidation.errors,
+        warnings: finalValidation.warnings.slice(0, 30),
       });
 
       throw new Error(
-        validation.errors.length
+        finalValidation.errors.length
           ? "We couldn’t finish your plan because the generated schedule was incomplete. Please try again."
           : "We couldn’t generate a complete enough plan. Please try again."
       );
@@ -719,7 +767,7 @@ export async function POST(req: Request) {
           user_id: userId,
           race_date: raceDateResolved,
           race_type: raceType,
-          plan: repair.plan,
+          plan: finalPlan,
           created_at: new Date().toISOString(),
         },
         { onConflict: "user_id" }
@@ -740,7 +788,7 @@ export async function POST(req: Request) {
       throw delErr;
     }
 
-    let sessionRows = convertPlanToSessions(userId, planId, repair.plan);
+    let sessionRows = convertPlanToSessions(userId, planId, finalPlan);
     console.log("[finalize-plan] session rows prepared", {
       userId,
       planId,
@@ -802,7 +850,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       planId,
-      plan: repair.plan,
+      plan: finalPlan,
     });
   } catch (err: any) {
     console.error("FINALIZE_PLAN_ERROR", err?.message, err?.stack, err);
