@@ -67,8 +67,11 @@ You are creating ${weekMeta.label} for a ${userParams.raceType} plan.
 ${userParams.stravaHistorySummary ? userParams.stravaHistorySummary : 'No recent Strava data available. Build from goals and experience defaults.'}
 
 ## Instructions
-- Generate 5–6 balanced sessions plus the Rest Day.
-- IMPORTANT: A brick is not a sport value. A brick workout must be represented as TWO sessions on the same date: one Bike session and one Run session. Example: "Bike — Brick Bike 90min Z2" and "Run — Brick Run 15min easy off the bike". Never output sport/title text where the sport itself is "brick".
+- Generate a realistic week for the athlete's stated max hours. Most 70.3 weeks should have 6–9 total sessions, not 10–12+ unless the athlete explicitly supports that load.
+- IMPORTANT: A brick is not a sport value. A brick workout must be represented as TWO sessions on the same date: one Bike session and one short Run session. Example: "Bike — Long Ride 2h Z2" and "Run — Brick Run 15min easy off the bike". Never output sport/title text where the sport itself is "brick".
+- Brick day rule: if a brick is prescribed on the long ride day, the bike portion should usually BE the long ride. Do not add a separate endurance bike, threshold bike, and brick bike on the same day.
+- Day loading rule: do not schedule more than two endurance sessions on the same day, except a bike + short brick run. Never schedule three bike sessions on one day.
+- Strength rule: strength is accessory work. Cap it at three short sessions per week, never put two strength sessions on the same day, and avoid heavy lower-body strength before key run/ride sessions.
 - Treat Scheduling Preferences and Constraints as hard constraints unless they are unsafe or impossible.
 - Place long ride/run/brick according to the preferred days above. The selected rest day overrides any default template. Do not add Tuesday as a habitual second rest day.
 - Never schedule workouts on unavailable days unless the athlete explicitly allows it.

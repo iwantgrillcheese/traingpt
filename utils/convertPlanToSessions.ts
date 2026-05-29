@@ -46,15 +46,18 @@ function isRestLike(text: string): boolean {
 function detectSport(text: string): Sport | 'brick' {
   const t = text.toLowerCase();
 
-  // Brick is a workout structure. If the generated item is already the run/bike
-  // part of a brick, store it as that sport.
-  if (/\bbrick\s+run\b/.test(t) || /\brun\s+off\s+the\s+bike\b/.test(t)) return 'run';
-  if (/\bbrick\s+bike\b/.test(t) || /\bbike\s*\+\s*run\b/.test(t)) return 'bike';
-
   const mentionsBike = /\b(bike|ride|cycling|ftp)\b/.test(t);
   const mentionsRun = /\b(run|running|jog|tempo|threshold|interval|off the bike)\b/.test(t);
 
+  // Brick is a workout structure, not a DB sport.
+  // If a single generated item describes the full bike + run workout, split it later.
   if (/\bbrick\b/.test(t) && mentionsBike && mentionsRun) return 'brick';
+  if (/\bbike\s*\+\s*run\b/.test(t)) return 'brick';
+
+  // If the generated item is already one side of a brick, keep the actual sport.
+  if (/\bbrick\s+run\b/.test(t) || /\brun\s+off\s+the\s+bike\b/.test(t)) return 'run';
+  if (/\bbrick\s+bike\b/.test(t)) return 'bike';
+
   if (t.includes('swim') || t.includes('css') || t.includes('pool')) return 'swim';
   if (mentionsBike) return 'bike';
   if (mentionsRun) return 'run';

@@ -8,6 +8,8 @@ export type PlanRepairResult = {
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+type Sport = 'swim' | 'bike' | 'run' | 'strength' | 'other';
+
 function isoDate(date: Date) {
   return formatISO(date, { representation: 'date' });
 }
@@ -69,13 +71,22 @@ function parseDurationMinutes(text: string): number | null {
   return null;
 }
 
-function hasSport(item: unknown, sport: 'swim' | 'bike' | 'run' | 'strength') {
+function hasSport(item: unknown, sport: Sport) {
   const text = itemText(item).toLowerCase();
   if (sport === 'bike') return /\b(bike|ride|cycling|ftp)\b/.test(text);
   if (sport === 'run') return /\b(run|running|jog|tempo|threshold|interval|off the bike)\b/.test(text);
   if (sport === 'swim') return /\b(swim|css|pool|open water)\b/.test(text);
   if (sport === 'strength') return /\b(strength|gym|core|mobility)\b/.test(text);
   return false;
+}
+
+function primarySport(item: unknown): Sport {
+  const text = itemText(item).toLowerCase();
+  if (hasSport(item, 'swim')) return 'swim';
+  if (hasSport(item, 'bike')) return 'bike';
+  if (hasSport(item, 'run')) return 'run';
+  if (hasSport(item, 'strength')) return 'strength';
+  return 'other';
 }
 
 function looksLikeLongRide(item: unknown) {
@@ -88,6 +99,33 @@ function looksLikeLongRun(item: unknown) {
   const text = itemText(item).toLowerCase();
   const minutes = parseDurationMinutes(text);
   return hasSport(item, 'run') && (/\blong\b/.test(text) || (minutes !== null && minutes >= 60));
+}
+
+function isBrickBike(item: unknown) {
+  return /\bbrick\s+bike\b|\bbrick\b.*\b(bike|ride)\b/i.test(itemText(item));
+}
+
+function isBrickRun(item: unknown) {
+  return /\bbrick\s+run\b|\brun\s+off\s+the\s+bike\b|\boff\s+the\s+bike\b/i.test(itemText(item));
+}
+
+function isHardBike(item: unknown) {
+  return hasSport(item, 'bike') && /\b(threshold|ftp|interval|tempo|vo2|hard|90-?95|95|100%)\b/i.test(itemText(item));
+}
+
+function isHardRun(item: unknown) {
+  return hasSport(item, 'run') && /\b(threshold|interval|tempo|hard|race pace|5k|10k)\b/i.test(itemText(item));
+}
+
+function sessionLoadScore(item: unknown): number {
+  const text = itemText(item).toLowerCase();
+  const minutes = parseDurationMinutes(text) ?? 0;
+  let score = minutes;
+  if (looksLikeLongRide(item) || looksLikeLongRun(item)) score += 200;
+  if (/\blong\b/.test(text)) score += 100;
+  if (/\bthreshold|interval|tempo|ftp|race pace\b/.test(text)) score += 40;
+  if (/\bbrick\b/.test(text)) score += 15;
+  return score;
 }
 
 function isRaceWeek(week: WeekJson, raceDate?: string) {
@@ -105,7 +143,7 @@ function ensureCanonicalDays(week: WeekJson): Record<string, unknown[]> {
     next[date] = Array.isArray(items) ? [...items] : [];
   }
 
-  // Preserve any valid items from non-canonical keys by placing them in empty days.
+  // Preserve valid items from non-canonical keys by placing them in empty days.
   const extras = Object.entries(existing as Record<string, unknown>)
     .filter(([date]) => !canonical.includes(date))
     .flatMap(([, items]) => (Array.isArray(items) ? items : []));
@@ -132,6 +170,14 @@ function moveItem(days: Record<string, unknown[]>, fromDate: string, toDate: str
   fromItems.splice(index, 1);
   days[fromDate] = fromItems;
   days[toDate] = [...(days[toDate] ?? []), item];
+  return true;
+}
+
+function removeItem(days: Record<string, unknown[]>, date: string, item: unknown) {
+  const items = days[date] ?? [];
+  const next = items.filter((candidate) => candidate !== item);
+  if (next.length === items.length) return false;
+  days[date] = next;
   return true;
 }
 
@@ -169,6 +215,131 @@ function findBestDateForMove({
     const bCount = (days[b] ?? []).filter(isTrainingSession).length;
     return aCount - bCount;
   })[0] ?? null;
+}
+
+function cleanupOverloadedDay({
+  week,
+  date,
+  days,
+  preferredLongRideDate,
+  preferredLongRunDate,
+  changes,
+}: {
+  week: WeekJson;
+  date: string;
+  days: Record<string, unknown[]>;
+  preferredLongRideDate: string | null;
+  preferredLongRunDate: string | null;
+  changes: string[];
+}) {
+  const label = week.label || 'Week';
+  const items = days[date] ?? [];
+  const trainingItems = items.filter(isTrainingSession);
+  if (trainingItems.length <= 1) return;
+
+  const isPreferredLongRideDay = preferredLongRideDate === date;
+  const isPreferredLongRunDay = preferredLongRunDate === date;
+  const dayName = dayNameFromISO(date) ?? date;
+
+  // Strength should supplement the plan, not duplicate itself on one day.
+  const strengthItems = trainingItems.filter((item) => hasSport(item, 'strength'));
+  if (strengthItems.length > 1) {
+    const [keep, ...drop] = strengthItems.sort((a, b) => sessionLoadScore(b) - sessionLoadScore(a));
+    for (const item of drop) {
+      if (removeItem(days, date, item)) changes.push(`${label}: removed duplicate strength session on ${dayName}.`);
+    }
+    // Keep reference to avoid lint complaints in strict projects.
+    void keep;
+  }
+
+  // On the long ride day, keep one main bike stimulus. Brick run is allowed.
+  if (isPreferredLongRideDay) {
+    const bikeItems = (days[date] ?? []).filter((item) => isTrainingSession(item) && hasSport(item, 'bike'));
+    if (bikeItems.length > 1) {
+      const keep = bikeItems.sort((a, b) => sessionLoadScore(b) - sessionLoadScore(a))[0];
+      for (const item of bikeItems) {
+        if (item === keep) continue;
+        // If a separate long ride exists, remove duplicate endurance/threshold/brick-bike sessions.
+        if (removeItem(days, date, item)) changes.push(`${label}: removed duplicate bike session on long ride day ${dayName}.`);
+      }
+    }
+
+    const hardRuns = (days[date] ?? []).filter((item) => isTrainingSession(item) && hasSport(item, 'run') && isHardRun(item) && !isBrickRun(item));
+    for (const item of hardRuns) {
+      if (removeItem(days, date, item)) changes.push(`${label}: removed hard run stacked on long ride day ${dayName}.`);
+    }
+  }
+
+  // On the long run day, keep one main run stimulus and avoid competing bike intensity.
+  if (isPreferredLongRunDay) {
+    const runItems = (days[date] ?? []).filter((item) => isTrainingSession(item) && hasSport(item, 'run'));
+    if (runItems.length > 1) {
+      const keep = runItems.sort((a, b) => sessionLoadScore(b) - sessionLoadScore(a))[0];
+      for (const item of runItems) {
+        if (item === keep) continue;
+        if (removeItem(days, date, item)) changes.push(`${label}: removed duplicate run session on long run day ${dayName}.`);
+      }
+    }
+
+    const hardBikes = (days[date] ?? []).filter((item) => isTrainingSession(item) && hasSport(item, 'bike') && isHardBike(item));
+    for (const item of hardBikes) {
+      if (removeItem(days, date, item)) changes.push(`${label}: removed hard bike stacked on long run day ${dayName}.`);
+    }
+  }
+
+  // Generic cleanup: avoid more than one non-brick bike or run per day.
+  for (const sport of ['bike', 'run'] as const) {
+    const sportItems = (days[date] ?? []).filter((item) => isTrainingSession(item) && hasSport(item, sport));
+    if (sportItems.length <= 1) continue;
+
+    // Bike day may have one bike + brick run. Run day may have one long run only.
+    const keep = sportItems.sort((a, b) => sessionLoadScore(b) - sessionLoadScore(a))[0];
+    for (const item of sportItems) {
+      if (item === keep) continue;
+      if (sport === 'run' && isPreferredLongRideDay && isBrickRun(item)) continue;
+      if (removeItem(days, date, item)) changes.push(`${label}: removed duplicate ${sport} session on ${dayName}.`);
+    }
+  }
+
+  // Hard cap: no more than three training sessions on any day after repair.
+  let currentTraining = (days[date] ?? []).filter(isTrainingSession);
+  while (currentTraining.length > 3) {
+    const removable = [...currentTraining]
+      .filter((item) => !looksLikeLongRide(item) && !looksLikeLongRun(item))
+      .sort((a, b) => sessionLoadScore(a) - sessionLoadScore(b))[0];
+
+    if (!removable || !removeItem(days, date, removable)) break;
+    changes.push(`${label}: removed low-priority overloaded session on ${dayName}.`);
+    currentTraining = (days[date] ?? []).filter(isTrainingSession);
+  }
+}
+
+function cleanupWeeklyStrength({
+  week,
+  canonicalDates,
+  days,
+  changes,
+}: {
+  week: WeekJson;
+  canonicalDates: string[];
+  days: Record<string, unknown[]>;
+  changes: string[];
+}) {
+  const strengthItems = canonicalDates.flatMap((date) =>
+    (days[date] ?? [])
+      .filter((item) => isTrainingSession(item) && hasSport(item, 'strength'))
+      .map((item) => ({ date, item }))
+  );
+
+  if (strengthItems.length <= 3) return;
+
+  // Keep the first three by date/order. Strength is optional accessory work; extra sessions create junk plans.
+  const extras = strengthItems.slice(3);
+  for (const { date, item } of extras) {
+    if (removeItem(days, date, item)) {
+      changes.push(`${week.label}: removed extra strength session beyond 3/week on ${dayNameFromISO(date) ?? date}.`);
+    }
+  }
 }
 
 export function repairGeneratedPlan({
@@ -248,6 +419,22 @@ export function repairGeneratedPlan({
         }
       }
     }
+
+    for (const date of canonicalDates) {
+      cleanupOverloadedDay({
+        week,
+        date,
+        days,
+        preferredLongRideDate,
+        preferredLongRunDate,
+        changes,
+      });
+    }
+
+    cleanupWeeklyStrength({ week, canonicalDates, days, changes });
+
+    // Ensure stored days is a plain date -> session array object after all mutations.
+    week.days = Object.fromEntries(canonicalDates.map((date) => [date, days[date] ?? []])) as Record<string, string[]>;
   }
 
   return { plan, changes };

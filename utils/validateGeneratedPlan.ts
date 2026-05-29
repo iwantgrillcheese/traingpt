@@ -16,6 +16,8 @@ export type PlanValidationResult = {
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+type Sport = 'swim' | 'bike' | 'run' | 'strength' | 'other';
+
 function isoDate(date: Date) {
   return formatISO(date, { representation: 'date' });
 }
@@ -70,10 +72,10 @@ function isTrainingSession(item: unknown): boolean {
   return true;
 }
 
-function hasSport(item: unknown, sport: 'swim' | 'bike' | 'run' | 'strength' | 'brick') {
+function hasSport(item: unknown, sport: Sport | 'brick') {
   const text = itemText(item).toLowerCase();
   if (sport === 'bike') return /\b(bike|ride|cycling|ftp)\b/.test(text);
-  if (sport === 'run') return /\b(run|running|jog|tempo|threshold|interval)\b/.test(text);
+  if (sport === 'run') return /\b(run|running|jog|tempo|threshold|interval|off the bike)\b/.test(text);
   if (sport === 'swim') return /\b(swim|css|pool|open water)\b/.test(text);
   if (sport === 'strength') return /\b(strength|gym|core|mobility)\b/.test(text);
   if (sport === 'brick') return /\bbrick\b/.test(text);
@@ -124,6 +126,18 @@ function looksLikeLongRun(item: unknown) {
   return hasSport(item, 'run') && (/\blong\b/.test(text) || (minutes !== null && minutes >= 60));
 }
 
+function isBrickRun(item: unknown) {
+  return /\bbrick\s+run\b|\brun\s+off\s+the\s+bike\b|\boff\s+the\s+bike\b/i.test(itemText(item));
+}
+
+function isHardBike(item: unknown) {
+  return hasSport(item, 'bike') && /\b(threshold|ftp|interval|tempo|vo2|hard|90-?95|100%)\b/i.test(itemText(item));
+}
+
+function isHardRun(item: unknown) {
+  return hasSport(item, 'run') && /\b(threshold|interval|tempo|hard|race pace|5k|10k)\b/i.test(itemText(item));
+}
+
 function hasLeadingTitleJunk(item: unknown) {
   const text = itemText(item).trim();
   return /^[\s—–\-:•*]+/.test(text);
@@ -167,6 +181,8 @@ export function validateGeneratedPlan({
   weeks.forEach((week, weekIndex) => {
     const label = week?.label || `Week ${weekIndex + 1}`;
     const canonicalDates = canonicalWeekDates(week?.startDate ?? '');
+    let weekSessionCount = 0;
+    let weekStrengthCount = 0;
 
     if (!week || typeof week !== 'object') {
       errors.push(`${label} is not a valid week object.`);
@@ -185,7 +201,7 @@ export function validateGeneratedPlan({
     }
 
     const allTrainingItems: Array<{ date: string; item: unknown }> = [];
-    let weekSessionCount = 0;
+    const skipLongSessionChecks = isRaceWeek(week, userParams.raceDate) || String(week.phase ?? '').toLowerCase().includes('taper');
 
     for (const date of canonicalDates) {
       const items = Array.isArray(days[date]) ? days[date] : [];
@@ -207,6 +223,38 @@ export function validateGeneratedPlan({
         warnings.push(`${label}: ${dayName ?? date} has ${trainingItems.length} sessions even though two-a-days are disabled.`);
       }
 
+      if (trainingItems.length > 3) {
+        warnings.push(`${label}: ${dayName ?? date} has ${trainingItems.length} sessions; this is likely overloaded.`);
+      }
+
+      const bikeItems = trainingItems.filter((item) => hasSport(item, 'bike'));
+      const runItems = trainingItems.filter((item) => hasSport(item, 'run'));
+      const strengthItems = trainingItems.filter((item) => hasSport(item, 'strength'));
+      weekStrengthCount += strengthItems.length;
+
+      if (bikeItems.length > 1) {
+        warnings.push(`${label}: ${dayName ?? date} has ${bikeItems.length} bike sessions; merge or remove duplicate bike work.`);
+      }
+
+      const nonBrickRuns = runItems.filter((item) => !isBrickRun(item));
+      if (nonBrickRuns.length > 1) {
+        warnings.push(`${label}: ${dayName ?? date} has ${nonBrickRuns.length} run sessions; this is likely duplicate run work.`);
+      }
+
+      if (strengthItems.length > 1) {
+        warnings.push(`${label}: ${dayName ?? date} has ${strengthItems.length} strength sessions; strength should not duplicate on one day.`);
+      }
+
+      const hasLongRide = bikeItems.some(looksLikeLongRide);
+      if (hasLongRide && bikeItems.some((item) => !looksLikeLongRide(item))) {
+        warnings.push(`${label}: ${dayName ?? date} stacks extra bike work on long ride day.`);
+      }
+
+      const hasLongRun = runItems.some(looksLikeLongRun);
+      if (hasLongRun && (bikeItems.some(isHardBike) || runItems.some((item) => isHardRun(item) && !looksLikeLongRun(item)))) {
+        warnings.push(`${label}: ${dayName ?? date} stacks intensity with the long run.`);
+      }
+
       for (const item of items) {
         if (hasLeadingTitleJunk(item)) {
           warnings.push(`${label}: session title begins with punctuation (${date}).`);
@@ -219,12 +267,19 @@ export function validateGeneratedPlan({
       }
     }
 
+    if (weekStrengthCount > 3) {
+      warnings.push(`${label}: has ${weekStrengthCount} strength sessions; cap strength at 3 short sessions/week.`);
+    }
+
+    if (weekSessionCount > 10 && !String(week.phase ?? '').toLowerCase().includes('peak')) {
+      warnings.push(`${label}: has ${weekSessionCount} sessions; this is dense for a normal training week.`);
+    }
+
     if (weekSessionCount === 0 && !isRaceWeek(week, userParams.raceDate)) {
       emptyWeeks += 1;
       errors.push(`${label} has no training sessions.`);
     }
 
-    const skipLongSessionChecks = isRaceWeek(week, userParams.raceDate) || String(week.phase ?? '').toLowerCase().includes('taper');
     if (!skipLongSessionChecks) {
       const longRides = allTrainingItems.filter(({ item }) => looksLikeLongRide(item));
       const longRuns = allTrainingItems.filter(({ item }) => looksLikeLongRun(item));
