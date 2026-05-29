@@ -30,7 +30,12 @@ export async function startPlan({
     const meta = planMeta[i];
     const w0 = Date.now();
     const raw: WeekJson = await generateWeek({ weekMeta: meta, userParams, planType, index: i, prevWeek });
-    const safe: WeekJson = guardWeek(raw, userParams.trainingPrefs);
+
+    // Triathlon weeks are now scaffold-first. generateWeek() returns the final
+    // scaffolded structure and GPT only enriches details. Do NOT run the legacy
+    // guard here for triathlon plans: it converts structured sessions into
+    // strings and can move/delete scaffolded Long Ride / Brick Run / Long Run slots.
+    const safe: WeekJson = isRunPlan ? guardWeek(raw, userParams.trainingPrefs) : raw;
 
     const w1 = Date.now();
     console.log('[startPlan] week generated', {

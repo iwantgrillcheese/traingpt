@@ -86,8 +86,25 @@ export async function generateWeek({
     return JSON.parse(content) as WeekJson;
   }
 
-  // First attempt
-  let currentWeek = await callLLM();
+  const scaffold = isRunPlan ? null : buildTriathlonWeekScaffold({ userParams, weekMeta, index: weekIndex });
+
+  // First attempt. For triathlon, the scaffold is the source of truth and GPT is
+  // only used to enrich details. If GPT fails or returns weak structure, keep the
+  // scaffold fallback rather than failing or accepting arbitrary GPT sessions.
+  let currentWeek: WeekJson;
+  try {
+    currentWeek = await callLLM();
+  } catch (error) {
+    if (scaffold) {
+      console.error('[generateWeek] GPT enrichment failed; using triathlon scaffold fallback', {
+        weekLabel: weekMeta.label,
+        phase: weekMeta.phase,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return scaffold;
+    }
+    throw error;
+  }
 
   // Running-only validation + rerolls
   if (isRunPlan && targets) {
@@ -170,6 +187,5 @@ Important: Every run must include duration and longest run must be on the prefer
     return bestWeek;
   }
 
-  const scaffold = buildTriathlonWeekScaffold({ userParams, weekMeta, index: weekIndex });
   return applyTriathlonScaffold({ generatedWeek: currentWeek, scaffold });
 }

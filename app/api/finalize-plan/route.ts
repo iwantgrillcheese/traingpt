@@ -597,21 +597,29 @@ export async function POST(req: Request) {
 
         const normalizedRaw = normalizeGeneratedWeek(raw, planMeta[i]);
 
+        // Triathlon plans are scaffold-first. generateWeek() already returns the
+        // final scaffolded week with structured sessions. The legacy guardWeek()
+        // was written for old string-based GPT output and will corrupt the
+        // scaffold by stringifying sessions and moving brick/strength slots.
         let safeWeek: WeekJson;
-        try {
-          safeWeek = normalizeGeneratedWeek(
-            guardWeek(normalizedRaw, guardTrainingPrefs),
-            planMeta[i]
-          );
-        } catch (guardErr) {
-          console.error("[finalize-plan] guardWeek failed; using normalized generated week", {
-            attempt,
-            weekIndex: i,
-            weekLabel: planMeta[i]?.label,
-            error: guardErr instanceof Error ? guardErr.message : String(guardErr),
-          });
+        if (planTypeResolved === "triathlon") {
+          safeWeek = normalizeGeneratedWeek(normalizedRaw, planMeta[i]);
+        } else {
+          try {
+            safeWeek = normalizeGeneratedWeek(
+              guardWeek(normalizedRaw, guardTrainingPrefs),
+              planMeta[i]
+            );
+          } catch (guardErr) {
+            console.error("[finalize-plan] guardWeek failed; using normalized generated week", {
+              attempt,
+              weekIndex: i,
+              weekLabel: planMeta[i]?.label,
+              error: guardErr instanceof Error ? guardErr.message : String(guardErr),
+            });
 
-          safeWeek = normalizedRaw;
+            safeWeek = normalizedRaw;
+          }
         }
 
         const w1 = Date.now();
