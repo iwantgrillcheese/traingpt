@@ -80,6 +80,20 @@ function hasSport(item: unknown, sport: 'swim' | 'bike' | 'run' | 'strength' | '
   return false;
 }
 
+function objectSportValue(item: unknown): string | null {
+  if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+  const value = (item as Record<string, unknown>).sport;
+  return typeof value === 'string' ? value.trim().toLowerCase() : null;
+}
+
+function isUnsupportedDbSportValue(item: unknown): string | null {
+  const sport = objectSportValue(item);
+  if (!sport) return null;
+  const supported = new Set(['swim', 'bike', 'run', 'strength', 'other']);
+  if (sport === 'brick') return 'brick';
+  return supported.has(sport) ? null : sport;
+}
+
 function parseDurationMinutes(text: string): number | null {
   const lower = text.toLowerCase();
   const hourMinMatch = lower.match(/(\d+(?:\.\d+)?)\s*h(?:ou?r)?s?\s*(\d+)?\s*m?/i);
@@ -196,6 +210,11 @@ export function validateGeneratedPlan({
       for (const item of items) {
         if (hasLeadingTitleJunk(item)) {
           warnings.push(`${label}: session title begins with punctuation (${date}).`);
+        }
+
+        const unsupportedSport = isUnsupportedDbSportValue(item);
+        if (unsupportedSport) {
+          warnings.push(`${label}: session uses unsupported sport value "${unsupportedSport}" (${date}).`);
         }
       }
     }

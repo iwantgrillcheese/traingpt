@@ -13,6 +13,7 @@ import type { UserParams, WeekMeta, PlanType, GeneratedPlan, WeekJson } from "@/
 import { extractPrefs } from "@/utils/extractPrefs";
 import { convertPlanToSessions } from "@/utils/convertPlanToSessions";
 import { validateGeneratedPlan } from "@/utils/validateGeneratedPlan";
+import { repairGeneratedPlan } from "@/utils/repairGeneratedPlan";
 import { AuthError, assertSameUser, createRouteSupabaseClient, requireUser } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -619,8 +620,21 @@ export async function POST(req: Request) {
       createdAt: new Date().toISOString(),
     };
 
-    const validation = validateGeneratedPlan({
+    const repair = repairGeneratedPlan({
       plan: generatedPlan,
+      userParams,
+    });
+
+    if (repair.changes.length > 0) {
+      console.log("[plan-repair] applied", {
+        userId,
+        changes: repair.changes.slice(0, 20),
+        totalChanges: repair.changes.length,
+      });
+    }
+
+    const validation = validateGeneratedPlan({
+      plan: repair.plan,
       expectedWeeks: totalWeeks,
       userParams,
     });
@@ -655,7 +669,7 @@ export async function POST(req: Request) {
           user_id: userId,
           race_date: raceDateResolved,
           race_type: raceType,
-          plan: generatedPlan,
+          plan: repair.plan,
           created_at: new Date().toISOString(),
         },
         { onConflict: "user_id" }
@@ -676,7 +690,7 @@ export async function POST(req: Request) {
       throw delErr;
     }
 
-    let sessionRows = convertPlanToSessions(userId, planId, generatedPlan);
+    let sessionRows = convertPlanToSessions(userId, planId, repair.plan);
     console.log("[finalize-plan] session rows prepared", {
       userId,
       planId,
@@ -738,7 +752,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       planId,
-      plan: generatedPlan,
+      plan: repair.plan,
     });
   } catch (err: any) {
     console.error("FINALIZE_PLAN_ERROR", err?.message, err?.stack, err);
