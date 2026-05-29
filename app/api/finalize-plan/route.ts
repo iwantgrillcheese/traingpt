@@ -543,49 +543,55 @@ export async function POST(req: Request) {
     });
 
     const genStart = Date.now();
-    const weeks: WeekJson[] = [];
+    const weeks: WeekJson[] = new Array(planMeta.length);
+    const generationConcurrency = Math.max(
+      1,
+      Math.min(4, Number(process.env.PLAN_GENERATION_CONCURRENCY ?? 3) || 3)
+    );
 
-    for (let i = 0; i < planMeta.length; i++) {
+    async function generateOneWeek(i: number, prevWeek?: WeekJson): Promise<WeekJson> {
       const elapsed = Date.now() - startedAt;
       if (elapsed > HARD_BUDGET_MS) {
         throw new Error(`Plan generation exceeded time budget (${Math.round(elapsed / 1000)}s).`);
       }
 
       const w0 = Date.now();
+      const { generateWeek } = await import("@/utils/generate-week");
+      const { guardWeek } = await import("@/utils/planGuard");
 
-      const singleWeek = await (async () => {
-        const { generateWeek } = await import("@/utils/generate-week");
-        const { guardWeek } = await import("@/utils/planGuard");
+      console.log("[finalize-plan] week generation started", {
+        weekIndex: i,
+        weekLabel: planMeta[i]?.label,
+        phase: planMeta[i]?.phase,
+        concurrency: planTypeResolved === "triathlon" ? generationConcurrency : 1,
+        elapsedSec: Math.round((Date.now() - startedAt) / 1000),
+      });
 
-        const prevWeek = weeks[i - 1];
+      const raw: WeekJson = await generateWeek({
+        weekMeta: planMeta[i],
+        userParams,
+        planType: planTypeResolved,
+        index: i,
+        prevWeek,
+      });
 
-        const raw: WeekJson = await generateWeek({
-          weekMeta: planMeta[i],
-          userParams,
-          planType: planTypeResolved,
-          index: i,
-          prevWeek,
+      const normalizedRaw = normalizeGeneratedWeek(raw, planMeta[i]);
+
+      let safeWeek: WeekJson;
+      try {
+        safeWeek = normalizeGeneratedWeek(
+          guardWeek(normalizedRaw, userParams.trainingPrefs),
+          planMeta[i]
+        );
+      } catch (guardErr) {
+        console.error("[finalize-plan] guardWeek failed; using normalized generated week", {
+          weekIndex: i,
+          weekLabel: planMeta[i]?.label,
+          error: guardErr instanceof Error ? guardErr.message : String(guardErr),
         });
 
-        const normalizedRaw = normalizeGeneratedWeek(raw, planMeta[i]);
-
-        try {
-          return normalizeGeneratedWeek(
-            guardWeek(normalizedRaw, userParams.trainingPrefs),
-            planMeta[i]
-          );
-        } catch (guardErr) {
-          console.error("[finalize-plan] guardWeek failed; using normalized generated week", {
-            weekIndex: i,
-            weekLabel: planMeta[i]?.label,
-            error: guardErr instanceof Error ? guardErr.message : String(guardErr),
-          });
-
-          return normalizedRaw;
-        }
-      })();
-
-      weeks.push(singleWeek);
+        safeWeek = normalizedRaw;
+      }
 
       const w1 = Date.now();
       console.log("[finalize-plan] week generated", {
@@ -595,11 +601,50 @@ export async function POST(req: Request) {
         ms: w1 - w0,
         elapsedSec: Math.round((w1 - startedAt) / 1000),
       });
+
+      return safeWeek;
+    }
+
+    if (planTypeResolved === "running" || planTypeResolved === "run") {
+      // Running generation uses previous-week context heavily, so keep it sequential.
+      for (let i = 0; i < planMeta.length; i++) {
+        weeks[i] = await generateOneWeek(i, weeks[i - 1]);
+      }
+    } else {
+      // Triathlon weeks are scaffolded independently enough to generate safely in small batches.
+      // Avoid full Promise.all fan-out so we stay kind to rate limits and keep logs readable.
+      for (let offset = 0; offset < planMeta.length; offset += generationConcurrency) {
+        const batchIndexes = planMeta
+          .slice(offset, offset + generationConcurrency)
+          .map((_, batchOffset) => offset + batchOffset);
+
+        const batchStartedAt = Date.now();
+        console.log("[finalize-plan] week batch started", {
+          indexes: batchIndexes,
+          concurrency: generationConcurrency,
+          elapsedSec: Math.round((Date.now() - startedAt) / 1000),
+        });
+
+        const batchResults = await Promise.all(
+          batchIndexes.map((weekIndex) => generateOneWeek(weekIndex))
+        );
+
+        batchResults.forEach((week, idx) => {
+          weeks[batchIndexes[idx]] = week;
+        });
+
+        console.log("[finalize-plan] week batch completed", {
+          indexes: batchIndexes,
+          ms: Date.now() - batchStartedAt,
+          elapsedSec: Math.round((Date.now() - startedAt) / 1000),
+        });
+      }
     }
 
     console.log("[finalize-plan] all weeks generated", {
       ms: Date.now() - genStart,
       elapsedSec: Math.round((Date.now() - startedAt) / 1000),
+      concurrency: planTypeResolved === "triathlon" ? generationConcurrency : 1,
     });
 
     if (weeks.length > 0) weeks[weeks.length - 1].phase = "Taper";
