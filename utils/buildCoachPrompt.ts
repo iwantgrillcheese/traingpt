@@ -83,7 +83,7 @@ ${userParams.stravaHistorySummary ? userParams.stravaHistorySummary : 'No recent
 - Place long ride/run/brick according to the preferred days above. The selected rest day overrides any default template. Do not add Tuesday as a habitual second rest day.
 - Never schedule workouts on unavailable days unless the athlete explicitly allows it.
 - If the athlete is new/developing in swim comfort, bias early weeks toward technique, consistency, and confidence before heavy swim intensity.
-- Tie intensities to metrics consistently when available: bike workouts should reference FTP ranges, run workouts should reference threshold pace when appropriate, and swim workouts should reference swim CSS/threshold pace for controlled repeats. Easy sessions can use zones/effort language, but intensity sessions should be clearly anchored to the athlete's data.
+- Tie intensities to metrics consistently when available: bike workouts should reference FTP ranges, run workouts should use calculated target pace ranges derived from threshold pace, and swim workouts should reference swim CSS/threshold pace for controlled repeats. Do not write vague lines like "use threshold pace as a base"; translate the metric into actionable targets such as easy pace, steady pace, or threshold-rep range.
 - If Strava history exists, use it to calibrate starting load and discipline balance while still honoring race goals.
 - Session titles must be concise, calendar-friendly labels of 2–4 words. Do NOT begin session titles with punctuation such as "—", "–", "-", ":", bullets, or emoji.
 - Do NOT put duration, pace, FTP, interval prescriptions, yardage, or long explanations in the title. Put those specifics in details/description.
@@ -93,7 +93,7 @@ ${userParams.stravaHistorySummary ? userParams.stravaHistorySummary : 'No recent
 - Do not output placeholder details such as "Details", "Details Details", "TBD", "Not specified", or repeated labels. Details must be useful enough for an athlete to execute the workout.
 - Example session object: { "sport": "run", "title": "Run Threshold", "details": "50min total. Main set: 5x5min near threshold with 2min easy jog recoveries. Keep the final rep controlled." }
 - Example swim object: { "sport": "swim", "title": "Swim Technique", "details": "1500m total with 300m easy warmup, 8x50m drills, 6x100m smooth aerobic, 200m cooldown." }
-- Every non-rest session must include useful detail/description. Details should include duration, purpose, and a clear prescription an athlete can execute. For swim sessions, always include set structure. For bike/run quality sessions, include the main set or intensity target in details, not the title. For easy sessions, include duration and effort guidance.
+- Every non-rest session must include useful detail/description. Details should include duration, purpose, and a clear prescription an athlete can execute. For swim sessions, always include set structure. For bike/run quality sessions, include the main set or intensity target in details, not the title. For easy and long runs, include an actual easy/steady target range when threshold pace is known; do not merely mention that threshold pace exists.
 - Return ONLY valid JSON matching the schema in the system message.
 `.trim();
 }

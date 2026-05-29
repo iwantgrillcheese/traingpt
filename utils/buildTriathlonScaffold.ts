@@ -67,6 +67,56 @@ function cleanMetric(value: unknown): string | null {
   return text && text.toLowerCase() !== 'unknown' ? text : null;
 }
 
+
+function parsePaceToSeconds(value: unknown): number | null {
+  const text = String(value ?? '').trim();
+  if (!text) return null;
+  const match = text.match(/(\d{1,2})\s*:\s*(\d{2})/);
+  if (!match) return null;
+  const minutes = Number(match[1]);
+  const seconds = Number(match[2]);
+  if (!Number.isFinite(minutes) || !Number.isFinite(seconds) || seconds >= 60) return null;
+  return minutes * 60 + seconds;
+}
+
+function inferRunUnit(userParams: UserParams): 'mi' | 'km' {
+  if (userParams.paceUnit === 'km') return 'km';
+  if (userParams.paceUnit === 'mi') return 'mi';
+  const text = String(userParams.runPace ?? '').toLowerCase();
+  return text.includes('/km') || text.includes('per km') ? 'km' : 'mi';
+}
+
+function formatPace(seconds: number, unit: 'mi' | 'km'): string {
+  const rounded = Math.max(1, Math.round(seconds));
+  const minutes = Math.floor(rounded / 60);
+  const secs = rounded % 60;
+  return `${minutes}:${String(secs).padStart(2, '0')}/${unit}`;
+}
+
+function runPaceRange(userParams: UserParams, addLowSeconds: number, addHighSeconds: number): string | null {
+  const thresholdSeconds = parsePaceToSeconds(userParams.runPace);
+  if (!thresholdSeconds) return null;
+  const unit = inferRunUnit(userParams);
+  return `${formatPace(thresholdSeconds + addLowSeconds, unit)}-${formatPace(thresholdSeconds + addHighSeconds, unit)}`;
+}
+
+function runThresholdRange(userParams: UserParams): string | null {
+  const thresholdSeconds = parsePaceToSeconds(userParams.runPace);
+  if (!thresholdSeconds) return null;
+  const unit = inferRunUnit(userParams);
+  return `${formatPace(thresholdSeconds - 5, unit)}-${formatPace(thresholdSeconds + 10, unit)}`;
+}
+
+function easyRunRange(userParams: UserParams): string | null {
+  // Long/easy running should usually be comfortably slower than threshold.
+  // This range is intentionally conservative for triathlon durability.
+  return runPaceRange(userParams, 75, 115);
+}
+
+function steadyRunRange(userParams: UserParams): string | null {
+  return runPaceRange(userParams, 35, 65);
+}
+
 function ftpRange(ftp: unknown, low: number, high: number): string | null {
   const value = typeof ftp === 'number' && Number.isFinite(ftp) ? ftp : Number.parseFloat(String(ftp ?? ''));
   if (!Number.isFinite(value) || value <= 0) return null;
@@ -80,7 +130,44 @@ function bikeMetricCue(userParams: UserParams, low: number, high: number, fallba
 
 function runMetricCue(userParams: UserParams, label: string): string {
   const threshold = cleanMetric(userParams.runPace);
-  return threshold ? `${label} Use your run threshold pace (${threshold}) as the anchor, but adjust by feel if fatigue is high.` : label;
+  return threshold ? `${label} Threshold reference: ${threshold}. Use effort first if heat, hills, or fatigue make pace unrealistic.` : label;
+}
+
+function longRunCue(userParams: UserParams, baseLabel: string, phase: ReturnType<typeof phaseIntensity>): string {
+  const easyRange = easyRunRange(userParams);
+  const steadyRange = steadyRunRange(userParams);
+
+  if (!easyRange) return baseLabel;
+
+  if (phase === 'peak' || phase === 'build') {
+    return `${baseLabel} Target most of the run around ${easyRange}. If feeling controlled late, finish the final 10-20min closer to steady 70.3 effort (${steadyRange ?? 'controlled steady effort'}), not threshold.`;
+  }
+
+  if (phase === 'taper') {
+    return `${baseLabel} Keep most of it around ${easyRange} or easier. No forced pace work.`;
+  }
+
+  return `${baseLabel} Target roughly ${easyRange}, staying conversational from start to finish.`;
+}
+
+function easyRunCue(userParams: UserParams, baseLabel: string): string {
+  const easyRange = easyRunRange(userParams);
+  return easyRange ? `${baseLabel} Keep it relaxed around ${easyRange}; this should feel clearly easier than threshold.` : baseLabel;
+}
+
+function thresholdRunCue(userParams: UserParams, baseLabel: string): string {
+  const thresholdRange = runThresholdRange(userParams);
+  return thresholdRange ? `${baseLabel} Aim for controlled reps around ${thresholdRange}; stop short of straining.` : runMetricCue(userParams, baseLabel);
+}
+
+function brickRunCue(userParams: UserParams, baseLabel: string, phase: ReturnType<typeof phaseIntensity>): string {
+  const easyRange = easyRunRange(userParams);
+  const steadyRange = steadyRunRange(userParams);
+  if (!easyRange) return baseLabel;
+  if (phase === 'peak' || phase === 'build') {
+    return `${baseLabel} Start around ${easyRange}. Only let it progress toward ${steadyRange ?? 'steady race effort'} if the bike was controlled.`;
+  }
+  return `${baseLabel} Keep it easy around ${easyRange} or slower; the goal is transition rhythm, not pace.`;
 }
 
 function swimMetricCue(userParams: UserParams, label: string): string {
@@ -122,24 +209,24 @@ function getLongRideDetails(userParams: UserParams, weekMeta: WeekMeta) {
 
 function getBrickRunDetails(userParams: UserParams, weekMeta: WeekMeta) {
   const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
-  if (phase === 'taper') return runMetricCue(userParams, '10-15min very easy off the bike. Keep cadence quick, shoulders relaxed, and effort light.');
-  if (phase === 'base') return runMetricCue(userParams, '10-15min easy off the bike. Focus on quick cadence and relaxed form, not pace.');
-  if (phase === 'peak') return runMetricCue(userParams, '20-30min controlled off the bike. Start easy, then settle into realistic race effort only if fresh.');
-  return runMetricCue(userParams, '15-25min easy-to-steady off the bike. Practice transition rhythm, posture, and controlled pacing.');
+  if (phase === 'taper') return brickRunCue(userParams, '10-15min very easy off the bike. Keep cadence quick, shoulders relaxed, and effort light.', phase);
+  if (phase === 'base') return brickRunCue(userParams, '10-15min easy off the bike. Focus on quick cadence and relaxed form.', phase);
+  if (phase === 'peak') return brickRunCue(userParams, '20-30min controlled off the bike. Start easy, then settle into realistic race effort only if fresh.', phase);
+  return brickRunCue(userParams, '15-25min easy-to-steady off the bike. Practice transition rhythm, posture, and controlled pacing.', phase);
 }
 
 function getLongRunDetails(userParams: UserParams, weekMeta: WeekMeta) {
   const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
-  if (phase === 'taper') return runMetricCue(userParams, 'Reduced long run. Keep it easy and relaxed with no forced pace work.');
-  if (phase === 'peak') return runMetricCue(userParams, 'Long aerobic run with controlled pacing. Keep effort sustainable and avoid turning it into a race.');
-  return runMetricCue(userParams, 'Long easy aerobic run. Stay conversational and build durability without excess fatigue.');
+  if (phase === 'taper') return longRunCue(userParams, 'Reduced long run. Keep it easy and relaxed with no forced pace work.', phase);
+  if (phase === 'peak') return longRunCue(userParams, 'Long aerobic run with controlled pacing. Keep effort sustainable and avoid turning it into a race.', phase);
+  return longRunCue(userParams, 'Long easy aerobic run. Stay conversational and build durability without excess fatigue.', phase);
 }
 
 function getRunQualityDetails(userParams: UserParams, weekMeta: WeekMeta) {
   const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
-  if (phase === 'recovery' || phase === 'taper') return runMetricCue(userParams, 'Easy aerobic run with 4-6 relaxed strides if fresh. Keep the session light.');
-  if (phase === 'base') return runMetricCue(userParams, 'Controlled aerobic run with short strides. Build rhythm without heavy intensity.');
-  return runMetricCue(userParams, 'Threshold-focused run. Include a steady main set at controlled threshold effort with easy recoveries.');
+  if (phase === 'recovery' || phase === 'taper') return easyRunCue(userParams, 'Easy aerobic run with 4-6 relaxed strides if fresh. Keep the session light.');
+  if (phase === 'base') return easyRunCue(userParams, 'Controlled aerobic run with short strides. Build rhythm without heavy intensity.');
+  return thresholdRunCue(userParams, 'Threshold-focused run. Include a steady main set at controlled threshold effort with easy recoveries.');
 }
 
 function getBikeMidweekDetails(userParams: UserParams, weekMeta: WeekMeta) {
