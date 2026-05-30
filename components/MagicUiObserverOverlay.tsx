@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import MagicLoadingOverlay from './MagicLoadingOverlay';
 
 type MagicMode = 'plan' | 'strava' | null;
@@ -17,9 +17,15 @@ function detectMagicStateFromPage() {
   return null;
 }
 
+function hasExplicitStravaSyncParam() {
+  if (typeof window === 'undefined') return false;
+
+  const params = new URLSearchParams(window.location.search);
+  return params.get('sync') === 'needed' && params.get('source') === 'strava';
+}
+
 export default function MagicUiObserverOverlay() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [mode, setMode] = useState<MagicMode>(null);
 
   useEffect(() => {
@@ -28,7 +34,7 @@ export default function MagicUiObserverOverlay() {
       return;
     }
 
-    const explicitStravaSync = searchParams?.get('sync') === 'needed' && searchParams?.get('source') === 'strava';
+    const explicitStravaSync = hasExplicitStravaSyncParam();
     if (explicitStravaSync) {
       setMode('strava');
     }
@@ -55,7 +61,7 @@ export default function MagicUiObserverOverlay() {
       observer.disconnect();
       window.clearTimeout(timer);
     };
-  }, [pathname, searchParams]);
+  }, [pathname]);
 
   return (
     <MagicLoadingOverlay
