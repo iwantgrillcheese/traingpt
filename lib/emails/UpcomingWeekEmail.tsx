@@ -54,7 +54,7 @@ export function UpcomingWeekEmail({
           </Section>
 
           <Section style={styles.heroSection}>
-            <Heading style={styles.heading}>Your training week is ready.</Heading>
+            <Heading style={styles.heading}>Your week ahead.</Heading>
             <Text style={styles.dateText}>{weekRange}</Text>
           </Section>
 
