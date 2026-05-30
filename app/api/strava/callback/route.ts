@@ -20,10 +20,30 @@ function getBaseUrl(req: Request): string {
 }
 
 function resolveReturnTo(raw: string | null): string {
-  if (!raw || !raw.startsWith('/')) return '/coaching?success=strava_connected';
-  if (raw.startsWith('//')) return '/coaching?success=strava_connected';
+  if (!raw || !raw.startsWith('/')) return '/coaching';
+  if (raw.startsWith('//')) return '/coaching';
 
   return raw;
+}
+
+function redirectWithParams({
+  baseUrl,
+  returnTo,
+  params,
+}: {
+  baseUrl: string;
+  returnTo: string;
+  params: Record<string, string>;
+}) {
+  const redirectUrl = new URL(returnTo, baseUrl);
+
+  for (const [key, value] of Object.entries(params)) {
+    if (!redirectUrl.searchParams.has(key)) {
+      redirectUrl.searchParams.set(key, value);
+    }
+  }
+
+  return NextResponse.redirect(redirectUrl);
 }
 
 export async function GET(req: Request) {
@@ -33,7 +53,11 @@ export async function GET(req: Request) {
   const baseUrl = getBaseUrl(req);
 
   if (!code) {
-    return NextResponse.redirect(`${baseUrl}/coaching?error=missing_code`);
+    return redirectWithParams({
+      baseUrl,
+      returnTo,
+      params: { error: 'missing_code' },
+    });
   }
 
   try {
@@ -41,7 +65,11 @@ export async function GET(req: Request) {
     const user = await requireUser(supabase);
 
     if (!process.env.STRAVA_CLIENT_ID || !process.env.STRAVA_CLIENT_SECRET) {
-      return NextResponse.redirect(`${baseUrl}/coaching?error=strava_server_config`);
+      return redirectWithParams({
+        baseUrl,
+        returnTo,
+        params: { error: 'strava_server_config' },
+      });
     }
 
     const tokenRes = await fetch('https://www.strava.com/oauth/token', {
@@ -60,7 +88,11 @@ export async function GET(req: Request) {
     if (!tokenRes.ok) {
       console.error('[strava/callback] token exchange failed:', tokenData);
 
-      return NextResponse.redirect(`${baseUrl}/coaching?error=strava_token_failed`);
+      return redirectWithParams({
+        baseUrl,
+        returnTo,
+        params: { error: 'strava_token_failed' },
+      });
     }
 
     const { access_token, refresh_token, expires_at, athlete } = tokenData;
@@ -78,27 +110,33 @@ export async function GET(req: Request) {
     if (updateError) {
       console.error('[strava/callback] profile update failed:', updateError);
 
-      return NextResponse.redirect(`${baseUrl}/coaching?error=strava_profile_update_failed`);
+      return redirectWithParams({
+        baseUrl,
+        returnTo,
+        params: { error: 'strava_profile_update_failed' },
+      });
     }
 
-    const redirectUrl = new URL(returnTo, baseUrl);
-
-    if (!redirectUrl.searchParams.has('success')) {
-      redirectUrl.searchParams.set('success', 'strava_connected');
-    }
-
-    if (!redirectUrl.searchParams.has('sync')) {
-      redirectUrl.searchParams.set('sync', 'needed');
-    }
-
-    return NextResponse.redirect(redirectUrl);
+    return redirectWithParams({
+      baseUrl,
+      returnTo,
+      params: { success: 'strava_connected', sync: 'needed' },
+    });
   } catch (error) {
     console.error('[strava/callback] failed:', error);
 
     if (error instanceof AuthError) {
-      return NextResponse.redirect(`${baseUrl}/coaching?error=no_user_session`);
+      return redirectWithParams({
+        baseUrl,
+        returnTo,
+        params: { error: 'no_user_session' },
+      });
     }
 
-    return NextResponse.redirect(`${baseUrl}/coaching?error=unexpected_error`);
+    return redirectWithParams({
+      baseUrl,
+      returnTo,
+      params: { error: 'unexpected_error' },
+    });
   }
 }
