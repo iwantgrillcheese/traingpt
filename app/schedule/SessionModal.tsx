@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Dialog } from '@headlessui/react';
 import { format, parseISO } from 'date-fns';
 import clsx from 'clsx';
@@ -181,6 +182,7 @@ export default function SessionModal({
   recentMissed = 0,
   raceGoal,
 }: Props) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [marking, setMarking] = useState(false);
   const [output, setOutput] = useState<string | null>(session?.structured_workout ?? null);
@@ -191,11 +193,15 @@ export default function SessionModal({
   const [bodyFatPct, setBodyFatPct] = useState('');
   const [sweatRateLPerHour, setSweatRateLPerHour] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [plusRequired, setPlusRequired] = useState(false);
+  const [upgradeUrl, setUpgradeUrl] = useState('/plan-preview?feature=detailed-workouts');
 
   useEffect(() => {
     setOutput(session?.structured_workout ?? null);
     setNotesDraft('');
     setErrorMessage(null);
+    setPlusRequired(false);
+    setUpgradeUrl('/plan-preview?feature=detailed-workouts');
   }, [session?.id, session?.structured_workout, session?.details]);
 
   useEffect(() => {
@@ -247,6 +253,11 @@ export default function SessionModal({
     return [...base, { date: session.date, session_title: session.title, status: nextStatus }];
   };
 
+  const goToUpgrade = () => {
+    track('plus_upgrade_clicked', { feature: 'detailed_workouts', source: 'session_modal' });
+    router.push(upgradeUrl);
+  };
+
   const updateStatus = async (mode: 'done' | 'skipped') => {
     setMarking(true);
     setErrorMessage(null);
@@ -288,6 +299,7 @@ export default function SessionModal({
   const handleGenerate = async () => {
     setLoading(true);
     setErrorMessage(null);
+    setPlusRequired(false);
     try {
       const res = await fetch('/api/generate-detailed-session', {
         method: 'POST',
@@ -310,6 +322,13 @@ export default function SessionModal({
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.structured_workout) {
+        if (data?.code === 'PLUS_REQUIRED') {
+          setPlusRequired(true);
+          setUpgradeUrl(typeof data?.upgradeUrl === 'string' ? data.upgradeUrl : '/plan-preview?feature=detailed-workouts');
+          track('plus_gate_viewed', { feature: 'detailed_workouts', source: 'session_modal' });
+          return;
+        }
+
         setErrorMessage(data?.error || 'Failed to generate detailed workout.');
         return;
       }
@@ -418,16 +437,16 @@ export default function SessionModal({
               <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
                   <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Detailed workout</div>
-                  <div className="mt-1 text-[15px] font-semibold text-zinc-950">{workoutSections.length ? 'Warm-up, main set, cooldown' : 'Optional generated structure'}</div>
+                  <div className="mt-1 text-[15px] font-semibold text-zinc-950">{workoutSections.length ? 'Warm-up, main set, cooldown' : plusRequired ? 'TrainGPT Plus feature' : 'Optional generated structure'}</div>
                 </div>
                 <button
                   type="button"
-                  onClick={handleGenerate}
+                  onClick={plusRequired ? goToUpgrade : handleGenerate}
                   disabled={loading}
                   className="inline-flex items-center gap-2 rounded-xl bg-zinc-950 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
                 >
                   <SparkIcon className="h-4 w-4" />
-                  {loading ? 'Generating…' : workoutSections.length ? 'Regenerate' : 'Generate'}
+                  {loading ? 'Generating…' : plusRequired ? 'Unlock Plus' : workoutSections.length ? 'Regenerate' : 'Generate'}
                 </button>
               </div>
 
@@ -446,6 +465,26 @@ export default function SessionModal({
                       </ul>
                     </div>
                   ))}
+                </div>
+              ) : plusRequired ? (
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-950 p-5 text-white">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/45">TrainGPT Plus</div>
+                  <h3 className="mt-2 text-lg font-semibold tracking-tight">Unlock detailed workouts for every session.</h3>
+                  <p className="mt-2 text-[14px] leading-6 text-white/65">
+                    Generate warm-ups, main sets, cooldowns, and fueling guidance from your planned workout. Basic schedule access stays free.
+                  </p>
+                  <div className="mt-4 grid gap-2 text-[13px] text-white/75 sm:grid-cols-3">
+                    <div className="rounded-xl bg-white/10 px-3 py-2">Warmup</div>
+                    <div className="rounded-xl bg-white/10 px-3 py-2">Main set</div>
+                    <div className="rounded-xl bg-white/10 px-3 py-2">Fueling</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={goToUpgrade}
+                    className="mt-5 rounded-xl bg-white px-4 py-2.5 text-[13px] font-semibold text-zinc-950 hover:bg-zinc-100"
+                  >
+                    Upgrade to Plus
+                  </button>
                 </div>
               ) : (
                 <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-8 text-center text-[14px] leading-6 text-zinc-500">
@@ -521,8 +560,8 @@ export default function SessionModal({
               <button type="button" onClick={onClose} className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-[13px] font-semibold text-zinc-700 hover:bg-zinc-50">
                 Close
               </button>
-              <button type="button" onClick={handleGenerate} disabled={loading} className="rounded-xl bg-zinc-950 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-zinc-800 disabled:opacity-60">
-                {loading ? 'Generating…' : workoutSections.length ? 'Regenerate workout' : 'Generate workout'}
+              <button type="button" onClick={plusRequired ? goToUpgrade : handleGenerate} disabled={loading} className="rounded-xl bg-zinc-950 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-zinc-800 disabled:opacity-60">
+                {loading ? 'Generating…' : plusRequired ? 'Upgrade to Plus' : workoutSections.length ? 'Regenerate workout' : 'Generate workout'}
               </button>
             </div>
           </div>
