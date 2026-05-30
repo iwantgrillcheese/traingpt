@@ -7,6 +7,39 @@ type SignalProfile = {
   estimates?: Array<{ label?: string; value?: string; confidence?: string; rationale?: string }>;
 };
 
+function softenTitle(value?: string) {
+  return String(value ?? '')
+    .replace(/Big engine:/gi, 'Big day found:')
+    .replace(/Run speed signal:/gi, 'Fast run found:')
+    .replace(/Marathon strength:/gi, 'Marathon flex:')
+    .replace(/Swim data is thin/gi, 'Swim mystery unlocked')
+    .replace(/Run frequency looks light lately/gi, 'Run comeback loading')
+    .replace(/Training history connected/gi, 'Training history connected')
+    .trim();
+}
+
+function makeBody(title: string, body: string) {
+  const combined = `${title} ${body}`.toLowerCase();
+
+  if (combined.includes('ride') && (combined.includes('100') || combined.includes('90') || combined.includes('80'))) {
+    return `${body} WorldTour team on line one.`;
+  }
+
+  if (combined.includes('marathon')) {
+    return `${body} That is a serious durability receipt.`;
+  }
+
+  if (combined.includes('10k') || combined.includes('run speed')) {
+    return `${body} Okay, that is spicy.`;
+  }
+
+  if (combined.includes('swim')) {
+    return `${body} Very on-brand for triathlon. We will keep it friendly to start.`;
+  }
+
+  return body;
+}
+
 export default function ActivitySignalCards() {
   const [profile, setProfile] = useState<SignalProfile | null>(null);
   const [index, setIndex] = useState(0);
@@ -19,7 +52,7 @@ export default function ActivitySignalCards() {
       attempt += 1;
       try {
         const response = await fetch('/api/strava/training-profile', { cache: 'no-store' });
-        if (!response.ok) throw new Error('signals unavailable');
+        if (!response.ok) throw new Error('activity highlights unavailable');
         const json = (await response.json()) as SignalProfile;
         if (!cancelled) setProfile(json);
       } catch {
@@ -27,7 +60,7 @@ export default function ActivitySignalCards() {
       }
     }
 
-    const timer = window.setTimeout(loadSignals, 1600);
+    const timer = window.setTimeout(loadSignals, 1400);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
@@ -37,18 +70,22 @@ export default function ActivitySignalCards() {
   const cards = useMemo(() => {
     const calloutCards = (profile?.callouts ?? [])
       .filter((item) => item.title && item.body)
-      .map((item) => ({
-        kicker: item.tone === 'wow' ? 'Standout' : item.tone === 'caution' ? 'Coach note' : 'Signal found',
-        title: String(item.title),
-        text: String(item.body),
-      }));
+      .map((item) => {
+        const title = softenTitle(item.title);
+        const body = makeBody(title, String(item.body));
+        return {
+          kicker: item.tone === 'wow' ? 'Nice find' : 'Coach noticed',
+          title,
+          text: body,
+        };
+      });
 
     const estimateCards = (profile?.estimates ?? [])
       .filter((item) => item.label && item.value && !String(item.value).toLowerCase().includes('not enough'))
       .map((item) => ({
-        kicker: item.confidence === 'high' ? 'Strong estimate' : item.confidence === 'medium' ? 'Working estimate' : 'Early estimate',
+        kicker: 'Starting estimate',
         title: String(item.label),
-        text: `${item.value} — ${item.rationale ?? 'Review this before generating your plan.'}`,
+        text: `${item.value} — Not locked in. You can adjust this before the plan gets built.`,
       }));
 
     return [...calloutCards, ...estimateCards].slice(0, 6);
@@ -58,19 +95,23 @@ export default function ActivitySignalCards() {
     if (!cards.length) return;
     const timer = window.setInterval(() => {
       setIndex((current) => (current + 1) % cards.length);
-    }, 3000);
+    }, 3200);
     return () => window.clearInterval(timer);
   }, [cards.length]);
 
-  if (!cards.length) return null;
+  const fallbackCard = {
+    kicker: 'Training history found',
+    title: 'Your activities are connected',
+    text: 'TrainGPT is looking for the best stuff in your history so your plan starts with real context.',
+  };
 
-  const card = cards[index];
+  const card = cards[index] ?? fallbackCard;
 
   return (
-    <div className="absolute -left-4 bottom-4 max-w-[270px] rounded-2xl border border-white/10 bg-white/10 p-3 text-white shadow-2xl backdrop-blur">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/45">{card.kicker}</div>
-      <div className="mt-1 text-sm font-semibold leading-5">{card.title}</div>
-      <div className="mt-1 line-clamp-3 text-xs leading-5 text-white/70">{card.text}</div>
+    <div className="absolute left-1/2 top-[58%] z-10 w-[82%] max-w-[315px] -translate-x-1/2 rounded-[1.35rem] border border-white/15 bg-white/12 p-4 text-white shadow-2xl backdrop-blur-xl">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45">{card.kicker}</div>
+      <div className="mt-2 text-base font-semibold leading-5">{card.title}</div>
+      <div className="mt-2 text-xs leading-5 text-white/72">{card.text}</div>
     </div>
   );
 }
