@@ -24,7 +24,7 @@ export async function sendUpcomingWeekEmail({
   await resend.emails.send({
     from: 'TrainGPT <hello@traingpt.co>',
     to: email,
-    subject: `Your Upcoming Week — ${weekRange}`,
+    subject: `Weekly brief — ${weekRange}`,
     html,
   });
 }
