@@ -149,6 +149,10 @@ function itemHasDuration(item: unknown): boolean {
   return parseDurationMinutes(text) !== null;
 }
 
+function sessionMinutes(item: unknown): number | null {
+  return structuredDurationMinutes(item) ?? parseDurationMinutes(`${rawDetailsText(item)} ${itemText(item)}`);
+}
+
 function looksLikeLongRide(item: unknown) {
   if (!hasSport(item, 'bike')) return false;
 
@@ -156,7 +160,7 @@ function looksLikeLongRide(item: unknown) {
   if (type === 'long_ride') return true;
 
   // For structured sessions, only the title/type should classify the long ride.
-  // Details may mention \"long ride\" for context and should not move detection to that day.
+  // Details may mention "long ride" for context and should not move detection to that day.
   const title = rawTitleText(item).toLowerCase();
   if (/^long\s+ride$/.test(title) || /^bike\s+long\s+ride$/.test(title)) return true;
 
@@ -201,6 +205,31 @@ function isBrickRun(item: unknown) {
   if (isRecord(item)) return false;
 
   return /\bbrick\s+run\b|\brun\s+off\s+the\s+bike\b|\boff\s+the\s+bike\b/i.test(itemText(item));
+}
+
+function isShortStrengthOrMobility(item: unknown) {
+  if (!hasSport(item, 'strength')) return false;
+  const minutes = sessionMinutes(item);
+  return minutes === null || minutes <= 35;
+}
+
+function isAllowedSameDayPairingWhenTwoADaysDisabled(trainingItems: unknown[]) {
+  if (trainingItems.length <= 1) return true;
+  if (trainingItems.length > 2) return false;
+
+  const [first, second] = trainingItems;
+  const hasBike = trainingItems.some((item) => hasSport(item, 'bike'));
+  const hasBrickRun = trainingItems.some(isBrickRun);
+  const hasShortStrength = trainingItems.some(isShortStrengthOrMobility);
+  const hasEnduranceSession = trainingItems.some((item) => hasSport(item, 'swim') || hasSport(item, 'bike') || hasSport(item, 'run'));
+
+  // A bike + short brick run is one race-specific workout, not a problematic two-a-day.
+  if (hasBike && hasBrickRun) return true;
+
+  // Short strength/mobility paired with one endurance session is acceptable when athletes decline true two-a-days.
+  if (hasShortStrength && hasEnduranceSession && (isShortStrengthOrMobility(first) || isShortStrengthOrMobility(second))) return true;
+
+  return false;
 }
 
 function isHardBike(item: unknown) {
@@ -306,7 +335,6 @@ function experienceTierForValidation(experience: unknown): 'beginner' | 'interme
 function expectedPeakFloors(userParams: UserParams) {
   const family = raceFamilyForValidation(userParams.raceType);
   const tier = experienceTierForValidation(userParams.experience);
-
   if (family === 'sprint') return { longRide: tier === 'advanced' ? 70 : 50, longRun: tier === 'advanced' ? 45 : 30, brickRun: 8 };
   if (family === 'olympic') return { longRide: tier === 'advanced' ? 105 : tier === 'intermediate' ? 90 : 70, longRun: tier === 'advanced' ? 60 : 50, brickRun: 12 };
   if (family === 'half') return { longRide: tier === 'advanced' ? 180 : tier === 'intermediate' ? 150 : 120, longRun: tier === 'advanced' ? 90 : tier === 'intermediate' ? 75 : 65, brickRun: tier === 'advanced' ? 20 : 15 };
@@ -412,7 +440,7 @@ export function validateGeneratedPlan({
       totalSessions += trainingItems.length;
       trainingItems.forEach((item) => {
         allTrainingItems.push({ date, item });
-        const minutes = structuredDurationMinutes(item) ?? parseDurationMinutes(`${rawDetailsText(item)} ${itemText(item)}`);
+        const minutes = sessionMinutes(item);
         if (minutes) {
           if (looksLikeLongRide(item)) maxLongRideMinutes = Math.max(maxLongRideMinutes, minutes);
           if (looksLikeLongRun(item)) maxLongRunMinutes = Math.max(maxLongRunMinutes, minutes);
@@ -429,8 +457,8 @@ export function validateGeneratedPlan({
         warnings.push(`${label}: training scheduled on selected rest day ${restDay}.`);
       }
 
-      if (!twoADaysAllowed && trainingItems.length > 1) {
-        warnings.push(`${label}: ${dayName ?? date} has ${trainingItems.length} sessions even though two-a-days are disabled.`);
+      if (!twoADaysAllowed && trainingItems.length > 1 && !isAllowedSameDayPairingWhenTwoADaysDisabled(trainingItems)) {
+        warnings.push(`${label}: ${dayName ?? date} has ${trainingItems.length} separate sessions even though two-a-days are disabled.`);
       }
 
       if (trainingItems.length > 3) {
