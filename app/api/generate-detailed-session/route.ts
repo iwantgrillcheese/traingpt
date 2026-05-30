@@ -6,6 +6,7 @@ import {
   requireUser,
 } from '@/lib/supabase/server';
 import { stripUnsupportedParams } from '@/utils/openaiSafeParams';
+import { getBillingAccess, premiumFeatureResponse } from '@/lib/billing';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -46,6 +47,14 @@ export async function POST(req: Request) {
   try {
     const supabase = await createRouteSupabaseClient();
     const user = await requireUser(supabase);
+    const billing = await getBillingAccess(supabase, user.id);
+
+    if (!billing.isPlusActive) {
+      return NextResponse.json(
+        premiumFeatureResponse('Detailed workout generation', '/plan-preview?feature=detailed-workouts'),
+        { status: 402 }
+      );
+    }
 
     const body = (await req.json()) as GenerateDetailedSessionPayload;
 
