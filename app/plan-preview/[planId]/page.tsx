@@ -73,12 +73,12 @@ function summarizeWeeklyVolume(plan: any) {
   return `${low}–${high} hours per week`;
 }
 
-function uniquePhases(plan: any) {
+function uniquePhases(plan: any): string[] {
   const phases = (Array.isArray(plan?.weeks) ? plan.weeks : [])
     .map((week: any) => (typeof week?.phase === 'string' ? week.phase.trim() : ''))
-    .filter(Boolean);
+    .filter((phase: string): phase is string => Boolean(phase));
 
-  return Array.from(new Set(phases)).slice(0, 5);
+  return Array.from(new Set<string>(phases)).slice(0, 5);
 }
 
 export const dynamic = 'force-dynamic';
@@ -168,6 +168,7 @@ export default function PlanPreviewPage() {
   }, [checkoutStatus, planId, router]);
 
   const phases = useMemo(() => uniquePhases(plan?.plan), [plan?.plan]);
+  const phaseLabels = phases.length ? phases : ['Base', 'Build', 'Peak', 'Taper'];
   const previewSessions = useMemo(() => extractPreviewSessions(plan?.plan), [plan?.plan]);
   const weekCount = Array.isArray(plan?.plan?.weeks) ? plan?.plan?.weeks.length : 0;
   const weeklyVolume = summarizeWeeklyVolume(plan?.plan);
@@ -277,12 +278,12 @@ export default function PlanPreviewPage() {
 
               <div className="mt-8 rounded-3xl border border-zinc-200 bg-white p-5">
                 <div className="flex flex-wrap items-center gap-2">
-                  {(phases.length ? phases : ['Base', 'Build', 'Peak', 'Taper']).map((phase, index) => (
-                    <React.Fragment key={phase}>
+                  {phaseLabels.map((phase, index) => (
+                    <React.Fragment key={`${phase}-${index}`}>
                       <span className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-semibold text-zinc-700">
                         {phase}
                       </span>
-                      {index < (phases.length ? phases.length : 4) - 1 ? <span className="text-zinc-300">→</span> : null}
+                      {index < phaseLabels.length - 1 ? <span className="text-zinc-300">→</span> : null}
                     </React.Fragment>
                   ))}
                 </div>
