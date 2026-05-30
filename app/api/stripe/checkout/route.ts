@@ -85,10 +85,10 @@ export async function POST(req: Request) {
         metadata: { userId: user.id },
       })).id;
 
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
-    if (!baseUrl) {
-      throw new Error('Missing NEXT_PUBLIC_BASE_URL in env');
-    }
+    const requestUrl = new URL(req.url);
+    const requestProto = req.headers.get('x-forwarded-proto') || requestUrl.protocol.replace(':', '');
+    const requestHost = req.headers.get('x-forwarded-host') || req.headers.get('host') || requestUrl.host;
+    const baseUrl = `${requestProto}://${requestHost}`;
 
     const stripePriceId = process.env.STRIPE_PRICE_ID;
     if (!stripePriceId) {
