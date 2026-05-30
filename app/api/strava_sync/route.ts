@@ -258,23 +258,29 @@ export async function POST() {
       });
     }
 
-    const { error: insertError } = await supabase
+    const { data: upsertedRows, error: upsertError } = await supabase
       .from('strava_activities')
-      .insert(detailedActivities);
+      .upsert(detailedActivities, {
+        onConflict: 'strava_id',
+        ignoreDuplicates: true,
+      })
+      .select('strava_id');
 
-    if (insertError) {
-      console.error('[strava_sync] insert failed:', insertError);
+    if (upsertError) {
+      console.error('[strava_sync] upsert failed:', upsertError);
 
       return NextResponse.json(
-        { error: insertError.message },
+        { error: upsertError.message },
         { status: 500 }
       );
     }
 
+    const inserted = Array.isArray(upsertedRows) ? upsertedRows.length : 0;
+
     return NextResponse.json({
-      inserted: detailedActivities.length,
+      inserted,
       totalFetched: summaryList.length,
-      skippedExisting: summaryList.length - detailedActivities.length,
+      skippedExisting: summaryList.length - inserted,
     });
   } catch (error) {
     console.error('[strava_sync] failed:', error);
