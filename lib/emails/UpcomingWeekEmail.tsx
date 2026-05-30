@@ -41,10 +41,12 @@ export function UpcomingWeekEmail({
   groupedSessions: Record<string, GroupedSession[]>;
   summary: WeeklySummary;
 }) {
+  const previewText = `${summary.sessionCount} sessions planned for ${weekRange}`;
+
   return (
     <Html>
       <Head />
-      <Preview>{summary.sessionCount} sessions planned for {weekRange}</Preview>
+      <Preview>{previewText}</Preview>
       <Body style={styles.body}>
         <Container style={styles.container}>
           <Section style={styles.hero}>
@@ -57,7 +59,7 @@ export function UpcomingWeekEmail({
             <div style={styles.summaryGrid}>
               <div style={styles.summaryItem}>
                 <Text style={styles.summaryLabel}>Sessions</Text>
-                <Text style={styles.summaryValue}>{summary.sessionCount}</Text>
+                <Text style={styles.summaryValue}>{String(summary.sessionCount)}</Text>
               </div>
               <div style={styles.summaryItem}>
                 <Text style={styles.summaryLabel}>Planned time</Text>
