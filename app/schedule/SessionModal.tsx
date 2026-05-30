@@ -167,6 +167,14 @@ function metaPill(label: string) {
   return <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-[12px] font-medium text-zinc-600">{label}</span>;
 }
 
+function PlusPill() {
+  return (
+    <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-950 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-white">
+      Plus
+    </span>
+  );
+}
+
 export default function SessionModal({
   session,
   stravaActivity,
@@ -194,15 +202,15 @@ export default function SessionModal({
   const [sweatRateLPerHour, setSweatRateLPerHour] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [plusRequired, setPlusRequired] = useState(false);
-  const [upgradeUrl, setUpgradeUrl] = useState('/plan-preview?feature=detailed-workouts');
+  const [upgradeUrl, setUpgradeUrl] = useState('/settings');
 
   useEffect(() => {
     setOutput(session?.structured_workout ?? null);
     setNotesDraft('');
     setErrorMessage(null);
     setPlusRequired(false);
-    setUpgradeUrl('/plan-preview?feature=detailed-workouts');
-  }, [session?.id, session?.structured_workout, session?.details]);
+    setUpgradeUrl(session?.plan_id ? `/plan-preview/${session.plan_id}?feature=detailed-workouts` : '/settings');
+  }, [session?.id, session?.structured_workout, session?.details, session?.plan_id]);
 
   useEffect(() => {
     if (!open || !session?.id) return;
@@ -324,7 +332,13 @@ export default function SessionModal({
       if (!res.ok || !data?.structured_workout) {
         if (data?.code === 'PLUS_REQUIRED') {
           setPlusRequired(true);
-          setUpgradeUrl(typeof data?.upgradeUrl === 'string' ? data.upgradeUrl : '/plan-preview?feature=detailed-workouts');
+          setUpgradeUrl(
+            session.plan_id
+              ? `/plan-preview/${session.plan_id}?feature=detailed-workouts`
+              : typeof data?.upgradeUrl === 'string'
+                ? data.upgradeUrl
+                : '/settings'
+          );
           track('plus_gate_viewed', { feature: 'detailed_workouts', source: 'session_modal' });
           return;
         }
@@ -436,8 +450,11 @@ export default function SessionModal({
             <section className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4">
               <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Detailed workout</div>
-                  <div className="mt-1 text-[15px] font-semibold text-zinc-950">{workoutSections.length ? 'Warm-up, main set, cooldown' : plusRequired ? 'TrainGPT Plus feature' : 'Optional generated structure'}</div>
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">
+                    <span>Detailed workout</span>
+                    <PlusPill />
+                  </div>
+                  <div className="mt-1 text-[15px] font-semibold text-zinc-950">{workoutSections.length ? 'Warm-up, main set, cooldown' : plusRequired ? 'TrainGPT Plus feature' : 'Generate structured workout details'}</div>
                 </div>
                 <button
                   type="button"
@@ -446,7 +463,7 @@ export default function SessionModal({
                   className="inline-flex items-center gap-2 rounded-xl bg-zinc-950 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
                 >
                   <SparkIcon className="h-4 w-4" />
-                  {loading ? 'Generating…' : plusRequired ? 'Unlock Plus' : workoutSections.length ? 'Regenerate' : 'Generate'}
+                  {loading ? 'Generating…' : plusRequired ? 'Unlock Plus' : workoutSections.length ? 'Regenerate with Plus' : 'Generate with Plus'}
                 </button>
               </div>
 
@@ -468,7 +485,9 @@ export default function SessionModal({
                 </div>
               ) : plusRequired ? (
                 <div className="rounded-2xl border border-zinc-200 bg-zinc-950 p-5 text-white">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/45">TrainGPT Plus</div>
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/45">
+                    <span>TrainGPT Plus only</span>
+                  </div>
                   <h3 className="mt-2 text-lg font-semibold tracking-tight">Unlock detailed workouts for every session.</h3>
                   <p className="mt-2 text-[14px] leading-6 text-white/65">
                     Generate warm-ups, main sets, cooldowns, and fueling guidance from your planned workout. Basic schedule access stays free.
@@ -488,7 +507,10 @@ export default function SessionModal({
                 </div>
               ) : (
                 <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-8 text-center text-[14px] leading-6 text-zinc-500">
-                  Generate a more structured version with warm-up, main set, and cool-down steps.
+                  <div className="mx-auto mb-3 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                    <span>TrainGPT Plus only</span>
+                  </div>
+                  <p>Generate a more structured version with warm-up, main set, and cool-down steps.</p>
                 </div>
               )}
             </section>
@@ -536,8 +558,11 @@ export default function SessionModal({
             <section className="mt-4 rounded-2xl border border-zinc-200 bg-white p-4">
               <label className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-[13px] font-semibold text-zinc-950">Add fueling guidance</div>
-                  <div className="mt-1 text-[13px] leading-5 text-zinc-500">Optional. Included next time you generate the workout.</div>
+                  <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-zinc-950">
+                    <span>Add fueling guidance</span>
+                    <PlusPill />
+                  </div>
+                  <div className="mt-1 text-[13px] leading-5 text-zinc-500">Included with detailed workout generation.</div>
                 </div>
                 <input type="checkbox" checked={fuelingEnabled} onChange={(event) => setFuelingEnabled(event.target.checked)} className="mt-1 h-4 w-4" />
               </label>
@@ -561,7 +586,7 @@ export default function SessionModal({
                 Close
               </button>
               <button type="button" onClick={plusRequired ? goToUpgrade : handleGenerate} disabled={loading} className="rounded-xl bg-zinc-950 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-zinc-800 disabled:opacity-60">
-                {loading ? 'Generating…' : plusRequired ? 'Upgrade to Plus' : workoutSections.length ? 'Regenerate workout' : 'Generate workout'}
+                {loading ? 'Generating…' : plusRequired ? 'Upgrade to Plus' : workoutSections.length ? 'Regenerate with Plus' : 'Generate with Plus'}
               </button>
             </div>
           </div>
