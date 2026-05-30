@@ -13,17 +13,6 @@ type PlanRow = {
   plan: any;
 };
 
-type ProfileRow = {
-  id: string;
-  email: string | null;
-  full_name?: string | null;
-  name?: string | null;
-};
-
-function getAthleteName(profile: ProfileRow | null | undefined) {
-  return profile?.full_name || profile?.name || 'Athlete';
-}
-
 function getPlanLabel(planRow: PlanRow | null | undefined) {
   const raceType = planRow?.race_type || planRow?.plan?.params?.raceType;
   const raceDate = planRow?.race_date || planRow?.plan?.params?.raceDate;
@@ -55,7 +44,7 @@ export async function POST(req: Request) {
 
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('id, email, full_name, name')
+      .select('id, email')
       .eq('id', userId)
       .maybeSingle();
 
@@ -80,7 +69,7 @@ export async function POST(req: Request) {
 
     await sendWelcomeEmail({
       to: profile.email,
-      name: getAthleteName(profile),
+      name: 'Athlete',
       plan: getPlanLabel(planRow),
     });
 
