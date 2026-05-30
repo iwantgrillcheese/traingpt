@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { track } from '@/lib/analytics/posthog-client';
@@ -48,6 +48,20 @@ type LatestPlanParams = Partial<{
   coachingPriorities: string[];
 }>;
 
+type StravaRow = {
+  sport_type: string | null;
+  moving_time: number | null;
+  start_date: string | null;
+};
+
+type StravaSummary = {
+  activityCount: number;
+  totalHours: number;
+  runCount: number;
+  bikeCount: number;
+  swimCount: number;
+};
+
 const DAYS: DayName[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 const RACE_TYPES = [
@@ -62,21 +76,9 @@ const RACE_TYPES = [
 ];
 
 const EXPERIENCE_OPTIONS = [
-  {
-    value: 'Beginner',
-    title: 'Newer athlete',
-    desc: 'I need a conservative build and clear structure.',
-  },
-  {
-    value: 'Intermediate',
-    title: 'Consistent trainer',
-    desc: 'I train regularly and want a realistic race build.',
-  },
-  {
-    value: 'Advanced',
-    title: 'Experienced racer',
-    desc: 'I can handle more specificity and bigger weeks.',
-  },
+  { value: 'Beginner', title: 'Newer athlete', desc: 'I need a conservative build and clear structure.' },
+  { value: 'Intermediate', title: 'Consistent trainer', desc: 'I train regularly and want a realistic race build.' },
+  { value: 'Advanced', title: 'Experienced racer', desc: 'I can handle more specificity and bigger weeks.' },
 ];
 
 const SWIM_OPTIONS = [
@@ -123,6 +125,8 @@ const INITIAL_FORM: FormState = {
   paceUnit: 'mi',
 };
 
+const PLAN_DRAFT_KEY = 'traingpt:plan-builder-draft:v1';
+
 function isRunningRace(raceType: string) {
   return ['5k', '10k', 'Half Marathon', 'Marathon'].includes(raceType);
 }
@@ -131,27 +135,60 @@ function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(' ');
 }
 
-function normalizeStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean);
-}
-
 function formatHours(value: number | null | undefined) {
   if (!Number.isFinite(value ?? Number.NaN)) return '—';
   return `${Number(value).toFixed(1)}h`;
 }
 
-function OptionCard({
-  active,
-  title,
-  desc,
-  onClick,
-}: {
-  active: boolean;
-  title: string;
-  desc?: string;
-  onClick: () => void;
-}) {
+function isDayName(value: unknown): value is DayName {
+  return typeof value === 'string' && DAYS.includes(value as DayName);
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean);
+}
+
+function sanitizeFormDraft(value: unknown): FormState | null {
+  if (!value || typeof value !== 'object') return null;
+  const source = value as Partial<FormState>;
+
+  return {
+    raceType: typeof source.raceType === 'string' ? source.raceType : '',
+    raceDate: typeof source.raceDate === 'string' ? source.raceDate : '',
+    experience: typeof source.experience === 'string' ? source.experience : '',
+    maxHours: typeof source.maxHours === 'string' ? source.maxHours : '',
+    restDay: isDayName(source.restDay) ? source.restDay : 'Monday',
+    preferredLongRideDay: isDayName(source.preferredLongRideDay) ? source.preferredLongRideDay : 'Saturday',
+    preferredLongRunDay: isDayName(source.preferredLongRunDay) ? source.preferredLongRunDay : 'Sunday',
+    unavailableDays: normalizeStringArray(source.unavailableDays).filter(isDayName),
+    swimComfort: typeof source.swimComfort === 'string' ? source.swimComfort : '',
+    twoADaysAllowed: typeof source.twoADaysAllowed === 'boolean' ? source.twoADaysAllowed : false,
+    athleteNotes: typeof source.athleteNotes === 'string' ? source.athleteNotes : '',
+    coachingPriorities: normalizeStringArray(source.coachingPriorities),
+    bikeFTP: typeof source.bikeFTP === 'string' ? source.bikeFTP : '',
+    runPace: typeof source.runPace === 'string' ? source.runPace : '',
+    swimPace: typeof source.swimPace === 'string' ? source.swimPace : '',
+    paceUnit: source.paceUnit === 'km' ? 'km' : 'mi',
+  };
+}
+
+function summarizeStravaRows(rows: StravaRow[]): StravaSummary | null {
+  if (!rows.length) return null;
+
+  const sportCount = (sport: string) =>
+    rows.filter((row) => String(row.sport_type ?? '').toLowerCase() === sport).length;
+
+  return {
+    activityCount: rows.length,
+    totalHours: rows.reduce((acc, row) => acc + ((row.moving_time ?? 0) / 3600), 0),
+    runCount: sportCount('run'),
+    bikeCount: sportCount('bike'),
+    swimCount: sportCount('swim'),
+  };
+}
+
+function OptionCard({ active, title, desc, onClick }: { active: boolean; title: string; desc?: string; onClick: () => void }) {
   return (
     <button
       type="button"
@@ -220,18 +257,14 @@ function DayToggle({ day, active, onClick }: { day: DayName; active: boolean; on
 function PlanPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const restoredDraftRef = useRef(false);
+
   const [activeStep, setActiveStep] = useState(0);
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [sessionChecked, setSessionChecked] = useState(false);
   const [hasPlan, setHasPlan] = useState(false);
   const [stravaConnected, setStravaConnected] = useState(false);
-  const [stravaSummary, setStravaSummary] = useState<{
-    activityCount: number;
-    totalHours: number;
-    runCount: number;
-    bikeCount: number;
-    swimCount: number;
-  } | null>(null);
+  const [stravaSummary, setStravaSummary] = useState<StravaSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [statusLine, setStatusLine] = useState('');
@@ -244,12 +277,62 @@ function PlanPageContent() {
     if (!clientId || typeof window === 'undefined') return '/settings';
 
     const callback = `${window.location.origin}/api/strava/callback`;
-    const returnTo = '/plan?source=strava';
+    const returnTo = '/plan?source=strava&step=history';
 
     return `https://www.strava.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(
       callback
     )}&scope=activity:read_all,profile:read_all&approval_prompt=auto&state=${encodeURIComponent(returnTo)}`;
   }, []);
+
+  const savePlanDraft = useCallback(() => {
+    try {
+      sessionStorage.setItem(
+        PLAN_DRAFT_KEY,
+        JSON.stringify({ form, activeStep, savedAt: Date.now() })
+      );
+    } catch (err) {
+      console.warn('[plan] failed to save plan draft before Strava OAuth', err);
+    }
+  }, [activeStep, form]);
+
+  useEffect(() => {
+    const source = searchParams?.get('source');
+    const step = searchParams?.get('step');
+    const callbackError = searchParams?.get('error');
+
+    if (callbackError) {
+      setError(callbackError === 'no_user_session'
+        ? 'Your session was not available after connecting Strava. Please refresh and try again.'
+        : 'Strava connection did not complete. Please try again.'
+      );
+    }
+
+    if (source !== 'strava') return;
+
+    try {
+      const raw = sessionStorage.getItem(PLAN_DRAFT_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { form?: unknown; activeStep?: unknown; savedAt?: unknown };
+        const draft = sanitizeFormDraft(parsed.form);
+        const savedAt = Number(parsed.savedAt ?? 0);
+        const isFresh = Number.isFinite(savedAt) && Date.now() - savedAt < 60 * 60 * 1000;
+
+        if (draft && isFresh) {
+          setForm(draft);
+          setActiveStep(
+            Number.isInteger(parsed.activeStep) ? Math.min(Math.max(Number(parsed.activeStep), 0), STEPS.length - 1) : 3
+          );
+          restoredDraftRef.current = true;
+        }
+
+        sessionStorage.removeItem(PLAN_DRAFT_KEY);
+      }
+    } catch (err) {
+      console.warn('[plan] failed to restore Strava OAuth draft', err);
+    }
+
+    if (step === 'history') setActiveStep(3);
+  }, [searchParams]);
 
   useEffect(() => {
     const prefillFromSearch = () => {
@@ -264,6 +347,25 @@ function PlanPageContent() {
     prefillFromSearch();
   }, [searchParams]);
 
+  const loadStravaRows = useCallback(async (userId: string) => {
+    const sinceISO = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { data, error: stravaError } = await supabase
+      .from('strava_activities')
+      .select('sport_type,moving_time,start_date')
+      .eq('user_id', userId)
+      .gte('start_date', sinceISO)
+      .order('start_date', { ascending: false })
+      .limit(250);
+
+    if (stravaError) {
+      console.error('[plan] Strava activity lookup failed', stravaError);
+      return [] as StravaRow[];
+    }
+
+    return (Array.isArray(data) ? data : []) as StravaRow[];
+  }, []);
+
   useEffect(() => {
     const load = async () => {
       const {
@@ -275,9 +377,7 @@ function PlanPageContent() {
         return;
       }
 
-      const sinceISO = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
-
-      const [planRes, profileRes, stravaRes] = await Promise.all([
+      const [planRes, profileRes] = await Promise.all([
         supabase
           .from('plans')
           .select('race_type, race_date, plan')
@@ -286,16 +386,9 @@ function PlanPageContent() {
           .limit(1)
           .maybeSingle(),
         supabase.from('profiles').select('strava_access_token').eq('id', session.user.id).maybeSingle(),
-        supabase
-          .from('strava_activities')
-          .select('sport_type,moving_time,start_date')
-          .eq('user_id', session.user.id)
-          .gte('start_date', sinceISO)
-          .order('start_date', { ascending: false })
-          .limit(250),
       ]);
 
-      if (planRes.data) {
+      if (planRes.data && !restoredDraftRef.current) {
         setHasPlan(true);
         const params = ((planRes.data as any).plan?.params ?? {}) as LatestPlanParams;
         setForm((prev) => ({
@@ -317,24 +410,23 @@ function PlanPageContent() {
           athleteNotes: params.athleteNotes ?? prev.athleteNotes,
           coachingPriorities: Array.isArray(params.coachingPriorities) ? params.coachingPriorities : prev.coachingPriorities,
         }));
+      } else if (planRes.data) {
+        setHasPlan(true);
       }
 
-      setStravaConnected(Boolean((profileRes.data as any)?.strava_access_token));
+      const hasStravaToken = Boolean((profileRes.data as any)?.strava_access_token);
+      setStravaConnected(hasStravaToken);
 
-      const rows = Array.isArray(stravaRes.data) ? stravaRes.data : [];
-      if (rows.length) {
-        const totalHours = rows.reduce((acc: number, row: any) => acc + ((row.moving_time ?? 0) / 3600), 0);
-        const sportCount = (sport: string) =>
-          rows.filter((row: any) => String(row.sport_type ?? '').toLowerCase() === sport).length;
-        setStravaSummary({
-          activityCount: rows.length,
-          totalHours,
-          runCount: sportCount('run'),
-          bikeCount: sportCount('bike'),
-          swimCount: sportCount('swim'),
-        });
+      if (hasStravaToken && searchParams?.get('sync') === 'needed') {
+        try {
+          await fetch('/api/strava_sync', { method: 'POST' });
+        } catch (err) {
+          console.warn('[plan] post-connect Strava sync failed', err);
+        }
       }
 
+      const rows = await loadStravaRows(session.user.id);
+      setStravaSummary(summarizeStravaRows(rows));
       setSessionChecked(true);
     };
 
@@ -343,7 +435,7 @@ function PlanPageContent() {
       setError('We could not load your plan settings. Refresh and try again.');
       setSessionChecked(true);
     });
-  }, [router]);
+  }, [loadStravaRows, router, searchParams]);
 
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -380,9 +472,7 @@ function PlanPageContent() {
     setActiveStep((prev) => Math.min(prev + 1, STEPS.length - 1));
   };
 
-  const prevStep = () => {
-    setActiveStep((prev) => Math.max(prev - 1, 0));
-  };
+  const prevStep = () => setActiveStep((prev) => Math.max(prev - 1, 0));
 
   const submitPlan = async () => {
     setError('');
@@ -592,20 +682,13 @@ function PlanPageContent() {
               <div className="text-sm text-zinc-400">{activeStep + 1} / {STEPS.length}</div>
             </div>
 
-            {error ? (
-              <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
-            ) : null}
+            {error ? <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
 
             {currentStep.key === 'goal' ? (
               <div className="space-y-6">
                 <div className="grid gap-3 sm:grid-cols-2">
                   {RACE_TYPES.map((race) => (
-                    <OptionCard
-                      key={race}
-                      active={form.raceType === race}
-                      title={race}
-                      onClick={() => setField('raceType', race)}
-                    />
+                    <OptionCard key={race} active={form.raceType === race} title={race} onClick={() => setField('raceType', race)} />
                   ))}
                 </div>
                 <div className="grid gap-3 sm:grid-cols-[1fr_260px] sm:items-center">
@@ -733,7 +816,14 @@ function PlanPageContent() {
                     {stravaConnected ? (
                       <span className="rounded-full bg-white px-4 py-2 text-sm font-medium text-zinc-700 ring-1 ring-zinc-200">Connected</span>
                     ) : (
-                      <a href={stravaConnectHref} className="rounded-full bg-zinc-950 px-5 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800">
+                      <a
+                        href={stravaConnectHref}
+                        onClick={() => {
+                          savePlanDraft();
+                          track('strava_connect_clicked', { source: 'plan_builder' });
+                        }}
+                        className="rounded-full bg-zinc-950 px-5 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800"
+                      >
                         Connect Strava
                       </a>
                     )}
@@ -743,7 +833,7 @@ function PlanPageContent() {
                       <div><span className="block text-zinc-400">Activities</span><span className="font-medium text-zinc-950">{stravaSummary.activityCount}</span></div>
                       <div><span className="block text-zinc-400">Time</span><span className="font-medium text-zinc-950">{formatHours(stravaSummary.totalHours)}</span></div>
                       <div><span className="block text-zinc-400">Run / Bike / Swim</span><span className="font-medium text-zinc-950">{stravaSummary.runCount} / {stravaSummary.bikeCount} / {stravaSummary.swimCount}</span></div>
-                      <div><span className="block text-zinc-400">Used now</span><span className="font-medium text-zinc-950">Light calibration</span></div>
+                      <div><span className="block text-zinc-400">Used now</span><span className="font-medium text-zinc-950">Plan calibration</span></div>
                     </div>
                   ) : null}
                 </div>
