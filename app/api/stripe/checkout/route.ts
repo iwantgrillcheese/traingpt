@@ -19,6 +19,20 @@ function buildCancelPath(planId?: string | null) {
   return `/plan-preview/${encodeURIComponent(safePlanId)}?checkout=cancelled`;
 }
 
+function getInternalTestEmails() {
+  return (process.env.STRIPE_INTERNAL_TEST_EMAILS ?? '')
+    .split(',')
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function shouldApplyInternalTestPromotion(email?: string | null) {
+  const promotionCode = process.env.STRIPE_INTERNAL_TEST_PROMOTION_CODE_ID?.trim();
+  if (!promotionCode || !email) return false;
+
+  return getInternalTestEmails().includes(email.toLowerCase());
+}
+
 export async function POST(req: Request) {
   try {
     const supabase = await createRouteSupabaseClient();
@@ -76,10 +90,20 @@ export async function POST(req: Request) {
       throw new Error('Missing STRIPE_PRICE_ID in env');
     }
 
+    const internalPromotionCodeId = shouldApplyInternalTestPromotion(user.email)
+      ? process.env.STRIPE_INTERNAL_TEST_PROMOTION_CODE_ID?.trim()
+      : undefined;
+
     const checkoutSession = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: 'subscription',
       line_items: [{ price: stripePriceId, quantity: 1 }],
+      allow_promotion_codes: true,
+      ...(internalPromotionCodeId
+        ? {
+            discounts: [{ promotion_code: internalPromotionCodeId }],
+          }
+        : {}),
       success_url: `${baseUrl}${buildSuccessPath(planId)}`,
       cancel_url: `${baseUrl}${buildCancelPath(planId)}`,
       metadata: {
