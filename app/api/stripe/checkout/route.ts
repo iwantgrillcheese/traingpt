@@ -5,15 +5,18 @@ import { getStripeClient } from '@/utils/stripe';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function buildReturnPath(planId?: string | null, status?: 'success' | 'cancelled') {
+function buildSuccessPath(planId?: string | null) {
+  const safePlanId = typeof planId === 'string' && planId.trim() ? planId.trim() : null;
+  const planParam = safePlanId ? `&planId=${encodeURIComponent(safePlanId)}` : '';
+
+  return `/payment/success?session_id={CHECKOUT_SESSION_ID}${planParam}`;
+}
+
+function buildCancelPath(planId?: string | null) {
   const safePlanId = typeof planId === 'string' && planId.trim() ? planId.trim() : null;
 
-  if (!safePlanId) {
-    return status === 'success' ? '/schedule?upgraded=true' : '/schedule';
-  }
-
-  const suffix = status ? `?checkout=${status}` : '';
-  return `/plan-preview/${encodeURIComponent(safePlanId)}${suffix}`;
+  if (!safePlanId) return '/schedule';
+  return `/plan-preview/${encodeURIComponent(safePlanId)}?checkout=cancelled`;
 }
 
 export async function POST(req: Request) {
@@ -77,8 +80,8 @@ export async function POST(req: Request) {
       customer: customerId,
       mode: 'subscription',
       line_items: [{ price: stripePriceId, quantity: 1 }],
-      success_url: `${baseUrl}${buildReturnPath(planId, 'success')}`,
-      cancel_url: `${baseUrl}${buildReturnPath(planId, 'cancelled')}`,
+      success_url: `${baseUrl}${buildSuccessPath(planId)}`,
+      cancel_url: `${baseUrl}${buildCancelPath(planId)}`,
       metadata: {
         userId: user.id,
         ...(planId ? { planId } : {}),
