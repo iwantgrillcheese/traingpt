@@ -134,7 +134,7 @@ export default function ActivitySignalCards() {
     if (!cards.length) return;
     const timer = window.setInterval(() => {
       setIndex((current) => (current + 1) % cards.length);
-    }, 3400);
+    }, 5600);
     return () => window.clearInterval(timer);
   }, [cards.length]);
 
@@ -149,33 +149,33 @@ export default function ActivitySignalCards() {
   const card = cards[index] ?? fallbackCard;
 
   return (
-    <div className="absolute left-1/2 top-[53%] z-10 w-[84%] max-w-[315px] -translate-x-1/2 -translate-y-1/2">
-      <div className="absolute -inset-8 rounded-full bg-amber-200/20 blur-3xl" />
-      <div className="relative overflow-hidden rounded-[1.65rem] border border-amber-200/40 bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-950 p-[1px] text-white shadow-[0_30px_80px_rgba(0,0,0,0.55)]">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_0%,rgba(252,211,77,0.30),transparent_38%),radial-gradient(circle_at_90%_20%,rgba(255,255,255,0.14),transparent_32%)]" />
-        <div className="absolute -left-1/2 top-0 h-full w-1/2 rotate-12 bg-gradient-to-r from-transparent via-white/25 to-transparent" style={{ animation: 'shine 2.8s ease-in-out infinite' }} />
-        <div className="relative rounded-[1.58rem] border border-white/10 bg-black/35 p-4 backdrop-blur">
+    <div className="absolute left-1/2 top-[52%] z-10 w-[92%] max-w-[390px] -translate-x-1/2 -translate-y-1/2">
+      <div className="absolute -inset-12 rounded-full bg-amber-200/25 blur-3xl" />
+      <div className="relative overflow-hidden rounded-[2rem] border border-amber-200/45 bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-950 p-[1px] text-white shadow-[0_34px_100px_rgba(0,0,0,0.62)]">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_0%,rgba(252,211,77,0.35),transparent_40%),radial-gradient(circle_at_90%_20%,rgba(255,255,255,0.18),transparent_34%)]" />
+        <div className="absolute -left-1/2 top-0 h-full w-1/2 rotate-12 bg-gradient-to-r from-transparent via-white/25 to-transparent" style={{ animation: 'shine 3.6s ease-in-out infinite' }} />
+        <div className="relative rounded-[1.92rem] border border-white/10 bg-black/35 p-5 backdrop-blur">
           <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-100/70">{card.kicker}</div>
-              <div className="mt-1 text-[15px] font-semibold leading-5">{card.title}</div>
+            <div className="min-w-0">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-100/70">{card.kicker}</div>
+              <div className="mt-2 text-xl font-semibold leading-6 tracking-[-0.03em]">{card.title}</div>
             </div>
-            <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl border border-amber-200/30 bg-amber-200/15 text-2xl font-black tracking-[-0.08em] text-amber-100 shadow-inner">
+            <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl border border-amber-200/35 bg-amber-200/15 text-3xl font-black tracking-[-0.08em] text-amber-100 shadow-inner">
               {card.rating}
             </div>
           </div>
 
-          <div className="mt-5 rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-center">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">Best stat</div>
-            <div className="mt-1 text-3xl font-black tracking-[-0.08em] text-white">{card.stat}</div>
+          <div className="mt-6 rounded-[1.35rem] border border-white/10 bg-white/10 px-5 py-4 text-center shadow-inner">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40">Best stat</div>
+            <div className="mt-1 text-4xl font-black tracking-[-0.09em] text-white sm:text-5xl">{card.stat}</div>
           </div>
 
-          <p className="mt-4 text-xs leading-5 text-white/72">{card.text}</p>
+          <p className="mt-5 text-sm leading-6 text-white/76">{card.text}</p>
 
-          <div className="mt-4 grid grid-cols-3 gap-2 text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-white/55">
-            <div className="rounded-xl bg-white/8 px-2 py-2">Endurance</div>
-            <div className="rounded-xl bg-white/8 px-2 py-2">Grit</div>
-            <div className="rounded-xl bg-white/8 px-2 py-2">Form</div>
+          <div className="mt-5 grid grid-cols-3 gap-2 text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-white/58">
+            <div className="rounded-xl bg-white/8 px-2 py-2.5">Endurance</div>
+            <div className="rounded-xl bg-white/8 px-2 py-2.5">Grit</div>
+            <div className="rounded-xl bg-white/8 px-2 py-2.5">Form</div>
           </div>
         </div>
       </div>
@@ -183,7 +183,7 @@ export default function ActivitySignalCards() {
         @keyframes shine {
           0% { transform: translateX(-140%) rotate(12deg); opacity: 0; }
           30% { opacity: 1; }
-          60% { transform: translateX(360%) rotate(12deg); opacity: 0.7; }
+          62% { transform: translateX(360%) rotate(12deg); opacity: 0.75; }
           100% { transform: translateX(360%) rotate(12deg); opacity: 0; }
         }
       `}</style>
