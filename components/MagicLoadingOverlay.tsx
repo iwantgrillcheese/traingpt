@@ -16,29 +16,23 @@ const PLAN_STEPS = [
   'Mapping constraints across your weekly schedule',
   'Building base, build, peak, and taper blocks',
   'Placing long rides, long runs, recovery, and key sessions',
-  'Checking for overload, missing weeks, and unrealistic stacking',
+  'Checking for overload, gaps, and weird stacking',
   'Finalizing your calendar view',
 ];
 
 const STRAVA_STEPS = [
   'Connecting securely to Strava',
   'Importing recent swim, bike, and run activity',
-  'Reading volume, frequency, and training consistency',
-  'Looking for useful pace, power, and heart-rate signals',
-  'Building your athlete profile from real sessions',
-  'Preparing your training context',
+  'Finding your biggest training days',
+  'Pulling out PR-style moments',
+  'Estimating starting swim, bike, and run targets',
+  'Getting your plan inputs ready',
 ];
 
 const PLAN_SIGNAL_CARDS = [
   { label: 'Race build', value: 'Periodized' },
   { label: 'Recovery', value: 'Balanced' },
   { label: 'Session logic', value: 'Checked' },
-];
-
-const STRAVA_SIGNAL_CARDS = [
-  { label: 'Activities', value: 'Importing' },
-  { label: 'Sport mix', value: 'Reading' },
-  { label: 'Training signal', value: 'Calibrating' },
 ];
 
 export default function MagicLoadingOverlay({
@@ -49,7 +43,6 @@ export default function MagicLoadingOverlay({
   onClose,
 }: MagicLoadingOverlayProps) {
   const steps = mode === 'strava' ? STRAVA_STEPS : PLAN_STEPS;
-  const signalCards = mode === 'strava' ? STRAVA_SIGNAL_CARDS : PLAN_SIGNAL_CARDS;
   const [activeStep, setActiveStep] = useState(0);
   const [progress, setProgress] = useState(mode === 'strava' ? 12 : 8);
 
@@ -87,7 +80,7 @@ export default function MagicLoadingOverlay({
   const bodyCopy =
     subtitle ??
     (isStrava
-      ? 'TrainGPT is turning recent activities into useful training context so your plan starts from what you actually do.'
+      ? 'TrainGPT is finding the good stuff in your Strava history — big days, fast runs, and useful starting targets.'
       : 'TrainGPT is assembling a realistic race build, checking progression, recovery, session placement, and calendar readiness.');
 
   return (
@@ -119,7 +112,7 @@ export default function MagicLoadingOverlay({
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-40" />
                     <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
                   </span>
-                  {isStrava ? 'Live training import' : 'Training engine running'}
+                  {isStrava ? 'Training history import' : 'Training engine running'}
                 </div>
 
                 <h2 className="mt-6 max-w-xl text-4xl font-semibold tracking-[-0.055em] text-white sm:text-5xl">
@@ -150,43 +143,27 @@ export default function MagicLoadingOverlay({
                     </div>
                   </div>
 
-                  {isStrava ? <ActivitySignalCards /> : null}
+                  {isStrava ? (
+                    <ActivitySignalCards />
+                  ) : (
+                    PLAN_SIGNAL_CARDS.map((card, index) => {
+                      const positions = [
+                        'left-2 top-12',
+                        'right-0 top-1/2 -translate-y-1/2',
+                        'bottom-8 left-8',
+                      ];
 
-                  {!isStrava
-                    ? signalCards.map((card, index) => {
-                        const positions = [
-                          'left-2 top-12',
-                          'right-0 top-1/2 -translate-y-1/2',
-                          'bottom-8 left-8',
-                        ];
-
-                        return (
-                          <div
-                            key={card.label}
-                            className={`absolute ${positions[index]} rounded-2xl border border-white/10 bg-white/10 px-3 py-2 backdrop-blur`}
-                          >
-                            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40">{card.label}</div>
-                            <div className="mt-0.5 text-xs font-semibold text-white">{card.value}</div>
-                          </div>
-                        );
-                      })
-                    : signalCards.map((card, index) => {
-                        const positions = [
-                          'left-2 top-12',
-                          'right-0 top-1/2 -translate-y-1/2',
-                          'bottom-8 left-8',
-                        ];
-
-                        return (
-                          <div
-                            key={card.label}
-                            className={`absolute ${positions[index]} rounded-2xl border border-white/10 bg-white/10 px-3 py-2 backdrop-blur`}
-                          >
-                            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40">{card.label}</div>
-                            <div className="mt-0.5 text-xs font-semibold text-white">{card.value}</div>
-                          </div>
-                        );
-                      })}
+                      return (
+                        <div
+                          key={card.label}
+                          className={`absolute ${positions[index]} rounded-2xl border border-white/10 bg-white/10 px-3 py-2 backdrop-blur`}
+                        >
+                          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40">{card.label}</div>
+                          <div className="mt-0.5 text-xs font-semibold text-white">{card.value}</div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             </div>
@@ -196,10 +173,10 @@ export default function MagicLoadingOverlay({
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-400">
-                  {isStrava ? 'Training context' : 'Plan assembly'}
+                  {isStrava ? 'Training history' : 'Plan assembly'}
                 </p>
                 <h3 className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-zinc-950">
-                  {isStrava ? 'Finding the signal in your data.' : 'Turning inputs into a usable week-by-week plan.'}
+                  {isStrava ? 'Finding the best stuff in your year.' : 'Turning inputs into a usable week-by-week plan.'}
                 </h3>
               </div>
 
@@ -265,7 +242,7 @@ export default function MagicLoadingOverlay({
 
             <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-4 text-xs leading-5 text-zinc-500">
               {isStrava
-                ? 'TrainGPT is surfacing useful training signals while your activities finish syncing.'
+                ? 'TrainGPT is pulling up your biggest, fastest, most useful training moments while the import finishes.'
                 : 'Longer race plans can take a minute. Keep this tab open while TrainGPT completes the final quality checks.'}
             </div>
           </div>
