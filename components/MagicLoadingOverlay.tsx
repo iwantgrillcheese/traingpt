@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import ActivitySignalCards from './ActivitySignalCards';
 
 type MagicLoadingOverlayProps = {
   mode: 'plan' | 'strava';
@@ -149,23 +150,43 @@ export default function MagicLoadingOverlay({
                     </div>
                   </div>
 
-                  {signalCards.map((card, index) => {
-                    const positions = [
-                      'left-2 top-12',
-                      'right-0 top-1/2 -translate-y-1/2',
-                      'bottom-8 left-8',
-                    ];
+                  {isStrava ? <ActivitySignalCards /> : null}
 
-                    return (
-                      <div
-                        key={card.label}
-                        className={`absolute ${positions[index]} rounded-2xl border border-white/10 bg-white/10 px-3 py-2 backdrop-blur`}
-                      >
-                        <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40">{card.label}</div>
-                        <div className="mt-0.5 text-xs font-semibold text-white">{card.value}</div>
-                      </div>
-                    );
-                  })}
+                  {!isStrava
+                    ? signalCards.map((card, index) => {
+                        const positions = [
+                          'left-2 top-12',
+                          'right-0 top-1/2 -translate-y-1/2',
+                          'bottom-8 left-8',
+                        ];
+
+                        return (
+                          <div
+                            key={card.label}
+                            className={`absolute ${positions[index]} rounded-2xl border border-white/10 bg-white/10 px-3 py-2 backdrop-blur`}
+                          >
+                            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40">{card.label}</div>
+                            <div className="mt-0.5 text-xs font-semibold text-white">{card.value}</div>
+                          </div>
+                        );
+                      })
+                    : signalCards.map((card, index) => {
+                        const positions = [
+                          'left-2 top-12',
+                          'right-0 top-1/2 -translate-y-1/2',
+                          'bottom-8 left-8',
+                        ];
+
+                        return (
+                          <div
+                            key={card.label}
+                            className={`absolute ${positions[index]} rounded-2xl border border-white/10 bg-white/10 px-3 py-2 backdrop-blur`}
+                          >
+                            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40">{card.label}</div>
+                            <div className="mt-0.5 text-xs font-semibold text-white">{card.value}</div>
+                          </div>
+                        );
+                      })}
                 </div>
               </div>
             </div>
@@ -244,7 +265,7 @@ export default function MagicLoadingOverlay({
 
             <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-4 text-xs leading-5 text-zinc-500">
               {isStrava
-                ? 'You can continue filling out the plan builder while TrainGPT finishes reading your activities.'
+                ? 'TrainGPT is surfacing useful training signals while your activities finish syncing.'
                 : 'Longer race plans can take a minute. Keep this tab open while TrainGPT completes the final quality checks.'}
             </div>
           </div>
