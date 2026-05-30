@@ -90,7 +90,10 @@ export default function MagicLoadingOverlay({
       : 'TrainGPT is assembling a realistic race build, checking progression, recovery, session placement, and calendar readiness.');
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center overflow-hidden bg-[#f4f1ea]/95 px-4 backdrop-blur-2xl">
+    <div
+      data-training-processing-overlay="true"
+      className="fixed inset-0 z-[80] flex items-center justify-center overflow-hidden bg-[#f4f1ea]/95 px-4 backdrop-blur-2xl"
+    >
       <div className="pointer-events-none absolute inset-0 opacity-70">
         <div className="absolute left-1/2 top-[-18rem] h-[34rem] w-[34rem] -translate-x-1/2 rounded-full bg-white blur-3xl" />
         <div className="absolute bottom-[-20rem] left-[-10rem] h-[34rem] w-[34rem] rounded-full bg-amber-200/50 blur-3xl" />
