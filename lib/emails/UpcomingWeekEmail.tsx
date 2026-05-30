@@ -25,11 +25,11 @@ type WeeklySummary = {
 };
 
 const SPORT_COLORS: Record<string, string> = {
-  Swim: '#2563eb',
-  Bike: '#7c3aed',
-  Run: '#059669',
-  Strength: '#92400e',
-  Other: '#64748b',
+  Swim: '#00c2a8',
+  Bike: '#1668ff',
+  Run: '#111111',
+  Strength: '#8f98a3',
+  Other: '#8f98a3',
 };
 
 export function UpcomingWeekEmail({
@@ -49,47 +49,47 @@ export function UpcomingWeekEmail({
       <Preview>{previewText}</Preview>
       <Body style={styles.body}>
         <Container style={styles.container}>
-          <Section style={styles.hero}>
-            <Text style={styles.eyebrow}>TrainGPT weekly briefing</Text>
-            <Heading style={styles.heading}>Your training week is ready</Heading>
-            <Text style={styles.subheading}>{weekRange}</Text>
+          <Section style={styles.brandSection}>
+            <Text style={styles.brand}>TrainGPT</Text>
           </Section>
 
-          <Section style={styles.summaryCard}>
-            <div style={styles.summaryGrid}>
-              <div style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Sessions</Text>
-                <Text style={styles.summaryValue}>{String(summary.sessionCount)}</Text>
-              </div>
-              <div style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Planned time</Text>
-                <Text style={styles.summaryValue}>{summary.totalDuration ?? 'Set'}</Text>
-              </div>
-              <div style={styles.summaryItemWide}>
-                <Text style={styles.summaryLabel}>Focus</Text>
-                <Text style={styles.summaryText}>{summary.sportSummary}</Text>
-              </div>
+          <Section style={styles.heroSection}>
+            <Heading style={styles.heading}>Your training week is ready.</Heading>
+            <Text style={styles.dateText}>{weekRange}</Text>
+          </Section>
+
+          <Section style={styles.summarySection}>
+            <div style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Sessions</Text>
+              <Text style={styles.summaryValue}>{String(summary.sessionCount)}</Text>
+            </div>
+            <div style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Planned time</Text>
+              <Text style={styles.summaryValue}>{summary.totalDuration ?? 'Set'}</Text>
+            </div>
+            <div style={styles.summaryRowLast}>
+              <Text style={styles.summaryLabel}>Focus</Text>
+              <Text style={styles.summaryValue}>{summary.sportSummary}</Text>
             </div>
           </Section>
 
-          <Section style={styles.coachCard}>
-            <Text style={styles.coachTitle}>Coach note</Text>
-            <Text style={styles.coachText}>
-              Look over the week before Monday, move anything that conflicts with real life, and keep the key endurance sessions protected. Open your schedule if you want a detailed version of any workout.
+          <Section style={styles.noteSection}>
+            <Text style={styles.noteText}>
+              Review your week before Monday. Protect the key endurance work, move sessions that conflict with real life, and open any workout for more detail when you need it.
             </Text>
           </Section>
 
-          <Section style={styles.planCard}>
-            <Text style={styles.sectionTitle}>Week at a glance</Text>
+          <Section style={styles.weekSection}>
+            <Heading style={styles.sectionHeading}>Week at a glance</Heading>
             {Object.entries(groupedSessions).map(([day, sessions]) => (
               <div key={day} style={styles.dayRow}>
                 <div style={styles.dayColumn}>
-                  <Text style={styles.day}>{day}</Text>
+                  <Text style={styles.dayText}>{day}</Text>
                 </div>
                 <div style={styles.sessionColumn}>
                   {sessions.length ? (
                     sessions.map((session, index) => (
-                      <div key={`${day}-${index}`} style={styles.sessionPill}>
+                      <div key={`${day}-${index}`} style={styles.sessionItem}>
                         <span
                           style={{
                             ...styles.sportDot,
@@ -97,7 +97,7 @@ export function UpcomingWeekEmail({
                           }}
                         />
                         <span style={styles.sessionTitle}>{session.title}</span>
-                        {session.duration ? <span style={styles.duration}>{session.duration}</span> : null}
+                        {session.duration ? <span style={styles.durationText}>{session.duration}</span> : null}
                       </div>
                     ))
                   ) : (
@@ -108,22 +108,31 @@ export function UpcomingWeekEmail({
             ))}
           </Section>
 
-          <Section style={styles.ctaWrap}>
+          <Section style={styles.ctaSection}>
             <Button href="https://traingpt.co/schedule" style={styles.button}>
-              Open my schedule
+              View schedule
             </Button>
-            <Text style={styles.ctaSubtext}>Your AI coach can explain, adjust, or expand any session.</Text>
           </Section>
 
-          <Section style={styles.footer}>
-            <Text style={styles.footerText}>
-              You’re receiving this because weekly training reminders are enabled for your TrainGPT account.
-            </Text>
-            <Text style={styles.footerText}>
-              <a href="https://traingpt.co/unsubscribe" style={styles.footerLink}>Unsubscribe</a>
-              {' · '}
-              <a href="https://traingpt.co/settings" style={styles.footerLink}>Email settings</a>
-            </Text>
+          <Section style={styles.footerSection}>
+            <div style={styles.footerColumns}>
+              <div style={styles.footerLeft}>
+                <Text style={styles.footerBrand}>TrainGPT</Text>
+                <Text style={styles.footerLink}>Schedule</Text>
+                <Text style={styles.footerLink}>Coaching</Text>
+                <Text style={styles.footerLink}>Settings</Text>
+              </div>
+              <div style={styles.footerRight}>
+                <Text style={styles.footerText}>
+                  This email was sent because your TrainGPT account has planned training sessions in the coming week.
+                </Text>
+                <Text style={styles.footerText}>
+                  <a href="https://traingpt.co/unsubscribe" style={styles.anchor}>Unsubscribe</a>
+                  {' · '}
+                  <a href="https://traingpt.co/settings" style={styles.anchor}>Email settings</a>
+                </Text>
+              </div>
+            </div>
           </Section>
         </Container>
       </Body>
@@ -133,202 +142,193 @@ export function UpcomingWeekEmail({
 
 const styles: Record<string, CSSProperties> = {
   body: {
-    backgroundColor: '#f4f1eb',
-    color: '#111827',
-    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-    padding: '32px 0',
+    backgroundColor: '#ffffff',
+    color: '#202124',
+    fontFamily: 'Arial, Helvetica, sans-serif',
+    margin: 0,
+    padding: 0,
   },
   container: {
-    backgroundColor: '#fbfaf7',
-    border: '1px solid #e7e1d7',
-    borderRadius: 20,
+    backgroundColor: '#ffffff',
     maxWidth: 640,
     margin: '0 auto',
-    overflow: 'hidden',
+    padding: '0 28px',
   },
-  hero: {
-    backgroundColor: '#111827',
-    padding: '34px 32px 30px',
+  brandSection: {
+    padding: '42px 0 26px',
   },
-  eyebrow: {
-    color: '#c8d5c2',
-    fontSize: 12,
+  brand: {
+    color: '#202124',
+    fontSize: 20,
     fontWeight: 700,
-    letterSpacing: '0.12em',
-    margin: '0 0 12px',
-    textTransform: 'uppercase',
+    letterSpacing: '-0.02em',
+    margin: 0,
+  },
+  heroSection: {
+    padding: '0 0 34px',
   },
   heading: {
-    color: '#ffffff',
-    fontSize: 30,
-    lineHeight: '36px',
-    fontWeight: 700,
-    letterSpacing: '-0.03em',
-    margin: '0 0 8px',
+    color: '#202124',
+    fontSize: 38,
+    fontWeight: 500,
+    letterSpacing: '-0.055em',
+    lineHeight: '44px',
+    margin: '0 0 20px',
   },
-  subheading: {
-    color: '#d1d5db',
-    fontSize: 15,
-    lineHeight: '22px',
-    margin: 0,
-  },
-  summaryCard: {
-    backgroundColor: '#ffffff',
-    borderBottom: '1px solid #ece7df',
-    padding: '22px 28px',
-  },
-  summaryGrid: {
-    display: 'flex',
-    gap: 12,
-  },
-  summaryItem: {
-    backgroundColor: '#f7f4ee',
-    border: '1px solid #ebe5da',
-    borderRadius: 14,
-    padding: '14px 14px 12px',
-    width: '28%',
-  },
-  summaryItemWide: {
-    backgroundColor: '#f7f4ee',
-    border: '1px solid #ebe5da',
-    borderRadius: 14,
-    padding: '14px 14px 12px',
-    flex: 1,
-  },
-  summaryLabel: {
-    color: '#6b7280',
-    fontSize: 11,
-    fontWeight: 700,
-    letterSpacing: '0.08em',
-    margin: '0 0 6px',
-    textTransform: 'uppercase',
-  },
-  summaryValue: {
-    color: '#111827',
-    fontSize: 22,
-    fontWeight: 700,
-    margin: 0,
-  },
-  summaryText: {
-    color: '#111827',
-    fontSize: 14,
-    fontWeight: 600,
-    lineHeight: '20px',
-    margin: 0,
-  },
-  coachCard: {
-    padding: '24px 32px 4px',
-  },
-  coachTitle: {
-    color: '#111827',
-    fontSize: 13,
-    fontWeight: 700,
-    letterSpacing: '0.08em',
-    margin: '0 0 8px',
-    textTransform: 'uppercase',
-  },
-  coachText: {
-    color: '#374151',
-    fontSize: 15,
+  dateText: {
+    color: '#5f6368',
+    fontSize: 16,
     lineHeight: '24px',
     margin: 0,
   },
-  planCard: {
-    padding: '20px 28px 8px',
+  summarySection: {
+    borderTop: '1px solid #dadce0',
+    borderBottom: '1px solid #dadce0',
+    padding: '8px 0',
   },
-  sectionTitle: {
-    color: '#111827',
-    fontSize: 17,
-    fontWeight: 700,
-    letterSpacing: '-0.01em',
-    margin: '0 0 14px',
+  summaryRow: {
+    borderBottom: '1px solid #edf0f2',
+    display: 'flex',
+    padding: '16px 0',
+  },
+  summaryRowLast: {
+    display: 'flex',
+    padding: '16px 0',
+  },
+  summaryLabel: {
+    color: '#5f6368',
+    fontSize: 15,
+    lineHeight: '22px',
+    margin: 0,
+    width: '42%',
+  },
+  summaryValue: {
+    color: '#202124',
+    flex: 1,
+    fontSize: 15,
+    fontWeight: 600,
+    lineHeight: '22px',
+    margin: 0,
+    textAlign: 'right',
+  },
+  noteSection: {
+    padding: '32px 0 26px',
+  },
+  noteText: {
+    color: '#3c4043',
+    fontSize: 16,
+    lineHeight: '26px',
+    margin: 0,
+  },
+  weekSection: {
+    padding: '0 0 20px',
+  },
+  sectionHeading: {
+    color: '#202124',
+    fontSize: 26,
+    fontWeight: 500,
+    letterSpacing: '-0.045em',
+    lineHeight: '32px',
+    margin: '0 0 20px',
   },
   dayRow: {
+    borderTop: '1px solid #edf0f2',
     display: 'flex',
-    borderTop: '1px solid #ebe5da',
-    padding: '14px 0',
+    padding: '18px 0',
   },
   dayColumn: {
-    width: 54,
-    paddingTop: 3,
+    width: 72,
   },
-  day: {
-    color: '#6b7280',
-    fontSize: 13,
-    fontWeight: 700,
+  dayText: {
+    color: '#202124',
+    fontSize: 15,
+    fontWeight: 600,
+    lineHeight: '22px',
     margin: 0,
   },
   sessionColumn: {
     flex: 1,
   },
-  sessionPill: {
+  sessionItem: {
     alignItems: 'center',
-    backgroundColor: '#ffffff',
-    border: '1px solid #e8e2d8',
-    borderRadius: 999,
     display: 'flex',
-    marginBottom: 8,
-    padding: '9px 12px',
+    marginBottom: 10,
   },
   sportDot: {
     borderRadius: 999,
     display: 'inline-block',
-    height: 8,
-    marginRight: 9,
-    width: 8,
+    height: 10,
+    marginRight: 12,
+    width: 10,
   },
   sessionTitle: {
-    color: '#111827',
+    color: '#202124',
     flex: 1,
-    fontSize: 14,
-    fontWeight: 600,
-    lineHeight: '18px',
+    fontSize: 15,
+    lineHeight: '22px',
   },
-  duration: {
-    color: '#6b7280',
-    fontSize: 12,
-    fontWeight: 600,
-    marginLeft: 10,
+  durationText: {
+    color: '#5f6368',
+    fontSize: 14,
+    lineHeight: '22px',
+    marginLeft: 14,
     whiteSpace: 'nowrap',
   },
   restText: {
-    color: '#9ca3af',
-    fontSize: 13,
-    margin: '5px 0 0',
+    color: '#9aa0a6',
+    fontSize: 15,
+    lineHeight: '22px',
+    margin: 0,
   },
-  ctaWrap: {
-    padding: '24px 32px 30px',
-    textAlign: 'center',
+  ctaSection: {
+    borderTop: '1px solid #dadce0',
+    padding: '30px 0 38px',
   },
   button: {
-    backgroundColor: '#111827',
+    backgroundColor: '#202124',
     borderRadius: 999,
     color: '#ffffff',
-    fontSize: 14,
-    fontWeight: 700,
+    fontSize: 15,
+    fontWeight: 600,
     padding: '13px 22px',
     textDecoration: 'none',
   },
-  ctaSubtext: {
-    color: '#6b7280',
-    fontSize: 13,
-    lineHeight: '20px',
-    margin: '14px 0 0',
+  footerSection: {
+    borderTop: '1px solid #dadce0',
+    padding: '30px 0 46px',
   },
-  footer: {
-    backgroundColor: '#f1ede5',
-    borderTop: '1px solid #e4ddd1',
-    padding: '18px 32px 24px',
-    textAlign: 'center',
+  footerColumns: {
+    display: 'flex',
+    gap: 48,
   },
-  footerText: {
-    color: '#6b7280',
-    fontSize: 12,
-    lineHeight: '18px',
-    margin: '0 0 8px',
+  footerLeft: {
+    width: 160,
+  },
+  footerRight: {
+    flex: 1,
+  },
+  footerBrand: {
+    color: '#202124',
+    fontSize: 18,
+    fontWeight: 700,
+    margin: '0 0 18px',
   },
   footerLink: {
-    color: '#374151',
-    textDecoration: 'underline',
+    borderBottom: '1px solid #dadce0',
+    color: '#3c4043',
+    fontSize: 15,
+    lineHeight: '22px',
+    margin: 0,
+    padding: '8px 0',
+  },
+  footerText: {
+    color: '#5f6368',
+    fontSize: 12,
+    lineHeight: '18px',
+    margin: '0 0 14px',
+  },
+  anchor: {
+    color: '#1967d2',
+    textDecoration: 'none',
   },
 };
