@@ -10,13 +10,14 @@ export const runtime = 'nodejs';
 
 function getBaseUrl(req: Request): string {
   const reqUrl = new URL(req.url);
+  const forwardedProto = req.headers.get('x-forwarded-proto') ?? reqUrl.protocol.replace(':', '');
+  const forwardedHost = req.headers.get('x-forwarded-host') ?? reqUrl.host;
 
-  return (
-    process.env.NEXT_PUBLIC_BASE_URL?.trim() ||
-    `${req.headers.get('x-forwarded-proto') ?? reqUrl.protocol.replace(':', '')}://${
-      req.headers.get('x-forwarded-host') ?? reqUrl.host
-    }`
-  );
+  // Preserve the exact host that handled the OAuth callback. Redirecting between
+  // apex/www can make Supabase auth cookies appear missing and feel like logout.
+  if (forwardedHost) return `${forwardedProto}://${forwardedHost}`;
+
+  return process.env.NEXT_PUBLIC_BASE_URL?.trim() || reqUrl.origin;
 }
 
 function resolveReturnTo(raw: string | null): string {
