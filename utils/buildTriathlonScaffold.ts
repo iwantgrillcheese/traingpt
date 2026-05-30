@@ -26,6 +26,9 @@ type ScaffoldSession = {
   durationMinutes: number;
   type: TriathlonSessionType;
   priority?: 'anchor' | 'key' | 'support' | 'optional';
+  purpose?: string;
+  intensity?: string;
+  coachNote?: string;
 };
 
 type RaceFamily = 'sprint' | 'olympic' | 'half' | 'ironman' | 'triathlon';
@@ -200,6 +203,116 @@ function withDuration(minutes: number, details: string): string {
   return hasDurationText(clean) ? clean : `${formatDuration(minutes)}. ${clean}`;
 }
 
+function sessionPurpose(type: TriathlonSessionType, family: RaceFamily): string {
+  switch (type) {
+    case 'long_ride':
+      return family === 'half'
+        ? 'Build 70.3 bike durability, pacing discipline, and fueling rhythm.'
+        : family === 'ironman'
+          ? 'Build long-course aerobic durability and fueling execution.'
+          : 'Build bike endurance and controlled race-specific pacing.';
+    case 'brick_run':
+      return 'Practice running smoothly off the bike without turning it into a hard run.';
+    case 'long_run':
+      return 'Build durable aerobic run strength while keeping fatigue controlled.';
+    case 'run_quality':
+      return 'Build controlled run speed and threshold economy without compromising long-course durability.';
+    case 'run_easy':
+      return 'Add low-stress aerobic run volume and reinforce efficient mechanics.';
+    case 'bike_quality':
+      return 'Build controlled bike strength while protecting the weekend long ride.';
+    case 'bike_endurance':
+      return 'Add aerobic bike volume and improve steady endurance.';
+    case 'swim_technique':
+      return 'Improve swim mechanics, body position, breathing rhythm, and relaxed efficiency.';
+    case 'swim_endurance':
+      return 'Build sustainable swim endurance with smooth, repeatable pacing.';
+    case 'swim_race_prep':
+      return 'Stay loose and confident in the water without adding fatigue.';
+    case 'strength':
+      return 'Maintain durability and resilience without creating soreness for key sessions.';
+    case 'bike_opener':
+    case 'run_opener':
+      return 'Stay sharp and loose while keeping fatigue very low.';
+    case 'race_day':
+      return 'Execute the race calmly with patient pacing and steady fueling.';
+    default:
+      return 'Complete the session with controlled effort and good form.';
+  }
+}
+
+function sessionIntensity(type: TriathlonSessionType, userParams: UserParams): string {
+  switch (type) {
+    case 'long_ride':
+      return ftpRange(userParams.bikeFtp, 0.65, 0.75) ?? 'Mostly Z2 / conversational endurance effort.';
+    case 'bike_quality':
+      return ftpRange(userParams.bikeFtp, 0.82, 0.9) ?? 'Controlled tempo / upper aerobic effort, not maximal.';
+    case 'bike_endurance':
+      return ftpRange(userParams.bikeFtp, 0.65, 0.75) ?? 'Smooth aerobic endurance effort.';
+    case 'brick_run':
+      return easyRunRange(userParams) ?? 'Easy to steady, always controlled off the bike.';
+    case 'long_run':
+      return easyRunRange(userParams) ?? 'Easy conversational aerobic effort.';
+    case 'run_quality':
+      return thresholdRunRange(userParams) ?? 'Controlled threshold / steady interval effort.';
+    case 'run_easy':
+      return easyRunRange(userParams) ?? 'Easy conversational effort.';
+    case 'swim_technique':
+      return cleanMetric(userParams.swimPace) ? `Technique-first; CSS ${cleanMetric(userParams.swimPace)} is a reference, not the goal.` : 'Technique-first, relaxed and smooth.';
+    case 'swim_endurance':
+      return cleanMetric(userParams.swimPace) ? `Aerobic repeats guided by CSS ${cleanMetric(userParams.swimPace)}.` : 'Smooth aerobic swim effort.';
+    case 'strength':
+      return 'Controlled, submaximal strength. Leave the gym feeling better, not crushed.';
+    default:
+      return 'Controlled effort.';
+  }
+}
+
+function sessionCoachNote(type: TriathlonSessionType, family: RaceFamily): string {
+  switch (type) {
+    case 'long_ride':
+      return family === 'half' || family === 'ironman'
+        ? 'Fuel every 20-30 minutes and finish feeling like you could keep riding.'
+        : 'Keep the last portion smooth; do not turn this into a race effort.';
+    case 'brick_run':
+      return 'Start deliberately easy for the first 5 minutes, then settle into rhythm.';
+    case 'long_run':
+      return 'This is durability work, not a fitness test. Finish controlled.';
+    case 'run_quality':
+      return 'Stop one rep before form breaks down. Quality beats hero pace.';
+    case 'bike_quality':
+      return 'Keep the hard work controlled so Saturday remains high quality.';
+    case 'swim_technique':
+      return 'If form falls apart, slow down and reset instead of forcing pace.';
+    case 'swim_endurance':
+      return 'Aim for even pacing and relaxed breathing across the set.';
+    case 'strength':
+      return 'Avoid heavy lower-body soreness before long ride or long run days.';
+    default:
+      return 'Keep the goal of the session clear and controlled.';
+  }
+}
+
+function composeSessionDetails(args: {
+  type: TriathlonSessionType;
+  family: RaceFamily;
+  durationMinutes: number;
+  workout: string;
+  userParams: UserParams;
+}): { details: string; purpose: string; intensity: string; coachNote: string } {
+  const purpose = sessionPurpose(args.type, args.family);
+  const intensity = sessionIntensity(args.type, args.userParams);
+  const coachNote = sessionCoachNote(args.type, args.family);
+  const workout = withDuration(args.durationMinutes, args.workout);
+
+  return {
+    purpose,
+    intensity,
+    coachNote,
+    details: [`Purpose: ${purpose}`, `Workout: ${workout}`, `Intensity: ${intensity}`, `Coach note: ${coachNote}`].join('\n'),
+  };
+}
+
 type AnchorTargets = {
   longRideStart: number;
   longRidePeak: number;
@@ -350,13 +463,19 @@ function makeSession(
   priority: ScaffoldSession['priority'] = 'support'
 ): ScaffoldSession {
   const durationMinutes = minutesForSession(type, userParams, weekMeta, index, totalWeeks);
+  const family = raceFamily(userParams.raceType);
+  const structured = composeSessionDetails({ type, family, durationMinutes, workout: rawDetails, userParams });
+
   return {
     sport,
     title,
     type,
     priority,
     durationMinutes,
-    details: withDuration(durationMinutes, rawDetails),
+    details: structured.details,
+    purpose: structured.purpose,
+    intensity: structured.intensity,
+    coachNote: structured.coachNote,
   };
 }
 
@@ -639,9 +758,12 @@ export function applyTriathlonScaffold({
     days[date] = slots.map((slot) => {
       const generatedMatch = generatedSessions.find((candidate) => isMatchingGeneratedSession(slot, candidate));
       const generatedDetails = usefulGeneratedDetails(generatedMatch);
-      const details = generatedDetails ?? slot.details;
 
-      return { ...slot, details: withDuration(slot.durationMinutes, details) };
+      // Keep structured scaffold details as the default. GPT may enrich weak legacy
+      // sessions, but it should not replace the premium Purpose / Workout / Intensity / Coach note format.
+      const details = slot.details.includes('Purpose:') ? slot.details : (generatedDetails ?? slot.details);
+
+      return { ...slot, details: details.includes('Purpose:') ? details : withDuration(slot.durationMinutes, details) };
     });
   }
 

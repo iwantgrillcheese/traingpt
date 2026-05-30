@@ -65,6 +65,20 @@ function formatDistanceMeters(meters?: number | null) {
   return `${Math.round(meters)} m`;
 }
 
+function detailPreview(details?: string | null) {
+  const text = String(details ?? '')
+    .replace(/Purpose:\s*/gi, '')
+    .replace(/Workout:\s*/gi, '')
+    .replace(/Intensity:\s*/gi, '')
+    .replace(/Coach note:\s*/gi, '')
+    .split(/\n|\./)
+    .map((part) => part.trim())
+    .find((part) => part.length > 16);
+
+  if (!text) return null;
+  return text.length > 72 ? `${text.slice(0, 69).trim()}…` : text;
+}
+
 function getCompletionStatus(session: MergedSession, completedSessions: CompletedSession[]) {
   const match = completedSessions.find((item) => item.date === session.date && item.session_title === session.title);
   if (!match) return null;
@@ -141,6 +155,7 @@ function SessionCard({
     : formatDurationMinutes(session.duration ?? null);
   const distance = session.stravaActivity ? formatDistanceMeters(session.stravaActivity.distance) : null;
   const isRest = sport === 'rest' || title.toLowerCase().includes('rest day');
+  const preview = detailPreview((session as any).details ?? null);
 
   return (
     <DraggableSession session={session}>
@@ -162,10 +177,12 @@ function SessionCard({
               <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-400">{sport}</span>
             </div>
             <div className="line-clamp-2 text-[12px] font-semibold leading-snug text-zinc-950">
-              {isRest ? 'Rest day' : conciseTitle(title, sport)}
+              {isRest ? 'Rest day' : `${conciseTitle(title, sport)}${duration ? ` · ${duration}` : ''}`}
             </div>
+            {preview && !isRest ? (
+              <div className="mt-1 line-clamp-1 text-[11px] leading-snug text-zinc-500">{preview}</div>
+            ) : null}
             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-zinc-500">
-              {duration ? <span>{duration}</span> : null}
               {distance ? <span>{distance}</span> : null}
               {session.stravaActivity ? <span className="text-zinc-700">Strava</span> : null}
             </div>

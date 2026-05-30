@@ -28,6 +28,10 @@ type ParsedSession = {
   title: string;
   details: string | null;
   raw: any;
+  durationMinutes?: number | null;
+  purpose?: string | null;
+  intensity?: string | null;
+  coachNote?: string | null;
 };
 
 function cleanTitle(value: unknown): string {
@@ -130,9 +134,14 @@ function isDetailsPlaceholder(value: unknown): boolean {
 }
 
 function cleanDetails(value: unknown): string | null {
-  const text = String(value ?? '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const raw = String(value ?? '').trim();
+  const text = /(?:Purpose|Workout|Intensity|Coach note):/i.test(raw)
+    ? raw
+        .split('\n')
+        .map((line) => line.replace(/[ \t]+/g, ' ').trim())
+        .filter(Boolean)
+        .join('\n')
+    : raw.replace(/\s+/g, ' ');
 
   if (!text) return null;
 
@@ -241,6 +250,7 @@ export type SessionRow = {
   title: string;
   session_title?: string; // keep for backward compatibility
   details: string | null;
+  duration: number | null;
   raw: any | null;
   status: string;
   strava_id: string | null;
@@ -277,6 +287,7 @@ function buildRow({
   sport,
   title,
   details,
+  duration,
   raw,
 }: {
   userId: string;
@@ -285,6 +296,7 @@ function buildRow({
   sport: Sport;
   title: string;
   details: string | null;
+  duration?: number | null;
   raw: any;
 }): SessionRow {
   const cleanedTitle = cleanTitle(title) || 'Session';
@@ -296,6 +308,7 @@ function buildRow({
     title: cleanedTitle,
     session_title: cleanedTitle,
     details,
+    duration: typeof duration === 'number' && Number.isFinite(duration) && duration > 0 ? Math.round(duration) : null,
     raw,
     status: 'planned',
     strava_id: null,
@@ -342,6 +355,7 @@ function rowsFromParsedSession({
         sport: parsed.sport,
         title: parsed.title,
         details: parsed.details,
+        duration: parsed.durationMinutes ?? null,
         raw: parsed.raw,
       }),
     ];
@@ -352,20 +366,31 @@ function rowsFromParsedSession({
 
   // If the item was misclassified but only contains one sport, preserve that sport.
   if (/\brun\b/.test(lower) && !/\b(bike|ride|cycling)\b/.test(lower)) {
-    return [buildRow({ userId, planId, date, sport: 'run', title: cleanTitle(parsed.title), details: parsed.details, raw: parsed.raw })];
+    return [buildRow({ userId, planId, date, sport: 'run', title: cleanTitle(parsed.title), details: parsed.details, duration: parsed.durationMinutes ?? null, raw: parsed.raw })];
   }
 
   if (/\b(bike|ride|cycling)\b/.test(lower) && !/\brun\b/.test(lower)) {
-    return [buildRow({ userId, planId, date, sport: 'bike', title: cleanTitle(parsed.title), details: parsed.details, raw: parsed.raw })];
+    return [buildRow({ userId, planId, date, sport: 'bike', title: cleanTitle(parsed.title), details: parsed.details, duration: parsed.durationMinutes ?? null, raw: parsed.raw })];
   }
 
   const { bikeTitle, runTitle } = extractBrickDurations(text);
   const sharedDetails = parsed.details ?? cleanDetails(text) ?? 'Part of brick workout.';
 
   return [
-    buildRow({ userId, planId, date, sport: 'bike', title: bikeTitle, details: sharedDetails, raw: parsed.raw }),
-    buildRow({ userId, planId, date, sport: 'run', title: runTitle, details: sharedDetails, raw: parsed.raw }),
+    buildRow({ userId, planId, date, sport: 'bike', title: bikeTitle, details: sharedDetails, duration: parsed.durationMinutes ?? null, raw: parsed.raw }),
+    buildRow({ userId, planId, date, sport: 'run', title: runTitle, details: sharedDetails, duration: parsed.durationMinutes ?? null, raw: parsed.raw }),
   ];
+}
+
+function parseDurationMinutes(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) return Math.round(value);
+  const text = String(value ?? '').trim();
+  const numeric = Number.parseFloat(text);
+  return Number.isFinite(numeric) && numeric > 0 ? Math.round(numeric) : null;
+}
+
+function extractStructuredField(item: any, key: string): string | null {
+  return cleanDetails(item?.[key] ?? item?.[key.replace(/_([a-z])/g, (_, c) => c.toUpperCase())]);
 }
 
 function normalizeObjectSport(value: unknown): Sport | null {
@@ -406,6 +431,10 @@ function parseObjectItem(item: any): ParsedSession | null {
           : null
   );
   const type = typeof item?.type === 'string' ? item.type : undefined;
+  const durationMinutes = parseDurationMinutes(item?.durationMinutes ?? item?.duration ?? item?.duration_min ?? item?.duration_minutes);
+  const purpose = extractStructuredField(item, 'purpose');
+  const intensity = extractStructuredField(item, 'intensity');
+  const coachNote = extractStructuredField(item, 'coachNote') ?? extractStructuredField(item, 'coach_note');
 
   if (isRestLike([originalTitle, originalDetails].filter(Boolean).join(' ')) || isDetailsPlaceholder(originalTitle)) {
     return null;
@@ -423,6 +452,10 @@ function parseObjectItem(item: any): ParsedSession | null {
       title,
       details,
       raw: item,
+      durationMinutes,
+      purpose,
+      intensity,
+      coachNote,
     };
   }
 
@@ -436,6 +469,10 @@ function parseObjectItem(item: any): ParsedSession | null {
     title,
     details,
     raw: item,
+    durationMinutes,
+    purpose,
+    intensity,
+    coachNote,
   };
 }
 

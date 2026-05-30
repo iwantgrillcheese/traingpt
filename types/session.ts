@@ -9,6 +9,9 @@ export type Session = {
   title: string;
   duration?: number | null;
   details: string | null;
+  purpose?: string | null;
+  intensity?: string | null;
+  coach_note?: string | null;
   structured_workout: string | null;
   strava_id: number | null;
 };

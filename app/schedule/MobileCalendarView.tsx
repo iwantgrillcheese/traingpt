@@ -67,6 +67,20 @@ function formatMinutes(value?: number | null) {
   return m ? `${h}h ${m}m` : `${h}h`;
 }
 
+function detailPreview(details?: string | null) {
+  const text = String(details ?? '')
+    .replace(/Purpose:\s*/gi, '')
+    .replace(/Workout:\s*/gi, '')
+    .replace(/Intensity:\s*/gi, '')
+    .replace(/Coach note:\s*/gi, '')
+    .split(/\n|\./)
+    .map((part) => part.trim())
+    .find((part) => part.length > 16);
+
+  if (!text) return null;
+  return text.length > 96 ? `${text.slice(0, 93).trim()}…` : text;
+}
+
 function getCompletionStatus(session: MergedSession, completedSessions: CompletedSession[]) {
   const match = completedSessions.find(
     (item) => item.date === session.date && item.session_title === session.title
@@ -230,7 +244,7 @@ export default function MobileCalendarView({
               Next up
             </div>
             <div className="mt-1 line-clamp-2 text-[15px] font-semibold leading-5 tracking-[-0.02em] text-zinc-950">
-              {cleanTitle(nextSession.title)}
+              {`${cleanTitle(nextSession.title)}${formatMinutes(nextSession.duration ?? null) ? ` · ${formatMinutes(nextSession.duration ?? null)}` : ''}`}
             </div>
             <div className="mt-1 text-[12px] text-zinc-500">
               {format(parseDate(nextSession.date), 'EEE, MMM d')} · {normalizeSport(nextSession.sport)}
@@ -282,6 +296,7 @@ export default function MobileCalendarView({
                       const status = getSessionStatus(session, localCompleted);
                       const duration = formatMinutes(session.duration ?? null);
                       const sport = normalizeSport(session.sport);
+                      const preview = detailPreview((session as any).details ?? null);
 
                       return (
                         <button
@@ -295,17 +310,16 @@ export default function MobileCalendarView({
                               <div className="flex items-center gap-2 text-[12px] font-medium text-zinc-500">
                                 <span className="h-1.5 w-1.5 rounded-full bg-zinc-950" />
                                 <span>{sport}</span>
-                                {duration ? (
-                                  <>
-                                    <span className="text-zinc-300">·</span>
-                                    <span>{duration}</span>
-                                  </>
-                                ) : null}
+
                               </div>
 
                               <div className="mt-2 line-clamp-2 text-[16px] font-semibold leading-5 tracking-[-0.02em] text-zinc-950">
-                                {cleanTitle(session.title)}
+                                {`${cleanTitle(session.title)}${duration ? ` · ${duration}` : ''}`}
                               </div>
+
+                              {preview ? (
+                                <div className="mt-2 line-clamp-2 text-[13px] leading-5 text-zinc-500">{preview}</div>
+                              ) : null}
 
                               {session.stravaActivity ? (
                                 <div className="mt-2 text-[12px] font-medium text-zinc-500">

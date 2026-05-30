@@ -58,7 +58,7 @@ export type WeekJson = {
   phase: WeekMeta['phase'];
   startDate: string; // "YYYY-MM-DD"
   deload: boolean;
-  days: Record<string, Array<string | { sport?: string; title?: string; details?: string; description?: string; type?: string; durationMinutes?: number; priority?: string }>>; // map date → session strings or structured session objects
+  days: Record<string, Array<string | { sport?: string; title?: string; details?: string; description?: string; type?: string; durationMinutes?: number; duration?: number; priority?: string; purpose?: string; intensity?: string; coachNote?: string }>>; // map date → session strings or structured session objects
   debug?: string;
 };
 

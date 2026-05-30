@@ -65,13 +65,38 @@ function cleanTitle(title?: string | null) {
 
 function cleanPlannedDetails(value?: string | null) {
   const text = String(value ?? '')
-    .replace(/(details\s*[—–-]\s*){2,}/gi, '')
-    .replace(/details\s+details/gi, '')
-    .replace(/\s{2,}/g, ' ')
+    .replace(/\b(details\s*[—–-]\s*){2,}/gi, '')
+    .replace(/\bdetails\s+details\b/gi, '')
+    .split('\n')
+    .map((line) => line.replace(/[ \t]{2,}/g, ' ').trim())
+    .filter(Boolean)
+    .join('\n')
     .trim();
 
   if (!text || /^(details\s*)+$/i.test(text)) return '';
   return text;
+}
+
+function parsePlannedDetailSections(value?: string | null) {
+  const text = cleanPlannedDetails(value);
+  if (!text) return [];
+
+  const lines = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const sections = lines
+    .map((line) => {
+      const match = line.match(/^(Purpose|Workout|Intensity|Coach note):\s*(.+)$/i);
+      if (!match) return null;
+      const label = match[1].replace(/^coach note$/i, 'Coach note');
+      return { label, body: match[2].trim() };
+    })
+    .filter((item): item is { label: string; body: string } => Boolean(item));
+
+  if (sections.length) return sections;
+  return [{ label: 'Workout', body: text }];
 }
 
 function formatMinutes(value?: number | null) {
@@ -214,6 +239,7 @@ export default function SessionModal({
   const title = cleanTitle(session.title);
   const sport = normalizeSport(session.sport);
   const plannedDetails = cleanPlannedDetails(session.details);
+  const plannedSections = parsePlannedDetailSections(session.details);
 
   const applyLocalStatus = (nextStatus: 'done' | 'skipped' | null) => {
     const base = completedSessions.filter((item) => item.date !== session.date || item.session_title !== session.title);
@@ -372,7 +398,16 @@ export default function SessionModal({
 
             <section className="rounded-2xl border border-zinc-200 bg-zinc-50/60 p-4">
               <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Planned session</div>
-              {plannedDetails ? (
+              {plannedSections.length ? (
+                <div className="mt-3 grid gap-3">
+                  {plannedSections.map((section) => (
+                    <div key={section.label} className="rounded-2xl border border-zinc-200 bg-white p-3">
+                      <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-zinc-400">{section.label}</div>
+                      <p className="mt-1 text-[14px] leading-6 text-zinc-700">{section.body}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : plannedDetails ? (
                 <p className="mt-2 whitespace-pre-wrap text-[14px] leading-6 text-zinc-700">{plannedDetails}</p>
               ) : (
                 <p className="mt-2 text-[14px] leading-6 text-zinc-500">No detailed prescription was saved for this session. Generate a structured workout below.</p>
