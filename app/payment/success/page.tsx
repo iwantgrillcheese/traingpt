@@ -1,13 +1,26 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 type ConfirmationState = 'confirming' | 'ready' | 'error';
 
 export const dynamic = 'force-dynamic';
 
-export default function PaymentSuccessPage() {
+function PaymentSuccessFallback() {
+  return (
+    <main className="min-h-screen bg-[#f6f3ee] px-4 py-8 text-zinc-950 sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-6xl items-center justify-center">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-6 w-6 animate-spin rounded-full border-2 border-zinc-200 border-t-zinc-900" />
+          <p className="text-sm font-medium text-zinc-500">Loading your subscription confirmation…</p>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function PaymentSuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sessionId = searchParams?.get('session_id');
@@ -177,5 +190,13 @@ export default function PaymentSuccessPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+export default function PaymentSuccessPage() {
+  return (
+    <Suspense fallback={<PaymentSuccessFallback />}>
+      <PaymentSuccessContent />
+    </Suspense>
   );
 }
