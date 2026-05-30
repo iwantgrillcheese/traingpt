@@ -98,7 +98,7 @@ export async function POST(req: Request) {
       customer: customerId,
       mode: 'subscription',
       line_items: [{ price: stripePriceId, quantity: 1 }],
-      allow_promotion_codes: true,
+      allow_promotion_codes: internalPromotionCodeId ? undefined : true,
       ...(internalPromotionCodeId
         ? {
             discounts: [{ promotion_code: internalPromotionCodeId }],
