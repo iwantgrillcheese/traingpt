@@ -107,7 +107,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (event.type === 'invoice.payment_failed') {
       const invoice = event.data.object as Stripe.Invoice;
-      const subscriptionId = typeof invoice.subscription === 'string' ? invoice.subscription : null;
+      const invoiceWithSubscription = invoice as Stripe.Invoice & { subscription?: string | Stripe.Subscription | null };
+      const subscriptionId = typeof invoiceWithSubscription.subscription === 'string' ? invoiceWithSubscription.subscription : null;
       const customerId = typeof invoice.customer === 'string' ? invoice.customer : null;
 
       if (subscriptionId) {
