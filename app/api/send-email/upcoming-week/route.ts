@@ -11,11 +11,6 @@ type ProfileRow = {
   email: string | null;
 };
 
-type UserPreferenceRow = {
-  id: string;
-  marketing_opt_in: boolean | null;
-};
-
 type SessionRow = {
   user_id: string;
   date: string;
@@ -94,28 +89,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: false, error: profilesError.message }, { status: 500 });
   }
 
-  const { data: userPreferences, error: userPreferencesError } = await supabase
-    .from('users')
-    .select('id, marketing_opt_in');
-
-  if (userPreferencesError) {
-    console.error('❌ Error fetching user marketing preferences:', userPreferencesError);
-    return NextResponse.json({ success: false, error: userPreferencesError.message }, { status: 500 });
-  }
-
-  const optedInUserIds = new Set(
-    (userPreferences ?? [])
-      .filter((user: UserPreferenceRow) => user.marketing_opt_in === true)
-      .map((user: UserPreferenceRow) => user.id)
-  );
-
   const targetProfiles = (profiles ?? []).filter((profile: ProfileRow) => {
     if (!profile.email) return false;
-
-    // Explicit test sends should work even if the user has not opted into lifecycle email yet.
-    if (testEmail) return profile.email.toLowerCase() === testEmail.toLowerCase();
-
-    return optedInUserIds.has(profile.id);
+    return testEmail ? profile.email.toLowerCase() === testEmail.toLowerCase() : true;
   });
 
   let sent = 0;
@@ -178,7 +154,6 @@ export async function GET(req: NextRequest) {
     startISO,
     endISO,
     checked: targetProfiles.length,
-    optedIn: optedInUserIds.size,
     testMode: Boolean(testEmail),
     sent,
     skipped,
