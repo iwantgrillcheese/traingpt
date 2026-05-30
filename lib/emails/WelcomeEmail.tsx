@@ -19,51 +19,48 @@ export default function WelcomeEmail({ name, plan }: Props) {
   return (
     <Html>
       <Head />
-      <Preview>Welcome to TrainGPT — your AI coach is ready to go</Preview>
+      <Preview>Your training plan is ready.</Preview>
       <Body style={main}>
         <Container style={container}>
           <Section style={header}>
             <Text style={logo}>TrainGPT</Text>
-            <Text style={tagline}>Smarter triathlon training starts now.</Text>
+            <Text style={tagline}>Your training plan is ready.</Text>
           </Section>
 
           <Section style={hero}>
-            <Text style={headline}>👋 Welcome, {name}!</Text>
+            <Text style={headline}>Welcome, {name}.</Text>
             <Text style={paragraph}>
-              You just took the first step toward your strongest season yet.
+              Your training plan has been added to your account.
             </Text>
             <Text style={paragraph}>
-              TrainGPT creates fully personalized triathlon & running plans — built by AI, grounded in coaching science, and tailored to your goals.
+              TrainGPT helps you review your schedule, track completed sessions, and stay consistent through the week.
             </Text>
             <Link href="https://www.traingpt.co/schedule" style={cta}>
-              📆 View Your Training Plan
+              View Your Training Plan
             </Link>
-            <Text style={subtext}>Your custom plan is ready to go.</Text>
+            <Text style={subtext}>{plan}</Text>
           </Section>
 
           <Hr style={divider} />
 
           <Section>
-            <Text style={subheading}>What’s Next?</Text>
+            <Text style={subheading}>Start here</Text>
             <ul style={list}>
               <li>
-                <strong>📅 Check Your Schedule</strong> — Your week-by-week plan is live and tailored to your goals.
+                <strong>Check your schedule</strong> — Review your first week and note anything that needs to move.
               </li>
               <li>
-                <strong>🔁 Sync with Strava</strong> — Automatically track your workouts and stay consistent.
+                <strong>Protect the key sessions</strong> — Prioritize the longest and most specific workouts.
               </li>
               <li>
-                <strong>💬 Talk to Your Coach</strong> — Ask your AI coach for advice, tweaks, or motivation anytime.
+                <strong>Connect Strava</strong> — Automatically track completed workouts when you are ready.
               </li>
             </ul>
           </Section>
 
           <Section>
             <Text style={paragraph}>
-              Whether you&apos;re chasing a PR or just showing up stronger each week — your coach is with you, every step of the way.
-            </Text>
-            <Text style={paragraph}>
-              Have questions? Just reply to this email — we’re here to help.
+              Have questions? Reply to this email and we will help.
             </Text>
           </Section>
 
@@ -71,9 +68,9 @@ export default function WelcomeEmail({ name, plan }: Props) {
 
           <Section style={footer}>
             <Text style={footerText}>
-              You’re receiving this email because you signed up for TrainGPT.<br />
+              You are receiving this email because your TrainGPT plan is ready.<br />
               © 2025 TrainGPT. All rights reserved. <br />
-              <Link href="https://www.traingpt.co/privacy">Privacy Policy</Link> • <Link href="#">Unsubscribe</Link>
+              <Link href="https://www.traingpt.co/privacy">Privacy Policy</Link>
             </Text>
           </Section>
         </Container>
@@ -83,32 +80,34 @@ export default function WelcomeEmail({ name, plan }: Props) {
 }
 
 const main = {
-  backgroundColor: '#f4f4f4',
+  backgroundColor: '#ffffff',
   padding: '40px 0',
   fontFamily: 'Helvetica Neue, Helvetica, Arial, sans-serif',
 };
 
 const container = {
   backgroundColor: '#ffffff',
-  borderRadius: '8px',
-  maxWidth: '600px',
+  maxWidth: '680px',
   margin: '0 auto',
   padding: '40px 32px',
 };
 
 const header = {
-  textAlign: 'center' as const,
-  marginBottom: '24px',
+  borderBottom: '1px solid #e8e8e8',
+  marginBottom: '40px',
+  paddingBottom: '24px',
 };
 
 const logo = {
-  fontSize: '20px',
+  color: '#111111',
+  fontSize: '16px',
   fontWeight: 'bold' as const,
+  letterSpacing: '-0.03em',
 };
 
 const tagline = {
-  fontSize: '14px',
-  color: '#555',
+  fontSize: '13px',
+  color: '#737373',
 };
 
 const hero = {
@@ -116,58 +115,65 @@ const hero = {
 };
 
 const headline = {
-  fontSize: '22px',
-  fontWeight: 'bold' as const,
-  marginBottom: '8px',
-};
-
-const paragraph = {
-  fontSize: '15px',
-  lineHeight: '1.6',
+  color: '#111111',
+  fontSize: '42px',
+  fontWeight: 600 as const,
+  letterSpacing: '-0.06em',
+  lineHeight: '46px',
   marginBottom: '20px',
 };
 
-const subheading = {
+const paragraph = {
+  color: '#404040',
   fontSize: '16px',
+  lineHeight: '1.65',
+  marginBottom: '18px',
+};
+
+const subheading = {
+  color: '#111111',
+  fontSize: '12px',
   fontWeight: 'bold' as const,
-  marginBottom: '12px',
+  letterSpacing: '0.11em',
+  marginBottom: '16px',
+  textTransform: 'uppercase' as const,
 };
 
 const list = {
   paddingLeft: '20px',
   fontSize: '15px',
-  lineHeight: '1.6',
+  lineHeight: '1.7',
   marginBottom: '24px',
 };
 
 const cta = {
   display: 'inline-block',
-  backgroundColor: '#111827',
+  backgroundColor: '#111111',
   color: '#ffffff',
   textDecoration: 'none',
-  padding: '12px 20px',
-  borderRadius: '6px',
+  padding: '14px 24px',
+  borderRadius: '999px',
   fontWeight: 'bold' as const,
-  fontSize: '14px',
+  fontSize: '15px',
   marginTop: '12px',
 };
 
 const subtext = {
   fontSize: '13px',
-  color: '#777',
-  marginTop: '8px',
+  color: '#737373',
+  marginTop: '12px',
 };
 
 const divider = {
   border: 'none',
-  borderTop: '1px solid #eee',
+  borderTop: '1px solid #e8e8e8',
   margin: '32px 0',
 };
 
 const footer = {
   textAlign: 'center' as const,
   fontSize: '12px',
-  color: '#999',
+  color: '#8a8a8a',
 };
 
 const footerText = {
