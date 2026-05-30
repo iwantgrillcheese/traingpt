@@ -33,6 +33,11 @@ function shouldApplyInternalTestPromotion(email?: string | null) {
   return getInternalTestEmails().includes(email.toLowerCase());
 }
 
+function isPromotionCustomerMismatch(error: unknown) {
+  const stripeError = error as { code?: string; raw?: { code?: string } };
+  return stripeError?.code === 'promotion_code_customer_mismatch' || stripeError?.raw?.code === 'promotion_code_customer_mismatch';
+}
+
 export async function POST(req: Request) {
   try {
     const supabase = await createRouteSupabaseClient();
@@ -94,31 +99,46 @@ export async function POST(req: Request) {
       ? process.env.STRIPE_INTERNAL_TEST_PROMOTION_CODE_ID?.trim()
       : undefined;
 
-    const checkoutSession = await stripe.checkout.sessions.create({
-      customer: customerId,
-      mode: 'subscription',
-      line_items: [{ price: stripePriceId, quantity: 1 }],
-      allow_promotion_codes: internalPromotionCodeId ? undefined : true,
-      ...(internalPromotionCodeId
-        ? {
-            discounts: [{ promotion_code: internalPromotionCodeId }],
-          }
-        : {}),
-      success_url: `${baseUrl}${buildSuccessPath(planId)}`,
-      cancel_url: `${baseUrl}${buildCancelPath(planId)}`,
-      metadata: {
-        userId: user.id,
-        ...(planId ? { planId } : {}),
-        product: 'traingpt_plus',
-      },
-      subscription_data: {
+    const createCheckoutSession = async (promotionCodeId?: string) =>
+      stripe.checkout.sessions.create({
+        customer: customerId,
+        mode: 'subscription',
+        line_items: [{ price: stripePriceId, quantity: 1 }],
+        allow_promotion_codes: promotionCodeId ? undefined : true,
+        ...(promotionCodeId
+          ? {
+              discounts: [{ promotion_code: promotionCodeId }],
+            }
+          : {}),
+        success_url: `${baseUrl}${buildSuccessPath(planId)}`,
+        cancel_url: `${baseUrl}${buildCancelPath(planId)}`,
         metadata: {
           userId: user.id,
           ...(planId ? { planId } : {}),
           product: 'traingpt_plus',
         },
-      },
-    });
+        subscription_data: {
+          metadata: {
+            userId: user.id,
+            ...(planId ? { planId } : {}),
+            product: 'traingpt_plus',
+          },
+        },
+      });
+
+    let checkoutSession;
+    try {
+      checkoutSession = await createCheckoutSession(internalPromotionCodeId);
+    } catch (error) {
+      if (!internalPromotionCodeId || !isPromotionCustomerMismatch(error)) throw error;
+
+      console.warn('[Stripe Checkout] Internal test promotion code is customer-restricted. Retrying without auto-discount.', {
+        userId: user.id,
+        customerId,
+      });
+
+      checkoutSession = await createCheckoutSession();
+    }
 
     if (!profile?.stripe_customer_id) {
       await supabase
