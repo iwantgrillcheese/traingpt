@@ -72,12 +72,10 @@ export default function MagicUiObserverOverlay() {
       characterData: true,
     });
 
-    // Strava sync should feel polished, but it should never trap the user.
-    // If the callback param or background state hangs, dismiss the overlay and let sync finish in the background.
     const stravaDismissTimer = window.setTimeout(() => {
       suppressStravaUntilPathChangeRef.current = true;
       setMode((current) => (current === 'strava' ? null : current));
-    }, 10500);
+    }, 24000);
 
     return () => {
       observer.disconnect();
