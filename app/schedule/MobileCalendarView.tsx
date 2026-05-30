@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { format, isBefore, isToday, parseISO, startOfDay } from 'date-fns';
 import clsx from 'clsx';
 import AddSessionModalTP from './AddSessionModalTP';
-import SessionModal from './SessionModal';
+import MobileSessionModal from './MobileSessionModal';
 import type { CompletedSession } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
@@ -369,7 +369,7 @@ export default function MobileCalendarView({
         )}
       </div>
 
-      <SessionModal
+      <MobileSessionModal
         session={selectedSession}
         stravaActivity={selectedSession?.stravaActivity}
         open={!!selectedSession}
