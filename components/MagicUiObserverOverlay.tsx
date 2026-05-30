@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import MagicLoadingOverlay from './MagicLoadingOverlay';
 
@@ -30,6 +30,11 @@ function hasExplicitStravaSyncParam() {
 export default function MagicUiObserverOverlay() {
   const pathname = usePathname();
   const [mode, setMode] = useState<MagicMode>(null);
+  const suppressStravaUntilPathChangeRef = useRef(false);
+
+  useEffect(() => {
+    suppressStravaUntilPathChangeRef.current = false;
+  }, [pathname]);
 
   useEffect(() => {
     if (pathname !== '/plan') {
@@ -38,13 +43,24 @@ export default function MagicUiObserverOverlay() {
     }
 
     const explicitStravaSync = hasExplicitStravaSyncParam();
-    if (explicitStravaSync) {
+    if (explicitStravaSync && !suppressStravaUntilPathChangeRef.current) {
       setMode('strava');
     }
 
     const update = () => {
       const detected = detectMagicStateFromPage();
-      setMode((current) => detected ?? (explicitStravaSync && current === 'strava' ? 'strava' : null));
+
+      if (detected === 'plan') {
+        setMode('plan');
+        return;
+      }
+
+      if (detected === 'strava' || explicitStravaSync) {
+        setMode(suppressStravaUntilPathChangeRef.current ? null : 'strava');
+        return;
+      }
+
+      setMode(null);
     };
 
     update();
@@ -56,13 +72,16 @@ export default function MagicUiObserverOverlay() {
       characterData: true,
     });
 
-    const timer = window.setTimeout(() => {
-      if (explicitStravaSync) setMode((current) => (current === 'strava' ? null : current));
-    }, 9000);
+    // Strava sync should feel polished, but it should never trap the user.
+    // If the callback param or background state hangs, dismiss the overlay and let sync finish in the background.
+    const stravaDismissTimer = window.setTimeout(() => {
+      suppressStravaUntilPathChangeRef.current = true;
+      setMode((current) => (current === 'strava' ? null : current));
+    }, 10500);
 
     return () => {
       observer.disconnect();
-      window.clearTimeout(timer);
+      window.clearTimeout(stravaDismissTimer);
     };
   }, [pathname]);
 
