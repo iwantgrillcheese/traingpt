@@ -78,6 +78,44 @@ textarea {
     width: 100%;
     min-height: 44px;
   }
+
+  main [class*="max-w-7xl"][class*="min-h-[100dvh]"] {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    padding-top: calc(env(safe-area-inset-top) + 18px) !important;
+    padding-bottom: calc(env(safe-area-inset-bottom) + 24px) !important;
+  }
+
+  main [class*="max-w-7xl"] h1 {
+    font-size: 34px !important;
+    line-height: 0.98 !important;
+    letter-spacing: -0.055em !important;
+  }
+
+  main [class*="max-w-7xl"] [class*="border-b"][class*="pb-6"] {
+    margin-bottom: 20px !important;
+    padding-bottom: 18px !important;
+  }
+
+  main [class*="max-w-7xl"] section[class*="rounded-[2rem]"][class*="shadow-sm"] {
+    border-radius: 24px !important;
+    padding: 18px !important;
+  }
+
+  main [class*="max-w-7xl"] section[class*="rounded-[2rem]"][class*="shadow-sm"] > div:first-child {
+    margin-bottom: 22px !important;
+  }
+
+  main [class*="max-w-7xl"] [class*="rounded-[2rem]"][class*="bg-zinc-50"],
+  main [class*="max-w-7xl"] [class*="rounded-3xl"][class*="bg-zinc-50"] {
+    border-radius: 22px !important;
+    padding: 18px !important;
+  }
+
+  main [class*="max-w-7xl"] button,
+  main [class*="max-w-7xl"] a {
+    min-height: 44px;
+  }
 }
 
 ::selection {
