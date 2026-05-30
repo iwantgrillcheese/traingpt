@@ -8,7 +8,7 @@ import { track } from '@/lib/analytics/posthog-client';
 export const dynamic = 'force-dynamic';
 
 type DayName = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
-type StepKey = 'goal' | 'experience' | 'schedule' | 'history' | 'notes' | 'review';
+type StepKey = 'strava' | 'goal' | 'experience' | 'schedule' | 'history' | 'notes' | 'review';
 
 type FormState = {
   raceType: string;
@@ -98,12 +98,13 @@ const PRIORITIES = [
 ];
 
 const STEPS: Array<{ key: StepKey; title: string; eyebrow: string }> = [
-  { key: 'goal', title: 'Race goal', eyebrow: 'Step 1' },
-  { key: 'experience', title: 'Current fitness', eyebrow: 'Step 2' },
-  { key: 'schedule', title: 'Training week', eyebrow: 'Step 3' },
-  { key: 'history', title: 'Training history', eyebrow: 'Step 4' },
-  { key: 'notes', title: 'Coach notes', eyebrow: 'Step 5' },
-  { key: 'review', title: 'Review', eyebrow: 'Step 6' },
+  { key: 'strava', title: 'Training data', eyebrow: 'Step 1' },
+  { key: 'goal', title: 'Race goal', eyebrow: 'Step 2' },
+  { key: 'experience', title: 'Current fitness', eyebrow: 'Step 3' },
+  { key: 'schedule', title: 'Training week', eyebrow: 'Step 4' },
+  { key: 'history', title: 'Training history', eyebrow: 'Step 5' },
+  { key: 'notes', title: 'Coach notes', eyebrow: 'Step 6' },
+  { key: 'review', title: 'Review', eyebrow: 'Step 7' },
 ];
 
 const INITIAL_FORM: FormState = {
@@ -258,12 +259,14 @@ function PlanPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const restoredDraftRef = useRef(false);
+  const syncStartedRef = useRef(false);
 
   const [activeStep, setActiveStep] = useState(0);
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [sessionChecked, setSessionChecked] = useState(false);
   const [hasPlan, setHasPlan] = useState(false);
   const [stravaConnected, setStravaConnected] = useState(false);
+  const [stravaSyncing, setStravaSyncing] = useState(false);
   const [stravaSummary, setStravaSummary] = useState<StravaSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -277,7 +280,7 @@ function PlanPageContent() {
     if (!clientId || typeof window === 'undefined') return '/settings';
 
     const callback = `${window.location.origin}/api/strava/callback`;
-    const returnTo = '/plan?source=strava&step=history';
+    const returnTo = '/plan?source=strava&step=strava';
 
     return `https://www.strava.com/oauth/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(
       callback
@@ -294,6 +297,30 @@ function PlanPageContent() {
       console.warn('[plan] failed to save plan draft before Strava OAuth', err);
     }
   }, [activeStep, form]);
+
+  const loadStravaRows = useCallback(async (userId: string) => {
+    const sinceISO = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { data, error: stravaError } = await supabase
+      .from('strava_activities')
+      .select('sport_type,moving_time,start_date')
+      .eq('user_id', userId)
+      .gte('start_date', sinceISO)
+      .order('start_date', { ascending: false })
+      .limit(250);
+
+    if (stravaError) {
+      console.error('[plan] Strava activity lookup failed', stravaError);
+      return [] as StravaRow[];
+    }
+
+    return (Array.isArray(data) ? data : []) as StravaRow[];
+  }, []);
+
+  const refreshStravaSummary = useCallback(async (userId: string) => {
+    const rows = await loadStravaRows(userId);
+    setStravaSummary(summarizeStravaRows(rows));
+  }, [loadStravaRows]);
 
   useEffect(() => {
     const source = searchParams?.get('source');
@@ -320,7 +347,7 @@ function PlanPageContent() {
         if (draft && isFresh) {
           setForm(draft);
           setActiveStep(
-            Number.isInteger(parsed.activeStep) ? Math.min(Math.max(Number(parsed.activeStep), 0), STEPS.length - 1) : 3
+            Number.isInteger(parsed.activeStep) ? Math.min(Math.max(Number(parsed.activeStep), 0), STEPS.length - 1) : 0
           );
           restoredDraftRef.current = true;
         }
@@ -331,7 +358,7 @@ function PlanPageContent() {
       console.warn('[plan] failed to restore Strava OAuth draft', err);
     }
 
-    if (step === 'history') setActiveStep(3);
+    if (step === 'strava') setActiveStep(0);
   }, [searchParams]);
 
   useEffect(() => {
@@ -347,25 +374,6 @@ function PlanPageContent() {
     prefillFromSearch();
   }, [searchParams]);
 
-  const loadStravaRows = useCallback(async (userId: string) => {
-    const sinceISO = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
-
-    const { data, error: stravaError } = await supabase
-      .from('strava_activities')
-      .select('sport_type,moving_time,start_date')
-      .eq('user_id', userId)
-      .gte('start_date', sinceISO)
-      .order('start_date', { ascending: false })
-      .limit(250);
-
-    if (stravaError) {
-      console.error('[plan] Strava activity lookup failed', stravaError);
-      return [] as StravaRow[];
-    }
-
-    return (Array.isArray(data) ? data : []) as StravaRow[];
-  }, []);
-
   useEffect(() => {
     const load = async () => {
       const {
@@ -374,6 +382,7 @@ function PlanPageContent() {
 
       if (!session?.user) {
         router.replace(`/login?next=${encodeURIComponent('/plan')}`);
+        setSessionChecked(true);
         return;
       }
 
@@ -417,17 +426,25 @@ function PlanPageContent() {
       const hasStravaToken = Boolean((profileRes.data as any)?.strava_access_token);
       setStravaConnected(hasStravaToken);
 
-      if (hasStravaToken && searchParams?.get('sync') === 'needed') {
-        try {
-          await fetch('/api/strava_sync', { method: 'POST' });
-        } catch (err) {
-          console.warn('[plan] post-connect Strava sync failed', err);
-        }
-      }
-
-      const rows = await loadStravaRows(session.user.id);
-      setStravaSummary(summarizeStravaRows(rows));
+      await refreshStravaSummary(session.user.id);
       setSessionChecked(true);
+
+      if (hasStravaToken && searchParams?.get('sync') === 'needed' && !syncStartedRef.current) {
+        syncStartedRef.current = true;
+        setStravaSyncing(true);
+
+        fetch('/api/strava_sync', { method: 'POST' })
+          .then(async (res) => {
+            if (!res.ok) throw new Error(await res.text());
+            await refreshStravaSummary(session.user.id);
+          })
+          .catch((err) => {
+            console.warn('[plan] background Strava sync failed', err);
+          })
+          .finally(() => {
+            setStravaSyncing(false);
+          });
+      }
     };
 
     load().catch((err) => {
@@ -435,7 +452,7 @@ function PlanPageContent() {
       setError('We could not load your plan settings. Refresh and try again.');
       setSessionChecked(true);
     });
-  }, [loadStravaRows, router, searchParams]);
+  }, [refreshStravaSummary, router, searchParams]);
 
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -460,6 +477,7 @@ function PlanPageContent() {
   };
 
   const canContinue = useMemo(() => {
+    if (currentStep.key === 'strava') return true;
     if (currentStep.key === 'goal') return Boolean(form.raceType && form.raceDate);
     if (currentStep.key === 'experience') return Boolean(form.experience && form.maxHours);
     if (currentStep.key === 'schedule') return Boolean(form.restDay);
@@ -583,6 +601,7 @@ function PlanPageContent() {
   };
 
   const reviewRows = [
+    ['Strava', stravaConnected ? `Connected${stravaSummary ? ` · ${stravaSummary.activityCount} activities` : ''}` : 'Not connected'],
     ['Race', form.raceType || 'Not selected'],
     ['Race date', form.raceDate || 'Not selected'],
     ['Experience', form.experience || 'Not selected'],
@@ -630,7 +649,7 @@ function PlanPageContent() {
           {stravaConnected ? (
             <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-600">
               <span className="font-medium text-zinc-950">Strava connected</span>
-              {stravaSummary ? ` · ${stravaSummary.activityCount} recent activities · ${formatHours(stravaSummary.totalHours)}` : ''}
+              {stravaSyncing ? ' · syncing activities…' : stravaSummary ? ` · ${stravaSummary.activityCount} recent activities · ${formatHours(stravaSummary.totalHours)}` : ''}
             </div>
           ) : null}
         </div>
@@ -684,6 +703,47 @@ function PlanPageContent() {
 
             {error ? <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
 
+            {currentStep.key === 'strava' ? (
+              <div className="space-y-6">
+                <div className="rounded-[2rem] border border-zinc-200 bg-zinc-50 p-6 sm:p-8">
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-400">Optional</p>
+                  <h3 className="mt-3 text-2xl font-semibold tracking-tight text-zinc-950">Start from your real training history.</h3>
+                  <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-600">
+                    Connect Strava and TrainGPT can use your recent volume, sport balance, and available pace/power data to calibrate the plan. You can skip this and enter details manually.
+                  </p>
+
+                  {stravaConnected ? (
+                    <div className="mt-6 rounded-3xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-900">
+                      <div className="font-semibold">Strava connected</div>
+                      <div className="mt-1 text-emerald-800">
+                        {stravaSyncing
+                          ? 'We’re syncing your latest activities in the background. You can keep going.'
+                          : stravaSummary
+                            ? `${stravaSummary.activityCount} activities found · ${formatHours(stravaSummary.totalHours)} total · Run/Bike/Swim ${stravaSummary.runCount}/${stravaSummary.bikeCount}/${stravaSummary.swimCount}`
+                            : 'Connected. You can continue while activities sync.'}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+                      <a
+                        href={stravaConnectHref}
+                        onClick={() => {
+                          savePlanDraft();
+                          track('strava_connect_clicked', { source: 'plan_builder_step_1' });
+                        }}
+                        className="inline-flex justify-center rounded-full bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800"
+                      >
+                        Connect Strava
+                      </a>
+                      <button type="button" onClick={nextStep} className="rounded-full border border-zinc-200 bg-white px-5 py-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-50">
+                        Skip for now
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
+
             {currentStep.key === 'goal' ? (
               <div className="space-y-6">
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -702,26 +762,12 @@ function PlanPageContent() {
               <div className="space-y-6">
                 <div className="grid gap-3 sm:grid-cols-3">
                   {EXPERIENCE_OPTIONS.map((option) => (
-                    <OptionCard
-                      key={option.value}
-                      active={form.experience === option.value}
-                      title={option.title}
-                      desc={option.desc}
-                      onClick={() => setField('experience', option.value)}
-                    />
+                    <OptionCard key={option.value} active={form.experience === option.value} title={option.title} desc={option.desc} onClick={() => setField('experience', option.value)} />
                   ))}
                 </div>
                 <div className="grid gap-3 sm:grid-cols-[1fr_260px] sm:items-center">
                   <FieldLabel label="Weekly training time" hint="Use a realistic typical week, not your absolute best week." />
-                  <TextInput
-                    type="number"
-                    min="1"
-                    max="30"
-                    inputMode="numeric"
-                    placeholder="8"
-                    value={form.maxHours}
-                    onChange={(e) => setField('maxHours', e.target.value)}
-                  />
+                  <TextInput type="number" min="1" max="30" inputMode="numeric" placeholder="8" value={form.maxHours} onChange={(e) => setField('maxHours', e.target.value)} />
                 </div>
               </div>
             ) : null}
@@ -765,19 +811,12 @@ function PlanPageContent() {
                 <div>
                   <FieldLabel label="Days you usually can’t train" hint="Optional. We’ll treat these as hard constraints where possible." />
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {DAYS.map((day) => (
-                      <DayToggle key={day} day={day} active={form.unavailableDays.includes(day)} onClick={() => toggleUnavailableDay(day)} />
-                    ))}
+                    {DAYS.map((day) => <DayToggle key={day} day={day} active={form.unavailableDays.includes(day)} onClick={() => toggleUnavailableDay(day)} />)}
                   </div>
                 </div>
 
                 <label className="flex items-start gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4">
-                  <input
-                    type="checkbox"
-                    checked={form.twoADaysAllowed}
-                    onChange={(e) => setField('twoADaysAllowed', e.target.checked)}
-                    className="mt-1 h-4 w-4 rounded border-zinc-300"
-                  />
+                  <input type="checkbox" checked={form.twoADaysAllowed} onChange={(e) => setField('twoADaysAllowed', e.target.checked)} className="mt-1 h-4 w-4 rounded border-zinc-300" />
                   <span>
                     <span className="block text-sm font-medium text-zinc-950">Two-a-days are okay when needed</span>
                     <span className="mt-1 block text-sm text-zinc-500">Useful for busy athletes, but we’ll avoid stacking hard sessions.</span>
@@ -793,66 +832,33 @@ function PlanPageContent() {
                     <FieldLabel label="How comfortable are you in the swim?" hint="This helps early weeks emphasize technique or normal progression." />
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
                       {SWIM_OPTIONS.map((option) => (
-                        <OptionCard
-                          key={option.value}
-                          active={form.swimComfort === option.value}
-                          title={option.title}
-                          desc={option.desc}
-                          onClick={() => setField('swimComfort', option.value)}
-                        />
+                        <OptionCard key={option.value} active={form.swimComfort === option.value} title={option.title} desc={option.desc} onClick={() => setField('swimComfort', option.value)} />
                       ))}
                     </div>
                   </div>
                 ) : null}
 
                 <div className="rounded-3xl border border-zinc-200 bg-zinc-50 p-5">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <h3 className="text-sm font-semibold text-zinc-950">Optional performance metrics</h3>
+                  <p className="mt-1 text-sm leading-6 text-zinc-500">
+                    Manual values override Strava estimates. Leave these blank if you want TrainGPT to infer what it can from recent activity data.
+                  </p>
+                  <div className="mt-5 grid gap-4 sm:grid-cols-3">
                     <div>
-                      <h3 className="text-sm font-semibold text-zinc-950">Use your recent training history</h3>
-                      <p className="mt-1 text-sm leading-6 text-zinc-500">
-                        Connect Strava so TrainGPT can calibrate your plan from recent volume and sport balance.
-                      </p>
+                      <FieldLabel label="Bike FTP" hint="Optional" />
+                      <TextInput className="mt-3" type="number" placeholder="240" value={form.bikeFTP} onChange={(e) => setField('bikeFTP', e.target.value)} />
                     </div>
-                    {stravaConnected ? (
-                      <span className="rounded-full bg-white px-4 py-2 text-sm font-medium text-zinc-700 ring-1 ring-zinc-200">Connected</span>
-                    ) : (
-                      <a
-                        href={stravaConnectHref}
-                        onClick={() => {
-                          savePlanDraft();
-                          track('strava_connect_clicked', { source: 'plan_builder' });
-                        }}
-                        className="rounded-full bg-zinc-950 px-5 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800"
-                      >
-                        Connect Strava
-                      </a>
-                    )}
-                  </div>
-                  {stravaSummary ? (
-                    <div className="mt-5 grid gap-3 text-sm sm:grid-cols-4">
-                      <div><span className="block text-zinc-400">Activities</span><span className="font-medium text-zinc-950">{stravaSummary.activityCount}</span></div>
-                      <div><span className="block text-zinc-400">Time</span><span className="font-medium text-zinc-950">{formatHours(stravaSummary.totalHours)}</span></div>
-                      <div><span className="block text-zinc-400">Run / Bike / Swim</span><span className="font-medium text-zinc-950">{stravaSummary.runCount} / {stravaSummary.bikeCount} / {stravaSummary.swimCount}</span></div>
-                      <div><span className="block text-zinc-400">Used now</span><span className="font-medium text-zinc-950">Plan calibration</span></div>
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <div>
-                    <FieldLabel label="Bike FTP" hint="Optional" />
-                    <TextInput className="mt-3" type="number" placeholder="240" value={form.bikeFTP} onChange={(e) => setField('bikeFTP', e.target.value)} />
-                  </div>
-                  <div>
-                    <FieldLabel label="Run threshold pace" hint="Optional" />
-                    <TextInput className="mt-3" placeholder={form.paceUnit === 'km' ? '4:40 / km' : '7:30 / mi'} value={form.runPace} onChange={(e) => setField('runPace', e.target.value)} />
-                  </div>
-                  {!isRunPlan ? (
                     <div>
-                      <FieldLabel label="Swim threshold pace" hint="Optional" />
-                      <TextInput className="mt-3" placeholder="1:40 / 100m" value={form.swimPace} onChange={(e) => setField('swimPace', e.target.value)} />
+                      <FieldLabel label="Run threshold pace" hint="Optional" />
+                      <TextInput className="mt-3" placeholder={form.paceUnit === 'km' ? '4:40 / km' : '7:30 / mi'} value={form.runPace} onChange={(e) => setField('runPace', e.target.value)} />
                     </div>
-                  ) : null}
+                    {!isRunPlan ? (
+                      <div>
+                        <FieldLabel label="Swim threshold pace" hint="Optional" />
+                        <TextInput className="mt-3" placeholder="1:40 / 100m" value={form.swimPace} onChange={(e) => setField('swimPace', e.target.value)} />
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             ) : null}
@@ -877,12 +883,7 @@ function PlanPageContent() {
                         key={priority}
                         type="button"
                         onClick={() => togglePriority(priority)}
-                        className={cx(
-                          'rounded-full border px-4 py-2 text-sm font-medium transition',
-                          form.coachingPriorities.includes(priority)
-                            ? 'border-zinc-950 bg-zinc-950 text-white'
-                            : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
-                        )}
+                        className={cx('rounded-full border px-4 py-2 text-sm font-medium transition', form.coachingPriorities.includes(priority) ? 'border-zinc-950 bg-zinc-950 text-white' : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50')}
                       >
                         {priority}
                       </button>
@@ -915,31 +916,17 @@ function PlanPageContent() {
             ) : null}
 
             <div className="mt-10 flex flex-col-reverse gap-3 border-t border-zinc-200 pt-6 sm:flex-row sm:items-center sm:justify-between">
-              <button
-                type="button"
-                onClick={prevStep}
-                disabled={activeStep === 0}
-                className="rounded-full border border-zinc-200 bg-white px-5 py-3 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40"
-              >
+              <button type="button" onClick={prevStep} disabled={activeStep === 0} className="rounded-full border border-zinc-200 bg-white px-5 py-3 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40">
                 Back
               </button>
 
               {currentStep.key === 'review' ? (
-                <button
-                  type="button"
-                  onClick={submitPlan}
-                  className="rounded-full bg-zinc-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800"
-                >
+                <button type="button" onClick={submitPlan} className="rounded-full bg-zinc-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800">
                   {hasPlan ? 'Re-generate plan' : 'Generate plan'}
                 </button>
               ) : (
-                <button
-                  type="button"
-                  onClick={nextStep}
-                  disabled={!canContinue}
-                  className="rounded-full bg-zinc-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Continue
+                <button type="button" onClick={nextStep} disabled={!canContinue} className="rounded-full bg-zinc-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40">
+                  {currentStep.key === 'strava' ? 'Continue' : 'Continue'}
                 </button>
               )}
             </div>
