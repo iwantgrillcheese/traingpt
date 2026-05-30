@@ -212,13 +212,13 @@ export default function MobileCalendarView({
 
   return (
     <main className="min-h-[100dvh] bg-[#fbfbfa] text-zinc-950">
-      <header className="sticky top-0 z-20 border-b border-zinc-200/80 bg-[#fbfbfa]/95 px-5 pb-4 pt-5 backdrop-blur-xl">
-        <div className="flex items-start justify-between gap-4">
+      <header className="sticky top-0 z-20 border-b border-zinc-200/80 bg-[#fbfbfa]/95 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+1rem)] backdrop-blur-xl sm:px-5 sm:pb-4">
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-[28px] font-semibold tracking-[-0.04em] text-zinc-950">
+            <h1 className="text-[25px] font-semibold tracking-[-0.045em] text-zinc-950 sm:text-[28px]">
               Schedule
             </h1>
-            <p className="mt-1 text-[13px] leading-5 text-zinc-500">
+            <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-zinc-500 sm:text-[13px]">
               {getPlanRangeLabel(groups)}
               {weekPhase ? ` · ${weekPhase}` : ''}
               {completion.total ? ` · ${completion.done}/${completion.total} complete` : ''}
@@ -228,7 +228,7 @@ export default function MobileCalendarView({
           <button
             type="button"
             onClick={() => setAddSessionDate(new Date())}
-            className="shrink-0 rounded-full bg-zinc-950 px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm active:scale-[0.99]"
+            className="min-h-10 shrink-0 rounded-full bg-zinc-950 px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm active:scale-[0.99]"
           >
             + Add
           </button>
@@ -238,36 +238,40 @@ export default function MobileCalendarView({
           <button
             type="button"
             onClick={() => setSelectedSession(nextSession)}
-            className="mt-4 block w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+            className="mt-3 block w-full rounded-[1.25rem] border border-zinc-200 bg-white px-4 py-3 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04)] active:scale-[0.997] sm:mt-4 sm:rounded-2xl"
           >
-            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
-              Next up
-            </div>
-            <div className="mt-1 line-clamp-2 text-[15px] font-semibold leading-5 tracking-[-0.02em] text-zinc-950">
-              {`${cleanTitle(nextSession.title)}${formatMinutes(nextSession.duration ?? null) ? ` · ${formatMinutes(nextSession.duration ?? null)}` : ''}`}
-            </div>
-            <div className="mt-1 text-[12px] text-zinc-500">
-              {format(parseDate(nextSession.date), 'EEE, MMM d')} · {normalizeSport(nextSession.sport)}
-              {formatMinutes(nextSession.duration ?? null)
-                ? ` · ${formatMinutes(nextSession.duration ?? null)}`
-                : ''}
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
+                  Next up
+                </div>
+                <div className="mt-1 line-clamp-2 text-[15px] font-semibold leading-5 tracking-[-0.02em] text-zinc-950">
+                  {`${cleanTitle(nextSession.title)}${formatMinutes(nextSession.duration ?? null) ? ` · ${formatMinutes(nextSession.duration ?? null)}` : ''}`}
+                </div>
+                <div className="mt-1 text-[12px] text-zinc-500">
+                  {format(parseDate(nextSession.date), 'EEE, MMM d')} · {normalizeSport(nextSession.sport)}
+                </div>
+              </div>
+              <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-semibold text-zinc-600">
+                Open
+              </span>
             </div>
           </button>
         ) : null}
       </header>
 
-      <div className="px-5 pb-28 pt-5">
+      <div className="px-4 pb-[calc(env(safe-area-inset-bottom)+7rem)] pt-4 sm:px-5 sm:pt-5">
         {groups.length ? (
-          <div className="space-y-7">
+          <div className="space-y-6 sm:space-y-7">
             {groups.map((group) => {
               const today = isToday(group.date);
 
               return (
-                <section key={group.key} className="scroll-mt-28">
+                <section key={group.key} className="scroll-mt-32 rounded-[1.65rem] border border-zinc-200/70 bg-white/55 p-3 shadow-[0_1px_2px_rgba(15,23,42,0.03)] sm:p-0 sm:border-0 sm:bg-transparent sm:shadow-none">
                   <div className="mb-3 flex items-end justify-between gap-3">
                     <div>
                       <div className="flex items-center gap-2">
-                        <h2 className="text-[20px] font-semibold tracking-[-0.03em] text-zinc-950">
+                        <h2 className="text-[18px] font-semibold tracking-[-0.035em] text-zinc-950 sm:text-[20px]">
                           {today ? 'Today' : format(group.date, 'EEEE')}
                         </h2>
                         {today ? (
@@ -276,7 +280,7 @@ export default function MobileCalendarView({
                           </span>
                         ) : null}
                       </div>
-                      <p className="mt-0.5 text-[13px] text-zinc-500">
+                      <p className="mt-0.5 text-[12px] text-zinc-500 sm:text-[13px]">
                         {format(group.date, 'MMMM d')}
                         {raceGoal ? ` · ${raceGoal}` : ''}
                       </p>
@@ -285,13 +289,13 @@ export default function MobileCalendarView({
                     <button
                       type="button"
                       onClick={() => setAddSessionDate(group.date)}
-                      className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-zinc-700"
+                      className="min-h-9 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-zinc-700"
                     >
                       Add
                     </button>
                   </div>
 
-                  <div className="space-y-2.5">
+                  <div className="space-y-2">
                     {group.sessions.map((session) => {
                       const status = getSessionStatus(session, localCompleted);
                       const duration = formatMinutes(session.duration ?? null);
@@ -303,27 +307,28 @@ export default function MobileCalendarView({
                           key={session.id}
                           type="button"
                           onClick={() => setSelectedSession(session)}
-                          className="block w-full rounded-2xl border border-zinc-200 bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04)] active:scale-[0.997]"
+                          className="block w-full rounded-[1.25rem] border border-zinc-200 bg-white p-3.5 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04)] active:scale-[0.997] sm:rounded-2xl sm:p-4"
                         >
                           <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2 text-[12px] font-medium text-zinc-500">
                                 <span className="h-1.5 w-1.5 rounded-full bg-zinc-950" />
                                 <span>{sport}</span>
-
+                                {duration ? <span className="text-zinc-300">•</span> : null}
+                                {duration ? <span>{duration}</span> : null}
                               </div>
 
-                              <div className="mt-2 line-clamp-2 text-[16px] font-semibold leading-5 tracking-[-0.02em] text-zinc-950">
-                                {`${cleanTitle(session.title)}${duration ? ` · ${duration}` : ''}`}
+                              <div className="mt-1.5 line-clamp-2 text-[15px] font-semibold leading-5 tracking-[-0.02em] text-zinc-950 sm:text-[16px]">
+                                {cleanTitle(session.title)}
                               </div>
 
                               {preview ? (
-                                <div className="mt-2 line-clamp-2 text-[13px] leading-5 text-zinc-500">{preview}</div>
+                                <div className="mt-1.5 line-clamp-2 text-[12px] leading-5 text-zinc-500 sm:text-[13px]">{preview}</div>
                               ) : null}
 
                               {session.stravaActivity ? (
-                                <div className="mt-2 text-[12px] font-medium text-zinc-500">
-                                  Imported from Strava
+                                <div className="mt-2 inline-flex rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-medium text-zinc-600">
+                                  From Strava
                                 </div>
                               ) : null}
                             </div>
