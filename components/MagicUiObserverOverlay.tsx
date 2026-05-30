@@ -9,7 +9,10 @@ type MagicMode = 'plan' | 'strava' | null;
 function detectMagicStateFromPage() {
   if (typeof document === 'undefined') return null;
 
-  const text = document.body?.innerText?.toLowerCase() ?? '';
+  const bodyClone = document.body.cloneNode(true) as HTMLElement;
+  bodyClone.querySelectorAll('[data-training-processing-overlay="true"]').forEach((node) => node.remove());
+
+  const text = bodyClone.innerText?.toLowerCase() ?? '';
 
   if (text.includes('generating your plan')) return 'plan' as const;
   if (text.includes('syncing activities') || text.includes('syncing your latest activities')) return 'strava' as const;
