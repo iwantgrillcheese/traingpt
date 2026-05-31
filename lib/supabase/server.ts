@@ -48,7 +48,7 @@ export async function createServerSupabaseClient() {
   );
 }
 
-export async function createRouteSupabaseClient() {
+export async function createRouteSupabaseClient(_req?: Request) {
   return createServerSupabaseClient();
 }
 
