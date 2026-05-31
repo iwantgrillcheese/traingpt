@@ -9,15 +9,14 @@ import { TodayScreen } from './screens/TodayScreen';
 import { PlanScreen } from './screens/PlanScreen';
 import { ScheduleScreen } from './screens/ScheduleScreen';
 import { CoachScreen } from './screens/CoachScreen';
-import { ProgressScreen } from './screens/ProgressScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
+import { colors } from './design/theme';
 
 type RootTabs = {
   Today: undefined;
   Plan: undefined;
   Schedule: undefined;
   Coach: undefined;
-  Progress: undefined;
   Settings: undefined;
 };
 
@@ -27,19 +26,28 @@ const theme = {
   ...DefaultTheme,
   colors: {
     ...DefaultTheme.colors,
-    background: '#fbfbfa',
-    card: '#ffffff',
-    text: '#09090b',
-    border: '#e4e4e7',
-    primary: '#09090b',
+    background: colors.background,
+    card: colors.surface,
+    text: colors.ink,
+    border: colors.border,
+    primary: colors.ink,
   },
 };
 
 function LoadingScreen() {
   return (
     <View style={styles.loading}>
+      <View style={styles.loadingMark} />
       <ActivityIndicator />
-      <Text style={styles.loadingText}>Opening TrainGPT…</Text>
+      <Text style={styles.loadingText}>Opening your training room…</Text>
+    </View>
+  );
+}
+
+function TabIcon({ label, focused }: { label: string; focused: boolean }) {
+  return (
+    <View style={[styles.tabIcon, focused && styles.tabIconActive]}>
+      <Text style={[styles.tabIconText, focused && styles.tabIconTextActive]}>{label}</Text>
     </View>
   );
 }
@@ -49,27 +57,18 @@ function AuthedTabs() {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#09090b',
-        tabBarInactiveTintColor: '#a1a1aa',
-        tabBarStyle: {
-          borderTopColor: '#e4e4e7',
-          backgroundColor: '#ffffff',
-          height: 86,
-          paddingTop: 8,
-          paddingBottom: 24,
-        },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '800',
-        },
+        tabBarActiveTintColor: colors.ink,
+        tabBarInactiveTintColor: colors.faint,
+        tabBarStyle: styles.tabBar,
+        tabBarItemStyle: styles.tabItem,
+        tabBarLabelStyle: styles.tabLabel,
       }}
     >
-      <Tab.Screen name="Today" component={TodayScreen} options={{ tabBarIcon: ({ color }) => <Text style={[styles.icon, { color }]}>●</Text> }} />
-      <Tab.Screen name="Plan" component={PlanScreen} options={{ tabBarIcon: ({ color }) => <Text style={[styles.icon, { color }]}>＋</Text> }} />
-      <Tab.Screen name="Schedule" component={ScheduleScreen} options={{ tabBarIcon: ({ color }) => <Text style={[styles.icon, { color }]}>◼</Text> }} />
-      <Tab.Screen name="Coach" component={CoachScreen} options={{ tabBarIcon: ({ color }) => <Text style={[styles.icon, { color }]}>◆</Text> }} />
-      <Tab.Screen name="Progress" component={ProgressScreen} options={{ tabBarIcon: ({ color }) => <Text style={[styles.icon, { color }]}>▲</Text> }} />
-      <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarIcon: ({ color }) => <Text style={[styles.icon, { color }]}>◯</Text> }} />
+      <Tab.Screen name="Today" component={TodayScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="T" focused={focused} /> }} />
+      <Tab.Screen name="Plan" component={PlanScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="P" focused={focused} /> }} />
+      <Tab.Screen name="Schedule" component={ScheduleScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="S" focused={focused} /> }} />
+      <Tab.Screen name="Coach" component={CoachScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="C" focused={focused} /> }} />
+      <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="•" focused={focused} /> }} />
     </Tab.Navigator>
   );
 }
@@ -94,7 +93,39 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fbfbfa' },
-  loadingText: { marginTop: 10, color: '#71717a', fontWeight: '700' },
-  icon: { fontSize: 14, fontWeight: '900' },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
+  loadingMark: { width: 54, height: 54, borderRadius: 18, backgroundColor: colors.ink, marginBottom: 18 },
+  loadingText: { marginTop: 12, color: colors.muted, fontWeight: '800' },
+  tabBar: {
+    position: 'absolute',
+    left: 14,
+    right: 14,
+    bottom: 14,
+    height: 76,
+    borderRadius: 28,
+    borderTopWidth: 0,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    paddingTop: 8,
+    paddingBottom: 12,
+    shadowColor: colors.ink,
+    shadowOpacity: 0.08,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
+  },
+  tabItem: { paddingVertical: 2 },
+  tabLabel: { fontSize: 10, fontWeight: '900', marginTop: 2 },
+  tabIcon: {
+    width: 26,
+    height: 26,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceMuted,
+  },
+  tabIconActive: { backgroundColor: colors.ink },
+  tabIconText: { color: colors.muted, fontSize: 11, fontWeight: '900' },
+  tabIconTextActive: { color: colors.surface },
 });
