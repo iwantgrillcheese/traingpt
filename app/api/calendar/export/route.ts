@@ -21,10 +21,10 @@ type SessionRow = {
 
 function escapeIcs(value: string) {
   return String(value ?? '')
-    .replace(/\/g, '\\')
-    .replace(/;/g, '\;')
-    .replace(/,/g, '\,')
-    .replace(/\r?\n/g, '\n');
+    .replaceAll('\\', '\\\\')
+    .replaceAll(';', '\\;')
+    .replaceAll(',', '\\,')
+    .replace(/\r?\n/g, '\\n');
 }
 
 function foldIcsLine(line: string) {
@@ -114,6 +114,12 @@ function buildCalendar(sessions: SessionRow[], userId: string) {
   return `${lines.map(foldIcsLine).join('\r\n')}\r\n`;
 }
 
+function redirectToLogin(req: Request) {
+  const url = new URL('/login', req.url);
+  url.searchParams.set('next', '/schedule');
+  return NextResponse.redirect(url);
+}
+
 export async function GET(req: Request) {
   try {
     const supabase = await createRouteSupabaseClient();
@@ -121,7 +127,8 @@ export async function GET(req: Request) {
     const billing = await getBillingAccess(supabase, user.id);
 
     if (!billing.isPlusActive) {
-      const url = new URL('/plan-preview?feature=calendar-export', req.url);
+      const url = new URL('/plan-preview', req.url);
+      url.searchParams.set('feature', 'calendar-export');
       return NextResponse.redirect(url);
     }
 
@@ -154,7 +161,7 @@ export async function GET(req: Request) {
     });
   } catch (error) {
     if (error instanceof AuthError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
+      return redirectToLogin(req);
     }
 
     console.error('[calendar/export] failed', error);
