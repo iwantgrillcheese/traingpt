@@ -1,5 +1,7 @@
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { CompletedSessionRow, SessionRow } from '../types';
+import { apiFetch } from '../lib/api';
 import {
   cleanTitle,
   formatDay,
@@ -15,6 +17,7 @@ type Props = {
   onClose: () => void;
   onMarkDone: (session: SessionRow) => Promise<void> | void;
   onSkip?: (session: SessionRow) => Promise<void> | void;
+  onSessionUpdated?: (session: SessionRow) => void;
 };
 
 function summarizeDetails(value?: string | null) {
@@ -29,11 +32,69 @@ function summarizeDetails(value?: string | null) {
   return text || 'Execute this session with control. Keep the goal in mind and avoid turning every workout into a race.';
 }
 
-export function SessionDetailSheet({ session, completed, open, onClose, onMarkDone, onSkip }: Props) {
+function upgradeUrl() {
+  return 'https://traingpt.co/plan-preview?feature=detailed-workouts';
+}
+
+export function SessionDetailSheet({ session, completed, open, onClose, onMarkDone, onSkip, onSessionUpdated }: Props) {
+  const [structuredWorkout, setStructuredWorkout] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [plusRequired, setPlusRequired] = useState(false);
+
+  useEffect(() => {
+    setStructuredWorkout(session?.structured_workout ?? null);
+    setError(null);
+    setPlusRequired(false);
+    setGenerating(false);
+  }, [session?.id, session?.structured_workout]);
+
   if (!session) return null;
 
   const status = getCompletionStatus(session, completed);
   const duration = formatMinutes(session.duration);
+
+  const generateDetails = async () => {
+    setGenerating(true);
+    setError(null);
+    setPlusRequired(false);
+
+    try {
+      const response = await apiFetch('/api/generate-detailed-session', {
+        method: 'POST',
+        body: JSON.stringify({
+          sessionId: session.id,
+          title: session.title,
+          sport: session.sport,
+          date: session.date,
+          details: session.details ?? '',
+          fueling: { enabled: false },
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok || !payload?.structured_workout) {
+        if (payload?.code === 'PLUS_REQUIRED') {
+          setPlusRequired(true);
+          setError('Detailed workouts are included with TrainGPT Plus.');
+          return;
+        }
+
+        setError(payload?.error || 'Could not generate detailed workout.');
+        return;
+      }
+
+      const nextWorkout = String(payload.structured_workout).trim();
+      setStructuredWorkout(nextWorkout);
+      onSessionUpdated?.({ ...session, structured_workout: nextWorkout });
+    } catch (err) {
+      console.error('[SessionDetailSheet] generate details failed', err);
+      setError('Could not reach TrainGPT. Try again in a moment.');
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   return (
     <Modal visible={open} transparent animationType="slide" onRequestClose={onClose}>
@@ -41,44 +102,57 @@ export function SessionDetailSheet({ session, completed, open, onClose, onMarkDo
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <View style={styles.sheet}>
           <View style={styles.handle} />
-          <View style={styles.headerRow}>
-            <View style={styles.badges}>
-              <Text style={styles.badge}>{normalizeSport(session.sport)}</Text>
-              <Text style={styles.badge}>{formatDay(session.date)}</Text>
-              {duration ? <Text style={styles.badge}>{duration}</Text> : null}
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+            <View style={styles.headerRow}>
+              <View style={styles.badges}>
+                <Text style={styles.badge}>{normalizeSport(session.sport)}</Text>
+                <Text style={styles.badge}>{formatDay(session.date)}</Text>
+                {duration ? <Text style={styles.badge}>{duration}</Text> : null}
+              </View>
+              <Pressable onPress={onClose} style={styles.closeButton}>
+                <Text style={styles.closeText}>×</Text>
+              </Pressable>
             </View>
-            <Pressable onPress={onClose} style={styles.closeButton}>
-              <Text style={styles.closeText}>×</Text>
-            </Pressable>
-          </View>
 
-          <Text style={styles.title}>{cleanTitle(session.title)}</Text>
+            <Text style={styles.title}>{cleanTitle(session.title)}</Text>
 
-          <View style={styles.overviewCard}>
-            <Text style={styles.sectionLabel}>Why this matters</Text>
-            <Text style={styles.body}>{summarizeDetails(session.details)}</Text>
-          </View>
+            <View style={styles.overviewCard}>
+              <Text style={styles.sectionLabel}>Why this matters</Text>
+              <Text style={styles.body}>{summarizeDetails(session.details)}</Text>
+            </View>
 
-          {session.structured_workout ? (
             <View style={styles.detailCard}>
-              <Text style={styles.sectionLabel}>Detailed workout</Text>
-              <Text style={styles.body}>{session.structured_workout}</Text>
-            </View>
-          ) : (
-            <View style={styles.detailCard}>
-              <Text style={styles.sectionLabel}>Detailed workout</Text>
-              <Text style={styles.muted}>Native generation comes next. For now, generate details on web and they will appear here.</Text>
-            </View>
-          )}
+              <View style={styles.detailHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sectionLabel}>Detailed workout</Text>
+                  <Text style={styles.muted}>{structuredWorkout ? 'Ready for execution.' : 'Generate warm-up, main set, cooldown, and execution notes.'}</Text>
+                </View>
+                <Text style={styles.plusBadge}>Plus</Text>
+              </View>
 
-          <View style={styles.actions}>
-            <Pressable onPress={() => onMarkDone(session)} style={[styles.primaryButton, status === 'done' && styles.doneButton]}>
-              <Text style={styles.primaryText}>{status === 'done' ? 'Done' : 'Mark done'}</Text>
-            </Pressable>
-            <Pressable onPress={() => onSkip?.(session)} style={styles.secondaryButton}>
-              <Text style={styles.secondaryText}>{status === 'skipped' ? 'Skipped' : 'Skip'}</Text>
-            </Pressable>
-          </View>
+              {structuredWorkout ? <Text style={styles.body}>{structuredWorkout}</Text> : null}
+              {error ? <Text style={plusRequired ? styles.plusError : styles.error}>{error}</Text> : null}
+
+              {plusRequired ? (
+                <Pressable onPress={() => Linking.openURL(upgradeUrl())} style={styles.generateButton}>
+                  <Text style={styles.generateText}>Unlock Plus</Text>
+                </Pressable>
+              ) : (
+                <Pressable onPress={generateDetails} disabled={generating} style={[styles.generateButton, generating && styles.disabledButton]}>
+                  {generating ? <ActivityIndicator color="#fff" /> : <Text style={styles.generateText}>{structuredWorkout ? 'Regenerate details' : 'Generate details'}</Text>}
+                </Pressable>
+              )}
+            </View>
+
+            <View style={styles.actions}>
+              <Pressable onPress={() => onMarkDone(session)} style={[styles.primaryButton, status === 'done' && styles.doneButton]}>
+                <Text style={styles.primaryText}>{status === 'done' ? 'Done' : 'Mark done'}</Text>
+              </Pressable>
+              <Pressable onPress={() => onSkip?.(session)} style={styles.secondaryButton}>
+                <Text style={styles.secondaryText}>{status === 'skipped' ? 'Skipped' : 'Skip'}</Text>
+              </Pressable>
+            </View>
+          </ScrollView>
         </View>
       </View>
     </Modal>
@@ -88,14 +162,15 @@ export function SessionDetailSheet({ session, completed, open, onClose, onMarkDo
 const styles = StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(9,9,11,0.35)' },
   sheet: {
-    maxHeight: '88%',
+    maxHeight: '90%',
     backgroundColor: '#fbfbfa',
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     paddingHorizontal: 20,
     paddingTop: 10,
-    paddingBottom: 34,
+    paddingBottom: 10,
   },
+  scrollContent: { paddingBottom: 24 },
   handle: { alignSelf: 'center', width: 46, height: 5, borderRadius: 999, backgroundColor: '#d4d4d8', marginBottom: 14 },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, flex: 1 },
@@ -105,9 +180,16 @@ const styles = StyleSheet.create({
   title: { marginTop: 18, color: '#09090b', fontSize: 32, lineHeight: 34, fontWeight: '900', letterSpacing: -1.4 },
   overviewCard: { marginTop: 18, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e4e4e7', borderRadius: 24, padding: 16 },
   detailCard: { marginTop: 10, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e4e4e7', borderRadius: 24, padding: 16 },
+  detailHeader: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
   sectionLabel: { color: '#a1a1aa', fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.4 },
   body: { marginTop: 8, color: '#3f3f46', fontSize: 14, lineHeight: 22 },
-  muted: { marginTop: 8, color: '#71717a', fontSize: 14, lineHeight: 22 },
+  muted: { marginTop: 6, color: '#71717a', fontSize: 13, lineHeight: 20 },
+  error: { marginTop: 10, color: '#be123c', fontSize: 13, fontWeight: '700' },
+  plusError: { marginTop: 10, color: '#854d0e', fontSize: 13, fontWeight: '700' },
+  plusBadge: { overflow: 'hidden', borderRadius: 999, backgroundColor: '#09090b', color: '#fff', paddingHorizontal: 10, paddingVertical: 5, fontSize: 11, fontWeight: '900' },
+  generateButton: { marginTop: 12, minHeight: 48, borderRadius: 16, backgroundColor: '#09090b', alignItems: 'center', justifyContent: 'center' },
+  generateText: { color: '#fff', fontWeight: '900', fontSize: 14 },
+  disabledButton: { opacity: 0.6 },
   actions: { flexDirection: 'row', gap: 10, marginTop: 16 },
   primaryButton: { flex: 1, minHeight: 54, borderRadius: 18, backgroundColor: '#09090b', alignItems: 'center', justifyContent: 'center' },
   doneButton: { backgroundColor: '#18181b' },
