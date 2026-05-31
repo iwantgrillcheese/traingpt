@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "TrainGPT",
+    "slug": "traingpt-mobile",
+    "scheme": "traingpt",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "co.traingpt.app",
+      "infoPlist": {
+        "NSMotionUsageDescription": "TrainGPT may use workout context to help you understand your training.",
+        "NSCalendarsUsageDescription": "TrainGPT can help you export workouts to your calendar."
+      }
+    },
+    "android": {
+      "package": "co.traingpt.app"
+    },
+    "plugins": [
+      "expo-linking"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "replace-with-eas-project-id"
+      }
+    }
+  }
+}
