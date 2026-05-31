@@ -49,6 +49,11 @@ export function TodayScreen() {
   const heroSession = todaysSessions[0] ?? nextSession;
   const stats = useMemo(() => currentWeekStats(sessions, completed), [sessions, completed]);
 
+  const updateSessionLocally = (updated: SessionRow) => {
+    setSessions((prev) => prev.map((session) => (session.id === updated.id ? { ...session, ...updated } : session)));
+    setSelectedSession((prev) => (prev?.id === updated.id ? { ...prev, ...updated } : prev));
+  };
+
   const markDoneFor = async (session: SessionRow) => {
     if (!user?.id || !session.title) return;
     const existing = completed.filter((row) => row.date !== session.date || row.session_title !== session.title);
@@ -122,6 +127,7 @@ export function TodayScreen() {
         onClose={() => setSelectedSession(null)}
         onMarkDone={markDoneFor}
         onSkip={skipSession}
+        onSessionUpdated={updateSessionLocally}
       />
     </>
   );
