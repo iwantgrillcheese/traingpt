@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import type { User } from '@supabase/supabase-js';
 
@@ -8,6 +9,20 @@ function getRequiredEnv(name: string, value: string | undefined) {
   }
 
   return value;
+}
+
+function supabaseUrl() {
+  return getRequiredEnv('NEXT_PUBLIC_SUPABASE_URL', process.env.NEXT_PUBLIC_SUPABASE_URL);
+}
+
+function supabaseAnonKey() {
+  return getRequiredEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+}
+
+function getBearerToken(req?: Request) {
+  const header = req?.headers.get('authorization') ?? req?.headers.get('Authorization') ?? '';
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  return match?.[1]?.trim() || null;
 }
 
 export class AuthError extends Error {
@@ -23,11 +38,8 @@ export async function createServerSupabaseClient() {
   const cookieStore = await cookies();
 
   return createServerClient(
-    getRequiredEnv('NEXT_PUBLIC_SUPABASE_URL', process.env.NEXT_PUBLIC_SUPABASE_URL),
-    getRequiredEnv(
-      'NEXT_PUBLIC_SUPABASE_ANON_KEY',
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    ),
+    supabaseUrl(),
+    supabaseAnonKey(),
     {
       cookies: {
         getAll() {
@@ -48,14 +60,30 @@ export async function createServerSupabaseClient() {
   );
 }
 
-export async function createRouteSupabaseClient(_req?: Request) {
+export async function createRouteSupabaseClient(req?: Request) {
+  const bearerToken = getBearerToken(req);
+
+  if (bearerToken) {
+    return createClient(supabaseUrl(), supabaseAnonKey(), {
+      global: {
+        headers: {
+          Authorization: `Bearer ${bearerToken}`,
+        },
+      },
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    });
+  }
+
   return createServerSupabaseClient();
 }
 
 export async function requireUser(
-  supabase?: Awaited<ReturnType<typeof createServerSupabaseClient>>
+  supabase?: Awaited<ReturnType<typeof createRouteSupabaseClient>>
 ): Promise<User> {
-  const client = supabase ?? (await createServerSupabaseClient());
+  const client = supabase ?? (await createRouteSupabaseClient());
 
   const {
     data: { user },
