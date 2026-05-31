@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors, radius, shadow, spacing } from '../design/theme';
 import { useAuth } from '../auth/AuthProvider';
@@ -6,21 +6,19 @@ import { apiFetch } from '../lib/api';
 
 type RaceType = 'Sprint' | 'Olympic' | 'Half Ironman (70.3)' | 'Ironman (140.6)';
 type Experience = 'Beginner' | 'Intermediate' | 'Advanced';
-
-type StepKey = 'data' | 'race' | 'fitness' | 'week' | 'history' | 'notes' | 'review';
+type StepKey = 'race' | 'date' | 'experience' | 'hours' | 'strava' | 'notes' | 'review';
 
 const raceTypes: RaceType[] = ['Sprint', 'Olympic', 'Half Ironman (70.3)', 'Ironman (140.6)'];
 const experiences: Experience[] = ['Beginner', 'Intermediate', 'Advanced'];
-const restDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const hourOptions = ['3-5', '6-8', '9-12', '12+'];
-const steps: { key: StepKey; label: string }[] = [
-  { key: 'data', label: 'Training data' },
-  { key: 'race', label: 'Race goal' },
-  { key: 'fitness', label: 'Current fitness' },
-  { key: 'week', label: 'Training week' },
-  { key: 'history', label: 'Training history' },
-  { key: 'notes', label: 'Coach notes' },
-  { key: 'review', label: 'Review' },
+const steps: { key: StepKey; eyebrow: string; title: string; subtitle: string }[] = [
+  { key: 'race', eyebrow: 'Step 1', title: 'What are you training for?', subtitle: 'Start with the race distance. TrainGPT will shape the calendar around the demands of the event.' },
+  { key: 'date', eyebrow: 'Step 2', title: 'When is race day?', subtitle: 'Your race date controls the length of the build, taper timing, and first-week ramp.' },
+  { key: 'experience', eyebrow: 'Step 3', title: 'Where are you starting from?', subtitle: 'Choose the level that best reflects your current training background.' },
+  { key: 'hours', eyebrow: 'Step 4', title: 'How many hours can you train?', subtitle: 'Pick a realistic weekly range. A good plan fits your life before it stretches your fitness.' },
+  { key: 'strava', eyebrow: 'Step 5', title: 'Use your training history.', subtitle: 'When Strava is connected, TrainGPT uses recent volume and sport balance to calibrate the plan.' },
+  { key: 'notes', eyebrow: 'Step 6', title: 'Any constraints?', subtitle: 'Tell your coach about injuries, travel, weak disciplines, preferred long ride days, or schedule limits.' },
+  { key: 'review', eyebrow: 'Step 7', title: 'Ready to build.', subtitle: 'Review the setup. Then TrainGPT will generate the calendar and session structure.' },
 ];
 
 function defaultRaceDate() {
@@ -35,12 +33,32 @@ function raceLabel(type: RaceType) {
   return type;
 }
 
-function parseHours(option: string, fallback: string) {
+function parseHours(option: string) {
   if (option === '3-5') return '5';
   if (option === '6-8') return '8';
   if (option === '9-12') return '10';
   if (option === '12+') return '12';
-  return fallback;
+  return '8';
+}
+
+function generationSteps(hasStrava: boolean) {
+  return hasStrava
+    ? [
+        'Analyzing your recent Strava activity…',
+        'Finding your swim, bike, and run balance…',
+        'Estimating your current training load…',
+        'Building your race-specific progression…',
+        'Structuring your first training week…',
+        'Finalizing your calendar…',
+      ]
+    : [
+        'Reading your race goal…',
+        'Balancing swim, bike, and run…',
+        'Choosing a safe starting load…',
+        'Building your race-specific progression…',
+        'Structuring your first training week…',
+        'Finalizing your calendar…',
+      ];
 }
 
 export function PlanScreen() {
@@ -51,13 +69,16 @@ export function PlanScreen() {
   const [experience, setExperience] = useState<Experience>('Intermediate');
   const [hourBand, setHourBand] = useState('6-8');
   const [maxHours, setMaxHours] = useState('8');
-  const [restDay, setRestDay] = useState('Monday');
   const [notes, setNotes] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [hasStrava] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [generationStep, setGenerationStep] = useState(0);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const step = steps[stepIndex]?.key ?? 'data';
+  const current = steps[stepIndex];
+  const step = current.key;
+  const magicSteps = generationSteps(hasStrava);
 
   const projectedWeeks = useMemo(() => {
     const parsed = new Date(`${raceDate}T00:00:00`);
@@ -67,6 +88,14 @@ export function PlanScreen() {
     return Math.max(1, Math.round(days / 7));
   }, [raceDate]);
 
+  useEffect(() => {
+    if (!generating) return;
+    const interval = setInterval(() => {
+      setGenerationStep((value) => Math.min(value + 1, magicSteps.length - 1));
+    }, 2800);
+    return () => clearInterval(interval);
+  }, [generating, magicSteps.length]);
+
   const generatePlan = async () => {
     if (!user?.id) return;
     const hours = Number(maxHours);
@@ -75,7 +104,8 @@ export function PlanScreen() {
       return;
     }
 
-    setLoading(true);
+    setGenerating(true);
+    setGenerationStep(0);
     setError(null);
     setSuccess(null);
 
@@ -87,7 +117,7 @@ export function PlanScreen() {
           raceDate,
           experience,
           maxHours: hours,
-          restDay,
+          restDay: 'Monday',
           planType: 'triathlon',
           athleteNotes: notes.trim() || undefined,
           twoADaysAllowed: false,
@@ -97,15 +127,18 @@ export function PlanScreen() {
 
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || payload?.ok === false) {
-        setError(payload?.error || 'Could not generate your plan yet. Native auth is still being finalized.');
+        setError(payload?.error || 'Could not generate your plan yet.');
+        setGenerating(false);
         return;
       }
+
+      setGenerationStep(magicSteps.length - 1);
       setSuccess('Your plan is ready. Open Today or Schedule and pull to refresh.');
+      setTimeout(() => setGenerating(false), 900);
     } catch (err) {
       console.error('[PlanScreen] plan generation failed', err);
-      setError('Could not reach TrainGPT. The native backend bridge may still need to be patched.');
-    } finally {
-      setLoading(false);
+      setError('Could not reach TrainGPT. Try again in a moment.');
+      setGenerating(false);
     }
   };
 
@@ -120,147 +153,124 @@ export function PlanScreen() {
     if (stepIndex > 0) setStepIndex((value) => value - 1);
   };
 
+  if (generating) {
+    return (
+      <View style={styles.magicScreen}>
+        <View style={styles.magicOrbOuter}><View style={styles.magicOrbInner}><Text style={styles.magicSpark}>✦</Text></View></View>
+        <Text style={styles.magicEyebrow}>Generating plan</Text>
+        <Text style={styles.magicTitle}>Building your training calendar.</Text>
+        <Text style={styles.magicSubtitle}>{magicSteps[generationStep]}</Text>
+        <View style={styles.magicProgressTrack}>
+          <View style={[styles.magicProgressFill, { width: `${((generationStep + 1) / magicSteps.length) * 100}%` }]} />
+        </View>
+        <View style={styles.magicList}>
+          {magicSteps.map((item, index) => (
+            <View key={item} style={styles.magicRow}>
+              <Text style={[styles.magicCheck, index <= generationStep && styles.magicCheckActive]}>{index <= generationStep ? '✓' : '·'}</Text>
+              <Text style={[styles.magicItem, index === generationStep && styles.magicItemActive]}>{item}</Text>
+            </View>
+          ))}
+        </View>
+        <Text style={styles.magicFooter}>Keep the app open. Longer plans can take up to a minute.</Text>
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.container}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Text style={styles.kicker}>Plan builder</Text>
-          <Text style={styles.title}>Rebuild your training plan.</Text>
-          <Text style={styles.subtitle}>A guided setup for your race, schedule, training background, and real-world constraints.</Text>
-          <View style={styles.stravaPill}><Text style={styles.stravaPillText}>Strava connected · 49 recent activities · 39.8h</Text></View>
+        <View style={styles.topRow}>
+          <Text style={styles.brand}>TrainGPT</Text>
+          <Text style={styles.progressText}>{stepIndex + 1} / {steps.length}</Text>
+        </View>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${((stepIndex + 1) / steps.length) * 100}%` }]} />
         </View>
 
-        <View style={styles.rule} />
+        <Text style={styles.eyebrow}>{current.eyebrow}</Text>
+        <Text style={styles.title}>{current.title}</Text>
+        <Text style={styles.subtitle}>{current.subtitle}</Text>
 
-        <View style={styles.stepList}>
-          {steps.map((item, index) => (
-            <Pressable key={item.key} onPress={() => setStepIndex(index)} style={[styles.stepRow, index === stepIndex && styles.stepRowActive]}>
-              <Text style={[styles.stepCircle, index === stepIndex && styles.stepCircleActive]}>{index + 1}</Text>
-              <View>
-                <Text style={[styles.stepSmall, index === stepIndex && styles.stepSmallActive]}>Step {index + 1}</Text>
-                <Text style={[styles.stepText, index === stepIndex && styles.stepTextActive]}>{item.label}</Text>
-              </View>
-            </Pressable>
-          ))}
-        </View>
-
-        <View style={styles.panel}>
-          <View style={styles.panelHeader}>
-            <View>
-              <Text style={styles.panelStep}>Step {stepIndex + 1}</Text>
-              <Text style={styles.panelTitle}>{steps[stepIndex].label}</Text>
-            </View>
-            <Text style={styles.panelCount}>{stepIndex + 1} / {steps.length}</Text>
-          </View>
-
-          {step === 'data' ? (
-            <View style={styles.innerCard}>
-              <Text style={styles.innerKicker}>Optional</Text>
-              <Text style={styles.innerTitle}>Start from your real training history.</Text>
-              <Text style={styles.body}>Connect Strava and TrainGPT can use your recent volume, sport balance, and available pace or power data to calibrate the plan. You can skip this and enter details manually.</Text>
-              <View style={styles.connectedBox}>
-                <Text style={styles.connectedTitle}>Strava connected</Text>
-                <Text style={styles.connectedMeta}>49 activities found · 39.8h total · Run/Bike/Swim 14/8/0</Text>
-              </View>
+        <View style={styles.card}>
+          {step === 'race' ? (
+            <View style={styles.optionStack}>
+              {raceTypes.map((option) => (
+                <Pressable key={option} onPress={() => setRaceType(option)} style={[styles.largeOption, raceType === option && styles.optionActive]}>
+                  <Text style={[styles.largeOptionText, raceType === option && styles.optionTextActive]}>{raceLabel(option)}</Text>
+                  <Text style={[styles.largeOptionMeta, raceType === option && styles.optionTextActive]}>{option}</Text>
+                </Pressable>
+              ))}
             </View>
           ) : null}
 
-          {step === 'race' ? (
-            <View style={styles.innerCard}>
-              <Text style={styles.innerKicker}>Race</Text>
-              <Text style={styles.innerTitle}>What are you training for?</Text>
-              <Text style={styles.label}>Race distance</Text>
-              <View style={styles.optionGrid}>
-                {raceTypes.map((option) => (
-                  <Pressable key={option} onPress={() => setRaceType(option)} style={[styles.option, raceType === option && styles.optionActive]}>
-                    <Text style={[styles.optionText, raceType === option && styles.optionTextActive]}>{raceLabel(option)}</Text>
-                  </Pressable>
-                ))}
-              </View>
+          {step === 'date' ? (
+            <View>
               <Text style={styles.label}>Race date</Text>
               <TextInput value={raceDate} onChangeText={setRaceDate} placeholder="YYYY-MM-DD" placeholderTextColor={colors.faint} autoCapitalize="none" style={styles.input} />
+              <View style={styles.contextBox}><Text style={styles.contextValue}>{projectedWeeks ?? '—'} weeks to build</Text><Text style={styles.contextText}>TrainGPT will build progression, recovery, peak, and taper from this timeline.</Text></View>
             </View>
           ) : null}
 
-          {step === 'fitness' ? (
-            <View style={styles.innerCard}>
-              <Text style={styles.innerKicker}>Current fitness</Text>
-              <Text style={styles.innerTitle}>Set the starting level.</Text>
-              <View style={styles.segmentedRow}>
-                {experiences.map((option) => (
-                  <Pressable key={option} onPress={() => setExperience(option)} style={[styles.segment, experience === option && styles.optionActive]}>
-                    <Text style={[styles.segmentText, experience === option && styles.optionTextActive]}>{option}</Text>
-                  </Pressable>
-                ))}
-              </View>
-              <Text style={styles.body}>We’ll add threshold zones after the core onboarding flow feels right.</Text>
+          {step === 'experience' ? (
+            <View style={styles.optionStack}>
+              {experiences.map((option) => (
+                <Pressable key={option} onPress={() => setExperience(option)} style={[styles.largeOption, experience === option && styles.optionActive]}>
+                  <Text style={[styles.largeOptionText, experience === option && styles.optionTextActive]}>{option}</Text>
+                  <Text style={[styles.largeOptionMeta, experience === option && styles.optionTextActive]}>{option === 'Beginner' ? 'Newer to structured triathlon training' : option === 'Intermediate' ? 'Consistent training, building toward performance' : 'Experienced athlete with higher training tolerance'}</Text>
+                </Pressable>
+              ))}
             </View>
           ) : null}
 
-          {step === 'week' ? (
-            <View style={styles.innerCard}>
-              <Text style={styles.innerKicker}>Availability</Text>
-              <Text style={styles.innerTitle}>Make the plan fit your week.</Text>
-              <Text style={styles.label}>Weekly hours</Text>
-              <View style={styles.optionGrid}>
-                {hourOptions.map((option) => (
-                  <Pressable key={option} onPress={() => { setHourBand(option); setMaxHours(parseHours(option, maxHours)); }} style={[styles.option, hourBand === option && styles.optionActive]}>
-                    <Text style={[styles.optionText, hourBand === option && styles.optionTextActive]}>{option}</Text>
-                  </Pressable>
-                ))}
-              </View>
-              <Text style={styles.label}>Rest day</Text>
-              <View style={styles.restGrid}>
-                {restDays.map((option) => (
-                  <Pressable key={option} onPress={() => setRestDay(option)} style={[styles.restOption, restDay === option && styles.optionActive]}>
-                    <Text style={[styles.restText, restDay === option && styles.optionTextActive]}>{option.slice(0, 3)}</Text>
-                  </Pressable>
-                ))}
-              </View>
+          {step === 'hours' ? (
+            <View style={styles.grid}>
+              {hourOptions.map((option) => (
+                <Pressable key={option} onPress={() => { setHourBand(option); setMaxHours(parseHours(option)); }} style={[styles.tile, hourBand === option && styles.optionActive]}>
+                  <Text style={[styles.tileText, hourBand === option && styles.optionTextActive]}>{option}</Text>
+                  <Text style={[styles.tileMeta, hourBand === option && styles.optionTextActive]}>hrs/wk</Text>
+                </Pressable>
+              ))}
             </View>
           ) : null}
 
-          {step === 'history' ? (
-            <View style={styles.innerCard}>
-              <Text style={styles.innerKicker}>Training history</Text>
-              <Text style={styles.innerTitle}>Recent pattern</Text>
-              <Text style={styles.body}>Strongest signal: consistent bike volume. Gap to improve: swim frequency. The plan should protect key bike and run sessions while nudging sustainable swim exposure.</Text>
-              <View style={styles.historyRow}><Text style={styles.historyLabel}>Bike</Text><View style={styles.track}><View style={[styles.fill, { width: '76%' }]} /></View><Text style={styles.historyValue}>18h</Text></View>
-              <View style={styles.historyRow}><Text style={styles.historyLabel}>Run</Text><View style={styles.track}><View style={[styles.fill, { width: '48%' }]} /></View><Text style={styles.historyValue}>11h</Text></View>
-              <View style={styles.historyRow}><Text style={styles.historyLabel}>Swim</Text><View style={styles.track}><View style={[styles.fill, { width: '16%' }]} /></View><Text style={styles.historyValue}>3h</Text></View>
+          {step === 'strava' ? (
+            <View>
+              <View style={styles.stravaBox}>
+                <Text style={styles.stravaStatus}>Strava connected</Text>
+                <Text style={styles.stravaBig}>49 recent activities</Text>
+                <Text style={styles.stravaMeta}>39.8h total · Run/Bike/Swim 14/8/0</Text>
+              </View>
+              <Text style={styles.body}>We’ll use this to estimate recent load, discipline balance, and whether your plan should start conservatively or aggressively.</Text>
             </View>
           ) : null}
 
           {step === 'notes' ? (
-            <View style={styles.innerCard}>
-              <Text style={styles.innerKicker}>Coach notes</Text>
-              <Text style={styles.innerTitle}>Add the constraints a real coach would ask about.</Text>
+            <View>
+              <Text style={styles.label}>Coach notes</Text>
               <TextInput value={notes} onChangeText={setNotes} placeholder="Travel, injuries, weak disciplines, schedule constraints, long ride preferences..." placeholderTextColor={colors.faint} multiline style={[styles.input, styles.textArea]} />
             </View>
           ) : null}
 
           {step === 'review' ? (
-            <View style={styles.innerCard}>
-              <Text style={styles.innerKicker}>Review</Text>
-              <Text style={styles.innerTitle}>Ready to build the calendar.</Text>
+            <View>
+              <Text style={styles.reviewTitle}>{raceLabel(raceType)} plan</Text>
               <View style={styles.reviewGrid}>
-                <View style={styles.reviewItem}><Text style={styles.reviewValue}>{raceLabel(raceType)}</Text><Text style={styles.reviewLabel}>Race</Text></View>
                 <View style={styles.reviewItem}><Text style={styles.reviewValue}>{projectedWeeks ?? '—'}</Text><Text style={styles.reviewLabel}>Weeks</Text></View>
                 <View style={styles.reviewItem}><Text style={styles.reviewValue}>{maxHours}h</Text><Text style={styles.reviewLabel}>Weekly cap</Text></View>
+                <View style={styles.reviewItem}><Text style={styles.reviewValue}>{experience}</Text><Text style={styles.reviewLabel}>Level</Text></View>
               </View>
-              <Text style={styles.body}>TrainGPT will build a progressive calendar around your race date, training availability, and coach notes.</Text>
+              <Text style={styles.body}>Next, TrainGPT will generate your calendar and turn this into your first week of training.</Text>
             </View>
           ) : null}
-
-          <View style={styles.panelFooter}>
-            <Pressable onPress={backStep} disabled={stepIndex === 0} style={[styles.backButton, stepIndex === 0 && styles.disabledBack]}><Text style={styles.backText}>Back</Text></Pressable>
-            <Pressable onPress={continueStep} disabled={loading} style={[styles.continueButton, loading && styles.disabled]}>{loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.continueText}>{stepIndex === steps.length - 1 ? 'Generate plan' : 'Continue'}</Text>}</Pressable>
-          </View>
         </View>
 
         {error ? <View style={styles.errorBox}><Text style={styles.error}>{error}</Text></View> : null}
         {success ? <View style={styles.successBox}><Text style={styles.success}>{success}</Text></View> : null}
-        <Text style={styles.footerNote}>This should feel like the same TrainGPT web flow, simplified for mobile.</Text>
+
+        <View style={styles.footerActions}>
+          <Pressable onPress={backStep} disabled={stepIndex === 0} style={[styles.backButton, stepIndex === 0 && styles.disabledBack]}><Text style={styles.backText}>Back</Text></Pressable>
+          <Pressable onPress={continueStep} style={styles.continueButton}><Text style={styles.continueText}>{stepIndex === steps.length - 1 ? 'Generate plan' : 'Continue'}</Text></Pressable>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -269,67 +279,65 @@ export function PlanScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.pageX, paddingTop: 58, paddingBottom: 132 },
-  header: { gap: 0 },
-  kicker: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.9 },
-  title: { marginTop: 8, color: colors.ink, fontSize: 38, lineHeight: 39, fontWeight: '900', letterSpacing: -1.9 },
-  subtitle: { marginTop: 12, color: colors.inkSoft, fontSize: 15, lineHeight: 23, fontWeight: '500' },
-  stravaPill: { marginTop: 18, alignSelf: 'flex-start', borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 10 },
-  stravaPillText: { color: colors.ink, fontSize: 13, fontWeight: '800' },
-  rule: { marginTop: 22, height: 1, backgroundColor: colors.border },
-  stepList: { marginTop: 22, gap: 8 },
-  stepRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, borderRadius: radius.md, paddingHorizontal: 12 },
-  stepRowActive: { backgroundColor: colors.ink },
-  stepCircle: { width: 28, height: 28, borderRadius: 999, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, color: colors.muted, textAlign: 'center', paddingTop: 5, fontSize: 12, fontWeight: '900' },
-  stepCircleActive: { color: colors.ink, backgroundColor: colors.surface, borderColor: colors.surface },
-  stepSmall: { color: colors.faint, fontSize: 11, fontWeight: '700' },
-  stepSmallActive: { color: colors.faint },
-  stepText: { marginTop: 1, color: colors.inkSoft, fontSize: 13, fontWeight: '700' },
-  stepTextActive: { color: colors.surface, fontWeight: '900' },
-  panel: { marginTop: 24, backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, padding: 18, ...shadow.card },
-  panelHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-  panelStep: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.8 },
-  panelTitle: { marginTop: 8, color: colors.ink, fontSize: 28, lineHeight: 31, fontWeight: '900', letterSpacing: -1.2 },
-  panelCount: { color: colors.muted, fontSize: 13, fontWeight: '800' },
-  innerCard: { marginTop: 26, backgroundColor: colors.background, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, padding: 18 },
-  innerKicker: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.8 },
-  innerTitle: { marginTop: 12, color: colors.ink, fontSize: 22, lineHeight: 26, fontWeight: '900', letterSpacing: -0.8 },
-  body: { marginTop: 12, color: colors.inkSoft, fontSize: 14, lineHeight: 22, fontWeight: '500' },
-  connectedBox: { marginTop: 22, backgroundColor: colors.successSoft, borderRadius: radius.lg, borderWidth: 1, borderColor: '#86efac', padding: 16 },
-  connectedTitle: { color: colors.success, fontSize: 15, fontWeight: '900' },
-  connectedMeta: { marginTop: 5, color: colors.inkSoft, fontSize: 13, lineHeight: 20, fontWeight: '600' },
-  label: { marginTop: 18, marginBottom: 10, color: colors.inkSoft, fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.1 },
-  optionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  option: { flexGrow: 1, minWidth: '47%', minHeight: 48, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
-  optionText: { color: colors.inkSoft, fontWeight: '800' },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  brand: { color: colors.ink, fontSize: 18, fontWeight: '900', letterSpacing: -0.4 },
+  progressText: { color: colors.muted, fontSize: 13, fontWeight: '900' },
+  progressTrack: { marginTop: 22, height: 6, borderRadius: 999, backgroundColor: colors.border, overflow: 'hidden' },
+  progressFill: { height: '100%', backgroundColor: colors.ink, borderRadius: 999 },
+  eyebrow: { marginTop: 46, color: colors.faint, fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.9 },
+  title: { marginTop: 12, color: colors.ink, fontSize: 42, lineHeight: 43, fontWeight: '900', letterSpacing: -2.2 },
+  subtitle: { marginTop: 14, color: colors.inkSoft, fontSize: 16, lineHeight: 25, fontWeight: '500' },
+  card: { marginTop: 28, backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, padding: 18, ...shadow.card },
+  optionStack: { gap: 10 },
+  largeOption: { minHeight: 74, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, paddingHorizontal: 17, paddingVertical: 14, justifyContent: 'center' },
+  largeOptionText: { color: colors.ink, fontSize: 22, fontWeight: '900', letterSpacing: -0.7 },
+  largeOptionMeta: { marginTop: 5, color: colors.muted, fontSize: 13, lineHeight: 18, fontWeight: '600' },
   optionActive: { backgroundColor: colors.ink, borderColor: colors.ink },
   optionTextActive: { color: colors.surface },
-  input: { minHeight: 54, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, paddingHorizontal: 15, color: colors.ink, fontSize: 16, fontWeight: '700' },
-  textArea: { minHeight: 136, paddingTop: 14, textAlignVertical: 'top', fontWeight: '600' },
-  segmentedRow: { flexDirection: 'row', gap: 8, marginTop: 16 },
-  segment: { flex: 1, minHeight: 48, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  segmentText: { color: colors.inkSoft, fontSize: 12, fontWeight: '800' },
-  restGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  restOption: { minWidth: 61, minHeight: 44, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  restText: { color: colors.inkSoft, fontWeight: '800' },
-  historyRow: { marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  historyLabel: { width: 48, color: colors.ink, fontWeight: '900' },
-  track: { flex: 1, height: 8, borderRadius: 999, backgroundColor: colors.border, overflow: 'hidden' },
-  fill: { height: '100%', borderRadius: 999, backgroundColor: colors.ink },
-  historyValue: { width: 34, color: colors.muted, fontSize: 12, fontWeight: '800', textAlign: 'right' },
-  reviewGrid: { marginTop: 16, flexDirection: 'row', gap: 8 },
-  reviewItem: { flex: 1, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: 13 },
-  reviewValue: { color: colors.ink, fontSize: 20, fontWeight: '900' },
-  reviewLabel: { marginTop: 5, color: colors.muted, fontSize: 11, fontWeight: '800' },
-  panelFooter: { marginTop: 28, paddingTop: 18, borderTopWidth: 1, borderTopColor: colors.border, flexDirection: 'row', gap: 12 },
-  backButton: { minWidth: 84, minHeight: 46, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  disabledBack: { opacity: 0.4 },
-  backText: { color: colors.muted, fontWeight: '900' },
-  continueButton: { flex: 1, minHeight: 46, borderRadius: radius.md, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
-  continueText: { color: colors.surface, fontSize: 14, fontWeight: '900' },
+  label: { marginBottom: 10, color: colors.inkSoft, fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
+  input: { minHeight: 56, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, paddingHorizontal: 16, color: colors.ink, fontSize: 17, fontWeight: '700' },
+  textArea: { minHeight: 150, paddingTop: 16, textAlignVertical: 'top', fontWeight: '600' },
+  contextBox: { marginTop: 14, borderRadius: radius.lg, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, padding: 15 },
+  contextValue: { color: colors.ink, fontSize: 20, fontWeight: '900', letterSpacing: -0.6 },
+  contextText: { marginTop: 6, color: colors.muted, fontSize: 13, lineHeight: 20, fontWeight: '600' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  tile: { width: '47.8%', minHeight: 88, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  tileText: { color: colors.ink, fontSize: 25, fontWeight: '900', letterSpacing: -0.8 },
+  tileMeta: { marginTop: 4, color: colors.muted, fontSize: 12, fontWeight: '800' },
+  stravaBox: { backgroundColor: colors.successSoft, borderRadius: radius.lg, borderWidth: 1, borderColor: '#86efac', padding: 18 },
+  stravaStatus: { color: colors.success, fontSize: 13, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
+  stravaBig: { marginTop: 12, color: colors.ink, fontSize: 28, fontWeight: '900', letterSpacing: -1.1 },
+  stravaMeta: { marginTop: 5, color: colors.inkSoft, fontSize: 14, lineHeight: 21, fontWeight: '700' },
+  body: { marginTop: 14, color: colors.inkSoft, fontSize: 14, lineHeight: 22, fontWeight: '500' },
+  reviewTitle: { color: colors.ink, fontSize: 30, fontWeight: '900', letterSpacing: -1.1 },
+  reviewGrid: { marginTop: 18, gap: 9 },
+  reviewItem: { borderRadius: radius.lg, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, padding: 15 },
+  reviewValue: { color: colors.ink, fontSize: 22, fontWeight: '900' },
+  reviewLabel: { marginTop: 5, color: colors.muted, fontSize: 12, fontWeight: '800' },
   errorBox: { marginTop: 14, borderRadius: radius.md, backgroundColor: '#fff1f2', borderWidth: 1, borderColor: '#fecdd3', padding: 13 },
   error: { color: colors.danger, fontWeight: '800', lineHeight: 20 },
   successBox: { marginTop: 14, borderRadius: radius.md, backgroundColor: colors.successSoft, borderWidth: 1, borderColor: '#bbf7d0', padding: 13 },
   success: { color: colors.success, fontWeight: '800', lineHeight: 20 },
-  disabled: { opacity: 0.65 },
-  footerNote: { marginTop: 12, color: colors.muted, fontSize: 12, lineHeight: 18, textAlign: 'center', fontWeight: '600' },
+  footerActions: { marginTop: 22, flexDirection: 'row', gap: 12 },
+  backButton: { width: 96, minHeight: 54, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  disabledBack: { opacity: 0.4 },
+  backText: { color: colors.muted, fontWeight: '900' },
+  continueButton: { flex: 1, minHeight: 54, borderRadius: radius.md, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
+  continueText: { color: colors.surface, fontSize: 15, fontWeight: '900' },
+  magicScreen: { flex: 1, backgroundColor: colors.ink, paddingHorizontal: spacing.pageX, paddingTop: 92, paddingBottom: 42 },
+  magicOrbOuter: { alignSelf: 'center', width: 132, height: 132, borderRadius: 999, backgroundColor: '#1f2937', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#374151' },
+  magicOrbInner: { width: 84, height: 84, borderRadius: 999, backgroundColor: '#ffffff', alignItems: 'center', justifyContent: 'center' },
+  magicSpark: { color: colors.ink, fontSize: 36, fontWeight: '900' },
+  magicEyebrow: { marginTop: 44, color: '#a1a1aa', fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.8 },
+  magicTitle: { marginTop: 12, color: '#ffffff', fontSize: 40, lineHeight: 42, fontWeight: '900', letterSpacing: -2 },
+  magicSubtitle: { marginTop: 14, color: '#d4d4d8', fontSize: 17, lineHeight: 25, fontWeight: '600' },
+  magicProgressTrack: { marginTop: 30, height: 8, borderRadius: 999, backgroundColor: '#27272a', overflow: 'hidden' },
+  magicProgressFill: { height: '100%', borderRadius: 999, backgroundColor: '#ffffff' },
+  magicList: { marginTop: 30, gap: 15 },
+  magicRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  magicCheck: { width: 24, height: 24, borderRadius: 999, overflow: 'hidden', backgroundColor: '#27272a', color: '#a1a1aa', textAlign: 'center', paddingTop: 2, fontWeight: '900' },
+  magicCheckActive: { backgroundColor: '#ffffff', color: colors.ink },
+  magicItem: { flex: 1, color: '#71717a', fontSize: 15, lineHeight: 21, fontWeight: '700' },
+  magicItemActive: { color: '#ffffff' },
+  magicFooter: { marginTop: 'auto', color: '#a1a1aa', fontSize: 13, lineHeight: 20, textAlign: 'center', fontWeight: '600' },
 });
