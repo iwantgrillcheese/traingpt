@@ -10,9 +10,20 @@ export const colors = {
   borderStrong: '#d6d3cd',
   brand: '#09090b',
   brandSoft: '#efeae2',
+  cream: '#fffaf2',
+  topography: '#d8bda0',
   success: '#166534',
+  successSoft: '#ecfdf3',
   danger: '#be123c',
   warning: '#854d0e',
+  warningSoft: '#fff7ed',
+  orange: '#f97316',
+  blue: '#2563eb',
+  blueSoft: '#eff6ff',
+  purple: '#7c3aed',
+  purpleSoft: '#f5f3ff',
+  red: '#ef4444',
+  redSoft: '#fef2f2',
 } as const;
 
 export const radius = {
@@ -39,10 +50,17 @@ export const shadow = {
   },
   hero: {
     shadowColor: '#18181b',
-    shadowOpacity: 0.16,
-    shadowRadius: 28,
-    shadowOffset: { width: 0, height: 14 },
-    elevation: 4,
+    shadowOpacity: 0.14,
+    shadowRadius: 30,
+    shadowOffset: { width: 0, height: 16 },
+    elevation: 5,
+  },
+  floating: {
+    shadowColor: '#18181b',
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 10,
   },
 } as const;
 
@@ -59,8 +77,24 @@ export const typography = {
     fontWeight: '900' as const,
     letterSpacing: -1.9,
   },
+  editorial: {
+    fontSize: 42,
+    lineHeight: 43,
+    fontWeight: '900' as const,
+    letterSpacing: -2.1,
+  },
   body: {
     fontSize: 14,
     lineHeight: 22,
   },
+} as const;
+
+export const sportColors = {
+  Swim: '#2563eb',
+  Bike: '#f97316',
+  Run: '#22c55e',
+  Brick: '#7c3aed',
+  Strength: '#6366f1',
+  Rest: '#a1a1aa',
+  Session: '#09090b',
 } as const;
