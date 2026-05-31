@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { track } from '@/lib/analytics/posthog-client';
+import { exportCalendarClient } from '@/utils/exportCalendarClient';
 
 type PlanRow = {
   id: string;
@@ -124,6 +125,7 @@ export default function PlanReadyReviewOverlay() {
   const { user, loading: authLoading } = useAuth();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [data, setData] = useState<ReviewData | null>(null);
 
   const shouldActivate = useCallback(() => {
@@ -206,9 +208,14 @@ export default function PlanReadyReviewOverlay() {
     removeWalkthroughParam();
   };
 
-  const exportCalendar = () => {
-    track('calendar_export_clicked', { source: 'plan_ready_review' });
-    window.location.href = '/api/calendar/export';
+  const exportCalendar = async () => {
+    try {
+      setExporting(true);
+      track('calendar_export_clicked', { source: 'plan_ready_review' });
+      await exportCalendarClient();
+    } finally {
+      setExporting(false);
+    }
   };
 
   const askCoach = () => {
@@ -303,8 +310,8 @@ export default function PlanReadyReviewOverlay() {
             <button type="button" onClick={close} className="min-h-12 rounded-2xl bg-zinc-950 px-4 text-sm font-semibold text-white">
               Go to schedule
             </button>
-            <button type="button" onClick={exportCalendar} className="min-h-12 rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-800">
-              Export calendar
+            <button type="button" onClick={exportCalendar} disabled={exporting} className="min-h-12 rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-800 disabled:opacity-60">
+              {exporting ? 'Sharing…' : 'Export calendar'}
             </button>
             <button type="button" onClick={askCoach} className="min-h-12 rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-800">
               Ask coach
