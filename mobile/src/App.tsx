@@ -6,13 +6,22 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './auth/AuthProvider';
 import { LoginScreen } from './screens/LoginScreen';
 import { TodayScreen } from './screens/TodayScreen';
+import { PlanScreen } from './screens/PlanScreen';
 import { ScheduleScreen } from './screens/ScheduleScreen';
 import { CoachScreen } from './screens/CoachScreen';
 import { ProgressScreen } from './screens/ProgressScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
-import type { RootTabParamList } from './types';
 
-const Tab = createBottomTabNavigator<RootTabParamList>();
+type RootTabs = {
+  Today: undefined;
+  Plan: undefined;
+  Schedule: undefined;
+  Coach: undefined;
+  Progress: undefined;
+  Settings: undefined;
+};
+
+const Tab = createBottomTabNavigator<RootTabs>();
 
 const theme = {
   ...DefaultTheme,
@@ -56,6 +65,7 @@ function AuthedTabs() {
       }}
     >
       <Tab.Screen name="Today" component={TodayScreen} options={{ tabBarIcon: ({ color }) => <Text style={[styles.icon, { color }]}>●</Text> }} />
+      <Tab.Screen name="Plan" component={PlanScreen} options={{ tabBarIcon: ({ color }) => <Text style={[styles.icon, { color }]}>＋</Text> }} />
       <Tab.Screen name="Schedule" component={ScheduleScreen} options={{ tabBarIcon: ({ color }) => <Text style={[styles.icon, { color }]}>◼</Text> }} />
       <Tab.Screen name="Coach" component={CoachScreen} options={{ tabBarIcon: ({ color }) => <Text style={[styles.icon, { color }]}>◆</Text> }} />
       <Tab.Screen name="Progress" component={ProgressScreen} options={{ tabBarIcon: ({ color }) => <Text style={[styles.icon, { color }]}>▲</Text> }} />
