@@ -44,6 +44,11 @@ export function ScheduleScreen() {
     setRefreshing(false);
   };
 
+  const updateSessionLocally = (updated: SessionRow) => {
+    setSessions((prev) => prev.map((session) => (session.id === updated.id ? { ...session, ...updated } : session)));
+    setSelectedSession((prev) => (prev?.id === updated.id ? { ...prev, ...updated } : prev));
+  };
+
   const markDoneFor = async (session: SessionRow) => {
     if (!user?.id || !session.title) return;
     const existing = completed.filter((row) => row.date !== session.date || row.session_title !== session.title);
@@ -90,6 +95,7 @@ export function ScheduleScreen() {
         onClose={() => setSelectedSession(null)}
         onMarkDone={markDoneFor}
         onSkip={skipSession}
+        onSessionUpdated={updateSessionLocally}
       />
     </>
   );
