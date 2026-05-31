@@ -31,6 +31,7 @@ import SessionModal from './SessionModal';
 import StravaActivityModal from './StravaActivityModal';
 
 import { supabase } from '@/lib/supabase/client';
+import { exportCalendarClient } from '@/utils/exportCalendarClient';
 import type { CompletedSession } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
@@ -159,10 +160,6 @@ function previewDetails(value?: string | null) {
   return text.length > 140 ? `${text.slice(0, 137).trim()}…` : text;
 }
 
-function openCalendarExport() {
-  window.location.href = '/api/calendar/export';
-}
-
 export default function CalendarShell({
   sessions,
   completedSessions,
@@ -184,6 +181,7 @@ export default function CalendarShell({
   const [localSessions, setLocalSessions] = useState<MergedSession[]>(sessions);
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [saveMessage, setSaveMessage] = useState('');
+  const [exporting, setExporting] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => setHasMounted(true), []);
@@ -271,6 +269,15 @@ export default function CalendarShell({
   const goToPrevMonth = () => setCurrentMonth((month) => subMonths(month, 1));
   const goToNextMonth = () => setCurrentMonth((month) => addMonths(month, 1));
   const goToToday = () => setCurrentMonth(startOfMonth(new Date()));
+
+  const handleCalendarExport = async () => {
+    try {
+      setExporting(true);
+      await exportCalendarClient();
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const handleSessionAdded = (newSession: MergedSession) => {
     setLocalSessions((prev) => [...prev, newSession]);
@@ -374,8 +381,8 @@ export default function CalendarShell({
                 <button type="button" onClick={goToToday} className="h-9 rounded-lg border border-zinc-200 bg-white px-3 text-[13px] font-medium text-zinc-700 hover:bg-zinc-50">
                   Today
                 </button>
-                <button type="button" onClick={openCalendarExport} className="h-9 rounded-lg border border-zinc-200 bg-white px-3 text-[13px] font-medium text-zinc-700 hover:bg-zinc-50">
-                  Export
+                <button type="button" onClick={handleCalendarExport} disabled={exporting} className="h-9 rounded-lg border border-zinc-200 bg-white px-3 text-[13px] font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-60">
+                  {exporting ? 'Sharing…' : 'Export'}
                 </button>
                 {onOpenWalkthroughAction ? (
                   <button type="button" onClick={onOpenWalkthroughAction} disabled={walkthroughLoading} className="hidden h-9 rounded-lg border border-zinc-200 bg-white px-3 text-[13px] font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 sm:block">
