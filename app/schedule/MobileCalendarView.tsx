@@ -159,6 +159,10 @@ function getPlanRangeLabel(groups: ReturnType<typeof groupSessionsByDate>) {
   return `${format(first, 'MMM d')} – ${format(last, 'd, yyyy')}`;
 }
 
+function openCalendarExport() {
+  window.location.href = '/api/calendar/export';
+}
+
 export default function MobileCalendarView({
   sessions,
   completedSessions,
@@ -225,13 +229,22 @@ export default function MobileCalendarView({
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setAddSessionDate(new Date())}
-            className="min-h-10 shrink-0 rounded-full bg-zinc-950 px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm active:scale-[0.99]"
-          >
-            + Add
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={openCalendarExport}
+              className="min-h-10 rounded-full border border-zinc-200 bg-white px-3 py-2 text-[12px] font-semibold text-zinc-700 shadow-sm active:scale-[0.99]"
+            >
+              Export
+            </button>
+            <button
+              type="button"
+              onClick={() => setAddSessionDate(new Date())}
+              className="min-h-10 rounded-full bg-zinc-950 px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm active:scale-[0.99]"
+            >
+              + Add
+            </button>
+          </div>
         </div>
 
         {nextSession ? (
