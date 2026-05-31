@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -10,6 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { colors, radius, shadow, spacing } from '../design/theme';
 import { useAuth } from '../auth/AuthProvider';
 import { apiFetch } from '../lib/api';
 
@@ -26,6 +27,12 @@ function defaultRaceDate() {
   return date.toISOString().slice(0, 10);
 }
 
+function raceLabel(type: RaceType) {
+  if (type === 'Half Ironman (70.3)') return '70.3';
+  if (type === 'Ironman (140.6)') return '140.6';
+  return type;
+}
+
 export function PlanScreen() {
   const { user } = useAuth();
   const [raceType, setRaceType] = useState<RaceType>('Half Ironman (70.3)');
@@ -37,6 +44,14 @@ export function PlanScreen() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const projectedWeeks = useMemo(() => {
+    const parsed = new Date(`${raceDate}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) return null;
+    const days = Math.ceil((parsed.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    if (days <= 0) return null;
+    return Math.max(1, Math.round(days / 7));
+  }, [raceDate]);
 
   const generatePlan = async () => {
     if (!user?.id) return;
@@ -70,14 +85,14 @@ export function PlanScreen() {
       const payload = await response.json().catch(() => ({}));
 
       if (!response.ok || payload?.ok === false) {
-        setError(payload?.error || 'Could not generate your plan.');
+        setError(payload?.error || 'Could not generate your plan yet. Native auth is still being finalized.');
         return;
       }
 
-      setSuccess('Plan generated. Open Today or Schedule and pull to refresh.');
+      setSuccess('Plan generated. Pull to refresh Today or Schedule.');
     } catch (err) {
       console.error('[PlanScreen] plan generation failed', err);
-      setError('Could not reach TrainGPT. Try again in a moment.');
+      setError('Could not reach TrainGPT. The native backend bridge may still need to be patched.');
     } finally {
       setLoading(false);
     }
@@ -85,45 +100,56 @@ export function PlanScreen() {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Text style={styles.kicker}>Plan</Text>
-        <Text style={styles.title}>Build your training plan.</Text>
-        <Text style={styles.subtitle}>Native v1 keeps this simple: goal, date, experience, weekly hours, and rest day. Advanced power/pace inputs come next.</Text>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <Text style={styles.kicker}>Plan builder</Text>
+        <Text style={styles.title}>Build the calendar.</Text>
+        <Text style={styles.subtitle}>A focused native setup for getting from race goal to training week without digging through a giant form.</Text>
 
-        <View style={styles.section}>
-          <Text style={styles.label}>Race type</Text>
-          <View style={styles.options}>
+        <View style={styles.summaryCard}>
+          <View>
+            <Text style={styles.summaryLabel}>Current setup</Text>
+            <Text style={styles.summaryTitle}>{raceLabel(raceType)} · {experience}</Text>
+          </View>
+          <View style={styles.summaryStat}>
+            <Text style={styles.summaryStatValue}>{projectedWeeks ?? '—'}</Text>
+            <Text style={styles.summaryStatLabel}>weeks</Text>
+          </View>
+        </View>
+
+        <View style={styles.sectionCard}>
+          <Text style={styles.label}>Race distance</Text>
+          <View style={styles.raceGrid}>
             {raceTypes.map((option) => (
-              <Pressable key={option} onPress={() => setRaceType(option)} style={[styles.option, raceType === option && styles.optionActive]}>
-                <Text style={[styles.optionText, raceType === option && styles.optionTextActive]}>{option}</Text>
+              <Pressable key={option} onPress={() => setRaceType(option)} style={[styles.raceOption, raceType === option && styles.optionActive]}>
+                <Text style={[styles.raceOptionText, raceType === option && styles.optionTextActive]}>{raceLabel(option)}</Text>
               </Pressable>
             ))}
           </View>
         </View>
 
-        <View style={styles.section}>
+        <View style={styles.sectionCard}>
           <Text style={styles.label}>Race date</Text>
-          <TextInput value={raceDate} onChangeText={setRaceDate} placeholder="YYYY-MM-DD" placeholderTextColor="#a1a1aa" autoCapitalize="none" style={styles.input} />
-          <Text style={styles.help}>Use YYYY-MM-DD for now. Native date picker comes after the core loop works.</Text>
+          <TextInput value={raceDate} onChangeText={setRaceDate} placeholder="YYYY-MM-DD" placeholderTextColor={colors.faint} autoCapitalize="none" style={styles.input} />
+          <Text style={styles.help}>Use YYYY-MM-DD for now. We’ll replace this with a native date picker.</Text>
         </View>
 
-        <View style={styles.section}>
+        <View style={styles.sectionCard}>
           <Text style={styles.label}>Experience</Text>
-          <View style={styles.options}>
+          <View style={styles.segmentedRow}>
             {experiences.map((option) => (
-              <Pressable key={option} onPress={() => setExperience(option)} style={[styles.option, experience === option && styles.optionActive]}>
-                <Text style={[styles.optionText, experience === option && styles.optionTextActive]}>{option}</Text>
+              <Pressable key={option} onPress={() => setExperience(option)} style={[styles.segment, experience === option && styles.optionActive]}>
+                <Text style={[styles.segmentText, experience === option && styles.optionTextActive]}>{option}</Text>
               </Pressable>
             ))}
           </View>
         </View>
 
-        <View style={styles.sectionGrid}>
-          <View style={{ flex: 1 }}>
+        <View style={styles.twoColumn}>
+          <View style={[styles.sectionCard, styles.flexCard]}>
             <Text style={styles.label}>Weekly hours</Text>
-            <TextInput value={maxHours} onChangeText={setMaxHours} keyboardType="decimal-pad" placeholder="8" placeholderTextColor="#a1a1aa" style={styles.input} />
+            <TextInput value={maxHours} onChangeText={setMaxHours} keyboardType="decimal-pad" placeholder="8" placeholderTextColor={colors.faint} style={styles.input} />
           </View>
-          <View style={{ flex: 1 }}>
+          <View style={[styles.sectionCard, styles.flexCard]}>
             <Text style={styles.label}>Rest day</Text>
             <View style={styles.compactOptions}>
               {restDays.map((option) => (
@@ -135,55 +161,68 @@ export function PlanScreen() {
           </View>
         </View>
 
-        <View style={styles.section}>
+        <View style={styles.sectionCard}>
           <Text style={styles.label}>Coach notes</Text>
           <TextInput
             value={notes}
             onChangeText={setNotes}
-            placeholder="Anything your coach should know?"
-            placeholderTextColor="#a1a1aa"
+            placeholder="Travel, injuries, weak disciplines, schedule constraints…"
+            placeholderTextColor={colors.faint}
             multiline
             style={[styles.input, styles.textArea]}
           />
         </View>
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        {success ? <Text style={styles.success}>{success}</Text> : null}
+        {error ? <View style={styles.errorBox}><Text style={styles.error}>{error}</Text></View> : null}
+        {success ? <View style={styles.successBox}><Text style={styles.success}>{success}</Text></View> : null}
 
-        <Pressable disabled={loading} onPress={generatePlan} style={[styles.button, loading && styles.disabled]}>
-          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Generate plan</Text>}
+        <Pressable disabled={loading} onPress={generatePlan} style={({ pressed }) => [styles.button, pressed && styles.pressed, loading && styles.disabled]}>
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Generate training plan</Text>}
         </Pressable>
 
-        <Text style={styles.footerNote}>Long plans can take a minute. Keep the app open while TrainGPT builds the calendar.</Text>
+        <Text style={styles.footerNote}>Plan generation may take up to a minute. Keep the app open while TrainGPT builds your calendar.</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fbfbfa' },
-  content: { padding: 20, paddingTop: 72, paddingBottom: 130 },
-  kicker: { color: '#71717a', fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.8 },
-  title: { marginTop: 8, color: '#09090b', fontSize: 38, lineHeight: 38, fontWeight: '800', letterSpacing: -1.8 },
-  subtitle: { marginTop: 10, color: '#71717a', fontSize: 14, lineHeight: 22 },
-  section: { marginTop: 22 },
-  sectionGrid: { marginTop: 22, flexDirection: 'row', gap: 12 },
-  label: { marginBottom: 8, color: '#3f3f46', fontSize: 13, fontWeight: '800' },
-  options: { gap: 8 },
-  option: { minHeight: 48, borderRadius: 18, borderWidth: 1, borderColor: '#e4e4e7', backgroundColor: '#fff', paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
-  optionActive: { backgroundColor: '#09090b', borderColor: '#09090b' },
-  optionText: { color: '#3f3f46', fontWeight: '800' },
-  optionTextActive: { color: '#fff' },
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { padding: spacing.pageX, paddingTop: 66, paddingBottom: 132 },
+  kicker: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.8 },
+  title: { marginTop: 8, color: colors.ink, fontSize: 40, lineHeight: 40, fontWeight: '900', letterSpacing: -1.9 },
+  subtitle: { marginTop: 10, color: colors.muted, fontSize: 14, lineHeight: 22 },
+  summaryCard: { marginTop: 24, backgroundColor: colors.ink, borderRadius: radius.xxl, padding: 22, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', ...shadow.hero },
+  summaryLabel: { color: '#a8a29e', fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.4 },
+  summaryTitle: { marginTop: 8, color: colors.surface, fontSize: 25, lineHeight: 28, fontWeight: '900', letterSpacing: -1.1 },
+  summaryStat: { width: 72, height: 72, borderRadius: 24, backgroundColor: '#1c1917', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#44403c' },
+  summaryStatValue: { color: colors.surface, fontSize: 25, fontWeight: '900', letterSpacing: -1 },
+  summaryStatLabel: { color: '#a8a29e', fontSize: 10, fontWeight: '800' },
+  sectionCard: { marginTop: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.xl, padding: 16, ...shadow.card },
+  flexCard: { flex: 1 },
+  twoColumn: { flexDirection: 'row', gap: 10 },
+  label: { marginBottom: 10, color: colors.inkSoft, fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.1 },
+  raceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  raceOption: { flexGrow: 1, minWidth: '47%', minHeight: 48, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
+  raceOptionText: { color: colors.inkSoft, fontWeight: '900' },
+  segmentedRow: { flexDirection: 'row', gap: 8 },
+  segment: { flex: 1, minHeight: 46, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted, alignItems: 'center', justifyContent: 'center' },
+  segmentText: { color: colors.inkSoft, fontSize: 12, fontWeight: '900' },
+  optionActive: { backgroundColor: colors.ink, borderColor: colors.ink },
+  optionTextActive: { color: colors.surface },
   compactOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  compactOption: { minWidth: 42, minHeight: 40, borderRadius: 14, borderWidth: 1, borderColor: '#e4e4e7', backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  compactOptionText: { color: '#3f3f46', fontSize: 12, fontWeight: '800' },
-  input: { minHeight: 52, borderRadius: 18, borderWidth: 1, borderColor: '#e4e4e7', backgroundColor: '#fff', paddingHorizontal: 16, color: '#09090b', fontSize: 16 },
-  textArea: { minHeight: 96, paddingTop: 14, textAlignVertical: 'top' },
-  help: { marginTop: 8, color: '#a1a1aa', fontSize: 12, lineHeight: 18 },
-  error: { marginTop: 16, color: '#be123c', fontWeight: '800', lineHeight: 20 },
-  success: { marginTop: 16, color: '#166534', fontWeight: '800', lineHeight: 20 },
-  button: { marginTop: 20, minHeight: 56, borderRadius: 20, backgroundColor: '#09090b', alignItems: 'center', justifyContent: 'center' },
-  buttonText: { color: '#fff', fontSize: 15, fontWeight: '900' },
+  compactOption: { minWidth: 41, minHeight: 38, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted, alignItems: 'center', justifyContent: 'center' },
+  compactOptionText: { color: colors.inkSoft, fontSize: 12, fontWeight: '900' },
+  input: { minHeight: 52, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, paddingHorizontal: 15, color: colors.ink, fontSize: 16, fontWeight: '700' },
+  textArea: { minHeight: 96, paddingTop: 14, textAlignVertical: 'top', fontWeight: '600' },
+  help: { marginTop: 8, color: colors.faint, fontSize: 12, lineHeight: 18, fontWeight: '600' },
+  errorBox: { marginTop: 14, borderRadius: radius.md, backgroundColor: '#fff1f2', borderWidth: 1, borderColor: '#fecdd3', padding: 13 },
+  error: { color: colors.danger, fontWeight: '800', lineHeight: 20 },
+  successBox: { marginTop: 14, borderRadius: radius.md, backgroundColor: '#f0fdf4', borderWidth: 1, borderColor: '#bbf7d0', padding: 13 },
+  success: { color: colors.success, fontWeight: '800', lineHeight: 20 },
+  button: { marginTop: 18, minHeight: 58, borderRadius: radius.lg, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center', ...shadow.hero },
+  buttonText: { color: colors.surface, fontSize: 15, fontWeight: '900' },
   disabled: { opacity: 0.65 },
-  footerNote: { marginTop: 12, color: '#71717a', fontSize: 12, lineHeight: 18, textAlign: 'center' },
+  pressed: { transform: [{ scale: 0.992 }], opacity: 0.94 },
+  footerNote: { marginTop: 12, color: colors.muted, fontSize: 12, lineHeight: 18, textAlign: 'center', fontWeight: '600' },
 });
