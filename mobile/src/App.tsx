@@ -6,18 +6,18 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './auth/AuthProvider';
 import { LoginScreen } from './screens/LoginScreen';
 import { TodayScreen } from './screens/TodayScreen';
-import { PlanScreen } from './screens/PlanScreen';
 import { ScheduleScreen } from './screens/ScheduleScreen';
 import { CoachScreen } from './screens/CoachScreen';
-import { SettingsScreen } from './screens/SettingsScreen';
+import { ProgressScreen } from './screens/ProgressScreen';
+import { GearScreen } from './screens/GearScreen';
 import { colors } from './design/theme';
 
 type RootTabs = {
   Today: undefined;
-  Plan: undefined;
   Schedule: undefined;
   Coach: undefined;
-  Settings: undefined;
+  Progress: undefined;
+  Gear: undefined;
 };
 
 const Tab = createBottomTabNavigator<RootTabs>();
@@ -65,10 +65,10 @@ function AuthedTabs() {
       }}
     >
       <Tab.Screen name="Today" component={TodayScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="T" focused={focused} /> }} />
-      <Tab.Screen name="Plan" component={PlanScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="P" focused={focused} /> }} />
       <Tab.Screen name="Schedule" component={ScheduleScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="S" focused={focused} /> }} />
       <Tab.Screen name="Coach" component={CoachScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="C" focused={focused} /> }} />
-      <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="•" focused={focused} /> }} />
+      <Tab.Screen name="Progress" component={ProgressScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="P" focused={focused} /> }} />
+      <Tab.Screen name="Gear" component={GearScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="G" focused={focused} /> }} />
     </Tab.Navigator>
   );
 }
