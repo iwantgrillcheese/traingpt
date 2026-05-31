@@ -4,7 +4,7 @@ import {
   createRouteSupabaseClient,
   requireUser,
 } from '@/lib/supabase/server';
-import { getBillingAccess, premiumFeatureResponse } from '@/lib/billing';
+import { getBillingAccess } from '@/lib/billing';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,10 +21,10 @@ type SessionRow = {
 
 function escapeIcs(value: string) {
   return String(value ?? '')
-    .replace(/\\/g, '\\\\')
-    .replace(/;/g, '\\;')
-    .replace(/,/g, '\\,')
-    .replace(/\r?\n/g, '\\n');
+    .replace(/\/g, '\\')
+    .replace(/;/g, '\;')
+    .replace(/,/g, '\,')
+    .replace(/\r?\n/g, '\n');
 }
 
 function foldIcsLine(line: string) {
@@ -114,17 +114,15 @@ function buildCalendar(sessions: SessionRow[], userId: string) {
   return `${lines.map(foldIcsLine).join('\r\n')}\r\n`;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const supabase = await createRouteSupabaseClient();
     const user = await requireUser(supabase);
     const billing = await getBillingAccess(supabase, user.id);
 
     if (!billing.isPlusActive) {
-      return NextResponse.json(
-        premiumFeatureResponse('Calendar export', '/plan-preview?feature=calendar-export'),
-        { status: 402 }
-      );
+      const url = new URL('/plan-preview?feature=calendar-export', req.url);
+      return NextResponse.redirect(url);
     }
 
     const { data, error } = await supabase
