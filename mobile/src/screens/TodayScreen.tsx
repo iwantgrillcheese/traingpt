@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { supabase } from '../lib/supabase';
 import type { CompletedSessionRow, SessionRow } from '../types';
 import { SessionCard } from '../components/SessionCard';
+import { SessionDetailSheet } from '../components/SessionDetailSheet';
 import { cleanTitle, currentWeekStats, formatMinutes, getNextSession, getTodaysSessions, normalizeSport } from '../utils/training';
 
 export function TodayScreen() {
@@ -13,6 +14,7 @@ export function TodayScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedSession, setSelectedSession] = useState<SessionRow | null>(null);
 
   const load = useCallback(async () => {
     if (!user?.id) return;
@@ -47,14 +49,24 @@ export function TodayScreen() {
   const heroSession = todaysSessions[0] ?? nextSession;
   const stats = useMemo(() => currentWeekStats(sessions, completed), [sessions, completed]);
 
-  const markDone = async () => {
-    if (!user?.id || !heroSession) return;
-    const existing = completed.filter((row) => row.date !== heroSession.date || row.session_title !== heroSession.title);
-    const next = [...existing, { user_id: user.id, date: heroSession.date, session_title: String(heroSession.title), status: 'done' }];
+  const markDoneFor = async (session: SessionRow) => {
+    if (!user?.id || !session.title) return;
+    const existing = completed.filter((row) => row.date !== session.date || row.session_title !== session.title);
+    const next = [...existing, { user_id: user.id, date: session.date, session_title: String(session.title), status: 'done' }];
     setCompleted(next);
 
-    await supabase.from('completed_sessions').delete().eq('user_id', user.id).eq('date', heroSession.date).eq('session_title', heroSession.title);
-    await supabase.from('completed_sessions').insert({ user_id: user.id, date: heroSession.date, session_title: heroSession.title, status: 'done' });
+    await supabase.from('completed_sessions').delete().eq('user_id', user.id).eq('date', session.date).eq('session_title', session.title);
+    await supabase.from('completed_sessions').insert({ user_id: user.id, date: session.date, session_title: session.title, status: 'done' });
+  };
+
+  const skipSession = async (session: SessionRow) => {
+    if (!user?.id || !session.title) return;
+    const existing = completed.filter((row) => row.date !== session.date || row.session_title !== session.title);
+    const next = [...existing, { user_id: user.id, date: session.date, session_title: String(session.title), status: 'skipped' }];
+    setCompleted(next);
+
+    await supabase.from('completed_sessions').delete().eq('user_id', user.id).eq('date', session.date).eq('session_title', session.title);
+    await supabase.from('completed_sessions').insert({ user_id: user.id, date: session.date, session_title: session.title, status: 'skipped' });
   };
 
   if (loading) {
@@ -62,45 +74,56 @@ export function TodayScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
-      <Text style={styles.kicker}>Today</Text>
-      <Text style={styles.title}>Your training day</Text>
-      <Text style={styles.subtitle}>A native daily command center for the work that actually matters.</Text>
+    <>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
+        <Text style={styles.kicker}>Today</Text>
+        <Text style={styles.title}>Your training day</Text>
+        <Text style={styles.subtitle}>A native daily command center for the work that actually matters.</Text>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      {heroSession ? (
-        <View style={styles.heroCard}>
-          <Text style={styles.heroMeta}>{normalizeSport(heroSession.sport)}{formatMinutes(heroSession.duration) ? ` · ${formatMinutes(heroSession.duration)}` : ''}</Text>
-          <Text style={styles.heroTitle}>{cleanTitle(heroSession.title)}</Text>
-          <Text numberOfLines={3} style={styles.heroText}>{heroSession.details?.replace(/Purpose:|Workout:|Intensity:/gi, '').trim() || 'Open the session to see the full workout and coaching context.'}</Text>
-          <View style={styles.actions}>
-            <Pressable onPress={markDone} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
-              <Text style={styles.primaryText}>Mark done</Text>
-            </Pressable>
-            <Pressable style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
-              <Text style={styles.secondaryText}>Ask coach</Text>
-            </Pressable>
+        {heroSession ? (
+          <Pressable onPress={() => setSelectedSession(heroSession)} style={({ pressed }) => [styles.heroCard, pressed && styles.pressed]}>
+            <Text style={styles.heroMeta}>{normalizeSport(heroSession.sport)}{formatMinutes(heroSession.duration) ? ` · ${formatMinutes(heroSession.duration)}` : ''}</Text>
+            <Text style={styles.heroTitle}>{cleanTitle(heroSession.title)}</Text>
+            <Text numberOfLines={3} style={styles.heroText}>{heroSession.details?.replace(/Purpose:|Workout:|Intensity:/gi, '').trim() || 'Open the session to see the full workout and coaching context.'}</Text>
+            <View style={styles.actions}>
+              <Pressable onPress={() => markDoneFor(heroSession)} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
+                <Text style={styles.primaryText}>Mark done</Text>
+              </Pressable>
+              <Pressable style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
+                <Text style={styles.secondaryText}>Ask coach</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        ) : (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyTitle}>No session today</Text>
+            <Text style={styles.emptyText}>Generate a plan on web and your native app will become the daily companion.</Text>
           </View>
-        </View>
-      ) : (
-        <View style={styles.emptyCard}>
-          <Text style={styles.emptyTitle}>No session today</Text>
-          <Text style={styles.emptyText}>Generate a plan on web and your native app will become the daily companion.</Text>
-        </View>
-      )}
+        )}
 
-      <View style={styles.statsGrid}>
-        <View style={styles.statCard}><Text style={styles.statLabel}>Complete</Text><Text style={styles.statValue}>{stats.done}/{stats.planned}</Text></View>
-        <View style={styles.statCard}><Text style={styles.statLabel}>Volume</Text><Text style={styles.statValue}>{formatMinutes(stats.minutes) ?? '—'}</Text></View>
-        <View style={styles.statCard}><Text style={styles.statLabel}>Adherence</Text><Text style={styles.statValue}>{stats.planned ? `${stats.adherence}%` : '—'}</Text></View>
-      </View>
+        <View style={styles.statsGrid}>
+          <View style={styles.statCard}><Text style={styles.statLabel}>Complete</Text><Text style={styles.statValue}>{stats.done}/{stats.planned}</Text></View>
+          <View style={styles.statCard}><Text style={styles.statLabel}>Volume</Text><Text style={styles.statValue}>{formatMinutes(stats.minutes) ?? '—'}</Text></View>
+          <View style={styles.statCard}><Text style={styles.statLabel}>Adherence</Text><Text style={styles.statValue}>{stats.planned ? `${stats.adherence}%` : '—'}</Text></View>
+        </View>
 
-      <Text style={styles.sectionTitle}>Upcoming</Text>
-      {sessions.filter((session) => new Date(`${session.date}T00:00:00`) >= new Date(new Date().setHours(0, 0, 0, 0))).slice(0, 5).map((session) => (
-        <SessionCard key={session.id} session={session} completed={completed} />
-      ))}
-    </ScrollView>
+        <Text style={styles.sectionTitle}>Upcoming</Text>
+        {sessions.filter((session) => new Date(`${session.date}T00:00:00`) >= new Date(new Date().setHours(0, 0, 0, 0))).slice(0, 5).map((session) => (
+          <SessionCard key={session.id} session={session} completed={completed} onPress={() => setSelectedSession(session)} />
+        ))}
+      </ScrollView>
+
+      <SessionDetailSheet
+        session={selectedSession}
+        completed={completed}
+        open={Boolean(selectedSession)}
+        onClose={() => setSelectedSession(null)}
+        onMarkDone={markDoneFor}
+        onSkip={skipSession}
+      />
+    </>
   );
 }
 
