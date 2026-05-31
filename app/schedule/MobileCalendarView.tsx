@@ -5,6 +5,7 @@ import { format, isBefore, isToday, parseISO, startOfDay } from 'date-fns';
 import clsx from 'clsx';
 import AddSessionModalTP from './AddSessionModalTP';
 import MobileSessionModal from './MobileSessionModal';
+import { exportCalendarClient } from '@/utils/exportCalendarClient';
 import type { CompletedSession } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
@@ -159,10 +160,6 @@ function getPlanRangeLabel(groups: ReturnType<typeof groupSessionsByDate>) {
   return `${format(first, 'MMM d')} – ${format(last, 'd, yyyy')}`;
 }
 
-function openCalendarExport() {
-  window.location.href = '/api/calendar/export';
-}
-
 export default function MobileCalendarView({
   sessions,
   completedSessions,
@@ -174,6 +171,7 @@ export default function MobileCalendarView({
   const [localCompleted, setLocalCompleted] = useState<CompletedSession[]>(completedSessions);
   const [selectedSession, setSelectedSession] = useState<MergedSession | null>(null);
   const [addSessionDate, setAddSessionDate] = useState<Date | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => setLocalSessions(sessions), [sessions]);
   useEffect(() => setLocalCompleted(completedSessions), [completedSessions]);
@@ -200,6 +198,15 @@ export default function MobileCalendarView({
         .sort((a, b) => parseDate(a.date).getTime() - parseDate(b.date).getTime())[0] ?? null
     );
   }, [localSessions]);
+
+  const handleCalendarExport = async () => {
+    try {
+      setExporting(true);
+      await exportCalendarClient();
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const handleSessionDeleted = (sessionId: string) => {
     setLocalSessions((prev) => prev.filter((session) => session.id !== sessionId));
@@ -232,10 +239,11 @@ export default function MobileCalendarView({
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
-              onClick={openCalendarExport}
-              className="min-h-10 rounded-full border border-zinc-200 bg-white px-3 py-2 text-[12px] font-semibold text-zinc-700 shadow-sm active:scale-[0.99]"
+              onClick={handleCalendarExport}
+              disabled={exporting}
+              className="min-h-10 rounded-full border border-zinc-200 bg-white px-3 py-2 text-[12px] font-semibold text-zinc-700 shadow-sm active:scale-[0.99] disabled:opacity-60"
             >
-              Export
+              {exporting ? 'Sharing…' : 'Export'}
             </button>
             <button
               type="button"
