@@ -7,6 +7,7 @@ import {
   endOfWeek,
   format,
   isAfter,
+  isSameDay,
   parseISO,
   startOfMonth,
   startOfWeek,
@@ -119,6 +120,16 @@ function cleanTitle(title?: string | null) {
     .trim();
 }
 
+function normalizeSport(value?: string | null) {
+  const sport = String(value ?? 'Session').toLowerCase();
+  if (sport.includes('bike') || sport.includes('ride')) return 'Bike';
+  if (sport.includes('run')) return 'Run';
+  if (sport.includes('swim')) return 'Swim';
+  if (sport.includes('strength')) return 'Strength';
+  if (sport.includes('rest')) return 'Rest';
+  return 'Session';
+}
+
 function getNextSession(sessions: MergedSession[]) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -128,14 +139,36 @@ function getNextSession(sessions: MergedSession[]) {
     .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime())[0] ?? null;
 }
 
+function getTodaysSession(sessions: MergedSession[]) {
+  const today = new Date();
+  return sessions
+    .filter((session) => session.date && isSameDay(parseISO(session.date), today))
+    .sort((a, b) => String(a.sport ?? '').localeCompare(String(b.sport ?? '')))[0] ?? null;
+}
+
+function previewDetails(value?: string | null) {
+  const text = String(value ?? '')
+    .replace(/Purpose:\s*/gi, '')
+    .replace(/Workout:\s*/gi, '')
+    .replace(/Intensity:\s*/gi, '')
+    .split(/\n|\./)
+    .map((part) => part.trim())
+    .find((part) => part.length > 16);
+
+  if (!text) return 'Open the session for workout details and completion actions.';
+  return text.length > 140 ? `${text.slice(0, 137).trim()}…` : text;
+}
+
+function openCalendarExport() {
+  window.location.href = '/api/calendar/export';
+}
+
 export default function CalendarShell({
   sessions,
   completedSessions,
   extraStravaActivities = [],
   onCompletedUpdateAction,
   timezone = 'America/Los_Angeles',
-  todaySummary,
-  nextSummary,
   weekPhaseSummary,
   raceGoal,
   onOpenWalkthroughAction,
@@ -199,7 +232,9 @@ export default function CalendarShell({
   }, [localSessions]);
 
   const stravaByDate = useMemo(() => normalizeStravaActivities(extraStravaActivities, timezone), [extraStravaActivities, timezone]);
+  const todaySession = useMemo(() => getTodaysSession(localSessions), [localSessions]);
   const nextSession = useMemo(() => getNextSession(localSessions), [localSessions]);
+  const commandSession = todaySession ?? nextSession;
   const weeklyStats = useMemo(() => getWeeklyStats(localSessions, completed), [localSessions, completed]);
 
   const weekLabel = useMemo(() => {
@@ -310,6 +345,8 @@ export default function CalendarShell({
 
   const nextTitle = nextSession ? cleanTitle(nextSession.title) : null;
   const nextDate = nextSession?.date ? format(parseISO(nextSession.date), 'EEE, MMM d') : null;
+  const commandDate = commandSession?.date ? format(parseISO(commandSession.date), 'EEE, MMM d') : null;
+  const commandDuration = commandSession?.duration ? formatMinutes(Number(commandSession.duration)) : null;
 
   return (
     <main className="min-h-[100dvh] bg-[#fbfbfa] text-zinc-950">
@@ -337,6 +374,9 @@ export default function CalendarShell({
                 <button type="button" onClick={goToToday} className="h-9 rounded-lg border border-zinc-200 bg-white px-3 text-[13px] font-medium text-zinc-700 hover:bg-zinc-50">
                   Today
                 </button>
+                <button type="button" onClick={openCalendarExport} className="h-9 rounded-lg border border-zinc-200 bg-white px-3 text-[13px] font-medium text-zinc-700 hover:bg-zinc-50">
+                  Export
+                </button>
                 {onOpenWalkthroughAction ? (
                   <button type="button" onClick={onOpenWalkthroughAction} disabled={walkthroughLoading} className="hidden h-9 rounded-lg border border-zinc-200 bg-white px-3 text-[13px] font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 sm:block">
                     {walkthroughLoading ? 'Opening…' : 'Walkthrough'}
@@ -359,6 +399,56 @@ export default function CalendarShell({
           </header>
 
           <div className="px-5 py-5 lg:px-8">
+            {commandSession ? (
+              <section className="mb-5 overflow-hidden rounded-[1.75rem] border border-zinc-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+                <div className="grid gap-0 lg:grid-cols-[1.35fr_0.65fr]">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSession(commandSession)}
+                    className="p-5 text-left transition hover:bg-zinc-50 lg:p-6"
+                  >
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
+                      {todaySession ? 'Today' : 'Next up'}
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[13px] font-medium text-zinc-500">
+                      <span>{normalizeSport(commandSession.sport)}</span>
+                      {commandDate ? <span>· {commandDate}</span> : null}
+                      {commandDuration ? <span>· {commandDuration}</span> : null}
+                      {raceGoal ? <span>· {raceGoal}</span> : null}
+                    </div>
+                    <h2 className="mt-3 text-[28px] font-semibold leading-tight tracking-[-0.045em] text-zinc-950">
+                      {cleanTitle(commandSession.title)}
+                    </h2>
+                    <p className="mt-3 max-w-2xl text-[14px] leading-6 text-zinc-500">
+                      {previewDetails(commandSession.details)}
+                    </p>
+                    <div className="mt-5 flex flex-wrap gap-2">
+                      <span className="rounded-full bg-zinc-950 px-4 py-2 text-[13px] font-semibold text-white">Open session</span>
+                      <span className="rounded-full border border-zinc-200 bg-white px-4 py-2 text-[13px] font-semibold text-zinc-700">Generate details</span>
+                    </div>
+                  </button>
+
+                  <div className="border-t border-zinc-200 bg-[#fbfaf8] p-5 lg:border-l lg:border-t-0 lg:p-6">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400">This week</div>
+                    <div className="mt-4 grid grid-cols-3 gap-2 lg:grid-cols-1">
+                      <div className="rounded-2xl border border-zinc-200 bg-white p-3">
+                        <div className="text-[11px] font-medium text-zinc-400">Complete</div>
+                        <div className="mt-1 text-xl font-semibold tracking-[-0.04em] text-zinc-950">{weeklyStats.done}/{weeklyStats.planned || 0}</div>
+                      </div>
+                      <div className="rounded-2xl border border-zinc-200 bg-white p-3">
+                        <div className="text-[11px] font-medium text-zinc-400">Volume</div>
+                        <div className="mt-1 text-xl font-semibold tracking-[-0.04em] text-zinc-950">{weeklyStats.minutes ? formatMinutes(weeklyStats.minutes) : '—'}</div>
+                      </div>
+                      <div className="rounded-2xl border border-zinc-200 bg-white p-3">
+                        <div className="text-[11px] font-medium text-zinc-400">Adherence</div>
+                        <div className="mt-1 text-xl font-semibold tracking-[-0.04em] text-zinc-950">{weeklyStats.planned ? `${weeklyStats.adherence}%` : '—'}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            ) : null}
+
             {saveState !== 'idle' ? (
               <div className={`mb-4 rounded-xl border px-4 py-3 text-[13px] font-medium ${
                 saveState === 'error'
