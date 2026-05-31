@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { supabase } from '../lib/supabase';
 import type { CompletedSessionRow, SessionRow } from '../types';
 import { SessionCard } from '../components/SessionCard';
+import { SessionDetailSheet } from '../components/SessionDetailSheet';
 import { formatDay, parseDate } from '../utils/training';
 
 function groupByDate(sessions: SessionRow[]) {
@@ -22,6 +23,7 @@ export function ScheduleScreen() {
   const [completed, setCompleted] = useState<CompletedSessionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedSession, setSelectedSession] = useState<SessionRow | null>(null);
 
   const load = useCallback(async () => {
     if (!user?.id) return;
@@ -42,23 +44,54 @@ export function ScheduleScreen() {
     setRefreshing(false);
   };
 
+  const markDoneFor = async (session: SessionRow) => {
+    if (!user?.id || !session.title) return;
+    const existing = completed.filter((row) => row.date !== session.date || row.session_title !== session.title);
+    const next = [...existing, { user_id: user.id, date: session.date, session_title: String(session.title), status: 'done' }];
+    setCompleted(next);
+
+    await supabase.from('completed_sessions').delete().eq('user_id', user.id).eq('date', session.date).eq('session_title', session.title);
+    await supabase.from('completed_sessions').insert({ user_id: user.id, date: session.date, session_title: session.title, status: 'done' });
+  };
+
+  const skipSession = async (session: SessionRow) => {
+    if (!user?.id || !session.title) return;
+    const existing = completed.filter((row) => row.date !== session.date || row.session_title !== session.title);
+    const next = [...existing, { user_id: user.id, date: session.date, session_title: String(session.title), status: 'skipped' }];
+    setCompleted(next);
+
+    await supabase.from('completed_sessions').delete().eq('user_id', user.id).eq('date', session.date).eq('session_title', session.title);
+    await supabase.from('completed_sessions').insert({ user_id: user.id, date: session.date, session_title: session.title, status: 'skipped' });
+  };
+
   const groups = useMemo(() => groupByDate(sessions), [sessions]);
 
   if (loading) return <View style={styles.center}><ActivityIndicator /></View>;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
-      <Text style={styles.kicker}>Schedule</Text>
-      <Text style={styles.title}>Training calendar</Text>
-      <Text style={styles.subtitle}>Native list-first schedule. Month grid and drag/drop can come later.</Text>
+    <>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
+        <Text style={styles.kicker}>Schedule</Text>
+        <Text style={styles.title}>Training calendar</Text>
+        <Text style={styles.subtitle}>Native list-first schedule. Month grid and drag/drop can come later.</Text>
 
-      {groups.map(([date, items]) => (
-        <View key={date} style={styles.group}>
-          <Text style={styles.date}>{formatDay(date)}</Text>
-          {items.map((session) => <SessionCard key={session.id} session={session} completed={completed} />)}
-        </View>
-      ))}
-    </ScrollView>
+        {groups.map(([date, items]) => (
+          <View key={date} style={styles.group}>
+            <Text style={styles.date}>{formatDay(date)}</Text>
+            {items.map((session) => <SessionCard key={session.id} session={session} completed={completed} onPress={() => setSelectedSession(session)} />)}
+          </View>
+        ))}
+      </ScrollView>
+
+      <SessionDetailSheet
+        session={selectedSession}
+        completed={completed}
+        open={Boolean(selectedSession)}
+        onClose={() => setSelectedSession(null)}
+        onMarkDone={markDoneFor}
+        onSkip={skipSession}
+      />
+    </>
   );
 }
 
