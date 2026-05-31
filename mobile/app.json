@@ -19,8 +19,9 @@
     },
     "extra": {
       "eas": {
-        "projectId": "replace-with-eas-project-id"
+        "projectId": "dca91058-a772-496d-8035-a682402379bf"
       }
-    }
+    },
+    "owner": "iwantgrillcheese"
   }
 }
