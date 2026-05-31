@@ -119,153 +119,72 @@ function computeStravaBaselines(rows: StravaHistoryRow[]) {
   const estimatedFtp = bestBikePower ? Math.round(bestBikePower * 0.95) : null;
 
   const bestRunSpeed = runSpeedValues.length ? Math.max(...runSpeedValues) : null;
-  const estimatedRunThresholdPacePerKm = bestRunSpeed ? secondsToPacePerKm(1000 / bestRunSpeed) : null;
+  const estimatedThresholdPacePerKm = bestRunSpeed ? secondsToPacePerKm(1000 / bestRunSpeed) : null;
 
   return {
-    estimatedLthr,
     estimatedFtp,
-    estimatedRunThresholdPacePerKm,
+    estimatedLthr,
+    estimatedThresholdPacePerKm,
   };
 }
 
-function buildStravaHistorySummary(rows: StravaHistoryRow[]): string {
-  if (!rows.length) return "";
+function inferAbilityFromStrava(rows: StravaHistoryRow[]): "beginner" | "intermediate" | "advanced" | null {
+  if (!rows.length) return null;
 
-  const baselines = computeStravaBaselines(rows);
-  const now = Date.now();
-  const ninetyDaysAgo = now - 90 * 24 * 60 * 60 * 1000;
-  const recentRows = rows.filter((row) => {
-    const ts = row.start_date ? new Date(row.start_date).getTime() : Number.NaN;
-    return Number.isFinite(ts) && ts >= ninetyDaysAgo;
-  });
-  const loadRows = recentRows.length ? recentRows : rows;
+  const recentSeconds = rows.reduce((sum, row) => sum + (row.moving_time ?? 0), 0);
+  const recentHours = recentSeconds / 3600;
 
-  const totalSec = rows.reduce((acc, row) => acc + (row.moving_time ?? 0), 0);
-  const recentSec = loadRows.reduce((acc, row) => acc + (row.moving_time ?? 0), 0);
-  const totalDistanceKm = rows.reduce((acc, row) => acc + ((row.distance ?? 0) / 1000), 0);
-  const avgWeeklyHours = recentSec / 3600 / (recentRows.length ? 13 : 52);
-
-  const bySport = new Map<string, { sessions: number; sec: number }>();
-  for (const row of loadRows) {
-    const sport = row.sport_type || "Other";
-    const entry = bySport.get(sport) ?? { sessions: 0, sec: 0 };
-    entry.sessions += 1;
-    entry.sec += row.moving_time ?? 0;
-    bySport.set(sport, entry);
-  }
-
-  const topSports = Array.from(bySport.entries())
-    .sort((a, b) => b[1].sec - a[1].sec)
-    .slice(0, 4);
-
-  const sportSummaryParts = topSports.map(
-    ([sport, data]) => `${sport}: ${data.sessions} sessions, ${secondsToHMM(data.sec)}`
-  );
-
-  const sportLines = sportSummaryParts.join(" | ");
-
-  const recent = [...rows]
-    .filter((row) => !!row.start_date)
-    .sort((a, b) => new Date(b.start_date as string).getTime() - new Date(a.start_date as string).getTime())
-    .slice(0, 5)
-    .map((row) => {
-      const date = String(row.start_date).slice(0, 10);
-      const distanceKm = row.distance ? (row.distance / 1000).toFixed(1) : null;
-      const time = secondsToHMM(row.moving_time ?? 0);
-      return `${date} ${row.sport_type ?? "Other"} ${time}${distanceKm ? `, ${distanceKm}km` : ""}`;
-    })
-    .join(" ; ");
-
-  return [
-    `Last 365 days: ${rows.length} activities, ${secondsToHMM(totalSec)} total, ${totalDistanceKm.toFixed(1)}km total distance.`,
-    `Recent training load estimate: ${loadRows.length} activities in ${recentRows.length ? "last 90 days" : "available history"}, averaging ~${avgWeeklyHours.toFixed(1)} hours/week.`,
-    sportLines ? `Recent sport split: ${sportLines}.` : "",
-    `Estimated baselines from Strava when manual inputs are missing: LTHR ${baselines.estimatedLthr ? `~${baselines.estimatedLthr} bpm` : "unknown"}, FTP ${baselines.estimatedFtp ? `~${baselines.estimatedFtp}w` : "unknown"}, threshold run pace ${baselines.estimatedRunThresholdPacePerKm ?? "unknown"}.`,
-    recent ? `Recent sessions: ${recent}.` : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  if (recentHours >= 120) return "advanced";
+  if (recentHours >= 35) return "intermediate";
+  return "beginner";
 }
 
-function defaultRaceDateISO(raceType: string): string {
-  const weeksByRace: Record<string, number> = {
-    Sprint: 12,
-    Olympic: 16,
-    "Half Ironman (70.3)": 20,
-    "Ironman (140.6)": 28,
-  };
+function buildStravaHistorySummary(rows: StravaHistoryRow[]) {
+  const bySport = rows.reduce<Record<string, { count: number; seconds: number }>>((acc, row) => {
+    const key = String(row.sport_type ?? "Other");
+    acc[key] = acc[key] ?? { count: 0, seconds: 0 };
+    acc[key].count += 1;
+    acc[key].seconds += row.moving_time ?? 0;
+    return acc;
+  }, {});
 
-  const weeks = weeksByRace[raceType] ?? 16;
-  const d = new Date();
-  d.setDate(d.getDate() + weeks * 7);
-  return d.toISOString().slice(0, 10);
+  const totalSeconds = rows.reduce((sum, row) => sum + (row.moving_time ?? 0), 0);
+  const sportLines = Object.entries(bySport)
+    .sort((a, b) => b[1].seconds - a[1].seconds)
+    .map(([sport, stats]) => `${sport}: ${stats.count} activities, ${secondsToHMM(stats.seconds)}`)
+    .join("; ");
+
+  return rows.length
+    ? `${rows.length} Strava activities in the last year, ${secondsToHMM(totalSeconds)} total. Sport balance: ${sportLines}.`
+    : "No recent Strava history available.";
 }
-
-function inferAbilityFromStrava(rows: Array<{ moving_time: number | null }>): { experience: "Beginner" | "Intermediate" | "Advanced"; maxHours: number } | null {
-  if (rows.length < 5) return null;
-
-  const now = Date.now();
-  const ninetyDaysAgo = now - 90 * 24 * 60 * 60 * 1000;
-  const recentRows = (rows as StravaHistoryRow[]).filter((row) => {
-    const ts = row.start_date ? new Date(row.start_date).getTime() : Number.NaN;
-    return Number.isFinite(ts) && ts >= ninetyDaysAgo;
-  });
-  const loadRows = recentRows.length ? recentRows : rows;
-  const divisorWeeks = recentRows.length ? 13 : 52;
-  const totalHours = loadRows.reduce((acc, row) => acc + ((row.moving_time ?? 0) / 3600), 0);
-  const avgWeeklyHours = totalHours / divisorWeeks;
-
-  if (avgWeeklyHours >= 9) {
-    return { experience: "Advanced", maxHours: Math.min(16, Math.max(10, Math.round(avgWeeklyHours + 2))) };
-  }
-
-  if (avgWeeklyHours >= 5) {
-    return { experience: "Intermediate", maxHours: Math.min(12, Math.max(7, Math.round(avgWeeklyHours + 1))) };
-  }
-
-  return { experience: "Beginner", maxHours: Math.max(5, Math.round(Math.max(avgWeeklyHours, 3))) };
-}
-
-function computeTotalWeeks(todayISO: string, raceDateISO: string): number {
-  const start = startOfWeek(parseISO(todayISO), { weekStartsOn: 1 });
-  const raceDate = parseISO(raceDateISO);
-  const raceWeekStart = startOfWeek(raceDate, { weekStartsOn: 1 });
-
-  let diff = differenceInCalendarWeeks(raceWeekStart, start, { weekStartsOn: 1 });
-  if (raceDate > raceWeekStart) diff += 1;
-  return Math.max(1, diff);
-}
-
-const DAY_TO_INDEX: Record<string, 0 | 1 | 2 | 3 | 4 | 5 | 6> = {
-  sunday: 0,
-  monday: 1,
-  tuesday: 2,
-  wednesday: 3,
-  thursday: 4,
-  friday: 5,
-  saturday: 6,
-};
 
 function normalizeDayName(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
-  const cleaned = value.trim();
-  if (!cleaned) return undefined;
-  const key = cleaned.toLowerCase();
-  if (!(key in DAY_TO_INDEX)) return undefined;
-  return cleaned[0].toUpperCase() + cleaned.slice(1).toLowerCase();
-}
-
-function dayIndex(value: unknown): 0 | 1 | 2 | 3 | 4 | 5 | 6 | undefined {
-  const normalized = normalizeDayName(value);
-  if (!normalized) return undefined;
-  return DAY_TO_INDEX[normalized.toLowerCase()];
+  const cleaned = value.trim().toLowerCase();
+  const map: Record<string, string> = {
+    mon: "Monday",
+    monday: "Monday",
+    tue: "Tuesday",
+    tuesday: "Tuesday",
+    wed: "Wednesday",
+    wednesday: "Wednesday",
+    thu: "Thursday",
+    thursday: "Thursday",
+    fri: "Friday",
+    friday: "Friday",
+    sat: "Saturday",
+    saturday: "Saturday",
+    sun: "Sunday",
+    sunday: "Sunday",
+  };
+  return map[cleaned];
 }
 
 function normalizeStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((item) => (typeof item === "string" ? item.trim() : ""))
-    .filter(Boolean);
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0).map((item) => item.trim())
+    : [];
 }
 
 function buildConstraintsSummary({
@@ -282,18 +201,24 @@ function buildConstraintsSummary({
   unavailableDays: string[];
   swimComfort?: string;
   twoADaysAllowed?: boolean;
-  athleteNotes?: string;
+  athleteNotes: string;
   coachingPriorities: string[];
 }) {
-  const lines: string[] = [];
-  if (preferredLongRideDay) lines.push(`Long rides should usually land on ${preferredLongRideDay}.`);
-  if (preferredLongRunDay) lines.push(`Long runs should usually land on ${preferredLongRunDay}.`);
-  if (unavailableDays.length) lines.push(`Avoid scheduling training on: ${unavailableDays.join(", ")}.`);
-  if (swimComfort) lines.push(`Swim comfort is ${swimComfort}; adjust early swim progression accordingly.`);
-  if (typeof twoADaysAllowed === "boolean") lines.push(`Two-a-days allowed: ${twoADaysAllowed ? "yes" : "no"}.`);
-  if (coachingPriorities.length) lines.push(`Priorities: ${coachingPriorities.join(", ")}.`);
-  if (athleteNotes?.trim()) lines.push(`Athlete notes: ${athleteNotes.trim()}`);
-  return lines.join(" ");
+  const parts = [
+    preferredLongRideDay ? `Preferred long ride day: ${preferredLongRideDay}` : null,
+    preferredLongRunDay ? `Preferred long run day: ${preferredLongRunDay}` : null,
+    unavailableDays.length ? `Unavailable days: ${unavailableDays.join(", ")}` : null,
+    swimComfort ? `Swim comfort: ${swimComfort}` : null,
+    typeof twoADaysAllowed === "boolean" ? `Two-a-days allowed: ${twoADaysAllowed ? "yes" : "no"}` : null,
+    coachingPriorities.length ? `Coaching priorities: ${coachingPriorities.join(", ")}` : null,
+    athleteNotes ? `Athlete notes: ${athleteNotes}` : null,
+  ].filter(Boolean);
+
+  return parts.length ? parts.join(". ") : "No additional constraints provided.";
+}
+
+function normalizePlanType(value: unknown): PlanType {
+  return value === "running" ? "running" : "triathlon";
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -358,7 +283,7 @@ export async function POST(req: Request) {
       clientUserId,
     } = body ?? {};
 
-    const supabase = await createRouteSupabaseClient();
+    const supabase = await createRouteSupabaseClient(req);
     const user = await requireUser(supabase);
     const userId = user.id;
 
@@ -431,513 +356,149 @@ export async function POST(req: Request) {
       coachingPriorities: coachingPrioritiesResolved,
     });
 
-    const preferenceTextParts = [preferencesText, constraintsSummary].filter(Boolean).join("\n");
-    const trainingPrefs: NonNullable<UserParams["trainingPrefs"]> = extractPrefs(preferenceTextParts) ?? {};
-    const longRideIdx = dayIndex(preferredLongRideDayResolved);
-    const longRunIdx = dayIndex(preferredLongRunDayResolved);
-    if (longRideIdx !== undefined) {
-      trainingPrefs.longRideDay = longRideIdx;
-      trainingPrefs.brickDays = [longRideIdx];
-    }
-    if (longRunIdx !== undefined) {
-      trainingPrefs.longRunDay = longRunIdx;
+    const raceDateParsed = parseISO(String(raceDate));
+    if (!isValidDate(raceDateParsed)) {
+      return NextResponse.json({ ok: false, error: "Invalid race date" }, { status: 400 });
     }
 
-    const ftpRaw = bikeFtp ?? bikeFTP;
-    const ftpNormalized =
-      ftpRaw === null || ftpRaw === undefined || String(ftpRaw).trim() === ""
-        ? undefined
-        : Number(ftpRaw);
+    const startDate = startOfWeek(new Date(), { weekStartsOn: 1 });
+    const totalWeeks = Math.max(
+      1,
+      differenceInCalendarWeeks(raceDateParsed, startDate, { weekStartsOn: 1 })
+    );
 
-    const paceUnitResolved: "mi" | "km" | undefined =
-      paceUnit === "km" || paceUnit === "mi" ? paceUnit : undefined;
+    const weekMeta = buildPlanMeta(totalWeeks, formatISO(startDate, { representation: "date" }));
 
-    const planTypeResolved: PlanType = planType ?? "triathlon";
-
-    const raceDateResolved = (() => {
-      const raw = typeof raceDate === "string" ? raceDate.trim() : "";
-      if (raw) {
-        const parsed = parseISO(raw);
-        if (isValidDate(parsed)) return raw;
-      }
-
-      const latestRaceDate =
-        typeof latestPlanRow?.race_date === "string" ? latestPlanRow.race_date : "";
-      if (latestRaceDate) {
-        const parsedLatest = parseISO(latestRaceDate);
-        if (isValidDate(parsedLatest)) return latestRaceDate;
-      }
-
-      return defaultRaceDateISO(raceType);
-    })();
-
-    const experienceResolved =
-      typeof experience === "string" && experience.trim()
-        ? experience.trim()
-        : typeof latestPlanParams?.experience === "string" && latestPlanParams.experience.trim()
-          ? latestPlanParams.experience.trim()
-          : inferredAbility?.experience ?? "";
-
-    const maxHoursResolved = (() => {
-      const raw = Number(maxHours);
-      if (Number.isFinite(raw) && raw > 0) return raw;
-      const latestRaw = Number(latestPlanParams?.maxHours);
-      if (Number.isFinite(latestRaw) && latestRaw > 0) return latestRaw;
-      if (inferredAbility?.maxHours) return inferredAbility.maxHours;
-      return Number.NaN;
-    })();
-
-    if (!experienceResolved || !Number.isFinite(maxHoursResolved)) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Please enter experience and weekly training hours to generate your plan.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const restDayResolved =
-      restDay && restDay.trim() !== ""
-        ? restDay
-        : typeof latestPlanParams?.restDay === "string" && latestPlanParams.restDay.trim() !== ""
-          ? latestPlanParams.restDay
-          : "Monday";
-
-    const bikeFtpResolved = Number.isFinite(ftpNormalized as number)
-      ? (ftpNormalized as number)
-      : Number.isFinite(Number(latestPlanParams?.bikeFtp))
-        ? Number(latestPlanParams?.bikeFtp)
-        : inferredBaselines.estimatedFtp ?? undefined;
-
-    const runPaceResolved =
-      typeof runPace === "string" && runPace.trim()
-        ? runPace
-        : typeof latestPlanParams?.runPace === "string" && latestPlanParams.runPace.trim()
-          ? latestPlanParams.runPace
-          : inferredBaselines.estimatedRunThresholdPacePerKm ?? undefined;
+    const normalizedPlanType = normalizePlanType(planType);
+    const finalBikeFtp = Number.isFinite(Number(bikeFTP ?? bikeFtp))
+      ? Number(bikeFTP ?? bikeFtp)
+      : inferredBaselines.estimatedFtp ?? undefined;
+    const finalRunPace = typeof runPace === "string" && runPace.trim()
+      ? runPace.trim()
+      : inferredBaselines.estimatedThresholdPacePerKm ?? undefined;
+    const finalExperience = typeof experience === "string" && experience.trim()
+      ? experience.trim()
+      : inferredAbility ?? undefined;
 
     const userParams: UserParams = {
-      raceType,
-      raceDate: raceDateResolved,
-      experience: experienceResolved,
-      maxHours: maxHoursResolved,
-      restDay: restDayResolved,
-      bikeFtp: bikeFtpResolved,
-      runPace: runPaceResolved,
-      swimPace: swimPace ?? undefined,
-      paceUnit: paceUnitResolved,
-      trainingPrefs,
-      stravaHistorySummary: stravaHistorySummary || undefined,
-      preferredLongRideDay: preferredLongRideDayResolved,
-      preferredLongRunDay: preferredLongRunDayResolved,
-      unavailableDays: unavailableDaysResolved,
+      raceType: String(raceType),
+      raceDate: String(raceDate),
+      experience: finalExperience,
+      maxHours: Number(maxHours),
+      restDay: typeof restDay === "string" ? restDay : undefined,
+      bikeFTP: finalBikeFtp,
+      runPace: finalRunPace,
+      swimPace: typeof swimPace === "string" && swimPace.trim() ? swimPace.trim() : undefined,
+      planType: normalizedPlanType,
+      preferencesText: typeof preferencesText === "string" && preferencesText.trim()
+        ? preferencesText.trim()
+        : constraintsSummary,
+      preferredLongRideDay: preferredLongRideDayResolved as DayOfWeek | undefined,
+      preferredLongRunDay: preferredLongRunDayResolved as DayOfWeek | undefined,
+      unavailableDays: unavailableDaysResolved as DayOfWeek[],
       swimComfort: swimComfortResolved,
       twoADaysAllowed: twoADaysAllowedResolved,
-      athleteNotes: athleteNotesResolved || undefined,
+      athleteNotes: athleteNotesResolved,
       coachingPriorities: coachingPrioritiesResolved,
-      constraintsSummary: constraintsSummary || undefined,
+      paceUnit: paceUnit === "km" ? "km" : "mi",
+      stravaHistorySummary,
     };
 
-    const todayISO = safeDateISO(new Date());
-    const totalWeeks = computeTotalWeeks(todayISO, raceDateResolved);
+    const { startPlan } = await import("@/utils/start-plan");
 
-    if (totalWeeks < 6) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            "Need at least 6 weeks until race day for a safe structured plan. Use race-readiness mode for shorter timelines.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const planMeta = buildPlanMeta(totalWeeks, todayISO);
-
-    console.log("[finalize-plan] generation started", {
-      userId,
+    const generatedWeeksRaw = await startPlan({
       totalWeeks,
-      planTypeResolved,
-      raceType,
-      raceDate: raceDateResolved,
-      preferredLongRideDay: preferredLongRideDayResolved ?? null,
-      preferredLongRunDay: preferredLongRunDayResolved ?? null,
-      unavailableDays: unavailableDaysResolved,
-      swimComfort: swimComfortResolved ?? null,
-      stravaActivities: stravaHistoryRows.length,
-      stravaCalibrationUsed: Boolean(stravaHistorySummary),
-      stravaEstimatedFtp: inferredBaselines.estimatedFtp,
-      stravaEstimatedRunPace: inferredBaselines.estimatedRunThresholdPacePerKm,
+      weekMeta,
+      userParams,
+      deadlineMs: startedAt + HARD_BUDGET_MS,
     });
 
-    const minimumPlanQualityScore = Number(process.env.MIN_PLAN_QUALITY_SCORE ?? 70);
+    const generatedWeeks = generatedWeeksRaw.map((week, index) => normalizeGeneratedWeek(week, weekMeta[index]));
 
-    function hasCriticalPlanWarnings(warnings: string[]): boolean {
-      return warnings.some((warning) =>
-        /long ride appears|long run appears|selected rest day|unavailable day|missing Brick Run|no brick runs|stacks extra bike work|likely overloaded|duplicate bike|duplicate run/i.test(warning)
-      );
+    const generatedPlan: GeneratedPlan = {
+      planType: normalizedPlanType,
+      params: userParams,
+      days: generatedWeeks.reduce<Record<string, any[]>>((acc, week) => {
+        Object.entries(week.days).forEach(([date, sessions]) => {
+          acc[date] = sessions;
+        });
+        return acc;
+      }, {}),
+      weeks: generatedWeeks,
+      metadata: {
+        generatedAt: new Date().toISOString(),
+        totalWeeks,
+        source: "finalize-plan",
+        stravaCalibrated: stravaHistoryRows.length > 0,
+      },
+    };
+
+    let planForStorage = generatedPlan;
+    const validation = validateGeneratedPlan(generatedPlan as any, {
+      raceDate: String(raceDate),
+      totalWeeks,
+      startDate: formatISO(startDate, { representation: "date" }),
+    });
+
+    if (!validation.ok) {
+      console.warn("[finalize-plan] Generated plan failed validation; repairing", validation.issues);
+      planForStorage = repairGeneratedPlan(generatedPlan as any, {
+        raceDate: String(raceDate),
+        totalWeeks,
+        startDate: formatISO(startDate, { representation: "date" }),
+      }) as GeneratedPlan;
     }
 
-    async function generatePlanAttempt(attempt: number, paramsForAttempt: UserParams) {
-      const genStart = Date.now();
-      const weeks: WeekJson[] = new Array(planMeta.length);
-      const generationConcurrency = Math.max(
-        1,
-        Math.min(4, Number(process.env.PLAN_GENERATION_CONCURRENCY ?? 3) || 3)
-      );
-
-      const guardTrainingPrefs: TrainingPrefs = {
-        ...trainingPrefs,
-        brickDays: Array.isArray(trainingPrefs.brickDays)
-          ? trainingPrefs.brickDays.filter(
-              (day): day is DayOfWeek =>
-                Number.isInteger(day) && day >= 0 && day <= 6
-            )
-          : [],
-      };
-
-      async function generateOneWeek(i: number, prevWeek?: WeekJson): Promise<WeekJson> {
-        const elapsed = Date.now() - startedAt;
-        if (elapsed > HARD_BUDGET_MS) {
-          throw new Error(`Plan generation exceeded time budget (${Math.round(elapsed / 1000)}s).`);
-        }
-
-        const w0 = Date.now();
-        const { generateWeek } = await import("@/utils/generate-week");
-        const { guardWeek } = await import("@/utils/planGuard");
-
-        console.log("[finalize-plan] week generation started", {
-          attempt,
-          weekIndex: i,
-          weekLabel: planMeta[i]?.label,
-          phase: planMeta[i]?.phase,
-          concurrency: planTypeResolved === "triathlon" ? generationConcurrency : 1,
-          elapsedSec: Math.round((Date.now() - startedAt) / 1000),
-        });
-
-        const raw: WeekJson = await generateWeek({
-          weekMeta: planMeta[i],
-          userParams: paramsForAttempt,
-          planType: planTypeResolved,
-          index: i,
-          prevWeek,
-        });
-
-        const normalizedRaw = normalizeGeneratedWeek(raw, planMeta[i]);
-
-        // Triathlon plans are scaffold-first. generateWeek() already returns the
-        // final scaffolded week with structured sessions. The legacy guardWeek()
-        // was written for old string-based GPT output and will corrupt the
-        // scaffold by stringifying sessions and moving brick/strength slots.
-        let safeWeek: WeekJson;
-        if (planTypeResolved === "triathlon") {
-          safeWeek = normalizeGeneratedWeek(normalizedRaw, planMeta[i]);
-        } else {
-          try {
-            safeWeek = normalizeGeneratedWeek(
-              guardWeek(normalizedRaw, guardTrainingPrefs),
-              planMeta[i]
-            );
-          } catch (guardErr) {
-            console.error("[finalize-plan] guardWeek failed; using normalized generated week", {
-              attempt,
-              weekIndex: i,
-              weekLabel: planMeta[i]?.label,
-              error: guardErr instanceof Error ? guardErr.message : String(guardErr),
-            });
-
-            safeWeek = normalizedRaw;
-          }
-        }
-
-        const w1 = Date.now();
-        console.log("[finalize-plan] week generated", {
-          attempt,
-          weekIndex: i,
-          weekLabel: planMeta[i]?.label,
-          phase: planMeta[i]?.phase,
-          ms: w1 - w0,
-          elapsedSec: Math.round((w1 - startedAt) / 1000),
-        });
-
-        return safeWeek;
-      }
-
-      if (planTypeResolved === "running" || planTypeResolved === "run") {
-        // Running generation uses previous-week context heavily, so keep it sequential.
-        for (let i = 0; i < planMeta.length; i++) {
-          weeks[i] = await generateOneWeek(i, weeks[i - 1]);
-        }
-      } else {
-        // Triathlon weeks are scaffolded independently enough to generate safely in small batches.
-        // Avoid full Promise.all fan-out so we stay kind to rate limits and keep logs readable.
-        for (let offset = 0; offset < planMeta.length; offset += generationConcurrency) {
-          const batchIndexes = planMeta
-            .slice(offset, offset + generationConcurrency)
-            .map((_, batchOffset) => offset + batchOffset);
-
-          const batchStartedAt = Date.now();
-          console.log("[finalize-plan] week batch started", {
-            attempt,
-            indexes: batchIndexes,
-            concurrency: generationConcurrency,
-            elapsedSec: Math.round((Date.now() - startedAt) / 1000),
-          });
-
-          const batchResults = await Promise.all(
-            batchIndexes.map((weekIndex) => generateOneWeek(weekIndex))
-          );
-
-          batchResults.forEach((week, idx) => {
-            weeks[batchIndexes[idx]] = week;
-          });
-
-          console.log("[finalize-plan] week batch completed", {
-            attempt,
-            indexes: batchIndexes,
-            ms: Date.now() - batchStartedAt,
-            elapsedSec: Math.round((Date.now() - startedAt) / 1000),
-          });
-        }
-      }
-
-      console.log("[finalize-plan] all weeks generated", {
-        attempt,
-        ms: Date.now() - genStart,
-        elapsedSec: Math.round((Date.now() - startedAt) / 1000),
-        concurrency: planTypeResolved === "triathlon" ? generationConcurrency : 1,
-      });
-
-      if (weeks.length > 0) weeks[weeks.length - 1].phase = "Taper";
-
-      const raceDay = safeDateISO(parseISO(raceDateResolved));
-      const lastWeek = weeks[weeks.length - 1];
-      if (lastWeek) {
-        if (!lastWeek.days || typeof lastWeek.days !== "object" || Array.isArray(lastWeek.days)) {
-          lastWeek.days = {};
-        }
-        lastWeek.days[raceDay] = [`🏁 ${raceType} Race Day`];
-      }
-
-      const generatedPlan: GeneratedPlan = {
-        planType: planTypeResolved,
-        weeks,
-        params: paramsForAttempt,
-        createdAt: new Date().toISOString(),
-      };
-
-      // Triathlon weeks are now built from a deterministic scaffold inside generateWeek().
-      // Do not run the old post-hoc repair layer on triathlon plans: it was written for
-      // free-form GPT weeks and can accidentally move/remove scaffolded Brick Runs or
-      // mis-handle structured sessions. Keep repair for running/free-form plans only.
-      const repair = planTypeResolved === "triathlon"
-        ? { plan: generatedPlan, changes: [] as string[] }
-        : repairGeneratedPlan({
-            plan: generatedPlan,
-            userParams: paramsForAttempt,
-          });
-
-      if (repair.changes.length > 0) {
-        console.log("[plan-repair] applied", {
-          attempt,
-          userId,
-          changes: repair.changes.slice(0, 20),
-          totalChanges: repair.changes.length,
-        });
-      }
-
-      const validation = validateGeneratedPlan({
-        plan: repair.plan,
-        expectedWeeks: totalWeeks,
-        userParams: paramsForAttempt,
-      });
-
-      console.log("[plan-validation] completed", {
-        attempt,
-        userId,
-        score: validation.score,
-        ok: validation.ok,
-        stats: validation.stats,
-        warnings: validation.warnings.slice(0, 12),
-        errors: validation.errors.slice(0, 12),
-      });
-
-      return { plan: repair.plan, validation };
-    }
-
-    let attemptResult = await generatePlanAttempt(1, userParams);
-
-    const shouldRetryPlan =
-      planTypeResolved !== "triathlon" &&
-      (!attemptResult.validation.ok ||
-        attemptResult.validation.score < minimumPlanQualityScore ||
-        hasCriticalPlanWarnings(attemptResult.validation.warnings));
-
-    if (shouldRetryPlan) {
-      console.warn("[plan-validation] quality gate retrying", {
-        userId,
-        raceType,
-        raceDate: raceDateResolved,
-        score: attemptResult.validation.score,
-        minimumPlanQualityScore,
-        errors: attemptResult.validation.errors.slice(0, 12),
-        warnings: attemptResult.validation.warnings.slice(0, 20),
-        criticalWarnings: hasCriticalPlanWarnings(attemptResult.validation.warnings),
-      });
-
-      const retryContext = [
-        userParams.constraintsSummary,
-        "STRICT RETRY: the previous generated plan was rejected by quality validation. Every non-rest session must include useful planned details, keep calendar titles short, avoid fake detail-only sessions, keep long rides/runs on the selected days, include required bike + Brick Run pairings for triathlon plans, and preserve a realistic weekly session load.",
-        attemptResult.validation.warnings.length
-          ? `Validation warnings to fix: ${attemptResult.validation.warnings.slice(0, 12).join(" | ")}`
-          : "",
-      ]
-        .filter(Boolean)
-        .join("\n");
-
-      const retryParams: UserParams = {
-        ...userParams,
-        constraintsSummary: retryContext,
-        athleteNotes: [userParams.athleteNotes, retryContext].filter(Boolean).join("\n"),
-      };
-
-      attemptResult = await generatePlanAttempt(2, retryParams);
-    }
-
-    const finalValidation = attemptResult.validation;
-    const finalPlan = attemptResult.plan;
-
-    if (!finalValidation.ok || finalValidation.score < minimumPlanQualityScore || hasCriticalPlanWarnings(finalValidation.warnings)) {
-      console.error("[plan-validation] quality gate failed after retry", {
-        userId,
-        raceType,
-        raceDate: raceDateResolved,
-        score: finalValidation.score,
-        minimumPlanQualityScore,
-        errors: finalValidation.errors,
-        warnings: finalValidation.warnings.slice(0, 30),
-        criticalWarnings: hasCriticalPlanWarnings(finalValidation.warnings),
-      });
-
-      throw new Error(
-        finalValidation.errors.length
-          ? "We couldn’t finish your plan because the generated schedule was incomplete. Please try again."
-          : "We couldn’t generate a complete enough plan. Please try again."
-      );
-    }
-
-    const { data: upserted, error: upsertErr } = await supabase
+    const { data: upsertedPlan, error: planSaveError } = await supabase
       .from("plans")
       .upsert(
         {
           user_id: userId,
-          race_date: raceDateResolved,
-          race_type: raceType,
-          plan: finalPlan,
-          created_at: new Date().toISOString(),
+          race_date: String(raceDate),
+          race_type: String(raceType),
+          plan: planForStorage,
         },
         { onConflict: "user_id" }
       )
       .select("id")
       .single();
 
-    if (upsertErr) throw upsertErr;
-    const planId = upserted?.id as string;
-
-    const { error: delErr } = await supabase
-      .from("sessions")
-      .delete()
-      .eq("user_id", userId);
-
-    if (delErr) {
-      console.error("[finalize-plan] delete sessions error", { userId, planId, delErr });
-      throw delErr;
+    if (planSaveError || !upsertedPlan?.id) {
+      console.error("[finalize-plan] plan save failed", planSaveError);
+      return NextResponse.json({ ok: false, error: "Plan generated but could not be saved" }, { status: 500 });
     }
 
-    let sessionRows = convertPlanToSessions(userId, planId, finalPlan);
-    console.log("[finalize-plan] session rows prepared", {
+    const sessions = convertPlanToSessions({
+      plan: planForStorage as any,
       userId,
-      planId,
-      count: sessionRows.length,
+      planId: upsertedPlan.id,
     });
 
-    const seen = new Set<string>();
-    sessionRows = sessionRows.filter((s) => {
-      const key = `${s.date}-${s.sport}-${s.title ?? ""}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+    await supabase.from("sessions").delete().eq("user_id", userId);
 
-    if (sessionRows.length > 0) {
-      const { error: insErr } = await supabase.from("sessions").insert(sessionRows);
-      if (insErr) {
-        console.error("[finalize-plan] insert sessions error", insErr);
-        console.error("[finalize-plan] insert sessions rows sample", sessionRows.slice(0, 3));
-        throw insErr;
-      }
-
-      const { count, error: countErr } = await supabase
-        .from("sessions")
-        .select("id", { head: true, count: "exact" })
-        .eq("user_id", userId)
-        .eq("plan_id", planId);
-
-      if (countErr) {
-        console.error("[finalize-plan] post-insert count error", countErr);
-      } else {
-        console.log("[finalize-plan] sessions persisted", { userId, planId, count });
+    if (sessions.length) {
+      const { error: sessionsError } = await supabase.from("sessions").insert(sessions);
+      if (sessionsError) {
+        console.error("[finalize-plan] session save failed", sessionsError);
+        return NextResponse.json({ ok: false, error: "Plan generated but sessions could not be saved" }, { status: 500 });
       }
     }
-
-    try {
-      const url = new URL(req.url);
-      const origin =
-        process.env.NEXT_PUBLIC_BASE_URL?.trim() ||
-        `${req.headers.get("x-forwarded-proto") ?? url.protocol.replace(":", "")}://${
-          req.headers.get("x-forwarded-host") ?? url.host
-        }`;
-
-      await fetch(`${origin}/api/send-welcome-email`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, planId }),
-      });
-    } catch (emailErr) {
-      console.error("[finalize-plan] welcome email error", emailErr);
-    }
-
-    console.log("[finalize-plan] completed", {
-      userId,
-      planId,
-      elapsedSec: Math.round((Date.now() - startedAt) / 1000),
-    });
 
     return NextResponse.json({
       ok: true,
-      planId,
-      plan: finalPlan,
+      plan: planForStorage,
+      planId: upsertedPlan.id,
+      sessionsCreated: sessions.length,
+      stravaCalibrated: stravaHistoryRows.length > 0,
+      durationMs: Date.now() - startedAt,
     });
-  } catch (err: any) {
-    console.error("FINALIZE_PLAN_ERROR", err?.message, err?.stack, err);
-
-    if (err instanceof AuthError) {
-      return NextResponse.json(
-        { ok: false, error: err.message },
-        { status: err.status }
-      );
+  } catch (error) {
+    if (error instanceof AuthError) {
+      console.error("FINALIZE_PLAN_ERROR Unauthorized", error);
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: error.status });
     }
 
-    const rawMessage = String(err?.message ?? "");
-    const safeMessage =
-      rawMessage.includes("Cannot convert undefined or null to object")
-        ? "We couldn’t generate your plan because one generated week was incomplete. Please try again."
-        : rawMessage || "Internal error";
-
-    return NextResponse.json(
-      { ok: false, error: safeMessage },
-      { status: 500 }
-    );
+    console.error("FINALIZE_PLAN_ERROR", error);
+    return NextResponse.json({ ok: false, error: "Failed to generate plan" }, { status: 500 });
   }
 }
