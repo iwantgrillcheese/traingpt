@@ -45,7 +45,7 @@ function finiteNumberOrNull(value: unknown) {
 
 export async function POST(req: Request) {
   try {
-    const supabase = await createRouteSupabaseClient();
+    const supabase = await createRouteSupabaseClient(req);
     const user = await requireUser(supabase);
     const billing = await getBillingAccess(supabase, user.id);
 
