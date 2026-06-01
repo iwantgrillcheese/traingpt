@@ -3,11 +3,12 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, T
 import { colors, radius, shadow, spacing } from '../design/theme';
 import { useAuth } from '../auth/AuthProvider';
 import { supabase } from '../lib/supabase';
-import type { CompletedSessionRow, SessionRow } from '../types';
+import type { CompletedSessionRow, SessionRow, StravaActivityRow } from '../types';
 import { SessionCard } from '../components/SessionCard';
 import { SessionDetailSheet } from '../components/SessionDetailSheet';
 import { cleanTitle, currentWeekStats, formatDay, formatMinutes, getNextSession, getTodaysSessions, normalizeSport } from '../utils/training';
 import { getSessionPoints, getWeeklyPointStats } from '../utils/sessionPoints';
+import { sessionHasSameDayStravaMatch } from '../utils/stravaMatching';
 
 function formatToday() {
   return new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
@@ -24,6 +25,7 @@ export function TodayScreen() {
   const { user } = useAuth();
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [completed, setCompleted] = useState<CompletedSessionRow[]>([]);
+  const [stravaActivities, setStravaActivities] = useState<StravaActivityRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,9 +35,10 @@ export function TodayScreen() {
     if (!user?.id) return;
     setError(null);
 
-    const [{ data: sessionRows, error: sessionError }, { data: completedRows, error: completedError }] = await Promise.all([
+    const [{ data: sessionRows, error: sessionError }, { data: completedRows, error: completedError }, { data: stravaRows }] = await Promise.all([
       supabase.from('sessions').select('id,user_id,plan_id,date,sport,title,duration,details,structured_workout').eq('user_id', user.id).order('date', { ascending: true }).limit(400),
       supabase.from('completed_sessions').select('id,user_id,date,session_title,status').eq('user_id', user.id),
+      supabase.from('strava_activities').select('id,user_id,strava_id,name,sport_type,start_date,start_date_local,moving_time,distance').eq('user_id', user.id).order('start_date', { ascending: false }).limit(120),
     ]);
 
     if (sessionError || completedError) {
@@ -44,6 +47,7 @@ export function TodayScreen() {
 
     setSessions((sessionRows ?? []) as SessionRow[]);
     setCompleted((completedRows ?? []) as CompletedSessionRow[]);
+    setStravaActivities((stravaRows ?? []) as StravaActivityRow[]);
     setLoading(false);
   }, [user?.id]);
 
@@ -61,6 +65,7 @@ export function TodayScreen() {
   const stats = useMemo(() => currentWeekStats(sessions, completed), [sessions, completed]);
   const pointStats = useMemo(() => getWeeklyPointStats(sessions, completed), [sessions, completed]);
   const heroPoints = heroSession ? getSessionPoints(heroSession) : 0;
+  const heroViaStrava = heroSession ? sessionHasSameDayStravaMatch(heroSession, stravaActivities) : false;
   const upcoming = useMemo(
     () => sessions.filter((session) => new Date(`${session.date}T00:00:00`) >= new Date(new Date().setHours(0, 0, 0, 0))).slice(0, 3),
     [sessions]
@@ -125,10 +130,10 @@ export function TodayScreen() {
         </View>
 
         {heroSession ? (
-          <Pressable onPress={() => setSelectedSession(heroSession)} style={({ pressed }) => [styles.sessionHero, pressed && styles.pressed]}>
+          <Pressable onPress={() => setSelectedSession(heroSession)} style={({ pressed }) => [styles.sessionHero, heroViaStrava && styles.stravaHero, pressed && styles.pressed]}>
             <View style={styles.sessionHeader}>
               <Text style={styles.cardKicker}>Today’s session</Text>
-              <Text style={styles.plannedPill}>+{heroPoints} pts</Text>
+              <Text style={[styles.plannedPill, heroViaStrava && styles.stravaPill]}>{heroViaStrava ? 'Synced via Strava' : `+${heroPoints} pts`}</Text>
             </View>
             <Text style={styles.sessionTitle}>{cleanTitle(heroSession.title)}</Text>
             <View style={styles.metricLine}>
@@ -171,7 +176,7 @@ export function TodayScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.stravaKicker}>Strava matching</Text>
             <Text style={styles.stravaTitle}>Auto-completions count</Text>
-            <Text style={styles.stravaMeta}>Synced workouts can bank points when they match your plan.</Text>
+            <Text style={styles.stravaMeta}>{stravaActivities.length} recent activities available for matching</Text>
             <Text style={styles.stravaCopy}>Manual and Strava-matched completions both feed your weekly points and Fitness Score.</Text>
           </View>
           <View style={styles.sparkline}><View style={styles.sparkFill} /></View>
@@ -182,7 +187,7 @@ export function TodayScreen() {
           <Text style={styles.sectionHint}>Pull to refresh</Text>
         </View>
         {upcoming.length ? upcoming.map((session) => (
-          <SessionCard key={session.id} session={session} completed={completed} onPress={() => setSelectedSession(session)} />
+          <SessionCard key={session.id} session={session} completed={completed} stravaActivities={stravaActivities} onPress={() => setSelectedSession(session)} />
         )) : (
           <Text style={styles.emptyListText}>No upcoming sessions yet.</Text>
         )}
@@ -222,9 +227,11 @@ const styles = StyleSheet.create({
   insightText: { marginTop: 12, color: colors.inkSoft, fontSize: 15, lineHeight: 24, maxWidth: '86%' },
   contourDot: { position: 'absolute', right: 38, bottom: 42, width: 26, height: 26, borderRadius: 999, backgroundColor: '#d8bda0', opacity: 0.45 },
   sessionHero: { marginTop: 14, backgroundColor: colors.surface, borderRadius: radius.xl, borderColor: colors.border, borderWidth: 1, padding: 18, ...shadow.card },
+  stravaHero: { borderColor: '#bfdbfe', backgroundColor: '#f8fbff' },
   sessionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardKicker: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.3 },
   plannedPill: { overflow: 'hidden', backgroundColor: colors.successSoft, color: colors.success, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6, fontSize: 12, fontWeight: '900' },
+  stravaPill: { backgroundColor: colors.blueSoft, color: colors.blue },
   sessionTitle: { marginTop: 12, color: colors.ink, fontSize: 30, lineHeight: 33, fontWeight: '900', letterSpacing: -1.2 },
   metricLine: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 12 },
   metricText: { color: colors.inkSoft, fontSize: 14, fontWeight: '800' },
