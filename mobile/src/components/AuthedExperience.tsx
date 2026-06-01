@@ -3,7 +3,6 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StyleSheet, Text, View } from 'react-native';
 import { TodayScreen } from '../screens/TodayScreen';
 import { ScheduleScreen } from '../screens/ScheduleScreen';
-import { CoachScreen } from '../screens/CoachScreen';
 import { ProgressScreen } from '../screens/ProgressScreen';
 import { GearScreen } from '../screens/GearScreen';
 import { OnboardingGate } from './OnboardingGate';
@@ -12,7 +11,6 @@ import { colors } from '../design/theme';
 type RootTabs = {
   Today: undefined;
   Schedule: undefined;
-  Coach: undefined;
   Fitness: undefined;
   Settings: undefined;
 };
@@ -43,7 +41,6 @@ function CoreTabs({ initialRouteName }: { initialRouteName: keyof RootTabs }) {
     >
       <Tab.Screen name="Today" component={TodayScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="T" focused={focused} /> }} />
       <Tab.Screen name="Schedule" component={ScheduleScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="S" focused={focused} /> }} />
-      <Tab.Screen name="Coach" component={CoachScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="C" focused={focused} /> }} />
       <Tab.Screen name="Fitness" component={ProgressScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="F" focused={focused} /> }} />
       <Tab.Screen name="Settings" component={GearScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="Set" focused={focused} /> }} />
     </Tab.Navigator>
