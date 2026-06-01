@@ -3,11 +3,12 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, T
 import { colors, radius, shadow, spacing } from '../design/theme';
 import { useAuth } from '../auth/AuthProvider';
 import { supabase } from '../lib/supabase';
-import type { CompletedSessionRow, SessionRow } from '../types';
+import type { CompletedSessionRow, SessionRow, StravaActivityRow } from '../types';
 import { SessionCard } from '../components/SessionCard';
 import { SessionDetailSheet } from '../components/SessionDetailSheet';
 import { cleanTitle, currentWeekStats, formatDay, formatMinutes, getCompletionStatus, getNextSession, normalizeSport, parseDate } from '../utils/training';
 import { getSessionPoints, getWeeklyPointStats } from '../utils/sessionPoints';
+import { sessionHasSameDayStravaMatch } from '../utils/stravaMatching';
 
 function groupByDate(sessions: SessionRow[]) {
   const groups = new Map<string, SessionRow[]>();
@@ -41,18 +42,21 @@ export function ScheduleScreen() {
   const { user } = useAuth();
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [completed, setCompleted] = useState<CompletedSessionRow[]>([]);
+  const [stravaActivities, setStravaActivities] = useState<StravaActivityRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedSession, setSelectedSession] = useState<SessionRow | null>(null);
 
   const load = useCallback(async () => {
     if (!user?.id) return;
-    const [{ data: sessionRows }, { data: completedRows }] = await Promise.all([
+    const [{ data: sessionRows }, { data: completedRows }, { data: stravaRows }] = await Promise.all([
       supabase.from('sessions').select('id,user_id,plan_id,date,sport,title,duration,details,structured_workout').eq('user_id', user.id).order('date', { ascending: true }).limit(500),
       supabase.from('completed_sessions').select('id,user_id,date,session_title,status').eq('user_id', user.id),
+      supabase.from('strava_activities').select('id,user_id,strava_id,name,sport_type,start_date,start_date_local,moving_time,distance').eq('user_id', user.id).order('start_date', { ascending: false }).limit(150),
     ]);
     setSessions((sessionRows ?? []) as SessionRow[]);
     setCompleted((completedRows ?? []) as CompletedSessionRow[]);
+    setStravaActivities((stravaRows ?? []) as StravaActivityRow[]);
     setLoading(false);
   }, [user?.id]);
 
@@ -94,6 +98,7 @@ export function ScheduleScreen() {
   const pointStats = useMemo(() => getWeeklyPointStats(sessions, completed), [sessions, completed]);
   const nextSession = useMemo(() => getNextSession(sessions), [sessions]);
   const nextPoints = nextSession ? getSessionPoints(nextSession) : 0;
+  const nextViaStrava = nextSession ? sessionHasSameDayStravaMatch(nextSession, stravaActivities) : false;
   const dates = useMemo(() => weekDates(), []);
   const todayKey = dateKey(new Date());
 
@@ -139,8 +144,8 @@ export function ScheduleScreen() {
         </View>
 
         {nextSession ? (
-          <Pressable onPress={() => setSelectedSession(nextSession)} style={({ pressed }) => [styles.keyCard, pressed && styles.pressed]}>
-            <Text style={styles.keyKicker}>Next key workout · +{nextPoints} pts</Text>
+          <Pressable onPress={() => setSelectedSession(nextSession)} style={({ pressed }) => [styles.keyCard, nextViaStrava && styles.stravaKeyCard, pressed && styles.pressed]}>
+            <Text style={styles.keyKicker}>{nextViaStrava ? 'Completed via Strava' : `Next key workout · +${nextPoints} pts`}</Text>
             <Text style={styles.keyDate}>{formatDay(nextSession.date)}</Text>
             <Text style={styles.keyTitle}>{cleanTitle(nextSession.title)}</Text>
             <View style={styles.keyMetaRow}>
@@ -162,7 +167,7 @@ export function ScheduleScreen() {
             <Text style={styles.date}>{formatDay(date)}</Text>
             {items.map((session, index) => {
               const status = getCompletionStatus(session, completed);
-              return <SessionCard key={session.id} session={session} completed={completed} featured={index === 0 && status !== 'done'} onPress={() => setSelectedSession(session)} />;
+              return <SessionCard key={session.id} session={session} completed={completed} stravaActivities={stravaActivities} featured={index === 0 && status !== 'done'} onPress={() => setSelectedSession(session)} />;
             })}
           </View>
         )) : (
@@ -212,6 +217,7 @@ const styles = StyleSheet.create({
   dayDot: { width: 5, height: 5, borderRadius: 999, backgroundColor: colors.borderStrong },
   dayDotActive: { backgroundColor: colors.purple },
   keyCard: { marginTop: 26, overflow: 'hidden', backgroundColor: colors.cream, borderColor: '#ead7c2', borderWidth: 1, borderRadius: radius.xl, padding: 20, ...shadow.card },
+  stravaKeyCard: { backgroundColor: '#f8fbff', borderColor: '#bfdbfe' },
   keyKicker: { color: colors.orange, fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
   keyDate: { marginTop: 14, color: colors.muted, fontSize: 14, fontWeight: '700' },
   keyTitle: { marginTop: 5, color: colors.ink, fontSize: 31, lineHeight: 34, fontWeight: '900', letterSpacing: -1.2 },
