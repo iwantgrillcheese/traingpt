@@ -2,7 +2,7 @@
 
 // ----------------- Plan-related types -----------------
 
-// Day-of-week: 0 = Sunday ... 6 = Saturday
+// Day-of-week: 0 = Sunday ... 6 = Saturday, or normalized day name.
 export type DayOfWeek = 0 | 1 | 2 | 3 | 4 | 5 | 6 | string;
 
 export type TrainingPrefs = {
@@ -37,9 +37,9 @@ export type UserParams = {
   stravaHistorySummary?: string;
 
   // Guided onboarding context. These describe the athlete's real-world constraints.
-  preferredLongRideDay?: string;
-  preferredLongRunDay?: string;
-  unavailableDays?: string[];
+  preferredLongRideDay?: DayOfWeek;
+  preferredLongRunDay?: DayOfWeek;
+  unavailableDays?: DayOfWeek[];
   swimComfort?: 'new' | 'developing' | 'comfortable' | 'strong' | string;
   twoADaysAllowed?: boolean;
   athleteNotes?: string;
