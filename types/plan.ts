@@ -3,7 +3,7 @@
 // ----------------- Plan-related types -----------------
 
 // Day-of-week: 0 = Sunday ... 6 = Saturday
-export type DayOfWeek = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+export type DayOfWeek = 0 | 1 | 2 | 3 | 4 | 5 | 6 | string;
 
 export type TrainingPrefs = {
   /** Preferred day for the long ride. Default: 6 (Saturday) */
@@ -19,12 +19,13 @@ export type PlanType = 'triathlon' | 'running' | 'swim' | 'bike' | 'run';
 export type UserParams = {
   raceType: string;         // e.g., "Half Ironman (70.3)"
   raceDate: string;         // ISO date "YYYY-MM-DD"
-  experience: 'Beginner' | 'Intermediate' | 'Advanced' | string;
+  experience?: 'Beginner' | 'Intermediate' | 'Advanced' | string;
   maxHours: number;         // max training hours per week
-  restDay: string;          // e.g., "Monday"
+  restDay?: string;         // e.g., "Monday"
 
   // Metrics (optional)
   bikeFtp?: number;
+  bikeFTP?: number;
   runPace?: string;         // "6:55 / mi"
   swimPace?: string;        // "1:32 / 100m"
   paceUnit?: 'mi' | 'km';
@@ -44,6 +45,8 @@ export type UserParams = {
   athleteNotes?: string;
   coachingPriorities?: string[];
   constraintsSummary?: string;
+  preferencesText?: string;
+  planType?: PlanType;
 };
 
 export type WeekMeta = {
@@ -65,8 +68,16 @@ export type WeekJson = {
 export type GeneratedPlan = {
   planType: PlanType;
   weeks: WeekJson[];
+  days?: Record<string, any[]>;
   params: UserParams;
-  createdAt: string; // ISO timestamp
+  createdAt?: string; // ISO timestamp
+  metadata?: {
+    generatedAt?: string;
+    totalWeeks?: number;
+    source?: string;
+    stravaCalibrated?: boolean;
+    [key: string]: unknown;
+  };
 };
 
 // ----------------- Sessions-related types -----------------
@@ -78,8 +89,11 @@ export interface Session {
   created_at?: string;     // Supabase default timestamp
   user_id: string;         // FK → profiles.id
   plan_id: string;         // FK → plans.id
-  session_date: string;    // ISO "YYYY-MM-DD"
-  session_title: string;   // e.g. "Bike 90min Z2 — 3x10min tempo"
-  status: SessionStatus;   // planned | done | skipped
-  strava_id?: string | null; // linked Strava activity if any
+  date: string;            // ISO date "YYYY-MM-DD"
+  sport: string;           // swim | bike | run | strength | rest
+  title: string;           // "Easy Run", "Bike Intervals"
+  duration?: number;       // minutes
+  details?: string;        // session description / coach note
+  status?: SessionStatus;
+  structured_workout?: any;
 }
