@@ -39,7 +39,9 @@ export function buildCoachPrompt({
   const prefs = userParams.trainingPrefs ?? {};
   const longRideDay = prefs.longRideDay ?? 6; // default Saturday
   const longRunDay  = prefs.longRunDay  ?? 0; // default Sunday
-  const brickDays   = (prefs.brickDays?.length ? prefs.brickDays : [6]); // default Saturday
+  const brickDays: DayOfWeek[] = prefs.brickDays?.length ? prefs.brickDays : [6]; // default Saturday
+  const brickDayLabels = brickDays.map((day) => dayLabel(day)).join(', ');
+  const brickDayDebug = brickDays.map((day) => dayDebug(day)).join(',');
   const scaffold = buildTriathlonWeekScaffold({ userParams, weekMeta, index, totalWeeks });
 
   return `
@@ -66,7 +68,7 @@ ${scaffoldSummary(scaffold)}
 ## Scheduling Preferences and Constraints
 - Long Ride Day: ${userParams.preferredLongRideDay ? dayLabel(userParams.preferredLongRideDay) : dayLabel(longRideDay)} (${dayDebug(longRideDay)})
 - Long Run Day: ${userParams.preferredLongRunDay ? dayLabel(userParams.preferredLongRunDay) : dayLabel(longRunDay)} (${dayDebug(longRunDay)})
-- Brick Allowed Day(s): ${brickDays.map(dayLabel).join(', ')} (${brickDays.map(dayDebug).join(',')})
+- Brick Allowed Day(s): ${brickDayLabels} (${brickDayDebug})
 - Rest Day: ${userParams.restDay}
 - Unavailable Days: ${listOrNone(userParams.unavailableDays)}
 - Two-a-days allowed: ${yesNo(userParams.twoADaysAllowed)}
