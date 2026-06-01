@@ -15,8 +15,12 @@ function dayDebug(day?: DayOfWeek | null): string {
   return String(day);
 }
 
-function listOrNone(items?: string[]) {
-  return items?.length ? items.join(', ') : 'none';
+function listOrNone(items?: Array<string | number>) {
+  return items?.length ? items.map((item) => String(item)).join(', ') : 'none';
+}
+
+function dayListOrNone(items?: DayOfWeek[]) {
+  return items?.length ? items.map((day) => dayLabel(day)).join(', ') : 'none';
 }
 
 function yesNo(value?: boolean) {
@@ -70,7 +74,7 @@ ${scaffoldSummary(scaffold)}
 - Long Run Day: ${userParams.preferredLongRunDay ? dayLabel(userParams.preferredLongRunDay) : dayLabel(longRunDay)} (${dayDebug(longRunDay)})
 - Brick Allowed Day(s): ${brickDayLabels} (${brickDayDebug})
 - Rest Day: ${userParams.restDay}
-- Unavailable Days: ${listOrNone(userParams.unavailableDays)}
+- Unavailable Days: ${dayListOrNone(userParams.unavailableDays)}
 - Two-a-days allowed: ${yesNo(userParams.twoADaysAllowed)}
 
 ## Athlete Context From Onboarding
