@@ -6,6 +6,7 @@ import { ScheduleScreen } from '../screens/ScheduleScreen';
 import { ProgressScreen } from '../screens/ProgressScreen';
 import { GearScreen } from '../screens/GearScreen';
 import { OnboardingGate } from './OnboardingGate';
+import { PostPlanTour } from './PostPlanTour';
 import { colors } from '../design/theme';
 
 type RootTabs = {
@@ -49,10 +50,27 @@ function CoreTabs({ initialRouteName }: { initialRouteName: keyof RootTabs }) {
 
 export function AuthedExperience() {
   const [initialTab, setInitialTab] = useState<keyof RootTabs>('Today');
+  const [showPostPlanTour, setShowPostPlanTour] = useState(false);
+
+  const handlePlanCreated = () => {
+    setInitialTab('Schedule');
+    setShowPostPlanTour(true);
+  };
+
+  const openToday = () => {
+    setInitialTab('Today');
+    setShowPostPlanTour(false);
+  };
+
+  const openSchedule = () => {
+    setInitialTab('Schedule');
+    setShowPostPlanTour(false);
+  };
 
   return (
-    <OnboardingGate onPlanCreated={() => setInitialTab('Schedule')}>
+    <OnboardingGate onPlanCreated={handlePlanCreated}>
       <CoreTabs initialRouteName={initialTab} />
+      <PostPlanTour visible={showPostPlanTour} onOpenToday={openToday} onOpenSchedule={openSchedule} />
     </OnboardingGate>
   );
 }
