@@ -77,8 +77,18 @@ export function getTotalAvailablePoints(sessions: SessionRow[]) {
   return sessions.reduce((sum, session) => sum + getSessionPoints(session), 0);
 }
 
-export function getActiveWeekReferenceDate(sessions: SessionRow[], referenceDate = new Date()) {
-  const today = new Date(referenceDate);
+function resolveReferenceDate(arg?: Date | CompletedSessionRow[] | null, fallback?: Date) {
+  if (arg instanceof Date) return arg;
+  if (fallback instanceof Date) return fallback;
+  return new Date();
+}
+
+export function getActiveWeekReferenceDate(
+  sessions: SessionRow[],
+  referenceOrCompleted?: Date | CompletedSessionRow[] | null,
+  legacyReferenceDate?: Date
+) {
+  const today = new Date(resolveReferenceDate(referenceOrCompleted, legacyReferenceDate));
   today.setHours(0, 0, 0, 0);
   const thisWeekStart = startOfWeek(today);
   const thisWeekEnd = endOfWeek(today);
