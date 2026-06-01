@@ -16,6 +16,29 @@ function startOfToday() {
   return today;
 }
 
+function dateKey(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function startOfWeek(date: Date) {
+  const next = new Date(date);
+  const day = next.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  next.setDate(next.getDate() + diff);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+function sessionKey(date?: string | null, title?: string | null) {
+  return `${date ?? ''}-${String(title ?? '').trim().toLowerCase()}`;
+}
+
 function readinessLabel(score: number) {
   if (score >= 85) return 'Race-ready trajectory';
   if (score >= 70) return 'Building well';
@@ -23,8 +46,8 @@ function readinessLabel(score: number) {
   return 'Foundation phase';
 }
 
-function readinessCopy(score: number) {
-  if (score >= 85) return 'You are stacking the work that matters. Keep recovery protected and avoid turning easy days into tests.';
+function readinessCopy(score: number, streak: number) {
+  if (score >= 85) return `You are stacking the work that matters. ${streak ? `${streak} sessions banked in a row is real momentum.` : 'Keep recovery protected.'}`;
   if (score >= 70) return 'You are trending in the right direction. The next jump comes from consistent execution, not hero sessions.';
   if (score >= 55) return 'The plan is still very salvageable. Prioritize showing up for the next few key sessions.';
   return 'You need rhythm before intensity. Nail the easy sessions, then let the harder work come back in.';
@@ -66,31 +89,61 @@ export function ProgressScreen() {
     const elapsedDays = clamp(Math.ceil((today.getTime() - planStart.getTime()) / 86400000), 0, totalPlanDays);
     const planProgress = Math.round((elapsedDays / totalPlanDays) * 100);
 
-    const completedKeys = new Set(
+    const doneKeys = new Set(
       completed
         .filter((row) => row.status === 'done')
-        .map((row) => `${row.date}-${String(row.session_title ?? '').toLowerCase()}`)
+        .map((row) => sessionKey(row.date, row.session_title))
     );
 
     const plannedToDate = sessions.filter((session) => new Date(`${session.date}T00:00:00`) <= today);
-    const doneToDate = plannedToDate.filter((session) => completedKeys.has(`${session.date}-${String(session.title ?? '').toLowerCase()}`));
+    const doneToDate = plannedToDate.filter((session) => doneKeys.has(sessionKey(session.date, session.title)));
     const planAdherence = plannedToDate.length ? Math.round((doneToDate.length / plannedToDate.length) * 100) : 0;
     const weeklyAdherence = stats.planned ? stats.adherence : planAdherence;
     const weeklyVolumeScore = stats.planned ? clamp(Math.round((stats.done / stats.planned) * 100), 0, 100) : 0;
 
+    let currentSessionStreak = 0;
+    for (let i = plannedToDate.length - 1; i >= 0; i -= 1) {
+      const session = plannedToDate[i];
+      if (doneKeys.has(sessionKey(session.date, session.title))) currentSessionStreak += 1;
+      else break;
+    }
+
+    let weeklyAdherenceStreak = 0;
+    const thisWeekStart = startOfWeek(today);
+    for (let i = 0; i < 12; i += 1) {
+      const weekStart = addDays(thisWeekStart, -7 * i);
+      const weekEnd = addDays(weekStart, 6);
+      const weekSessions = sessions.filter((session) => {
+        const sessionDate = new Date(`${session.date}T00:00:00`);
+        return sessionDate >= weekStart && sessionDate <= weekEnd && sessionDate <= today;
+      });
+      if (!weekSessions.length) break;
+      const weekDone = weekSessions.filter((session) => doneKeys.has(sessionKey(session.date, session.title))).length;
+      const weekScore = Math.round((weekDone / weekSessions.length) * 100);
+      if (weekScore >= 80) weeklyAdherenceStreak += 1;
+      else break;
+    }
+
+    const streakBonus = clamp(currentSessionStreak * 2 + weeklyAdherenceStreak * 4, 0, 12);
+    const pointsThisWeek = stats.done * 10 + (stats.planned && stats.adherence >= 80 ? 50 : 0) + weeklyAdherenceStreak * 15;
+
     const score = sessions.length
-      ? clamp(Math.round(planAdherence * 0.48 + weeklyAdherence * 0.34 + weeklyVolumeScore * 0.18), 1, 99)
+      ? clamp(Math.round(planAdherence * 0.42 + weeklyAdherence * 0.28 + weeklyVolumeScore * 0.18 + streakBonus), 1, 99)
       : 0;
 
     return {
       score,
       label: readinessLabel(score),
-      copy: readinessCopy(score),
+      copy: readinessCopy(score, currentSessionStreak),
       planProgress,
       planAdherence,
       weeklyAdherence,
       plannedToDate: plannedToDate.length,
       doneToDate: doneToDate.length,
+      currentSessionStreak,
+      weeklyAdherenceStreak,
+      streakBonus,
+      pointsThisWeek,
     };
   }, [completed, sessions, stats.adherence, stats.done, stats.planned]);
 
@@ -105,7 +158,7 @@ export function ProgressScreen() {
     >
       <Text style={styles.kicker}>Race readiness</Text>
       <Text style={styles.title}>How ready are you getting?</Text>
-      <Text style={styles.subtitle}>A simple readiness view based on plan progress, week-to-date execution, and consistency to date.</Text>
+      <Text style={styles.subtitle}>A simple readiness view based on plan progress, week-to-date execution, consistency, and streak momentum.</Text>
 
       <View style={styles.heroCard}>
         <View style={styles.scoreRow}>
@@ -120,6 +173,27 @@ export function ProgressScreen() {
         </View>
         <View style={styles.progressBarTrack}>
           <View style={[styles.progressBarFill, { width: `${readiness.score || 4}%` }]} />
+        </View>
+      </View>
+
+      <View style={styles.streakCard}>
+        <View style={styles.streakHeader}>
+          <Text style={styles.label}>Momentum</Text>
+          <Text style={styles.pointsPill}>+{readiness.pointsThisWeek} pts this week</Text>
+        </View>
+        <View style={styles.streakGrid}>
+          <View style={styles.streakItem}>
+            <Text style={styles.streakValue}>{readiness.currentSessionStreak}</Text>
+            <Text style={styles.streakLabel}>session streak</Text>
+          </View>
+          <View style={styles.streakItem}>
+            <Text style={styles.streakValue}>{readiness.weeklyAdherenceStreak}</Text>
+            <Text style={styles.streakLabel}>80% weeks</Text>
+          </View>
+          <View style={styles.streakItem}>
+            <Text style={styles.streakValue}>+{readiness.streakBonus}</Text>
+            <Text style={styles.streakLabel}>readiness bonus</Text>
+          </View>
         </View>
       </View>
 
@@ -168,6 +242,13 @@ const styles = StyleSheet.create({
   heroText: { marginTop: 8, color: '#d4d4d8', fontSize: 14, lineHeight: 21, fontWeight: '650' },
   progressBarTrack: { marginTop: 20, height: 9, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.14)', overflow: 'hidden' },
   progressBarFill: { height: '100%', borderRadius: 999, backgroundColor: colors.surface },
+  streakCard: { marginTop: 14, backgroundColor: colors.cream, borderColor: colors.border, borderWidth: 1, borderRadius: radius.xl, padding: 18, ...shadow.card },
+  streakHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  pointsPill: { overflow: 'hidden', borderRadius: 999, backgroundColor: colors.successSoft, color: colors.success, paddingHorizontal: 10, paddingVertical: 6, fontSize: 12, fontWeight: '900' },
+  streakGrid: { marginTop: 14, flexDirection: 'row', gap: 10 },
+  streakItem: { flex: 1, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: 12 },
+  streakValue: { color: colors.ink, fontSize: 28, lineHeight: 30, fontWeight: '900', letterSpacing: -1 },
+  streakLabel: { marginTop: 5, color: colors.muted, fontSize: 11, lineHeight: 15, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
   grid: { marginTop: 14, flexDirection: 'row', gap: 12 },
   card: { flex: 1, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: radius.lg, padding: 16, ...shadow.card },
   cardLarge: { marginTop: 12, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: radius.xl, padding: 20, ...shadow.card },
