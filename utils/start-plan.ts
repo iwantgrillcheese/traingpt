@@ -3,19 +3,33 @@ import { generateWeek } from './generate-week';
 import { guardWeek } from './planGuard';
 import type { WeekMeta, UserParams, WeekJson, PlanType } from '@/types/plan';
 
-export async function startPlan({
-  planMeta,
-  userParams,
-  planType = 'triathlon',
-  timeBudgetMs,
-}: {
-  planMeta: WeekMeta[];
+type StartPlanArgs = {
+  planMeta?: WeekMeta[];
+  weekMeta?: WeekMeta[];
+  totalWeeks?: number;
   userParams: UserParams;
   planType?: PlanType;
   timeBudgetMs?: number;
-}) {
+  deadlineMs?: number;
+};
+
+export async function startPlan({
+  planMeta,
+  weekMeta,
+  userParams,
+  planType = 'triathlon',
+  timeBudgetMs,
+  deadlineMs,
+}: StartPlanArgs) {
   const startedAt = Date.now();
-  const weeks: WeekJson[] = new Array(planMeta.length);
+  const resolvedPlanMeta = planMeta ?? weekMeta ?? [];
+  const resolvedTimeBudgetMs = timeBudgetMs ?? (deadlineMs ? Math.max(1, deadlineMs - startedAt) : undefined);
+
+  if (!resolvedPlanMeta.length) {
+    throw new Error('startPlan requires planMeta or weekMeta.');
+  }
+
+  const weeks: WeekJson[] = new Array(resolvedPlanMeta.length);
   const isRunPlan = planType === 'running' || planType === 'run';
   const concurrency = isRunPlan
     ? 1
@@ -23,13 +37,20 @@ export async function startPlan({
 
   async function generateOneWeek(i: number, prevWeek?: WeekJson): Promise<WeekJson> {
     const elapsed = Date.now() - startedAt;
-    if (timeBudgetMs && elapsed > timeBudgetMs) {
+    if (resolvedTimeBudgetMs && elapsed > resolvedTimeBudgetMs) {
       throw new Error(`startPlan exceeded time budget (${Math.round(elapsed / 1000)}s).`);
     }
 
-    const meta = planMeta[i];
+    const meta = resolvedPlanMeta[i];
     const w0 = Date.now();
-    const raw: WeekJson = await generateWeek({ weekMeta: meta, userParams, planType, index: i, prevWeek, totalWeeks: planMeta.length });
+    const raw: WeekJson = await generateWeek({
+      weekMeta: meta,
+      userParams,
+      planType,
+      index: i,
+      prevWeek,
+      totalWeeks: resolvedPlanMeta.length,
+    });
 
     // Triathlon weeks are now scaffold-first. generateWeek() returns the final
     // scaffolded structure and GPT only enriches details. Do NOT run the legacy
@@ -51,15 +72,15 @@ export async function startPlan({
   }
 
   if (isRunPlan) {
-    for (let i = 0; i < planMeta.length; i++) {
+    for (let i = 0; i < resolvedPlanMeta.length; i++) {
       weeks[i] = await generateOneWeek(i, weeks[i - 1]);
     }
 
     return weeks;
   }
 
-  for (let offset = 0; offset < planMeta.length; offset += concurrency) {
-    const batchIndexes = planMeta
+  for (let offset = 0; offset < resolvedPlanMeta.length; offset += concurrency) {
+    const batchIndexes = resolvedPlanMeta
       .slice(offset, offset + concurrency)
       .map((_, batchOffset) => offset + batchOffset);
 
