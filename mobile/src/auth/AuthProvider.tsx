@@ -1,8 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import * as ExpoLinking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 import { Linking } from 'react-native';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+
+WebBrowser.maybeCompleteAuthSession();
 
 type AuthContextValue = {
   session: Session | null;
@@ -30,7 +33,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const handleOAuthUrl = useCallback(async (url: string | null) => {
     if (!url) return;
-    if (!url.startsWith('traingpt://')) return;
+    if (!url.startsWith('traingpt://') && !url.includes('/auth/callback')) return;
 
     const code = getQueryParam(url, 'code');
     const accessToken = getQueryParam(url, 'access_token');
@@ -111,13 +114,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) return { error: error.message };
       if (!data?.url) return { error: 'Could not start Google sign-in.' };
 
-      await Linking.openURL(data.url);
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+      if (result.type === 'success') {
+        await handleOAuthUrl(result.url);
+        return {};
+      }
+
+      if (result.type === 'cancel') return { error: 'Google sign-in was cancelled.' };
       return {};
     },
     async signOut() {
       await supabase.auth.signOut();
     },
-  }), [loading, session]);
+  }), [handleOAuthUrl, loading, session]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
