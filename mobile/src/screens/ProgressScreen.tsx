@@ -4,8 +4,8 @@ import { useAuth } from '../auth/AuthProvider';
 import { supabase } from '../lib/supabase';
 import { colors, radius, shadow, spacing } from '../design/theme';
 import type { CompletedSessionRow, SessionRow } from '../types';
-import { currentWeekStats, formatMinutes } from '../utils/training';
-import { getEarnedPoints, getTotalAvailablePoints, getWeeklyPointStats, sessionCompletionKey } from '../utils/sessionPoints';
+import { currentWeekStats, formatMinutes, normalizeSport } from '../utils/training';
+import { getEarnedPoints, getSessionPoints, getTotalAvailablePoints, getWeeklyPointStats, sessionCompletionKey } from '../utils/sessionPoints';
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -32,20 +32,47 @@ function startOfWeek(date: Date) {
   return next;
 }
 
-function fitnessLabel(score: number, hasTrainingData: boolean) {
-  if (!hasTrainingData) return 'Start building';
-  if (score >= 85) return 'Race-ready trajectory';
-  if (score >= 70) return 'Fitness building';
-  if (score >= 55) return 'Base forming';
-  return 'Foundation phase';
+function formatSessionDate(value?: string | null) {
+  if (!value) return 'Planned';
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return 'Planned';
+  return new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).format(date);
 }
 
-function fitnessCopy(score: number, streak: number, hasTrainingData: boolean) {
-  if (!hasTrainingData) return 'Complete planned sessions to raise this score. The meter grows as you bank training, protect consistency, and follow the plan.';
-  if (score >= 85) return `Your training is clearly moving the score. ${streak ? `${streak} sessions banked in a row is real momentum.` : 'Keep recovery protected.'}`;
-  if (score >= 70) return 'Your fitness score is climbing. The next jump comes from consistent execution, not hero sessions.';
-  if (score >= 55) return 'You are building a base. Bank the next few planned sessions to push this score higher.';
-  return 'Training adds to this score. Start by completing today’s planned session and building a streak.';
+function cleanTitle(value?: string | null) {
+  return String(value ?? 'Training Session')
+    .replace(/^[^A-Za-z0-9]+/, '')
+    .replace(/^(swim|bike|run|brick|strength|rest)\s*:?\s*/i, '')
+    .trim() || 'Training Session';
+}
+
+function sportIcon(value?: string | null) {
+  const sport = normalizeSport(value);
+  if (sport === 'Swim') return '≈';
+  if (sport === 'Bike') return '◌';
+  if (sport === 'Run') return '⌁';
+  if (sport === 'Brick') return '↯';
+  if (sport === 'Strength') return '▣';
+  if (sport === 'Rest') return '·';
+  return '•';
+}
+
+function sportTint(value?: string | null) {
+  const sport = normalizeSport(value);
+  if (sport === 'Swim') return '#e0f2fe';
+  if (sport === 'Bike') return '#dcfce7';
+  if (sport === 'Run') return '#ffedd5';
+  if (sport === 'Brick') return '#f5f3ff';
+  if (sport === 'Strength') return '#f3e8ff';
+  return colors.surfaceMuted;
+}
+
+function scoreLabel(score: number, hasTrainingData: boolean) {
+  if (!hasTrainingData) return 'Start';
+  if (score >= 85) return 'Excellent';
+  if (score >= 70) return 'Good';
+  if (score >= 55) return 'Building';
+  return 'Base';
 }
 
 export function ProgressScreen() {
@@ -78,12 +105,6 @@ export function ProgressScreen() {
 
   const fitness = useMemo(() => {
     const today = startOfToday();
-    const planStart = sessions.length ? new Date(`${sessions[0].date}T00:00:00`) : today;
-    const planEnd = sessions.length ? new Date(`${sessions[sessions.length - 1].date}T00:00:00`) : today;
-    const totalPlanDays = Math.max(1, Math.ceil((planEnd.getTime() - planStart.getTime()) / 86400000));
-    const elapsedDays = clamp(Math.ceil((today.getTime() - planStart.getTime()) / 86400000), 0, totalPlanDays);
-    const planProgress = Math.round((elapsedDays / totalPlanDays) * 100);
-
     const doneKeys = new Set(
       completed
         .filter((row) => row.status === 'done')
@@ -93,6 +114,7 @@ export function ProgressScreen() {
     const plannedToDate = sessions.filter((session) => new Date(`${session.date}T00:00:00`) <= today);
     const doneToDate = plannedToDate.filter((session) => doneKeys.has(sessionCompletionKey(session.date, session.title)));
     const hasTrainingData = plannedToDate.length > 0;
+
     const planAdherence = plannedToDate.length ? Math.round((doneToDate.length / plannedToDate.length) * 100) : 0;
     const weeklyAdherence = stats.planned ? stats.adherence : planAdherence;
     const weeklyPoints = getWeeklyPointStats(sessions, completed);
@@ -129,22 +151,26 @@ export function ProgressScreen() {
       ? clamp(Math.round(pointsToDateScore * 0.44 + weeklyPointsScore * 0.28 + planAdherence * 0.16 + weeklyAdherence * 0.08 + streakBonus), 1, 99)
       : 0;
 
+    const weeklyPercent = weeklyPoints.available ? clamp(Math.round((weeklyPoints.earned / weeklyPoints.available) * 100), 0, 100) : 0;
+    const pointsToGo = Math.max(weeklyPoints.available - weeklyPoints.earned, 0);
+    const nextBest = weeklyPoints.sessions
+      .filter((session) => !doneKeys.has(sessionCompletionKey(session.date, session.title)))
+      .sort((a, b) => getSessionPoints(b) - getSessionPoints(a))[0]
+      ?? weeklyPoints.sessions.sort((a, b) => getSessionPoints(b) - getSessionPoints(a))[0];
+
     return {
       score,
-      label: fitnessLabel(score, hasTrainingData),
-      copy: fitnessCopy(score, currentSessionStreak, hasTrainingData),
-      planProgress,
-      planAdherence,
-      weeklyAdherence,
-      plannedToDate: plannedToDate.length,
-      doneToDate: doneToDate.length,
-      currentSessionStreak,
-      weeklyAdherenceStreak,
-      streakBonus,
+      label: scoreLabel(score, hasTrainingData),
+      weeklyPercent,
       pointsThisWeek: weeklyPoints.earned,
       pointsAvailableThisWeek: weeklyPoints.available,
-      pointsToDateEarned,
-      pointsToDateAvailable,
+      pointsToGo,
+      currentSessionStreak,
+      weeklyAdherence,
+      streakBonus,
+      weekSessions: weeklyPoints.sessions.slice(0, 5),
+      doneKeys,
+      nextBest,
       hasTrainingData,
     };
   }, [completed, sessions, stats.adherence, stats.planned]);
@@ -158,78 +184,123 @@ export function ProgressScreen() {
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
     >
-      <Text style={styles.kicker}>Fitness score</Text>
-      <Text style={styles.title}>Training makes this climb.</Text>
-      <Text style={styles.subtitle}>Complete planned sessions, build streaks, and keep weekly adherence high to raise your race readiness.</Text>
+      <View style={styles.headerRow}>
+        <View style={styles.headerCopy}>
+          <Text style={styles.brand}>TrainGPT</Text>
+          <Text style={styles.title}>Training is building you.</Text>
+          <Text style={styles.subtitle}>Keep stacking quality points to stay ready for race day.</Text>
+        </View>
 
-      <View style={styles.heroCard}>
-        <View style={styles.scoreRow}>
+        <View style={styles.scoreWrap}>
           <View style={styles.scoreRing}>
             <Text style={styles.scoreValue}>{fitness.hasTrainingData ? fitness.score : '—'}</Text>
-            <Text style={styles.scoreLabel}>fitness</Text>
+            <Text style={styles.scoreMax}>/100</Text>
           </View>
-          <View style={styles.scoreCopy}>
-            <Text style={styles.heroKicker}>{fitness.label}</Text>
-            <Text style={styles.heroText}>{fitness.copy}</Text>
-          </View>
-        </View>
-        <View style={styles.progressBarTrack}>
-          <View style={[styles.progressBarFill, { width: `${fitness.score || 4}%` }]} />
-        </View>
-        <Text style={styles.scoreFormula}>Built from weighted session points, plan adherence, this week’s work, and streak momentum.</Text>
-      </View>
-
-      <View style={styles.streakCard}>
-        <View style={styles.streakHeader}>
-          <Text style={styles.label}>Training momentum</Text>
-          <Text style={styles.pointsPill}>{fitness.pointsThisWeek}/{fitness.pointsAvailableThisWeek || 0} pts this week</Text>
-        </View>
-        <View style={styles.streakGrid}>
-          <View style={styles.streakItem}>
-            <Text style={styles.streakValue}>{fitness.currentSessionStreak}</Text>
-            <Text style={styles.streakLabel}>session streak</Text>
-          </View>
-          <View style={styles.streakItem}>
-            <Text style={styles.streakValue}>{fitness.weeklyAdherenceStreak}</Text>
-            <Text style={styles.streakLabel}>80% weeks</Text>
-          </View>
-          <View style={styles.streakItem}>
-            <Text style={styles.streakValue}>+{fitness.streakBonus}</Text>
-            <Text style={styles.streakLabel}>score boost</Text>
-          </View>
+          <Text style={styles.scoreLabel}>{fitness.label}</Text>
+          <Text style={styles.weekPill}>↑ {fitness.streakBonus || fitness.pointsThisWeek} pts this week</Text>
         </View>
       </View>
 
-      <View style={styles.howItWorksCard}>
-        <Text style={styles.label}>How to raise it</Text>
-        <Text style={styles.howItWorksText}>✓ Complete higher-value key sessions</Text>
-        <Text style={styles.howItWorksText}>✓ Bank weekly points consistently</Text>
-        <Text style={styles.howItWorksText}>✓ Stack session and weekly streaks</Text>
-      </View>
-
-      <View style={styles.grid}>
-        <View style={styles.card}>
-          <Text style={styles.label}>This week</Text>
-          <Text style={styles.value}>{fitness.pointsThisWeek}/{fitness.pointsAvailableThisWeek || 0}</Text>
-          <Text style={styles.cardMeta}>points banked</Text>
+      <View style={styles.weekCard}>
+        <Text style={styles.kicker}>This week</Text>
+        <View style={styles.pointsLine}>
+          <Text style={styles.weekPoints}>{fitness.pointsThisWeek}</Text>
+          <Text style={styles.weekGoal}>/ {fitness.pointsAvailableThisWeek || 0} pts</Text>
         </View>
-        <View style={styles.card}>
-          <Text style={styles.label}>Volume</Text>
-          <Text style={styles.value}>{formatMinutes(stats.minutes) ?? '—'}</Text>
-          <Text style={styles.cardMeta}>completed this week</Text>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${fitness.weeklyPercent || 3}%` }]} />
+        </View>
+        <View style={styles.weekMetaRow}>
+          <Text style={styles.greenMeta}>{fitness.weeklyPercent}% of weekly goal</Text>
+          <Text style={styles.mutedMeta}>{fitness.pointsToGo} pts to go</Text>
         </View>
       </View>
 
-      <View style={styles.cardLarge}>
-        <Text style={styles.label}>Plan-to-date points</Text>
-        <Text style={styles.bigValue}>{fitness.pointsToDateEarned}/{fitness.pointsToDateAvailable || 0}</Text>
-        <Text style={styles.cardMeta}>{fitness.doneToDate}/{fitness.plannedToDate} assigned sessions banked so far.</Text>
+      <View style={styles.planCard}>
+        <View style={styles.cardHeaderRow}>
+          <Text style={styles.kicker}>Mission plan</Text>
+          <Text style={styles.linkText}>View full plan ›</Text>
+        </View>
+
+        {fitness.weekSessions.length ? fitness.weekSessions.map((session, index) => {
+          const done = fitness.doneKeys.has(sessionCompletionKey(session.date, session.title));
+          const points = getSessionPoints(session);
+          return (
+            <View key={session.id} style={[styles.sessionRow, index !== fitness.weekSessions.length - 1 && styles.sessionDivider]}>
+              <View style={[styles.sportIcon, { backgroundColor: sportTint(session.sport) }]}>
+                <Text style={styles.sportIconText}>{sportIcon(session.sport)}</Text>
+              </View>
+              <View style={styles.sessionCopy}>
+                <Text style={styles.sessionTitle}>{cleanTitle(session.title)}</Text>
+                <Text style={styles.sessionMeta}>{formatSessionDate(session.date)} · {formatMinutes(session.duration) ?? 'Planned'}</Text>
+              </View>
+              <Text style={styles.sessionPoints}>+{points} pts</Text>
+              <View style={[styles.checkCircle, done ? styles.checkCircleDone : styles.checkCircleEmpty]}>
+                <Text style={styles.checkText}>{done ? '✓' : ''}</Text>
+              </View>
+            </View>
+          );
+        }) : (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>No sessions this week yet.</Text>
+            <Text style={styles.emptyText}>Create a plan and your weekly point target will appear here.</Text>
+          </View>
+        )}
       </View>
 
-      <View style={styles.cardLargeSoft}>
-        <Text style={styles.label}>Race build progress</Text>
-        <Text style={styles.bigValue}>{fitness.planProgress}%</Text>
-        <Text style={styles.cardMeta}>How far you are through the current plan timeline.</Text>
+      {fitness.nextBest ? (
+        <View style={styles.nextCard}>
+          <View style={[styles.nextIcon, { backgroundColor: sportTint(fitness.nextBest.sport) }]}>
+            <Text style={styles.sportIconText}>{sportIcon(fitness.nextBest.sport)}</Text>
+          </View>
+          <View style={styles.nextCopy}>
+            <Text style={styles.kicker}>Next best workout</Text>
+            <View style={styles.nextTitleRow}>
+              <Text style={styles.nextTitle}>{cleanTitle(fitness.nextBest.title)}</Text>
+              <Text style={styles.keyPill}>Key Session</Text>
+            </View>
+            <Text style={styles.sessionMeta}>{formatMinutes(fitness.nextBest.duration) ?? 'Planned'} · biggest readiness jump</Text>
+          </View>
+          <View style={styles.nextPointsWrap}>
+            <Text style={styles.nextPoints}>+{getSessionPoints(fitness.nextBest)} pts</Text>
+            <Text style={styles.chevron}>›</Text>
+          </View>
+        </View>
+      ) : null}
+
+      <View style={styles.momentumCard}>
+        <Text style={styles.kicker}>Momentum</Text>
+        <View style={styles.momentumGrid}>
+          <View style={styles.momentumItem}>
+            <Text style={styles.momentumIcon}>♨</Text>
+            <Text style={styles.momentumValue}>{fitness.currentSessionStreak}</Text>
+            <Text style={styles.momentumLabel}>Day streak</Text>
+            <Text style={styles.momentumMeta}>Keep it going</Text>
+          </View>
+          <View style={styles.momentumDivider} />
+          <View style={styles.momentumItem}>
+            <Text style={styles.momentumIcon}>◎</Text>
+            <Text style={styles.momentumValue}>{fitness.weeklyAdherence || 0}%</Text>
+            <Text style={styles.momentumLabel}>Adherence</Text>
+            <Text style={styles.momentumMeta}>On track</Text>
+          </View>
+          <View style={styles.momentumDivider} />
+          <View style={styles.momentumItem}>
+            <Text style={styles.momentumIcon}>☆</Text>
+            <Text style={styles.momentumValue}>+{fitness.streakBonus}</Text>
+            <Text style={styles.momentumLabel}>Weekly bonus</Text>
+            <Text style={styles.momentumMeta}>Score boost</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.explainerCard}>
+        <View style={styles.bulbIcon}><Text style={styles.bulbText}>i</Text></View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.explainerTitle}>How points work</Text>
+          <Text style={styles.explainerText}>Higher-value sessions earn more points. Consistency unlocks bonuses. Quality always beats quantity.</Text>
+        </View>
+        <Text style={styles.chevron}>›</Text>
       </View>
     </ScrollView>
   );
@@ -237,37 +308,67 @@ export function ProgressScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.pageX, paddingTop: spacing.pageTop, paddingBottom: spacing.pageBottom },
+  content: { paddingHorizontal: spacing.pageX, paddingTop: 58, paddingBottom: spacing.pageBottom },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
-  kicker: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.8 },
-  title: { marginTop: 12, color: colors.ink, fontSize: 40, lineHeight: 41, fontWeight: '900', letterSpacing: -2 },
-  subtitle: { marginTop: 14, color: colors.inkSoft, fontSize: 16, lineHeight: 25, fontWeight: '500' },
-  heroCard: { marginTop: 28, backgroundColor: colors.ink, borderRadius: radius.xxl, padding: 20, ...shadow.hero },
-  scoreRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  scoreRing: { width: 112, height: 112, borderRadius: 999, borderWidth: 9, borderColor: 'rgba(255,255,255,0.2)', backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
-  scoreValue: { color: colors.surface, fontSize: 40, lineHeight: 42, fontWeight: '900', letterSpacing: -1.8 },
-  scoreLabel: { marginTop: -2, color: '#a1a1aa', fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
-  scoreCopy: { flex: 1 },
-  heroKicker: { color: colors.surface, fontSize: 22, lineHeight: 25, fontWeight: '900', letterSpacing: -0.8 },
-  heroText: { marginTop: 8, color: '#d4d4d8', fontSize: 14, lineHeight: 21, fontWeight: '650' },
-  progressBarTrack: { marginTop: 20, height: 9, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.14)', overflow: 'hidden' },
-  progressBarFill: { height: '100%', borderRadius: 999, backgroundColor: colors.surface },
-  scoreFormula: { marginTop: 12, color: '#a1a1aa', fontSize: 12, lineHeight: 18, fontWeight: '700' },
-  streakCard: { marginTop: 14, backgroundColor: colors.cream, borderColor: colors.border, borderWidth: 1, borderRadius: radius.xl, padding: 18, ...shadow.card },
-  streakHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-  pointsPill: { overflow: 'hidden', borderRadius: 999, backgroundColor: colors.successSoft, color: colors.success, paddingHorizontal: 10, paddingVertical: 6, fontSize: 12, fontWeight: '900' },
-  streakGrid: { marginTop: 14, flexDirection: 'row', gap: 10 },
-  streakItem: { flex: 1, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: 12 },
-  streakValue: { color: colors.ink, fontSize: 28, lineHeight: 30, fontWeight: '900', letterSpacing: -1 },
-  streakLabel: { marginTop: 5, color: colors.muted, fontSize: 11, lineHeight: 15, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
-  howItWorksCard: { marginTop: 12, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: radius.xl, padding: 18, ...shadow.card },
-  howItWorksText: { marginTop: 8, color: colors.inkSoft, fontSize: 15, lineHeight: 22, fontWeight: '750' },
-  grid: { marginTop: 14, flexDirection: 'row', gap: 12 },
-  card: { flex: 1, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: radius.lg, padding: 16, ...shadow.card },
-  cardLarge: { marginTop: 12, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: radius.xl, padding: 20, ...shadow.card },
-  cardLargeSoft: { marginTop: 12, backgroundColor: colors.cream, borderColor: colors.border, borderWidth: 1, borderRadius: radius.xl, padding: 20, ...shadow.card },
-  label: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.3 },
-  value: { marginTop: 8, color: colors.ink, fontSize: 30, fontWeight: '900', letterSpacing: -1.2 },
-  bigValue: { marginTop: 8, color: colors.ink, fontSize: 40, lineHeight: 43, fontWeight: '900', letterSpacing: -2 },
-  cardMeta: { marginTop: 6, color: colors.muted, fontSize: 13, lineHeight: 20, fontWeight: '650' },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 18 },
+  headerCopy: { flex: 1, minWidth: 0 },
+  brand: { color: colors.ink, fontSize: 18, fontWeight: '900', letterSpacing: -0.6, marginBottom: 20 },
+  title: { color: colors.ink, fontSize: 42, lineHeight: 42, fontWeight: '900', letterSpacing: -2.2 },
+  subtitle: { marginTop: 14, color: colors.inkSoft, fontSize: 16, lineHeight: 24, fontWeight: '500' },
+  scoreWrap: { width: 126, alignItems: 'center', paddingTop: 28 },
+  scoreRing: { width: 106, height: 106, borderRadius: 999, borderWidth: 8, borderColor: colors.success, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  scoreValue: { color: colors.ink, fontSize: 38, lineHeight: 40, fontWeight: '900', letterSpacing: -1.6 },
+  scoreMax: { color: colors.muted, fontSize: 14, fontWeight: '800' },
+  scoreLabel: { marginTop: 7, color: colors.success, fontSize: 15, fontWeight: '900' },
+  weekPill: { marginTop: 9, overflow: 'hidden', borderRadius: 999, backgroundColor: colors.successSoft, color: colors.success, paddingHorizontal: 10, paddingVertical: 6, fontSize: 11, fontWeight: '900' },
+  weekCard: { marginTop: 28, backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, padding: 18, ...shadow.card },
+  kicker: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.6 },
+  pointsLine: { marginTop: 10, flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  weekPoints: { color: colors.ink, fontSize: 42, lineHeight: 44, fontWeight: '900', letterSpacing: -1.8 },
+  weekGoal: { color: colors.muted, fontSize: 21, lineHeight: 32, fontWeight: '700' },
+  progressTrack: { marginTop: 12, height: 9, borderRadius: 999, backgroundColor: colors.surfaceMuted, overflow: 'hidden' },
+  progressFill: { height: '100%', borderRadius: 999, backgroundColor: colors.success },
+  weekMetaRow: { marginTop: 10, flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  greenMeta: { color: colors.success, fontSize: 13, fontWeight: '800' },
+  mutedMeta: { color: colors.muted, fontSize: 13, fontWeight: '700' },
+  planCard: { marginTop: 14, backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, padding: 16, ...shadow.card },
+  cardHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  linkText: { color: colors.success, fontSize: 13, fontWeight: '900' },
+  sessionRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
+  sessionDivider: { borderBottomWidth: 1, borderBottomColor: colors.border },
+  sportIcon: { width: 42, height: 42, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  sportIconText: { color: colors.ink, fontSize: 18, fontWeight: '900' },
+  sessionCopy: { flex: 1, minWidth: 0 },
+  sessionTitle: { color: colors.ink, fontSize: 16, fontWeight: '900', letterSpacing: -0.4 },
+  sessionMeta: { marginTop: 3, color: colors.muted, fontSize: 13, fontWeight: '650' },
+  sessionPoints: { color: colors.success, fontSize: 14, fontWeight: '900' },
+  checkCircle: { width: 28, height: 28, borderRadius: 999, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
+  checkCircleDone: { borderColor: colors.success, backgroundColor: colors.successSoft },
+  checkCircleEmpty: { borderColor: colors.faint, borderStyle: 'dashed' },
+  checkText: { color: colors.success, fontSize: 15, fontWeight: '900' },
+  emptyState: { paddingVertical: 20 },
+  emptyTitle: { color: colors.ink, fontSize: 18, fontWeight: '900' },
+  emptyText: { marginTop: 6, color: colors.muted, fontSize: 14, lineHeight: 21 },
+  nextCard: { marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.cream, borderRadius: radius.xl, borderWidth: 1, borderColor: '#eadfd2', padding: 16, ...shadow.card },
+  nextIcon: { width: 52, height: 52, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  nextCopy: { flex: 1, minWidth: 0 },
+  nextTitleRow: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  nextTitle: { color: colors.ink, fontSize: 19, fontWeight: '900', letterSpacing: -0.6 },
+  keyPill: { overflow: 'hidden', borderRadius: 999, backgroundColor: colors.successSoft, color: colors.success, paddingHorizontal: 8, paddingVertical: 4, fontSize: 11, fontWeight: '900' },
+  nextPointsWrap: { alignItems: 'flex-end', gap: 6 },
+  nextPoints: { color: colors.success, fontSize: 22, fontWeight: '900', letterSpacing: -0.6 },
+  chevron: { color: colors.muted, fontSize: 28, lineHeight: 28, fontWeight: '400' },
+  momentumCard: { marginTop: 14, backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, padding: 16, ...shadow.card },
+  momentumGrid: { marginTop: 14, flexDirection: 'row', alignItems: 'stretch' },
+  momentumItem: { flex: 1, alignItems: 'center' },
+  momentumDivider: { width: 1, backgroundColor: colors.border, marginHorizontal: 8 },
+  momentumIcon: { color: colors.success, fontSize: 20, fontWeight: '900' },
+  momentumValue: { marginTop: 5, color: colors.ink, fontSize: 24, lineHeight: 26, fontWeight: '900', letterSpacing: -0.8 },
+  momentumLabel: { marginTop: 3, color: colors.faint, fontSize: 9, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.9, textAlign: 'center' },
+  momentumMeta: { marginTop: 4, color: colors.success, fontSize: 11, fontWeight: '800', textAlign: 'center' },
+  explainerCard: { marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, padding: 16, ...shadow.card },
+  bulbIcon: { width: 42, height: 42, borderRadius: 999, backgroundColor: colors.successSoft, alignItems: 'center', justifyContent: 'center' },
+  bulbText: { color: colors.success, fontSize: 18, fontWeight: '900' },
+  explainerTitle: { color: colors.ink, fontSize: 16, fontWeight: '900', letterSpacing: -0.4 },
+  explainerText: { marginTop: 4, color: colors.muted, fontSize: 13, lineHeight: 19, fontWeight: '600' },
 });
