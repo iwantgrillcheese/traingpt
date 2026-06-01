@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { colors, radius, shadow, spacing } from '../design/theme';
 import type { CompletedSessionRow, SessionRow } from '../types';
 import { currentWeekStats, formatMinutes } from '../utils/training';
+import { getEarnedPoints, getTotalAvailablePoints, getWeeklyPointStats, sessionCompletionKey } from '../utils/sessionPoints';
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -29,10 +30,6 @@ function startOfWeek(date: Date) {
   next.setDate(next.getDate() + diff);
   next.setHours(0, 0, 0, 0);
   return next;
-}
-
-function sessionKey(date?: string | null, title?: string | null) {
-  return `${date ?? ''}-${String(title ?? '').trim().toLowerCase()}`;
 }
 
 function fitnessLabel(score: number, hasTrainingData: boolean) {
@@ -90,20 +87,24 @@ export function ProgressScreen() {
     const doneKeys = new Set(
       completed
         .filter((row) => row.status === 'done')
-        .map((row) => sessionKey(row.date, row.session_title))
+        .map((row) => sessionCompletionKey(row.date, row.session_title))
     );
 
     const plannedToDate = sessions.filter((session) => new Date(`${session.date}T00:00:00`) <= today);
-    const doneToDate = plannedToDate.filter((session) => doneKeys.has(sessionKey(session.date, session.title)));
+    const doneToDate = plannedToDate.filter((session) => doneKeys.has(sessionCompletionKey(session.date, session.title)));
     const hasTrainingData = plannedToDate.length > 0;
     const planAdherence = plannedToDate.length ? Math.round((doneToDate.length / plannedToDate.length) * 100) : 0;
     const weeklyAdherence = stats.planned ? stats.adherence : planAdherence;
-    const weeklyVolumeScore = stats.planned ? clamp(Math.round((stats.done / stats.planned) * 100), 0, 100) : 0;
+    const weeklyPoints = getWeeklyPointStats(sessions, completed);
+    const pointsToDateEarned = getEarnedPoints(plannedToDate, completed);
+    const pointsToDateAvailable = getTotalAvailablePoints(plannedToDate);
+    const pointsToDateScore = pointsToDateAvailable ? Math.round((pointsToDateEarned / pointsToDateAvailable) * 100) : 0;
+    const weeklyPointsScore = weeklyPoints.available ? Math.round((weeklyPoints.earned / weeklyPoints.available) * 100) : 0;
 
     let currentSessionStreak = 0;
     for (let i = plannedToDate.length - 1; i >= 0; i -= 1) {
       const session = plannedToDate[i];
-      if (doneKeys.has(sessionKey(session.date, session.title))) currentSessionStreak += 1;
+      if (doneKeys.has(sessionCompletionKey(session.date, session.title))) currentSessionStreak += 1;
       else break;
     }
 
@@ -117,17 +118,15 @@ export function ProgressScreen() {
         return sessionDate >= weekStart && sessionDate <= weekEnd && sessionDate <= today;
       });
       if (!weekSessions.length) break;
-      const weekDone = weekSessions.filter((session) => doneKeys.has(sessionKey(session.date, session.title))).length;
+      const weekDone = weekSessions.filter((session) => doneKeys.has(sessionCompletionKey(session.date, session.title))).length;
       const weekScore = Math.round((weekDone / weekSessions.length) * 100);
       if (weekScore >= 80) weeklyAdherenceStreak += 1;
       else break;
     }
 
     const streakBonus = clamp(currentSessionStreak * 2 + weeklyAdherenceStreak * 4, 0, 12);
-    const pointsThisWeek = stats.done * 10 + (stats.planned && stats.adherence >= 80 ? 50 : 0) + weeklyAdherenceStreak * 15;
-
     const score = hasTrainingData
-      ? clamp(Math.round(planAdherence * 0.42 + weeklyAdherence * 0.28 + weeklyVolumeScore * 0.18 + streakBonus), 1, 99)
+      ? clamp(Math.round(pointsToDateScore * 0.44 + weeklyPointsScore * 0.28 + planAdherence * 0.16 + weeklyAdherence * 0.08 + streakBonus), 1, 99)
       : 0;
 
     return {
@@ -142,10 +141,13 @@ export function ProgressScreen() {
       currentSessionStreak,
       weeklyAdherenceStreak,
       streakBonus,
-      pointsThisWeek,
+      pointsThisWeek: weeklyPoints.earned,
+      pointsAvailableThisWeek: weeklyPoints.available,
+      pointsToDateEarned,
+      pointsToDateAvailable,
       hasTrainingData,
     };
-  }, [completed, sessions, stats.adherence, stats.done, stats.planned]);
+  }, [completed, sessions, stats.adherence, stats.planned]);
 
   if (loading) return <View style={styles.center}><ActivityIndicator /></View>;
 
@@ -174,13 +176,13 @@ export function ProgressScreen() {
         <View style={styles.progressBarTrack}>
           <View style={[styles.progressBarFill, { width: `${fitness.score || 4}%` }]} />
         </View>
-        <Text style={styles.scoreFormula}>Built from plan adherence, this week’s work, completed sessions, and streak momentum.</Text>
+        <Text style={styles.scoreFormula}>Built from weighted session points, plan adherence, this week’s work, and streak momentum.</Text>
       </View>
 
       <View style={styles.streakCard}>
         <View style={styles.streakHeader}>
           <Text style={styles.label}>Training momentum</Text>
-          <Text style={styles.pointsPill}>+{fitness.pointsThisWeek} pts this week</Text>
+          <Text style={styles.pointsPill}>{fitness.pointsThisWeek}/{fitness.pointsAvailableThisWeek || 0} pts this week</Text>
         </View>
         <View style={styles.streakGrid}>
           <View style={styles.streakItem}>
@@ -200,16 +202,16 @@ export function ProgressScreen() {
 
       <View style={styles.howItWorksCard}>
         <Text style={styles.label}>How to raise it</Text>
-        <Text style={styles.howItWorksText}>✓ Complete planned sessions</Text>
-        <Text style={styles.howItWorksText}>✓ Hit 80%+ weekly adherence</Text>
+        <Text style={styles.howItWorksText}>✓ Complete higher-value key sessions</Text>
+        <Text style={styles.howItWorksText}>✓ Bank weekly points consistently</Text>
         <Text style={styles.howItWorksText}>✓ Stack session and weekly streaks</Text>
       </View>
 
       <View style={styles.grid}>
         <View style={styles.card}>
           <Text style={styles.label}>This week</Text>
-          <Text style={styles.value}>{stats.done}/{stats.planned}</Text>
-          <Text style={styles.cardMeta}>sessions complete</Text>
+          <Text style={styles.value}>{fitness.pointsThisWeek}/{fitness.pointsAvailableThisWeek || 0}</Text>
+          <Text style={styles.cardMeta}>points banked</Text>
         </View>
         <View style={styles.card}>
           <Text style={styles.label}>Volume</Text>
@@ -219,8 +221,8 @@ export function ProgressScreen() {
       </View>
 
       <View style={styles.cardLarge}>
-        <Text style={styles.label}>Plan-to-date</Text>
-        <Text style={styles.bigValue}>{fitness.planAdherence || 0}%</Text>
+        <Text style={styles.label}>Plan-to-date points</Text>
+        <Text style={styles.bigValue}>{fitness.pointsToDateEarned}/{fitness.pointsToDateAvailable || 0}</Text>
         <Text style={styles.cardMeta}>{fitness.doneToDate}/{fitness.plannedToDate} assigned sessions banked so far.</Text>
       </View>
 
@@ -266,6 +268,6 @@ const styles = StyleSheet.create({
   cardLargeSoft: { marginTop: 12, backgroundColor: colors.cream, borderColor: colors.border, borderWidth: 1, borderRadius: radius.xl, padding: 20, ...shadow.card },
   label: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.3 },
   value: { marginTop: 8, color: colors.ink, fontSize: 30, fontWeight: '900', letterSpacing: -1.2 },
-  bigValue: { marginTop: 8, color: colors.ink, fontSize: 44, lineHeight: 46, fontWeight: '900', letterSpacing: -2 },
+  bigValue: { marginTop: 8, color: colors.ink, fontSize: 40, lineHeight: 43, fontWeight: '900', letterSpacing: -2 },
   cardMeta: { marginTop: 6, color: colors.muted, fontSize: 13, lineHeight: 20, fontWeight: '650' },
 });
