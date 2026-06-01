@@ -38,6 +38,8 @@ function getQueryParam(url: string, key: string) {
 export function GearScreen() {
   const { user, signOut } = useAuth();
   const [resettingPlan, setResettingPlan] = useState(false);
+  const [resettingAllData, setResettingAllData] = useState(false);
+  const [disconnectingStrava, setDisconnectingStrava] = useState(false);
   const [loadingStrava, setLoadingStrava] = useState(true);
   const [connectingStrava, setConnectingStrava] = useState(false);
   const [syncingStrava, setSyncingStrava] = useState(false);
@@ -89,6 +91,38 @@ export function GearScreen() {
     setRefreshing(false);
   };
 
+  const clearPlanData = async () => {
+    if (!user?.id) throw new Error('No signed-in user.');
+
+    const { error: completedError } = await supabase.from('completed_sessions').delete().eq('user_id', user.id);
+    if (completedError) throw completedError;
+
+    const { error: sessionsError } = await supabase.from('sessions').delete().eq('user_id', user.id);
+    if (sessionsError) throw sessionsError;
+
+    const { error: plansError } = await supabase.from('plans').delete().eq('user_id', user.id);
+    if (plansError) throw plansError;
+  };
+
+  const clearStravaData = async () => {
+    if (!user?.id) throw new Error('No signed-in user.');
+
+    const { error: activitiesError } = await supabase.from('strava_activities').delete().eq('user_id', user.id);
+    if (activitiesError) throw activitiesError;
+
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update({
+        strava_access_token: null,
+        strava_refresh_token: null,
+        strava_expires_at: null,
+        strava_athlete_id: null,
+      })
+      .eq('id', user.id);
+
+    if (profileError) throw profileError;
+  };
+
   const connectStrava = async () => {
     if (connectingStrava) return;
     setConnectingStrava(true);
@@ -137,35 +171,86 @@ export function GearScreen() {
     }
   };
 
-  const resetPlanForTesting = async () => {
+  const disconnectStrava = async () => {
+    if (!user?.id || disconnectingStrava) return;
+
+    Alert.alert(
+      'Disconnect Strava?',
+      'This removes your Strava connection and synced activity history from TrainGPT. Your Strava account is not changed.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Disconnect',
+          style: 'destructive',
+          onPress: async () => {
+            setDisconnectingStrava(true);
+            try {
+              await clearStravaData();
+              await loadStrava();
+              Alert.alert('Strava disconnected', 'Your Strava data has been removed from this account.');
+            } catch (error) {
+              console.error('[Settings] disconnect Strava failed', error);
+              Alert.alert('Disconnect failed', 'Could not disconnect Strava right now.');
+            } finally {
+              setDisconnectingStrava(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const resetTrainingPlan = async () => {
     if (!user?.id || resettingPlan) return;
 
     Alert.alert(
       'Reset training plan?',
-      'This removes your current plan, sessions, and completed session history so you can build a new plan.',
+      'This removes your current plan, sessions, and completed session history. Your Strava connection and synced activities stay connected.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Reset',
+          text: 'Reset plan',
           style: 'destructive',
           onPress: async () => {
             setResettingPlan(true);
             try {
-              const { error: completedError } = await supabase.from('completed_sessions').delete().eq('user_id', user.id);
-              if (completedError) console.warn('[Settings] completed reset skipped/failed', completedError);
-
-              const { error: sessionsError } = await supabase.from('sessions').delete().eq('user_id', user.id);
-              if (sessionsError) throw sessionsError;
-
-              const { error: plansError } = await supabase.from('plans').delete().eq('user_id', user.id);
-              if (plansError) console.warn('[Settings] plan row reset skipped/failed', plansError);
-
+              await clearPlanData();
               Alert.alert('Plan reset', 'Restart the app to build a new training plan.');
             } catch (error) {
               console.error('[Settings] reset plan failed', error);
               Alert.alert('Reset failed', 'Could not reset your plan yet. Try again in a moment.');
             } finally {
               setResettingPlan(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const resetAllAppData = async () => {
+    if (!user?.id || resettingAllData) return;
+
+    Alert.alert(
+      'Reset all app data?',
+      'This gives this account a clean slate by clearing your plan, sessions, completed sessions, synced Strava activities, and Strava connection.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset all',
+          style: 'destructive',
+          onPress: async () => {
+            setResettingAllData(true);
+            try {
+              await clearPlanData();
+              await clearStravaData();
+              await loadStrava();
+              Alert.alert('All app data reset', 'Sign out and back in, or restart the app, for a completely clean onboarding experience.');
+            } catch (error) {
+              console.error('[Settings] reset all data failed', error);
+              Alert.alert('Reset failed', 'Could not reset all app data yet. Try again in a moment.');
+            } finally {
+              setResettingAllData(false);
             }
           },
         },
@@ -213,11 +298,16 @@ export function GearScreen() {
               <View style={styles.stravaStat}><Text style={styles.stravaStatValue}>{strava.connected ? 'On' : 'Off'}</Text><Text style={styles.stravaStatLabel}>Sync</Text></View>
             </View>
             {strava.connected ? (
-              <Pressable onPress={syncStrava} disabled={syncingStrava} style={[styles.primaryAction, syncingStrava && styles.disabledButton]}>
-                <Text style={styles.primaryActionText}>{syncingStrava ? 'Syncing…' : 'Sync Strava now'}</Text>
-              </Pressable>
+              <View style={styles.actionStack}>
+                <Pressable onPress={syncStrava} disabled={syncingStrava} style={({ pressed }) => [styles.primaryAction, syncingStrava && styles.disabledButton, pressed && styles.primaryPressed]}>
+                  <Text style={styles.primaryActionText}>{syncingStrava ? 'Syncing…' : 'Sync Strava now'}</Text>
+                </Pressable>
+                <Pressable onPress={disconnectStrava} disabled={disconnectingStrava} style={({ pressed }) => [styles.secondaryAction, disconnectingStrava && styles.disabledButton, pressed && styles.secondaryPressed]}>
+                  <Text style={styles.secondaryActionText}>{disconnectingStrava ? 'Disconnecting…' : 'Disconnect Strava'}</Text>
+                </Pressable>
+              </View>
             ) : (
-              <Pressable onPress={connectStrava} disabled={connectingStrava} style={[styles.primaryAction, connectingStrava && styles.disabledButton]}>
+              <Pressable onPress={connectStrava} disabled={connectingStrava} style={({ pressed }) => [styles.primaryAction, connectingStrava && styles.disabledButton, pressed && styles.primaryPressed]}>
                 <Text style={styles.primaryActionText}>{connectingStrava ? 'Connecting…' : 'Connect Strava'}</Text>
               </Pressable>
             )}
@@ -236,12 +326,21 @@ export function GearScreen() {
         <Text style={styles.sectionKicker}>Plan controls</Text>
         <Text style={styles.sectionTitle}>Start over</Text>
         <Text style={styles.sectionText}>Clear your current plan and build a new one when your race, schedule, or goals change.</Text>
-        <Pressable onPress={resetPlanForTesting} disabled={resettingPlan} style={[styles.dangerButton, resettingPlan && styles.disabledButton]}>
+        <Pressable onPress={resetTrainingPlan} disabled={resettingPlan} style={({ pressed }) => [styles.dangerButton, resettingPlan && styles.disabledButton, pressed && styles.dangerPressed]}>
           <Text style={styles.dangerButtonText}>{resettingPlan ? 'Resetting…' : 'Reset training plan'}</Text>
         </Pressable>
       </View>
 
-      <Pressable onPress={signOut} style={styles.signOutButton}>
+      <View style={styles.sectionCard}>
+        <Text style={styles.sectionKicker}>Clean slate</Text>
+        <Text style={styles.sectionTitle}>Reset all app data</Text>
+        <Text style={styles.sectionText}>Use this for a blank test account experience. It clears your plan, completions, synced Strava activities, and Strava connection.</Text>
+        <Pressable onPress={resetAllAppData} disabled={resettingAllData} style={({ pressed }) => [styles.dangerButtonStrong, resettingAllData && styles.disabledButton, pressed && styles.dangerStrongPressed]}>
+          <Text style={styles.dangerButtonStrongText}>{resettingAllData ? 'Resetting all…' : 'Reset all app data'}</Text>
+        </Pressable>
+      </View>
+
+      <Pressable onPress={signOut} style={({ pressed }) => [styles.signOutButton, pressed && styles.primaryPressed]}>
         <Text style={styles.signOutText}>Sign out</Text>
       </Pressable>
     </ScrollView>
@@ -271,8 +370,11 @@ const styles = StyleSheet.create({
   stravaStat: { flex: 1, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, padding: 13 },
   stravaStatValue: { color: colors.ink, fontSize: 24, fontWeight: '900', letterSpacing: -0.9 },
   stravaStatLabel: { marginTop: 4, color: colors.muted, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.9 },
+  actionStack: { marginTop: 16, gap: 10 },
   primaryAction: { marginTop: 16, minHeight: 52, borderRadius: radius.md, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
   primaryActionText: { color: colors.surface, fontSize: 14, fontWeight: '900' },
+  secondaryAction: { minHeight: 50, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  secondaryActionText: { color: colors.ink, fontSize: 14, fontWeight: '900' },
   itemCard: { marginTop: 12, backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: 18, ...shadow.card },
   itemTitle: { color: colors.ink, fontSize: 20, fontWeight: '900', letterSpacing: -0.7 },
   itemText: { marginTop: 8, color: colors.muted, fontSize: 14, lineHeight: 22, fontWeight: '600' },
@@ -281,8 +383,14 @@ const styles = StyleSheet.create({
   sectionTitle: { marginTop: 10, color: colors.ink, fontSize: 24, lineHeight: 28, fontWeight: '900', letterSpacing: -0.8 },
   sectionText: { marginTop: 8, color: colors.muted, fontSize: 14, lineHeight: 22, fontWeight: '600' },
   dangerButton: { marginTop: 16, minHeight: 52, borderRadius: radius.md, backgroundColor: '#fee2e2', borderWidth: 1, borderColor: '#fecaca', alignItems: 'center', justifyContent: 'center' },
-  disabledButton: { opacity: 0.6 },
   dangerButtonText: { color: colors.danger, fontSize: 14, fontWeight: '900' },
+  dangerButtonStrong: { marginTop: 16, minHeight: 52, borderRadius: radius.md, backgroundColor: colors.danger, borderWidth: 1, borderColor: colors.danger, alignItems: 'center', justifyContent: 'center' },
+  dangerButtonStrongText: { color: colors.surface, fontSize: 14, fontWeight: '900' },
+  disabledButton: { opacity: 0.6 },
+  primaryPressed: { transform: [{ scale: 0.975 }], opacity: 0.88, backgroundColor: '#27272a' },
+  secondaryPressed: { transform: [{ scale: 0.975 }], opacity: 0.88, backgroundColor: colors.surfaceMuted },
+  dangerPressed: { transform: [{ scale: 0.975 }], opacity: 0.88, backgroundColor: '#fecaca' },
+  dangerStrongPressed: { transform: [{ scale: 0.975 }], opacity: 0.88, backgroundColor: '#9f1239' },
   signOutButton: { marginTop: 14, minHeight: 54, borderRadius: radius.md, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
   signOutText: { color: colors.surface, fontSize: 15, fontWeight: '900' },
 });
