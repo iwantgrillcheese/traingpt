@@ -1,18 +1,96 @@
-import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors, radius, shadow, spacing } from '../design/theme';
 import { useAuth } from '../auth/AuthProvider';
 import { supabase } from '../lib/supabase';
+import { apiFetch, getApiBaseUrl } from '../lib/api';
 
 const settingsRows = [
   { title: 'Profile', text: 'Manage your account, athlete profile, and onboarding details.' },
   { title: 'Training preferences', text: 'Rest day, weekly hours, long ride/run preferences, and pacing units.' },
-  { title: 'Connected accounts', text: 'Strava sync, activity history, and future Garmin/Oura connections.' },
+  { title: 'Recovery signals', text: 'Oura and WHOOP readiness signals are coming soon.' },
 ];
+
+type StravaState = {
+  connected: boolean;
+  athleteId: string | null;
+  activityCount: number;
+  latestActivityDate: string | null;
+};
+
+function formatLatestActivity(value: string | null) {
+  if (!value) return 'No activities synced yet';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Recently synced';
+  return `Latest activity ${new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date)}`;
+}
 
 export function GearScreen() {
   const { user, signOut } = useAuth();
   const [resettingPlan, setResettingPlan] = useState(false);
+  const [loadingStrava, setLoadingStrava] = useState(true);
+  const [syncingStrava, setSyncingStrava] = useState(false);
+  const [strava, setStrava] = useState<StravaState>({ connected: false, athleteId: null, activityCount: 0, latestActivityDate: null });
+
+  const loadStrava = useCallback(async () => {
+    if (!user?.id) return;
+    setLoadingStrava(true);
+
+    const [{ data: profile }, { count }, { data: latestActivity }] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('strava_access_token,strava_refresh_token,strava_athlete_id')
+        .eq('id', user.id)
+        .maybeSingle(),
+      supabase
+        .from('strava_activities')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id),
+      supabase
+        .from('strava_activities')
+        .select('start_date_local,start_date')
+        .eq('user_id', user.id)
+        .order('start_date', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+    const typedProfile = profile as { strava_access_token?: string | null; strava_refresh_token?: string | null; strava_athlete_id?: string | number | null } | null;
+    const typedLatest = latestActivity as { start_date_local?: string | null; start_date?: string | null } | null;
+
+    setStrava({
+      connected: Boolean(typedProfile?.strava_access_token && typedProfile?.strava_refresh_token),
+      athleteId: typedProfile?.strava_athlete_id ? String(typedProfile.strava_athlete_id) : null,
+      activityCount: count ?? 0,
+      latestActivityDate: typedLatest?.start_date_local ?? typedLatest?.start_date ?? null,
+    });
+    setLoadingStrava(false);
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadStrava();
+  }, [loadStrava]);
+
+  const connectStrava = async () => {
+    await Linking.openURL(`${getApiBaseUrl()}/api/strava`);
+  };
+
+  const syncStrava = async () => {
+    if (!strava.connected || syncingStrava) return;
+    setSyncingStrava(true);
+    try {
+      const response = await apiFetch('/api/strava_sync', { method: 'POST' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error || 'Strava sync failed.');
+      await loadStrava();
+      Alert.alert('Strava synced', `${payload.inserted ?? 0} new activities imported.`);
+    } catch (error) {
+      console.error('[Settings] Strava sync failed', error);
+      Alert.alert('Sync failed', error instanceof Error ? error.message : 'Could not sync Strava right now.');
+    } finally {
+      setSyncingStrava(false);
+    }
+  };
 
   const resetPlanForTesting = async () => {
     if (!user?.id || resettingPlan) return;
@@ -63,6 +141,37 @@ export function GearScreen() {
         </View>
       </View>
 
+      <View style={styles.stravaCard}>
+        <View style={styles.stravaHeader}>
+          <View>
+            <Text style={styles.sectionKicker}>Connected account</Text>
+            <Text style={styles.sectionTitle}>Strava</Text>
+          </View>
+          <Text style={[styles.statusPill, strava.connected ? styles.connectedPill : styles.disconnectedPill]}>{strava.connected ? 'Connected' : 'Not connected'}</Text>
+        </View>
+
+        {loadingStrava ? (
+          <View style={styles.loadingRow}><ActivityIndicator /><Text style={styles.loadingCopy}>Checking Strava…</Text></View>
+        ) : (
+          <>
+            <Text style={styles.sectionText}>{strava.connected ? `${strava.activityCount} activities synced. ${formatLatestActivity(strava.latestActivityDate)}.` : 'Connect Strava so completed workouts can auto-match, bank points, and feed your Fitness Score.'}</Text>
+            <View style={styles.stravaStatsRow}>
+              <View style={styles.stravaStat}><Text style={styles.stravaStatValue}>{strava.activityCount}</Text><Text style={styles.stravaStatLabel}>Activities</Text></View>
+              <View style={styles.stravaStat}><Text style={styles.stravaStatValue}>{strava.connected ? 'Auto' : 'Off'}</Text><Text style={styles.stravaStatLabel}>Matching</Text></View>
+            </View>
+            {strava.connected ? (
+              <Pressable onPress={syncStrava} disabled={syncingStrava} style={[styles.primaryAction, syncingStrava && styles.disabledButton]}>
+                <Text style={styles.primaryActionText}>{syncingStrava ? 'Syncing…' : 'Sync Strava now'}</Text>
+              </Pressable>
+            ) : (
+              <Pressable onPress={connectStrava} style={styles.primaryAction}>
+                <Text style={styles.primaryActionText}>Connect Strava</Text>
+              </Pressable>
+            )}
+          </>
+        )}
+      </View>
+
       {settingsRows.map((item) => (
         <View key={item.title} style={styles.itemCard}>
           <Text style={styles.itemTitle}>{item.title}</Text>
@@ -98,6 +207,19 @@ const styles = StyleSheet.create({
   profileCopy: { flex: 1, marginLeft: 14 },
   profileName: { color: colors.surface, fontSize: 22, fontWeight: '900', letterSpacing: -0.7 },
   profileEmail: { marginTop: 4, color: '#d4d4d8', fontSize: 13, lineHeight: 18, fontWeight: '700' },
+  stravaCard: { marginTop: 18, backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, padding: 18, ...shadow.card },
+  stravaHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  statusPill: { overflow: 'hidden', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, fontSize: 12, fontWeight: '900' },
+  connectedPill: { backgroundColor: colors.successSoft, color: colors.success },
+  disconnectedPill: { backgroundColor: colors.surfaceMuted, color: colors.muted },
+  loadingRow: { marginTop: 14, flexDirection: 'row', gap: 10, alignItems: 'center' },
+  loadingCopy: { color: colors.muted, fontSize: 14, fontWeight: '700' },
+  stravaStatsRow: { marginTop: 14, flexDirection: 'row', gap: 10 },
+  stravaStat: { flex: 1, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, padding: 13 },
+  stravaStatValue: { color: colors.ink, fontSize: 24, fontWeight: '900', letterSpacing: -0.9 },
+  stravaStatLabel: { marginTop: 4, color: colors.muted, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.9 },
+  primaryAction: { marginTop: 16, minHeight: 52, borderRadius: radius.md, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
+  primaryActionText: { color: colors.surface, fontSize: 14, fontWeight: '900' },
   itemCard: { marginTop: 12, backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: 18, ...shadow.card },
   itemTitle: { color: colors.ink, fontSize: 20, fontWeight: '900', letterSpacing: -0.7 },
   itemText: { marginTop: 8, color: colors.muted, fontSize: 14, lineHeight: 22, fontWeight: '600' },
