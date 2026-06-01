@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors, radius, shadow, spacing } from '../design/theme';
 import { useAuth } from '../auth/AuthProvider';
@@ -94,8 +94,8 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
     return Math.max(1, Math.round(days / 7));
   }, [raceDate]);
 
-  useMemo(() => {
-    if (!generating || generationComplete) return;
+  useEffect(() => {
+    if (!generating || generationComplete) return undefined;
     const interval = setInterval(() => {
       setGenerationStep((value) => Math.min(value + 1, magicSteps.length - 1));
     }, 2300);
