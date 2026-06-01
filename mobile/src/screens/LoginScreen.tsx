@@ -43,13 +43,12 @@ export function LoginScreen() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={styles.navRow}>
           <Text style={styles.brand}>TrainGPT</Text>
-          <Text style={styles.badge}>iOS preview</Text>
         </View>
 
         <View style={styles.heroBlock}>
-          <Text style={styles.kicker}>AI triathlon training</Text>
+          <Text style={styles.kicker}>Triathlon training, simplified</Text>
           <Text style={styles.title}>Personalized triathlon plans in seconds.</Text>
-          <Text style={styles.subtitle}>Create a race-ready plan, follow today’s workout, track your progress, and crush your goal.</Text>
+          <Text style={styles.subtitle}>Create a race-ready plan, follow today’s workout, track progress, and build toward your goal.</Text>
         </View>
 
         <View style={styles.valueCard}>
@@ -59,21 +58,21 @@ export function LoginScreen() {
               <View style={styles.checkDot}><Text style={styles.checkText}>✓</Text></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.valueTitle}>A plan built around your race</Text>
-                <Text style={styles.valueText}>Distance, date, experience, weekly hours, and constraints.</Text>
+                <Text style={styles.valueText}>Distance, date, experience, weekly hours, and real-life constraints.</Text>
               </View>
             </View>
             <View style={styles.valueRow}>
               <View style={styles.checkDot}><Text style={styles.checkText}>✓</Text></View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.valueTitle}>Today’s workout, clearly shown</Text>
-                <Text style={styles.valueText}>Know exactly what to do and why it matters.</Text>
+                <Text style={styles.valueTitle}>A clear daily workout</Text>
+                <Text style={styles.valueText}>Open the app and know exactly what work matters today.</Text>
               </View>
             </View>
             <View style={styles.valueRow}>
               <View style={styles.checkDot}><Text style={styles.checkText}>✓</Text></View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.valueTitle}>Progress that actually feels rewarding</Text>
-                <Text style={styles.valueText}>Complete sessions, bank points, and build race readiness.</Text>
+                <Text style={styles.valueTitle}>Race readiness you can build</Text>
+                <Text style={styles.valueText}>Complete sessions, bank points, and track whether you are trending toward race day.</Text>
               </View>
             </View>
           </View>
@@ -81,7 +80,7 @@ export function LoginScreen() {
 
         <View style={styles.formCard}>
           <Text style={styles.formTitle}>Start training</Text>
-          <Text style={styles.formSubtitle}>Sign in with Google to create or access your TrainGPT plan.</Text>
+          <Text style={styles.formSubtitle}>Sign in to create or access your TrainGPT plan.</Text>
 
           <Pressable
             onPress={continueWithGoogle}
@@ -93,7 +92,7 @@ export function LoginScreen() {
 
           <View style={styles.dividerRow}>
             <View style={styles.divider} />
-            <Text style={styles.dividerText}>or email preview login</Text>
+            <Text style={styles.dividerText}>or continue with email</Text>
             <View style={styles.divider} />
           </View>
 
@@ -128,8 +127,6 @@ export function LoginScreen() {
             {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Continue with email</Text>}
           </Pressable>
         </View>
-
-        <Text style={styles.footer}>Generate a plan in the app, then use TrainGPT every day to execute the work.</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -140,8 +137,7 @@ const styles = StyleSheet.create({
   content: { padding: spacing.pageX, paddingTop: 64, paddingBottom: 40 },
   navRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   brand: { color: colors.ink, fontSize: 20, fontWeight: '900', letterSpacing: -0.7 },
-  badge: { overflow: 'hidden', borderRadius: 999, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border, color: colors.muted, paddingHorizontal: 10, paddingVertical: 6, fontSize: 11, fontWeight: '800' },
-  heroBlock: { marginTop: 64 },
+  heroBlock: { marginTop: 72 },
   kicker: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.7 },
   title: { marginTop: 12, color: colors.ink, fontSize: 43, lineHeight: 44, fontWeight: '900', letterSpacing: -2.2 },
   subtitle: { marginTop: 14, color: colors.muted, fontSize: 17, lineHeight: 26, fontWeight: '650' },
@@ -167,5 +163,4 @@ const styles = StyleSheet.create({
   buttonText: { color: colors.surface, fontSize: 15, fontWeight: '900' },
   disabled: { opacity: 0.45 },
   pressed: { transform: [{ scale: 0.992 }], opacity: 0.94 },
-  footer: { marginTop: 16, color: colors.faint, fontSize: 12, lineHeight: 18, textAlign: 'center', fontWeight: '700' },
 });
