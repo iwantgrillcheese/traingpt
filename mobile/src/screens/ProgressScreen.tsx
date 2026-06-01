@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../auth/AuthProvider';
 import { supabase } from '../lib/supabase';
 import { colors, radius, shadow, spacing } from '../design/theme';
 import type { CompletedSessionRow, SessionRow } from '../types';
 import { currentWeekStats, formatMinutes, normalizeSport } from '../utils/training';
+import { SessionDetailSheet } from '../components/SessionDetailSheet';
 import {
   getActiveWeekReferenceDate,
   getEarnedPoints,
@@ -70,7 +71,6 @@ function sportIcon(value?: string | null) {
   if (sport === 'Run') return '⌁';
   if (sport === 'Brick') return '↯';
   if (sport === 'Strength') return '▣';
-  if (sport === 'Rest') return '·';
   return '•';
 }
 
@@ -85,18 +85,26 @@ function sportTint(value?: string | null) {
 }
 
 function scoreLabel(score: number, hasTrainingData: boolean) {
-  if (!hasTrainingData) return 'Start';
+  if (!hasTrainingData) return 'Start building';
   if (score >= 85) return 'Excellent';
-  if (score >= 70) return 'On track';
-  if (score >= 55) return 'Building';
-  return 'Base';
+  if (score >= 80) return 'Race-ready range';
+  if (score >= 65) return 'On track';
+  if (score >= 45) return 'Building';
+  return 'Foundation';
 }
 
 function headline(score: number, hasTrainingData: boolean) {
-  if (!hasTrainingData) return "You're ready to start.";
-  if (score >= 70) return "You're on track.";
-  if (score >= 55) return 'Keep building.';
-  return 'Start banking points.';
+  if (!hasTrainingData) return 'Build toward race day.';
+  if (score >= 80) return 'You are in the race-ready range.';
+  if (score >= 65) return 'You are tracking well.';
+  return 'Keep stacking the work.';
+}
+
+function isFutureSession(date?: string | null) {
+  if (!date) return false;
+  const sessionDate = new Date(`${date}T00:00:00`);
+  const today = startOfToday();
+  return sessionDate > today;
 }
 
 export function ProgressScreen() {
@@ -105,11 +113,12 @@ export function ProgressScreen() {
   const [completed, setCompleted] = useState<CompletedSessionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedSession, setSelectedSession] = useState<SessionRow | null>(null);
 
   const load = useCallback(async () => {
     if (!user?.id) return;
     const [{ data: sessionRows }, { data: completedRows }] = await Promise.all([
-      supabase.from('sessions').select('id,user_id,plan_id,date,sport,title,duration,details').eq('user_id', user.id).order('date', { ascending: true }).limit(700),
+      supabase.from('sessions').select('id,user_id,plan_id,date,sport,title,duration,details,structured_workout').eq('user_id', user.id).order('date', { ascending: true }).limit(700),
       supabase.from('completed_sessions').select('id,user_id,date,session_title,status').eq('user_id', user.id),
     ]);
     setSessions((sessionRows ?? []) as SessionRow[]);
@@ -118,12 +127,7 @@ export function ProgressScreen() {
   }, [user?.id]);
 
   useEffect(() => { load(); }, [load]);
-
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load])
-  );
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const refresh = async () => {
     setRefreshing(true);
@@ -131,16 +135,34 @@ export function ProgressScreen() {
     setRefreshing(false);
   };
 
+  const updateSessionLocally = (updated: SessionRow) => {
+    setSessions((prev) => prev.map((session) => (session.id === updated.id ? { ...session, ...updated } : session)));
+    setSelectedSession((prev) => (prev?.id === updated.id ? { ...prev, ...updated } : prev));
+  };
+
+  const markDoneFor = async (session: SessionRow) => {
+    if (!user?.id || !session.title || isFutureSession(session.date)) return;
+    const existing = completed.filter((row) => row.date !== session.date || row.session_title !== session.title);
+    const next = [...existing, { user_id: user.id, date: session.date, session_title: String(session.title), status: 'done' }];
+    setCompleted(next);
+    await supabase.from('completed_sessions').delete().eq('user_id', user.id).eq('date', session.date).eq('session_title', session.title);
+    await supabase.from('completed_sessions').insert({ user_id: user.id, date: session.date, session_title: session.title, status: 'done' });
+  };
+
+  const skipSession = async (session: SessionRow) => {
+    if (!user?.id || !session.title || isFutureSession(session.date)) return;
+    const existing = completed.filter((row) => row.date !== session.date || row.session_title !== session.title);
+    const next = [...existing, { user_id: user.id, date: session.date, session_title: String(session.title), status: 'skipped' }];
+    setCompleted(next);
+    await supabase.from('completed_sessions').delete().eq('user_id', user.id).eq('date', session.date).eq('session_title', session.title);
+    await supabase.from('completed_sessions').insert({ user_id: user.id, date: session.date, session_title: session.title, status: 'skipped' });
+  };
+
   const stats = useMemo(() => currentWeekStats(sessions, completed), [sessions, completed]);
 
-  const fitness = useMemo(() => {
+  const readiness = useMemo(() => {
     const today = startOfToday();
-    const doneKeys = new Set(
-      completed
-        .filter((row) => row.status === 'done')
-        .map((row) => sessionCompletionKey(row.date, row.session_title))
-    );
-
+    const doneKeys = new Set(completed.filter((row) => row.status === 'done').map((row) => sessionCompletionKey(row.date, row.session_title)));
     const plannedToDate = sessions.filter((session) => new Date(`${session.date}T00:00:00`) <= today);
     const doneToDate = plannedToDate.filter((session) => doneKeys.has(sessionCompletionKey(session.date, session.title)));
     const hasTrainingData = plannedToDate.length > 0 || sessions.length > 0;
@@ -178,16 +200,12 @@ export function ProgressScreen() {
     }
 
     const streakBonus = clamp(currentSessionStreak * 2 + weeklyAdherenceStreak * 4, 0, 12);
-    const score = hasTrainingData
-      ? clamp(Math.round(pointsToDateScore * 0.34 + weeklyPointsScore * 0.42 + planAdherence * 0.12 + weeklyAdherence * 0.06 + streakBonus), 1, 99)
-      : 0;
-
+    const score = hasTrainingData ? clamp(Math.round(pointsToDateScore * 0.34 + weeklyPointsScore * 0.42 + planAdherence * 0.12 + weeklyAdherence * 0.06 + streakBonus), 1, 99) : 0;
     const weeklyPercent = weeklyPoints.available ? clamp(Math.round((weeklyPoints.earned / weeklyPoints.available) * 100), 0, 100) : 0;
     const pointsToGo = Math.max(weeklyPoints.available - weeklyPoints.earned, 0);
     const nextBest = weeklyPoints.sessions
       .filter((session) => !doneKeys.has(sessionCompletionKey(session.date, session.title)))
-      .sort((a, b) => getSessionPoints(b) - getSessionPoints(a))[0]
-      ?? [...weeklyPoints.sessions].sort((a, b) => getSessionPoints(b) - getSessionPoints(a))[0];
+      .sort((a, b) => getSessionPoints(b) - getSessionPoints(a))[0] ?? null;
 
     return {
       score,
@@ -211,136 +229,90 @@ export function ProgressScreen() {
   if (loading) return <View style={styles.center}><ActivityIndicator /></View>;
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
-    >
-      <View style={styles.topHeader}>
-        <View style={{ flex: 1 }}>
+    <>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
+        <View style={styles.heroHeader}>
           <Text style={styles.kicker}>Race readiness</Text>
-          <Text style={styles.title}>{fitness.headline}</Text>
-          <Text style={styles.subtitle}>Keep banking quality points this week to stay ahead of race day.</Text>
-        </View>
-
-        <View style={styles.scoreWrap}>
-          <View style={styles.scoreRing}>
-            <Text style={styles.scoreValue}>{fitness.hasTrainingData ? fitness.score : '—'}</Text>
-            <Text style={styles.scoreMax}>/100</Text>
+          <View style={styles.heroRow}>
+            <View style={styles.scoreBlock}>
+              <Text style={styles.scoreValue}>{readiness.hasTrainingData ? readiness.score : '—'}</Text>
+              <Text style={styles.scoreMax}>/100</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.title}>{readiness.headline}</Text>
+              <Text style={styles.subtitle}>Target <Text style={styles.bold}>80+</Text> by race week. Your score moves through consistency, plan adherence, key sessions, and performance data as we wire more sources in.</Text>
+            </View>
           </View>
-          <Text style={styles.scorePill}>✓ {fitness.label} for race day</Text>
+          <View style={styles.targetBar}><View style={[styles.targetFill, { width: `${clamp(readiness.score, 3, 100)}%` }]} /></View>
+          <Text style={styles.targetCopy}>{readiness.label}. Keep banking quality sessions to move closer to 80.</Text>
         </View>
-      </View>
 
-      <View style={styles.missionHero}>
-        <View style={styles.missionCopy}>
-          <Text style={styles.heroKicker}>Weekly mission</Text>
-          <Text style={styles.heroTitle}>Earn {fitness.pointsAvailableThisWeek || 0} points this week</Text>
-          <Text style={styles.heroReset}>★ {fitness.weekResetText}</Text>
+        <View style={styles.missionHero}>
+          <Text style={styles.heroKicker}>This week</Text>
+          <Text style={styles.heroTitle}>Bank {readiness.pointsAvailableThisWeek || 0} points</Text>
+          <Text style={styles.heroReset}>{readiness.weekResetText}</Text>
           <View style={styles.heroPointsLine}>
-            <Text style={styles.heroPoints}>{fitness.pointsThisWeek}</Text>
-            <Text style={styles.heroGoal}>/ {fitness.pointsAvailableThisWeek || 0} pts</Text>
+            <Text style={styles.heroPoints}>{readiness.pointsThisWeek}</Text>
+            <Text style={styles.heroGoal}>/ {readiness.pointsAvailableThisWeek || 0} pts</Text>
           </View>
-          <View style={styles.heroProgressTrack}>
-            <View style={[styles.heroProgressFill, { width: `${fitness.weeklyPercent || 3}%` }]} />
-          </View>
-          <Text style={styles.heroToGo}>{fitness.pointsToGo} pts to go</Text>
+          <View style={styles.heroProgressTrack}><View style={[styles.heroProgressFill, { width: `${readiness.weeklyPercent || 3}%` }]} /></View>
+          <Text style={styles.heroToGo}>{readiness.pointsToGo} pts to go</Text>
         </View>
 
-        <View style={styles.medalWrap}>
-          <View style={styles.medalOuter}>
-            <View style={styles.medalMid}>
-              <View style={styles.medalInner}><Text style={styles.medalStar}>★</Text></View>
-            </View>
+        <View style={styles.planCard}>
+          <View style={styles.cardHeaderRow}>
+            <Text style={styles.kicker}>Mission plan</Text>
+            <Text style={styles.linkText}>Tap a session</Text>
           </View>
+          {readiness.weekSessions.length ? readiness.weekSessions.map((session, index) => {
+            const done = readiness.doneKeys.has(sessionCompletionKey(session.date, session.title));
+            const points = getSessionPoints(session);
+            return (
+              <Pressable key={session.id} onPress={() => setSelectedSession(session)} style={({ pressed }) => [styles.sessionRow, index !== readiness.weekSessions.length - 1 && styles.sessionDivider, pressed && styles.pressed]}>
+                <View style={[styles.statusDot, done ? styles.statusDotDone : styles.statusDotEmpty]}><Text style={styles.statusDotText}>{done ? '✓' : ''}</Text></View>
+                <View style={[styles.sportIcon, { backgroundColor: sportTint(session.sport) }]}><Text style={styles.sportIconText}>{sportIcon(session.sport)}</Text></View>
+                <View style={styles.sessionCopy}>
+                  <Text style={styles.sessionTitle}>{cleanTitle(session.title)}</Text>
+                  <Text style={styles.sessionMeta}>{formatSessionDate(session.date)} · {formatMinutes(session.duration) ?? 'Planned'}</Text>
+                </View>
+                <Text style={done ? styles.sessionPointsDone : styles.sessionPoints}>+{points} pts</Text>
+                <Text style={styles.smallChevron}>›</Text>
+              </Pressable>
+            );
+          }) : (
+            <View style={styles.emptyState}><Text style={styles.emptyTitle}>No sessions this week yet.</Text><Text style={styles.emptyText}>Create a plan and your weekly point target will appear here.</Text></View>
+          )}
         </View>
-      </View>
 
-      <View style={styles.planCard}>
-        <View style={styles.cardHeaderRow}>
-          <Text style={styles.kicker}>Mission plan</Text>
-          <Text style={styles.linkText}>View full plan ›</Text>
-        </View>
-
-        {fitness.weekSessions.length ? fitness.weekSessions.map((session, index) => {
-          const done = fitness.doneKeys.has(sessionCompletionKey(session.date, session.title));
-          const points = getSessionPoints(session);
-          return (
-            <View key={session.id} style={[styles.sessionRow, index !== fitness.weekSessions.length - 1 && styles.sessionDivider]}>
-              <View style={[styles.statusDot, done ? styles.statusDotDone : styles.statusDotEmpty]}>
-                <Text style={styles.statusDotText}>{done ? '✓' : ''}</Text>
+        {readiness.nextBest ? (
+          <Pressable onPress={() => setSelectedSession(readiness.nextBest)} style={({ pressed }) => [styles.nextCard, pressed && styles.pressed]}>
+            <View style={styles.nextBadge}><Text style={styles.nextBadgeText}>Highest-value remaining session</Text></View>
+            <View style={styles.nextRow}>
+              <View style={[styles.nextIcon, { backgroundColor: sportTint(readiness.nextBest.sport) }]}><Text style={styles.sportIconText}>{sportIcon(readiness.nextBest.sport)}</Text></View>
+              <View style={styles.nextCopy}>
+                <Text style={styles.nextTitle}>{cleanTitle(readiness.nextBest.title)}</Text>
+                <Text style={styles.sessionMeta}>{formatMinutes(readiness.nextBest.duration) ?? 'Planned'} · most points still available this week</Text>
               </View>
-              <View style={[styles.sportIcon, { backgroundColor: sportTint(session.sport) }]}>
-                <Text style={styles.sportIconText}>{sportIcon(session.sport)}</Text>
-              </View>
-              <View style={styles.sessionCopy}>
-                <Text style={styles.sessionTitle}>{cleanTitle(session.title)}</Text>
-                <Text style={styles.sessionMeta}>{formatSessionDate(session.date)} · {formatMinutes(session.duration) ?? 'Planned'}</Text>
-              </View>
-              <Text style={done ? styles.sessionPointsDone : styles.sessionPoints}>+{points} pts</Text>
-              <Text style={styles.smallChevron}>›</Text>
+              <View style={styles.nextPointsWrap}><Text style={styles.nextPoints}>+{getSessionPoints(readiness.nextBest)} pts</Text><Text style={styles.nextMeta}>available</Text></View>
             </View>
-          );
-        }) : (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>No sessions this week yet.</Text>
-            <Text style={styles.emptyText}>Create a plan and your weekly point target will appear here.</Text>
-          </View>
-        )}
-      </View>
+          </Pressable>
+        ) : null}
 
-      {fitness.nextBest ? (
-        <View style={styles.nextCard}>
-          <View style={styles.nextBadge}><Text style={styles.nextBadgeText}>✦ Next best workout</Text></View>
-          <View style={styles.nextRow}>
-            <View style={[styles.nextIcon, { backgroundColor: sportTint(fitness.nextBest.sport) }]}>
-              <Text style={styles.sportIconText}>{sportIcon(fitness.nextBest.sport)}</Text>
-            </View>
-            <View style={styles.nextCopy}>
-              <View style={styles.nextTitleRow}>
-                <Text style={styles.nextTitle}>{cleanTitle(fitness.nextBest.title)}</Text>
-                <Text style={styles.keyPill}>Key Session</Text>
-              </View>
-              <Text style={styles.sessionMeta}>{formatMinutes(fitness.nextBest.duration) ?? 'Planned'} · biggest readiness jump</Text>
-            </View>
-            <View style={styles.nextPointsWrap}>
-              <Text style={styles.nextPoints}>+{getSessionPoints(fitness.nextBest)} pts</Text>
-              <Text style={styles.nextMeta}>available</Text>
-            </View>
+        <View style={styles.pointsBoostCard}>
+          <Text style={styles.boostKicker}>How readiness moves</Text>
+          <Text style={styles.explainText}>This version weights weekly points, plan-to-date adherence, key session completion, and streak consistency. Next step is adding actual Strava performance trends so the score reflects not just showing up, but getting fitter.</Text>
+          <View style={styles.boostGrid}>
+            <View style={styles.boostItem}><Text style={styles.boostValue}>{readiness.currentSessionStreak}</Text><Text style={styles.boostTitle}>Session streak</Text></View>
+            <View style={styles.boostDivider} />
+            <View style={styles.boostItem}><Text style={styles.boostValue}>{readiness.weeklyAdherence}%</Text><Text style={styles.boostTitle}>Adherence</Text></View>
+            <View style={styles.boostDivider} />
+            <View style={styles.boostItem}><Text style={styles.boostValue}>+{readiness.streakBonus}</Text><Text style={styles.boostTitle}>Consistency boost</Text></View>
           </View>
         </View>
-      ) : null}
+      </ScrollView>
 
-      <View style={styles.pointsBoostCard}>
-        <View style={styles.cardHeaderRow}>
-          <Text style={styles.boostKicker}>Points boost</Text>
-          <Text style={styles.infoDot}>i</Text>
-        </View>
-        <View style={styles.boostGrid}>
-          <View style={styles.boostItem}>
-            <View style={styles.boostIcon}><Text style={styles.boostIconText}>♨</Text></View>
-            <Text style={styles.boostTitle}>Streak Bonus</Text>
-            <Text style={styles.boostText}>{fitness.currentSessionStreak}-day streak</Text>
-            <Text style={styles.boostMeta}>+{fitness.streakBonus} pts</Text>
-          </View>
-          <View style={styles.boostDivider} />
-          <View style={styles.boostItem}>
-            <View style={styles.boostIcon}><Text style={styles.boostIconText}>★</Text></View>
-            <Text style={styles.boostTitle}>Key Multiplier</Text>
-            <Text style={styles.boostText}>Key sessions</Text>
-            <Text style={styles.boostMeta}>earn more</Text>
-          </View>
-          <View style={styles.boostDivider} />
-          <View style={styles.boostItem}>
-            <View style={styles.boostIcon}><Text style={styles.boostIconText}>◷</Text></View>
-            <Text style={styles.boostTitle}>Long Session</Text>
-            <Text style={styles.boostText}>45+ min</Text>
-            <Text style={styles.boostMeta}>bonus pts</Text>
-          </View>
-        </View>
-      </View>
-    </ScrollView>
+      <SessionDetailSheet session={selectedSession} completed={completed} open={Boolean(selectedSession)} onClose={() => setSelectedSession(null)} onMarkDone={markDoneFor} onSkip={skipSession} onSessionUpdated={updateSessionLocally} />
+    </>
   );
 }
 
@@ -348,19 +320,21 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { paddingHorizontal: spacing.pageX, paddingTop: 70, paddingBottom: spacing.pageBottom },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
-  topHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 18 },
   kicker: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.8 },
-  title: { marginTop: 8, color: colors.ink, fontSize: 37, lineHeight: 38, fontWeight: '900', letterSpacing: -1.8 },
-  subtitle: { marginTop: 12, color: colors.inkSoft, fontSize: 15, lineHeight: 22, fontWeight: '500' },
-  scoreWrap: { width: 128, alignItems: 'center', paddingTop: 4 },
-  scoreRing: { width: 102, height: 102, borderRadius: 999, borderWidth: 7, borderColor: colors.success, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  scoreValue: { color: colors.ink, fontSize: 35, lineHeight: 36, fontWeight: '900', letterSpacing: -1.4 },
+  heroHeader: { backgroundColor: colors.surface, borderRadius: radius.xxl, borderWidth: 1, borderColor: colors.border, padding: 18, ...shadow.card },
+  heroRow: { marginTop: 12, flexDirection: 'row', gap: 16, alignItems: 'center' },
+  scoreBlock: { width: 106, height: 106, borderRadius: 999, borderWidth: 8, borderColor: colors.success, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
+  scoreValue: { color: colors.ink, fontSize: 36, lineHeight: 38, fontWeight: '900', letterSpacing: -1.4 },
   scoreMax: { color: colors.muted, fontSize: 13, fontWeight: '800' },
-  scorePill: { marginTop: 9, overflow: 'hidden', borderRadius: 999, backgroundColor: colors.successSoft, color: colors.success, paddingHorizontal: 9, paddingVertical: 6, fontSize: 11, fontWeight: '900', textAlign: 'center' },
-  missionHero: { marginTop: 26, minHeight: 240, flexDirection: 'row', overflow: 'hidden', backgroundColor: '#07522f', borderRadius: radius.xl, padding: 20, ...shadow.hero },
-  missionCopy: { flex: 1, minWidth: 0, justifyContent: 'space-between' },
+  title: { color: colors.ink, fontSize: 30, lineHeight: 31, fontWeight: '900', letterSpacing: -1.4 },
+  subtitle: { marginTop: 8, color: colors.inkSoft, fontSize: 14, lineHeight: 21, fontWeight: '600' },
+  bold: { color: colors.ink, fontWeight: '900' },
+  targetBar: { marginTop: 18, height: 9, borderRadius: 999, backgroundColor: colors.border, overflow: 'hidden' },
+  targetFill: { height: '100%', borderRadius: 999, backgroundColor: colors.success },
+  targetCopy: { marginTop: 9, color: colors.muted, fontSize: 13, fontWeight: '750', lineHeight: 19 },
+  missionHero: { marginTop: 14, overflow: 'hidden', backgroundColor: '#07522f', borderRadius: radius.xl, padding: 20, ...shadow.hero },
   heroKicker: { color: 'rgba(255,255,255,0.72)', fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.8 },
-  heroTitle: { marginTop: 12, color: colors.surface, fontSize: 30, lineHeight: 32, fontWeight: '900', letterSpacing: -1.2 },
+  heroTitle: { marginTop: 10, color: colors.surface, fontSize: 31, lineHeight: 33, fontWeight: '900', letterSpacing: -1.2 },
   heroReset: { alignSelf: 'flex-start', marginTop: 10, overflow: 'hidden', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.82)', paddingHorizontal: 10, paddingVertical: 6, fontSize: 12, fontWeight: '800' },
   heroPointsLine: { marginTop: 16, flexDirection: 'row', alignItems: 'flex-end', gap: 7 },
   heroPoints: { color: colors.surface, fontSize: 40, lineHeight: 42, fontWeight: '900', letterSpacing: -1.6 },
@@ -368,11 +342,6 @@ const styles = StyleSheet.create({
   heroProgressTrack: { marginTop: 10, height: 10, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.16)', overflow: 'hidden' },
   heroProgressFill: { height: '100%', borderRadius: 999, backgroundColor: '#d9f99d' },
   heroToGo: { marginTop: 8, color: '#d9f99d', fontSize: 13, fontWeight: '900' },
-  medalWrap: { width: 128, alignItems: 'center', justifyContent: 'center' },
-  medalOuter: { width: 116, height: 116, borderRadius: 999, backgroundColor: 'rgba(134,239,172,0.18)', alignItems: 'center', justifyContent: 'center' },
-  medalMid: { width: 88, height: 88, borderRadius: 999, backgroundColor: '#86efac', alignItems: 'center', justifyContent: 'center' },
-  medalInner: { width: 58, height: 58, borderRadius: 999, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
-  medalStar: { color: colors.surface, fontSize: 28, fontWeight: '900' },
   planCard: { marginTop: 14, backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, padding: 16, ...shadow.card },
   cardHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
   linkText: { color: colors.success, fontSize: 13, fontWeight: '900' },
@@ -399,21 +368,17 @@ const styles = StyleSheet.create({
   nextRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   nextIcon: { width: 52, height: 52, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   nextCopy: { flex: 1, minWidth: 0 },
-  nextTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   nextTitle: { color: colors.ink, fontSize: 19, fontWeight: '900', letterSpacing: -0.6 },
-  keyPill: { overflow: 'hidden', borderRadius: 999, backgroundColor: colors.ink, color: colors.surface, paddingHorizontal: 8, paddingVertical: 4, fontSize: 10, fontWeight: '900' },
   nextPointsWrap: { alignItems: 'flex-end', gap: 2 },
   nextPoints: { color: colors.success, fontSize: 22, fontWeight: '900', letterSpacing: -0.6 },
   nextMeta: { color: colors.muted, fontSize: 11, fontWeight: '700' },
   pointsBoostCard: { marginTop: 14, backgroundColor: '#f0fdf4', borderRadius: radius.xl, borderWidth: 1, borderColor: '#dcfce7', padding: 16, ...shadow.card },
   boostKicker: { color: colors.success, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.7 },
-  infoDot: { color: colors.success, fontSize: 12, fontWeight: '900' },
+  explainText: { marginTop: 8, color: colors.inkSoft, fontSize: 13, lineHeight: 20, fontWeight: '650' },
   boostGrid: { marginTop: 14, flexDirection: 'row', alignItems: 'stretch' },
   boostItem: { flex: 1, alignItems: 'center' },
   boostDivider: { width: 1, backgroundColor: '#bbf7d0', marginHorizontal: 8 },
-  boostIcon: { width: 38, height: 38, borderRadius: 999, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center' },
-  boostIconText: { color: colors.surface, fontSize: 16, fontWeight: '900' },
-  boostTitle: { marginTop: 8, color: colors.success, fontSize: 11, fontWeight: '900', textAlign: 'center' },
-  boostText: { marginTop: 4, color: colors.inkSoft, fontSize: 11, fontWeight: '700', textAlign: 'center' },
-  boostMeta: { marginTop: 2, color: colors.success, fontSize: 11, fontWeight: '900', textAlign: 'center' },
+  boostValue: { color: colors.success, fontSize: 24, fontWeight: '900', letterSpacing: -0.8 },
+  boostTitle: { marginTop: 5, color: colors.inkSoft, fontSize: 10, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.9, textAlign: 'center' },
+  pressed: { opacity: 0.72 },
 });
