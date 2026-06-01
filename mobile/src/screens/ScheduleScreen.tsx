@@ -50,7 +50,7 @@ export function ScheduleScreen() {
   const load = useCallback(async () => {
     if (!user?.id) return;
     const [{ data: sessionRows }, { data: completedRows }, { data: stravaRows }] = await Promise.all([
-      supabase.from('sessions').select('id,user_id,plan_id,date,sport,title,duration,details,structured_workout').eq('user_id', user.id).order('date', { ascending: true }).limit(500),
+      supabase.from('sessions').select('id,user_id,plan_id,date,sport,title,duration,details,structured_workout').eq('user_id', user.id).order('date', { ascending: true }).limit(1000),
       supabase.from('completed_sessions').select('id,user_id,date,session_title,status').eq('user_id', user.id),
       supabase.from('strava_activities').select('id,user_id,strava_id,name,sport_type,start_date,start_date_local,moving_time,distance').eq('user_id', user.id).order('start_date', { ascending: false }).limit(150),
     ]);
@@ -161,8 +161,8 @@ export function ScheduleScreen() {
           </Pressable>
         ) : null}
 
-        <Text style={styles.sectionLabel}>This week</Text>
-        {groups.length ? groups.slice(0, 10).map(([date, items]) => (
+        <Text style={styles.sectionLabel}>Full schedule</Text>
+        {groups.length ? groups.map(([date, items]) => (
           <View key={date} style={styles.group}>
             <Text style={styles.date}>{formatDay(date)}</Text>
             {items.map((session, index) => {
