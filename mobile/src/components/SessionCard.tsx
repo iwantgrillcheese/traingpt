@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radius, shadow, sportColors } from '../design/theme';
 import type { CompletedSessionRow, SessionRow } from '../types';
 import { cleanTitle, formatDay, formatMinutes, getCompletionStatus, normalizeSport } from '../utils/training';
+import { getSessionPoints, getSessionPriority } from '../utils/sessionPoints';
 
 type Props = {
   session: SessionRow;
@@ -27,12 +28,20 @@ function statusLabel(status: string | null) {
   return 'Planned';
 }
 
+function priorityLabel(priority: string) {
+  if (priority === 'key') return 'Key';
+  if (priority === 'light') return 'Light';
+  return 'Base';
+}
+
 export function SessionCard({ session, completed = [], onPress, featured = false }: Props) {
   const status = getCompletionStatus(session, completed);
   const duration = formatMinutes(session.duration);
   const sport = normalizeSport(session.sport);
   const accent = sportColors[sport as keyof typeof sportColors] ?? colors.ink;
   const isCompleted = status === 'done';
+  const points = getSessionPoints(session);
+  const priority = getSessionPriority(session);
 
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.card, featured && styles.featuredCard, pressed && styles.pressed]}>
@@ -47,6 +56,10 @@ export function SessionCard({ session, completed = [], onPress, featured = false
             <Text style={[styles.status, isCompleted ? styles.done : styles.planned]}>{statusLabel(status)}</Text>
           </View>
           <Text style={styles.title}>{cleanTitle(session.title)}</Text>
+          <View style={styles.pointsRow}>
+            <Text style={[styles.pointsPill, priority === 'key' && styles.keyPill]}>{points} pts</Text>
+            <Text style={styles.priorityPill}>{priorityLabel(priority)}</Text>
+          </View>
           {session.details ? <Text numberOfLines={featured ? 3 : 2} style={styles.details}>{session.details.replace(/Purpose:|Workout:|Intensity:/gi, '').trim()}</Text> : null}
         </View>
       </View>
@@ -83,5 +96,9 @@ const styles = StyleSheet.create({
   done: { backgroundColor: colors.purpleSoft, color: colors.purple },
   planned: { backgroundColor: colors.successSoft, color: colors.success },
   title: { color: colors.ink, fontSize: 19, fontWeight: '900', letterSpacing: -0.7, marginTop: 7 },
+  pointsRow: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  pointsPill: { overflow: 'hidden', borderRadius: 999, backgroundColor: colors.surfaceMuted, color: colors.ink, paddingHorizontal: 9, paddingVertical: 5, fontSize: 11, fontWeight: '900' },
+  keyPill: { backgroundColor: colors.successSoft, color: colors.success },
+  priorityPill: { overflow: 'hidden', borderRadius: 999, backgroundColor: colors.cream, color: colors.muted, paddingHorizontal: 9, paddingVertical: 5, fontSize: 11, fontWeight: '900' },
   details: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 6 },
 });
