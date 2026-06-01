@@ -7,6 +7,7 @@ import type { CompletedSessionRow, SessionRow } from '../types';
 import { SessionCard } from '../components/SessionCard';
 import { SessionDetailSheet } from '../components/SessionDetailSheet';
 import { cleanTitle, currentWeekStats, formatDay, formatMinutes, getCompletionStatus, getNextSession, normalizeSport, parseDate } from '../utils/training';
+import { getSessionPoints, getWeeklyPointStats } from '../utils/sessionPoints';
 
 function groupByDate(sessions: SessionRow[]) {
   const groups = new Map<string, SessionRow[]>();
@@ -90,7 +91,9 @@ export function ScheduleScreen() {
 
   const groups = useMemo(() => groupByDate(sessions), [sessions]);
   const stats = useMemo(() => currentWeekStats(sessions, completed), [sessions, completed]);
+  const pointStats = useMemo(() => getWeeklyPointStats(sessions, completed), [sessions, completed]);
   const nextSession = useMemo(() => getNextSession(sessions), [sessions]);
+  const nextPoints = nextSession ? getSessionPoints(nextSession) : 0;
   const dates = useMemo(() => weekDates(), []);
   const todayKey = dateKey(new Date());
 
@@ -113,9 +116,9 @@ export function ScheduleScreen() {
         </View>
 
         <View style={styles.summaryCard}>
-          <View style={styles.summaryCol}><Text style={styles.summaryValue}>{stats.done}/{stats.planned || 0}</Text><Text style={styles.summaryLabel}>Complete</Text></View>
+          <View style={styles.summaryCol}><Text style={styles.summaryValue}>{pointStats.earned}/{pointStats.available || 0}</Text><Text style={styles.summaryLabel}>Points</Text></View>
           <View style={styles.summaryDivider} />
-          <View style={styles.summaryCol}><Text style={styles.summaryValue}>{formatMinutes(stats.minutes) ?? '—'}</Text><Text style={styles.summaryLabel}>Planned</Text></View>
+          <View style={styles.summaryCol}><Text style={styles.summaryValue}>{stats.done}/{stats.planned || 0}</Text><Text style={styles.summaryLabel}>Complete</Text></View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryCol}><Text style={styles.summaryValue}>{stats.planned ? `${stats.adherence}%` : '—'}</Text><Text style={styles.summaryLabel}>Adherence</Text></View>
         </View>
@@ -137,13 +140,13 @@ export function ScheduleScreen() {
 
         {nextSession ? (
           <Pressable onPress={() => setSelectedSession(nextSession)} style={({ pressed }) => [styles.keyCard, pressed && styles.pressed]}>
-            <Text style={styles.keyKicker}>Next key workout</Text>
+            <Text style={styles.keyKicker}>Next key workout · +{nextPoints} pts</Text>
             <Text style={styles.keyDate}>{formatDay(nextSession.date)}</Text>
             <Text style={styles.keyTitle}>{cleanTitle(nextSession.title)}</Text>
             <View style={styles.keyMetaRow}>
               {formatMinutes(nextSession.duration) ? <Text style={styles.keyMeta}>Time {formatMinutes(nextSession.duration)}</Text> : null}
               <Text style={styles.keyMeta}>{normalizeSport(nextSession.sport)}</Text>
-              <Text style={styles.keyMeta}>Z2</Text>
+              <Text style={styles.keyMeta}>{nextPoints} points available</Text>
             </View>
             <Text numberOfLines={2} style={styles.keyText}>{nextSession.details?.replace(/Purpose:|Workout:|Intensity:/gi, '').trim() || 'Build durable aerobic fitness while keeping fatigue controlled.'}</Text>
             <View style={styles.keyActions}>
