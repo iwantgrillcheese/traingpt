@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Easing, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Easing, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, Vibration, View } from 'react-native';
 import type { CompletedSessionRow, SessionRow } from '../types';
 import { apiFetch } from '../lib/api';
 import {
@@ -54,6 +54,7 @@ export function SessionDetailSheet({ session, completed, open, onClose, onMarkDo
   const reward = useRef(new Animated.Value(0)).current;
   const buttonScale = useRef(new Animated.Value(1)).current;
   const cardGlow = useRef(new Animated.Value(0)).current;
+  const burst = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     setStructuredWorkout(session?.structured_workout ?? null);
@@ -65,7 +66,8 @@ export function SessionDetailSheet({ session, completed, open, onClose, onMarkDo
     reward.setValue(0);
     buttonScale.setValue(1);
     cardGlow.setValue(0);
-  }, [buttonScale, cardGlow, reward, session?.id, session?.structured_workout]);
+    burst.setValue(0);
+  }, [buttonScale, burst, cardGlow, reward, session?.id, session?.structured_workout]);
 
   if (!session) return null;
 
@@ -75,24 +77,32 @@ export function SessionDetailSheet({ session, completed, open, onClose, onMarkDo
   const priority = getSessionPriority(session);
   const isDone = status === 'done' || banked;
 
-  const rewardOpacity = reward.interpolate({ inputRange: [0, 0.18, 0.78, 1], outputRange: [0, 1, 1, 0] });
-  const rewardTranslate = reward.interpolate({ inputRange: [0, 1], outputRange: [18, -34] });
-  const rewardScale = reward.interpolate({ inputRange: [0, 0.22, 1], outputRange: [0.86, 1.08, 1] });
+  const rewardOpacity = reward.interpolate({ inputRange: [0, 0.12, 0.82, 1], outputRange: [0, 1, 1, 0] });
+  const rewardTranslate = reward.interpolate({ inputRange: [0, 1], outputRange: [18, -54] });
+  const rewardScale = reward.interpolate({ inputRange: [0, 0.18, 0.52, 1], outputRange: [0.82, 1.18, 1.02, 1] });
   const glowOpacity = cardGlow.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
+  const burstOpacity = burst.interpolate({ inputRange: [0, 0.15, 0.8, 1], outputRange: [0, 1, 1, 0] });
+  const burstScale = burst.interpolate({ inputRange: [0, 1], outputRange: [0.72, 1.22] });
+  const burstRotate = burst.interpolate({ inputRange: [0, 1], outputRange: ['-8deg', '8deg'] });
 
   const playCompletionAnimation = () => {
     reward.setValue(0);
     cardGlow.setValue(0);
+    burst.setValue(0);
+    Vibration.vibrate([0, 18, 35, 28]);
+
     Animated.parallel([
       Animated.sequence([
-        Animated.timing(buttonScale, { toValue: 0.96, duration: 90, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-        Animated.spring(buttonScale, { toValue: 1, friction: 4, tension: 120, useNativeDriver: true }),
+        Animated.timing(buttonScale, { toValue: 0.94, duration: 80, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.spring(buttonScale, { toValue: 1.04, friction: 4, tension: 150, useNativeDriver: true }),
+        Animated.spring(buttonScale, { toValue: 1, friction: 5, tension: 110, useNativeDriver: true }),
       ]),
       Animated.sequence([
-        Animated.timing(cardGlow, { toValue: 1, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(cardGlow, { toValue: 0, duration: 800, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(cardGlow, { toValue: 1, duration: 150, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(cardGlow, { toValue: 0, duration: 1050, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
       ]),
-      Animated.timing(reward, { toValue: 1, duration: 1250, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(reward, { toValue: 1, duration: 1500, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(burst, { toValue: 1, duration: 1150, easing: Easing.out(Easing.back(1.25)), useNativeDriver: true }),
     ]).start();
   };
 
@@ -174,9 +184,14 @@ export function SessionDetailSheet({ session, completed, open, onClose, onMarkDo
 
             <Text style={styles.title}>{cleanTitle(session.title)}</Text>
 
-            <Animated.View style={[styles.rewardToast, { opacity: rewardOpacity, transform: [{ translateY: rewardTranslate }, { scale: rewardScale }] }]}>
+            <Animated.View style={[styles.rewardToast, { opacity: rewardOpacity, transform: [{ translateY: rewardTranslate }, { scale: rewardScale }] }]}> 
               <Text style={styles.rewardText}>+{points} pts banked</Text>
               <Text style={styles.rewardSubtext}>Fitness Score updated</Text>
+            </Animated.View>
+
+            <Animated.View style={[styles.burstWrap, { opacity: burstOpacity, transform: [{ scale: burstScale }, { rotate: burstRotate }] }]}> 
+              <Text style={styles.burstText}>+{points}</Text>
+              <Text style={styles.burstSubtext}>POINTS</Text>
             </Animated.View>
 
             <Animated.View style={[styles.pointsGlow, { opacity: glowOpacity }]} />
@@ -217,7 +232,7 @@ export function SessionDetailSheet({ session, completed, open, onClose, onMarkDo
             </View>
 
             <View style={styles.actions}>
-              <Animated.View style={[styles.animatedAction, { transform: [{ scale: buttonScale }] }]}>
+              <Animated.View style={[styles.animatedAction, { transform: [{ scale: buttonScale }] }]}> 
                 <Pressable onPress={handleMarkDone} disabled={isDone || markingDone} style={[styles.primaryButton, isDone && styles.doneButton]}>
                   <Text style={styles.primaryText}>{isDone ? '✓ Done' : markingDone ? 'Banking...' : `Mark done · +${points} pts`}</Text>
                 </Pressable>
@@ -252,9 +267,12 @@ const styles = StyleSheet.create({
   closeButton: { width: 42, height: 42, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e4e4e7', alignItems: 'center', justifyContent: 'center' },
   closeText: { color: '#71717a', fontSize: 26, lineHeight: 28, fontWeight: '500' },
   title: { marginTop: 18, color: '#09090b', fontSize: 32, lineHeight: 34, fontWeight: '900', letterSpacing: -1.4 },
-  rewardToast: { position: 'absolute', top: 92, right: 18, zIndex: 10, borderRadius: 999, backgroundColor: '#dcfce7', borderWidth: 1, borderColor: '#86efac', paddingHorizontal: 14, paddingVertical: 9 },
+  rewardToast: { position: 'absolute', top: 92, right: 18, zIndex: 12, borderRadius: 999, backgroundColor: '#dcfce7', borderWidth: 1, borderColor: '#86efac', paddingHorizontal: 14, paddingVertical: 9 },
   rewardText: { color: '#166534', fontSize: 14, fontWeight: '900' },
   rewardSubtext: { marginTop: 1, color: '#15803d', fontSize: 11, fontWeight: '800' },
+  burstWrap: { position: 'absolute', top: 88, alignSelf: 'center', zIndex: 11, width: 112, height: 112, borderRadius: 999, backgroundColor: '#86efac', borderWidth: 8, borderColor: '#dcfce7', alignItems: 'center', justifyContent: 'center', shadowColor: '#166534', shadowOpacity: 0.3, shadowRadius: 24, shadowOffset: { width: 0, height: 10 }, elevation: 10 },
+  burstText: { color: '#052e16', fontSize: 34, lineHeight: 36, fontWeight: '900', letterSpacing: -1.4 },
+  burstSubtext: { color: '#166534', fontSize: 10, fontWeight: '900', letterSpacing: 1.6 },
   pointsGlow: { position: 'absolute', top: 108, left: 0, right: 0, height: 92, borderRadius: 28, backgroundColor: '#bbf7d0' },
   pointsCard: { marginTop: 18, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#09090b', borderRadius: 24, padding: 16 },
   pointsCardDone: { backgroundColor: '#14532d' },
