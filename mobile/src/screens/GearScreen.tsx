@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors, radius, shadow, spacing } from '../design/theme';
 import { useAuth } from '../auth/AuthProvider';
 import { supabase } from '../lib/supabase';
 import { apiFetch, getApiBaseUrl } from '../lib/api';
 
 const settingsRows = [
-  { title: 'Profile', text: 'Manage your account, athlete profile, and onboarding details.' },
-  { title: 'Training preferences', text: 'Rest day, weekly hours, long ride/run preferences, and pacing units.' },
-  { title: 'Recovery signals', text: 'Oura and WHOOP readiness signals are coming soon.' },
+  { title: 'Training preferences', text: 'Rest day, weekly hours, long ride/run preferences, and pacing units will move here after the launch build is stable.' },
+  { title: 'Recovery signals', text: 'Oura and WHOOP readiness signals are planned, but should not block the first iOS test build.' },
 ];
 
 type StravaState = {
@@ -30,6 +29,7 @@ export function GearScreen() {
   const [resettingPlan, setResettingPlan] = useState(false);
   const [loadingStrava, setLoadingStrava] = useState(true);
   const [syncingStrava, setSyncingStrava] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [strava, setStrava] = useState<StravaState>({ connected: false, athleteId: null, activityCount: 0, latestActivityDate: null });
 
   const loadStrava = useCallback(async () => {
@@ -71,8 +71,21 @@ export function GearScreen() {
     loadStrava();
   }, [loadStrava]);
 
+  const refresh = async () => {
+    setRefreshing(true);
+    await loadStrava();
+    setRefreshing(false);
+  };
+
   const connectStrava = async () => {
-    await Linking.openURL(`${getApiBaseUrl()}/api/strava`);
+    Alert.alert(
+      'Strava setup',
+      'Strava connection still uses the web OAuth flow. Connect on web, then return here and tap Sync. We need a native Strava callback before App Store launch.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open web settings', onPress: () => Linking.openURL(`${getApiBaseUrl()}/settings`) },
+      ]
+    );
   };
 
   const syncStrava = async () => {
@@ -106,13 +119,16 @@ export function GearScreen() {
           onPress: async () => {
             setResettingPlan(true);
             try {
+              const { error: completedError } = await supabase.from('completed_sessions').delete().eq('user_id', user.id);
+              if (completedError) console.warn('[Settings] completed reset skipped/failed', completedError);
+
               const { error: sessionsError } = await supabase.from('sessions').delete().eq('user_id', user.id);
               if (sessionsError) throw sessionsError;
 
               const { error: plansError } = await supabase.from('plans').delete().eq('user_id', user.id);
               if (plansError) console.warn('[Settings] plan row reset skipped/failed', plansError);
 
-              Alert.alert('Plan reset', 'Close and reopen the app, or sign out and back in, to re-enter onboarding.');
+              Alert.alert('Plan reset', 'Sign out and back in, or restart the preview, to re-enter onboarding.');
             } catch (error) {
               console.error('[Settings] reset plan failed', error);
               Alert.alert('Reset failed', 'Could not reset your plan yet. Try again in a moment.');
@@ -126,10 +142,15 @@ export function GearScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+    >
       <Text style={styles.kicker}>Settings</Text>
-      <Text style={styles.title}>Profile and app controls.</Text>
-      <Text style={styles.subtitle}>Manage your athlete profile, training setup, connected accounts, and test tools.</Text>
+      <Text style={styles.title}>Account and app controls.</Text>
+      <Text style={styles.subtitle}>Useful actions only. Anything unfinished is marked clearly so we do not ship fake buttons.</Text>
 
       <View style={styles.profileCard}>
         <View style={styles.avatar}>
@@ -147,17 +168,17 @@ export function GearScreen() {
             <Text style={styles.sectionKicker}>Connected account</Text>
             <Text style={styles.sectionTitle}>Strava</Text>
           </View>
-          <Text style={[styles.statusPill, strava.connected ? styles.connectedPill : styles.disconnectedPill]}>{strava.connected ? 'Connected' : 'Not connected'}</Text>
+          <Text style={[styles.statusPill, strava.connected ? styles.connectedPill : styles.disconnectedPill]}>{strava.connected ? 'Connected' : 'Needs web setup'}</Text>
         </View>
 
         {loadingStrava ? (
           <View style={styles.loadingRow}><ActivityIndicator /><Text style={styles.loadingCopy}>Checking Strava…</Text></View>
         ) : (
           <>
-            <Text style={styles.sectionText}>{strava.connected ? `${strava.activityCount} activities synced. ${formatLatestActivity(strava.latestActivityDate)}.` : 'Connect Strava so completed workouts can auto-match, bank points, and feed your Fitness Score.'}</Text>
+            <Text style={styles.sectionText}>{strava.connected ? `${strava.activityCount} activities synced. ${formatLatestActivity(strava.latestActivityDate)}.` : 'Native Strava OAuth is not ready yet. Connect through web settings, then sync here.'}</Text>
             <View style={styles.stravaStatsRow}>
               <View style={styles.stravaStat}><Text style={styles.stravaStatValue}>{strava.activityCount}</Text><Text style={styles.stravaStatLabel}>Activities</Text></View>
-              <View style={styles.stravaStat}><Text style={styles.stravaStatValue}>{strava.connected ? 'Auto' : 'Off'}</Text><Text style={styles.stravaStatLabel}>Matching</Text></View>
+              <View style={styles.stravaStat}><Text style={styles.stravaStatValue}>{strava.connected ? 'Auto' : 'Web'}</Text><Text style={styles.stravaStatLabel}>Setup</Text></View>
             </View>
             {strava.connected ? (
               <Pressable onPress={syncStrava} disabled={syncingStrava} style={[styles.primaryAction, syncingStrava && styles.disabledButton]}>
@@ -165,7 +186,7 @@ export function GearScreen() {
               </Pressable>
             ) : (
               <Pressable onPress={connectStrava} style={styles.primaryAction}>
-                <Text style={styles.primaryActionText}>Connect Strava</Text>
+                <Text style={styles.primaryActionText}>Open web Strava setup</Text>
               </Pressable>
             )}
           </>
@@ -182,7 +203,7 @@ export function GearScreen() {
       <View style={styles.sectionCard}>
         <Text style={styles.sectionKicker}>Developer testing</Text>
         <Text style={styles.sectionTitle}>Retest plan generation</Text>
-        <Text style={styles.sectionText}>Clears your current plan rows so the app falls back into onboarding. Useful while we are testing the mobile generation flow.</Text>
+        <Text style={styles.sectionText}>Clears your plan, sessions, and completed sessions so the app falls back into onboarding.</Text>
         <Pressable onPress={resetPlanForTesting} disabled={resettingPlan} style={[styles.dangerButton, resettingPlan && styles.disabledButton]}>
           <Text style={styles.dangerButtonText}>{resettingPlan ? 'Resetting…' : 'Reset plan for testing'}</Text>
         </Pressable>
