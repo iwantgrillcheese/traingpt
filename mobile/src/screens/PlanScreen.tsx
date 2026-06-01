@@ -66,6 +66,12 @@ function generationSteps(hasStrava: boolean) {
       ];
 }
 
+function progressToStep(progress: number, totalSteps: number) {
+  const usableRange = 88;
+  const rawStep = Math.floor((Math.min(progress, usableRange) / usableRange) * totalSteps);
+  return Math.min(totalSteps - 1, Math.max(0, rawStep));
+}
+
 export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
   const { user } = useAuth();
   const [stepIndex, setStepIndex] = useState(0);
@@ -79,6 +85,7 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
   const [generating, setGenerating] = useState(false);
   const [generationComplete, setGenerationComplete] = useState(false);
   const [generationStep, setGenerationStep] = useState(0);
+  const [generationProgress, setGenerationProgress] = useState(0);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -96,9 +103,16 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
 
   useEffect(() => {
     if (!generating || generationComplete) return undefined;
+
     const interval = setInterval(() => {
-      setGenerationStep((value) => Math.min(value + 1, magicSteps.length - 1));
-    }, 2300);
+      setGenerationProgress((value) => {
+        const increment = value < 25 ? 4 : value < 55 ? 2.5 : value < 78 ? 1.25 : value < 88 ? 0.5 : 0;
+        const next = Math.min(90, value + increment);
+        setGenerationStep(progressToStep(next, magicSteps.length));
+        return next;
+      });
+    }, 1200);
+
     return () => clearInterval(interval);
   }, [generating, generationComplete, magicSteps.length]);
 
@@ -113,6 +127,7 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
     setGenerating(true);
     setGenerationComplete(false);
     setGenerationStep(0);
+    setGenerationProgress(4);
     setError(null);
     setSuccess(null);
 
@@ -139,6 +154,7 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
         return;
       }
 
+      setGenerationProgress(100);
       setGenerationStep(magicSteps.length - 1);
       setGenerationComplete(true);
       setSuccess('Your calendar is ready. Opening Schedule...');
@@ -165,7 +181,7 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
   };
 
   if (generating) {
-    return <PlanGenerationExperience currentStep={generationStep} steps={magicSteps} complete={generationComplete} />;
+    return <PlanGenerationExperience currentStep={generationStep} steps={magicSteps} complete={generationComplete} progressPercent={generationProgress} />;
   }
 
   return (
