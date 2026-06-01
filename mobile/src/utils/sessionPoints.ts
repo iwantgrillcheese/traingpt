@@ -7,6 +7,22 @@ function normalizedText(session: SessionRow) {
   return `${session.title ?? ''} ${session.details ?? ''} ${session.sport ?? ''}`.toLowerCase();
 }
 
+function startOfWeek(date: Date) {
+  const start = new Date(date);
+  const day = start.getDay();
+  const offset = day === 0 ? -6 : 1 - day;
+  start.setDate(start.getDate() + offset);
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
+
+function endOfWeek(date: Date) {
+  const end = new Date(startOfWeek(date));
+  end.setDate(end.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+  return end;
+}
+
 export function getSessionPriority(session: SessionRow): SessionPriority {
   const text = normalizedText(session);
   const sport = normalizeSport(session.sport);
@@ -61,16 +77,34 @@ export function getTotalAvailablePoints(sessions: SessionRow[]) {
   return sessions.reduce((sum, session) => sum + getSessionPoints(session), 0);
 }
 
-export function getWeeklyPointStats(sessions: SessionRow[], completed: CompletedSessionRow[], referenceDate = new Date()) {
-  const start = new Date(referenceDate);
-  const day = start.getDay();
-  const offset = day === 0 ? -6 : 1 - day;
-  start.setDate(start.getDate() + offset);
-  start.setHours(0, 0, 0, 0);
+export function getActiveWeekReferenceDate(sessions: SessionRow[], referenceDate = new Date()) {
+  const today = new Date(referenceDate);
+  today.setHours(0, 0, 0, 0);
+  const thisWeekStart = startOfWeek(today);
+  const thisWeekEnd = endOfWeek(today);
 
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  end.setHours(23, 59, 59, 999);
+  const sessionsThisWeek = sessions.some((session) => {
+    const date = parseDate(session.date);
+    return date >= thisWeekStart && date <= thisWeekEnd;
+  });
+
+  if (sessionsThisWeek) return today;
+
+  const nextSession = sessions
+    .filter((session) => parseDate(session.date) >= today)
+    .sort((a, b) => parseDate(a.date).getTime() - parseDate(b.date).getTime())[0];
+
+  if (nextSession) return parseDate(nextSession.date);
+
+  const latestSession = [...sessions]
+    .sort((a, b) => parseDate(b.date).getTime() - parseDate(a.date).getTime())[0];
+
+  return latestSession ? parseDate(latestSession.date) : today;
+}
+
+export function getWeeklyPointStats(sessions: SessionRow[], completed: CompletedSessionRow[], referenceDate = new Date()) {
+  const start = startOfWeek(referenceDate);
+  const end = endOfWeek(referenceDate);
 
   const weekSessions = sessions.filter((session) => {
     const date = parseDate(session.date);
@@ -81,5 +115,7 @@ export function getWeeklyPointStats(sessions: SessionRow[], completed: Completed
     earned: getEarnedPoints(weekSessions, completed),
     available: getTotalAvailablePoints(weekSessions),
     sessions: weekSessions,
+    start,
+    end,
   };
 }
