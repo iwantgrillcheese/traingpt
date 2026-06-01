@@ -9,6 +9,7 @@ import {
   getCompletionStatus,
   normalizeSport,
 } from '../utils/training';
+import { getSessionPoints, getSessionPriority } from '../utils/sessionPoints';
 
 type Props = {
   session: SessionRow | null;
@@ -36,6 +37,12 @@ function upgradeUrl() {
   return 'https://traingpt.co/plan-preview?feature=detailed-workouts';
 }
 
+function priorityLabel(priority: string) {
+  if (priority === 'key') return 'Key session';
+  if (priority === 'light') return 'Light session';
+  return 'Base session';
+}
+
 export function SessionDetailSheet({ session, completed, open, onClose, onMarkDone, onSkip, onSessionUpdated }: Props) {
   const [structuredWorkout, setStructuredWorkout] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
@@ -53,6 +60,8 @@ export function SessionDetailSheet({ session, completed, open, onClose, onMarkDo
 
   const status = getCompletionStatus(session, completed);
   const duration = formatMinutes(session.duration);
+  const points = getSessionPoints(session);
+  const priority = getSessionPriority(session);
 
   const generateDetails = async () => {
     setGenerating(true);
@@ -116,6 +125,14 @@ export function SessionDetailSheet({ session, completed, open, onClose, onMarkDo
 
             <Text style={styles.title}>{cleanTitle(session.title)}</Text>
 
+            <View style={styles.pointsCard}>
+              <View>
+                <Text style={styles.sectionLabel}>Training value</Text>
+                <Text style={styles.pointsTitle}>{points} points</Text>
+              </View>
+              <Text style={[styles.priorityBadge, priority === 'key' && styles.keyBadge]}>{priorityLabel(priority)}</Text>
+            </View>
+
             <View style={styles.overviewCard}>
               <Text style={styles.sectionLabel}>Why this matters</Text>
               <Text style={styles.body}>{summarizeDetails(session.details)}</Text>
@@ -146,7 +163,7 @@ export function SessionDetailSheet({ session, completed, open, onClose, onMarkDo
 
             <View style={styles.actions}>
               <Pressable onPress={() => onMarkDone(session)} style={[styles.primaryButton, status === 'done' && styles.doneButton]}>
-                <Text style={styles.primaryText}>{status === 'done' ? 'Done' : 'Mark done'}</Text>
+                <Text style={styles.primaryText}>{status === 'done' ? 'Done' : `Mark done · +${points} pts`}</Text>
               </Pressable>
               <Pressable onPress={() => onSkip?.(session)} style={styles.secondaryButton}>
                 <Text style={styles.secondaryText}>{status === 'skipped' ? 'Skipped' : 'Skip'}</Text>
@@ -178,7 +195,11 @@ const styles = StyleSheet.create({
   closeButton: { width: 42, height: 42, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e4e4e7', alignItems: 'center', justifyContent: 'center' },
   closeText: { color: '#71717a', fontSize: 26, lineHeight: 28, fontWeight: '500' },
   title: { marginTop: 18, color: '#09090b', fontSize: 32, lineHeight: 34, fontWeight: '900', letterSpacing: -1.4 },
-  overviewCard: { marginTop: 18, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e4e4e7', borderRadius: 24, padding: 16 },
+  pointsCard: { marginTop: 18, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#09090b', borderRadius: 24, padding: 16 },
+  pointsTitle: { marginTop: 6, color: '#fff', fontSize: 28, lineHeight: 30, fontWeight: '900', letterSpacing: -1.1 },
+  priorityBadge: { overflow: 'hidden', borderRadius: 999, backgroundColor: '#fff', color: '#3f3f46', paddingHorizontal: 11, paddingVertical: 7, fontSize: 12, fontWeight: '900' },
+  keyBadge: { backgroundColor: '#dcfce7', color: '#166534' },
+  overviewCard: { marginTop: 10, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e4e4e7', borderRadius: 24, padding: 16 },
   detailCard: { marginTop: 10, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e4e4e7', borderRadius: 24, padding: 16 },
   detailHeader: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
   sectionLabel: { color: '#a1a1aa', fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.4 },
