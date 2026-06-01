@@ -47,9 +47,9 @@ export function LoginScreen() {
         </View>
 
         <View style={styles.heroBlock}>
-          <Text style={styles.kicker}>AI triathlon coaching</Text>
-          <Text style={styles.title}>Train with a plan that understands the work.</Text>
-          <Text style={styles.subtitle}>Generate a race plan, complete workouts, bank points, and build your Fitness Score.</Text>
+          <Text style={styles.kicker}>Race day starts here</Text>
+          <Text style={styles.title}>Build the plan. Bank the work.</Text>
+          <Text style={styles.subtitle}>TrainGPT turns your race goal into a weekly mission — every session scored, every completed workout counted.</Text>
         </View>
 
         <View style={styles.previewCard}>
@@ -57,13 +57,13 @@ export function LoginScreen() {
             <Text style={styles.previewLabel}>Weekly mission</Text>
             <Text style={styles.previewMeta}>+220 pts</Text>
           </View>
-          <Text style={styles.previewTitle}>Your first training week, scored.</Text>
-          <Text style={styles.previewText}>Key sessions earn more. Consistency raises your readiness.</Text>
+          <Text style={styles.previewTitle}>Hit the key sessions. Build your score.</Text>
+          <Text style={styles.previewText}>Long rides, bricks, and threshold work carry more value. Easy work still counts. Consistency wins.</Text>
         </View>
 
         <View style={styles.formCard}>
           <Text style={styles.formTitle}>Sign in</Text>
-          <Text style={styles.formSubtitle}>Use Google to access your TrainGPT plan, Strava sync, and training history.</Text>
+          <Text style={styles.formSubtitle}>Use the same account you use on TrainGPT web. Your plan, Strava sync, and training history come with you.</Text>
 
           <Pressable
             onPress={continueWithGoogle}
@@ -111,7 +111,7 @@ export function LoginScreen() {
           </Pressable>
         </View>
 
-        <Text style={styles.footer}>Google sign-in uses the same Supabase auth infrastructure as the TrainGPT web app.</Text>
+        <Text style={styles.footer}>Google sign-in should return you directly to the app. If it opens web instead, the native redirect is not configured correctly yet.</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
   badge: { overflow: 'hidden', borderRadius: 999, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border, color: colors.muted, paddingHorizontal: 10, paddingVertical: 6, fontSize: 11, fontWeight: '800' },
   heroBlock: { marginTop: 72 },
   kicker: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.7 },
-  title: { marginTop: 12, color: colors.ink, fontSize: 42, lineHeight: 42, fontWeight: '900', letterSpacing: -2.2 },
+  title: { marginTop: 12, color: colors.ink, fontSize: 45, lineHeight: 45, fontWeight: '900', letterSpacing: -2.3 },
   subtitle: { marginTop: 14, color: colors.muted, fontSize: 16, lineHeight: 24, fontWeight: '600' },
   previewCard: { marginTop: 28, backgroundColor: colors.ink, borderRadius: radius.xxl, padding: 20, ...shadow.hero },
   previewTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
