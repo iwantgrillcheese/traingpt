@@ -6,8 +6,8 @@ import { supabase } from '../lib/supabase';
 import type { CompletedSessionRow, SessionRow, StravaActivityRow } from '../types';
 import { SessionCard } from '../components/SessionCard';
 import { SessionDetailSheet } from '../components/SessionDetailSheet';
-import { cleanTitle, currentWeekStats, formatDay, formatMinutes, getNextSession, getTodaysSessions, normalizeSport } from '../utils/training';
-import { getSessionPoints, getWeeklyPointStats } from '../utils/sessionPoints';
+import { cleanTitle, currentWeekStats, formatMinutes, getNextSession, getTodaysSessions, normalizeSport } from '../utils/training';
+import { getActiveWeekReferenceDate, getSessionPoints, getWeeklyPointStats } from '../utils/sessionPoints';
 import { sessionHasSameDayStravaMatch } from '../utils/stravaMatching';
 
 function formatToday() {
@@ -63,7 +63,8 @@ export function TodayScreen() {
   const nextSession = useMemo(() => getNextSession(sessions), [sessions]);
   const heroSession = todaysSessions[0] ?? nextSession;
   const stats = useMemo(() => currentWeekStats(sessions, completed), [sessions, completed]);
-  const pointStats = useMemo(() => getWeeklyPointStats(sessions, completed), [sessions, completed]);
+  const activeWeekDate = useMemo(() => getActiveWeekReferenceDate(sessions), [sessions]);
+  const pointStats = useMemo(() => getWeeklyPointStats(sessions, completed, activeWeekDate), [sessions, completed, activeWeekDate]);
   const heroPoints = heroSession ? getSessionPoints(heroSession) : 0;
   const heroViaStrava = heroSession ? sessionHasSameDayStravaMatch(heroSession, stravaActivities) : false;
   const upcoming = useMemo(
@@ -113,10 +114,6 @@ export function TodayScreen() {
             <Text style={styles.brand}>TrainGPT</Text>
             <Text style={styles.date}>{formatToday()}</Text>
           </View>
-          <View style={styles.iconRow}>
-            <View style={styles.iconButton}><Text style={styles.iconButtonText}>♡</Text></View>
-            <View style={styles.iconButton}><Text style={styles.iconButtonText}>◎</Text></View>
-          </View>
         </View>
 
         <Text style={styles.screenTitle}>Today’s read</Text>
@@ -137,7 +134,7 @@ export function TodayScreen() {
             </View>
             <Text style={styles.sessionTitle}>{cleanTitle(heroSession.title)}</Text>
             <View style={styles.metricLine}>
-              {formatMinutes(heroSession.duration) ? <Text style={styles.metricText}>◷ {formatMinutes(heroSession.duration)}</Text> : null}
+              {formatMinutes(heroSession.duration) ? <Text style={styles.metricText}>Time {formatMinutes(heroSession.duration)}</Text> : null}
               <Text style={styles.metricText}>{normalizeSport(heroSession.sport)}</Text>
               <Text style={styles.metricText}>{heroPoints} points available</Text>
             </View>
@@ -146,14 +143,9 @@ export function TodayScreen() {
             <Text style={styles.contextValue}>Build durable fitness for race day</Text>
             <Text style={styles.contextLabel}>Purpose</Text>
             <Text style={styles.contextValue}>{heroSession.details?.replace(/Purpose:|Workout:|Intensity:/gi, '').trim().slice(0, 92) || 'Execute the session with control and leave enough in the tank for the week.'}</Text>
-            <View style={styles.heroActions}>
-              <Pressable onPress={() => setSelectedSession(heroSession)} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
-                <Text style={styles.primaryText}>Open session</Text>
-              </Pressable>
-              <Pressable style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
-                <Text style={styles.secondaryText}>Ask coach</Text>
-              </Pressable>
-            </View>
+            <Pressable onPress={() => setSelectedSession(heroSession)} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
+              <Text style={styles.primaryText}>Open session</Text>
+            </Pressable>
           </Pressable>
         ) : (
           <View style={styles.emptyCard}>
@@ -179,7 +171,6 @@ export function TodayScreen() {
             <Text style={styles.stravaMeta}>{stravaActivities.length} recent activities available for matching</Text>
             <Text style={styles.stravaCopy}>Manual and Strava-matched completions both feed your weekly points and Fitness Score.</Text>
           </View>
-          <View style={styles.sparkline}><View style={styles.sparkFill} /></View>
         </View>
 
         <View style={styles.sectionHeader}>
@@ -192,8 +183,6 @@ export function TodayScreen() {
           <Text style={styles.emptyListText}>No upcoming sessions yet.</Text>
         )}
       </ScrollView>
-
-      <Pressable style={styles.fab}><Text style={styles.fabText}>+</Text></Pressable>
 
       <SessionDetailSheet
         session={selectedSession}
@@ -216,9 +205,6 @@ const styles = StyleSheet.create({
   topRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 },
   brand: { color: colors.ink, fontSize: 20, fontWeight: '900', letterSpacing: -0.7 },
   date: { marginTop: 2, color: colors.muted, fontSize: 15, fontWeight: '600' },
-  iconRow: { flexDirection: 'row', gap: 10 },
-  iconButton: { width: 40, height: 40, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  iconButtonText: { color: colors.ink, fontSize: 20, fontWeight: '900' },
   screenTitle: { marginTop: 34, color: colors.ink, fontSize: 42, lineHeight: 44, fontWeight: '900', letterSpacing: -2.2 },
   error: { marginTop: 14, color: colors.danger, fontWeight: '800' },
   insightCard: { marginTop: 18, minHeight: 178, overflow: 'hidden', backgroundColor: colors.cream, borderRadius: radius.xl, borderColor: '#eadfd2', borderWidth: 1, padding: 20, ...shadow.card },
@@ -238,11 +224,8 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: colors.border, marginVertical: 16 },
   contextLabel: { color: colors.ink, fontSize: 15, fontWeight: '900', marginTop: 6 },
   contextValue: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 3 },
-  heroActions: { flexDirection: 'row', gap: 10, marginTop: 18 },
-  primaryButton: { flex: 1.2, minHeight: 52, backgroundColor: colors.ink, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  primaryButton: { marginTop: 18, minHeight: 52, backgroundColor: colors.ink, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
   primaryText: { color: colors.surface, fontWeight: '900', fontSize: 15 },
-  secondaryButton: { flex: 1, minHeight: 52, borderColor: colors.borderStrong, borderWidth: 1, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
-  secondaryText: { color: colors.ink, fontWeight: '900', fontSize: 15 },
   pressed: { transform: [{ scale: 0.992 }], opacity: 0.94 },
   emptyCard: { marginTop: 14, backgroundColor: colors.surface, borderRadius: radius.xxl, borderColor: colors.border, borderWidth: 1, padding: 24, ...shadow.card },
   emptyKicker: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.5 },
@@ -260,12 +243,8 @@ const styles = StyleSheet.create({
   stravaTitle: { marginTop: 4, color: colors.ink, fontSize: 21, fontWeight: '900', letterSpacing: -0.7 },
   stravaMeta: { marginTop: 3, color: colors.inkSoft, fontSize: 13, fontWeight: '700' },
   stravaCopy: { marginTop: 9, color: colors.muted, fontSize: 13, lineHeight: 20 },
-  sparkline: { width: 86, height: 42, borderRadius: 12, backgroundColor: colors.purpleSoft, overflow: 'hidden', marginTop: 22 },
-  sparkFill: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 22, backgroundColor: '#c4b5fd' },
   sectionHeader: { marginTop: 28, marginBottom: 10, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   sectionTitle: { color: colors.ink, fontSize: 23, fontWeight: '900', letterSpacing: -0.9 },
   sectionHint: { color: colors.faint, fontSize: 12, fontWeight: '800' },
   emptyListText: { color: colors.muted, fontSize: 14, lineHeight: 22 },
-  fab: { position: 'absolute', right: 22, bottom: 106, width: 62, height: 62, borderRadius: 999, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center', ...shadow.floating },
-  fabText: { color: colors.surface, fontSize: 34, lineHeight: 36, fontWeight: '300' },
 });
