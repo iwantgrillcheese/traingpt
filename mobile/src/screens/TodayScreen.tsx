@@ -14,14 +14,24 @@ function formatToday() {
   return new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
 }
 
+function startOfToday() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today;
+}
+
+function isFutureSession(date?: string | null) {
+  if (!date) return false;
+  const sessionDate = new Date(`${date}T00:00:00`);
+  return sessionDate > startOfToday();
+}
+
 function weeksToRace(plan?: PlanRow | null) {
   const raceDate = plan?.race_date ?? plan?.plan?.raceDate ?? plan?.plan?.race_date;
   if (!raceDate) return null;
   const race = new Date(`${raceDate}T00:00:00`);
   if (Number.isNaN(race.getTime())) return null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const days = Math.ceil((race.getTime() - today.getTime()) / 86400000);
+  const days = Math.ceil((race.getTime() - startOfToday().getTime()) / 86400000);
   if (days < 0) return 'Race complete';
   if (days < 7) return `${days} days to race day`;
   return `${Math.ceil(days / 7)} weeks to race day`;
@@ -78,7 +88,7 @@ export function TodayScreen() {
   const raceCountdown = weeksToRace(plan);
   const isToday = Boolean(todaysSessions.length);
   const upcoming = useMemo(
-    () => sessions.filter((session) => new Date(`${session.date}T00:00:00`) >= new Date(new Date().setHours(0, 0, 0, 0))).slice(isToday ? 1 : 0, isToday ? 3 : 2),
+    () => sessions.filter((session) => new Date(`${session.date}T00:00:00`) >= startOfToday()).slice(isToday ? 1 : 0, isToday ? 3 : 2),
     [isToday, sessions]
   );
 
@@ -88,7 +98,7 @@ export function TodayScreen() {
   };
 
   const markDoneFor = async (session: SessionRow) => {
-    if (!user?.id || !session.title) return;
+    if (!user?.id || !session.title || isFutureSession(session.date)) return;
     const existing = completed.filter((row) => row.date !== session.date || row.session_title !== session.title);
     const next = [...existing, { user_id: user.id, date: session.date, session_title: String(session.title), status: 'done' }];
     setCompleted(next);
@@ -98,7 +108,7 @@ export function TodayScreen() {
   };
 
   const skipSession = async (session: SessionRow) => {
-    if (!user?.id || !session.title) return;
+    if (!user?.id || !session.title || isFutureSession(session.date)) return;
     const existing = completed.filter((row) => row.date !== session.date || row.session_title !== session.title);
     const next = [...existing, { user_id: user.id, date: session.date, session_title: String(session.title), status: 'skipped' }];
     setCompleted(next);
@@ -129,7 +139,7 @@ export function TodayScreen() {
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         {heroSession ? (
-          <Pressable onPress={() => setSelectedSession(heroSession)} style={({ pressed }) => [styles.heroCard, heroViaStrava && styles.stravaHero, pressed && styles.pressed]}>
+          <Pressable onPress={() => setSelectedSession(heroSession)} style={({ pressed }) => [styles.heroCard, heroViaStrava && styles.stravaHero, pressed && styles.pressedCard]}>
             <View style={styles.heroTopRow}>
               <Text style={styles.kicker}>{isToday ? 'Today’s workout' : formatDay(heroSession.date)}</Text>
               <Text style={[styles.pointsPill, heroViaStrava && styles.stravaPill]}>{heroViaStrava ? 'Synced via Strava' : `+${heroPoints} pts`}</Text>
@@ -165,7 +175,7 @@ export function TodayScreen() {
             <Text style={styles.weekPoints}>{pointStats.earned}</Text>
             <Text style={styles.weekGoal}>/ {pointStats.available || 0} pts</Text>
           </View>
-          <Text style={styles.weekText}>Bank today’s workout to move your Fitness Score.</Text>
+          <Text style={styles.weekText}>Bank today’s workout to move your Race Readiness.</Text>
         </View>
 
         {upcoming.length ? (
@@ -216,7 +226,7 @@ const styles = StyleSheet.create({
   goalText: { marginTop: 7, color: colors.inkSoft, fontSize: 15, lineHeight: 23, fontWeight: '600' },
   primaryButton: { marginTop: 18, minHeight: 56, backgroundColor: colors.ink, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
   primaryText: { color: colors.surface, fontWeight: '900', fontSize: 16 },
-  pressed: { transform: [{ scale: 0.992 }], opacity: 0.94 },
+  pressedCard: { transform: [{ scale: 0.988 }], opacity: 0.9, backgroundColor: '#f4f4f5' },
   emptyCard: { backgroundColor: colors.surface, borderRadius: radius.xxl, borderColor: colors.border, borderWidth: 1, padding: 24, ...shadow.card },
   emptyTitle: { color: colors.ink, fontSize: 30, lineHeight: 32, fontWeight: '900', letterSpacing: -1.3 },
   emptyText: { marginTop: 10, color: colors.muted, fontSize: 14, lineHeight: 22 },
