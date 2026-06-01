@@ -6,6 +6,7 @@ type Props = {
   currentStep: number;
   steps: string[];
   complete: boolean;
+  progressPercent?: number;
 };
 
 const weekLabels = ['Base', 'Build', 'Peak', 'Taper'];
@@ -17,11 +18,16 @@ const sessionChips = [
   { label: 'Rest', points: '+5', col: 4, row: 0 },
 ];
 
-export function PlanGenerationExperience({ currentStep, steps, complete }: Props) {
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+export function PlanGenerationExperience({ currentStep, steps, complete, progressPercent }: Props) {
   const reveal = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(0)).current;
   const float = useRef(new Animated.Value(0)).current;
-  const progress = Math.round(((currentStep + 1) / Math.max(steps.length, 1)) * 100);
+  const estimatedStepProgress = Math.round(((currentStep + 1) / Math.max(steps.length, 1)) * 86);
+  const progress = complete ? 100 : clamp(progressPercent ?? estimatedStepProgress, 4, 92);
 
   useEffect(() => {
     reveal.setValue(0);
@@ -59,13 +65,17 @@ export function PlanGenerationExperience({ currentStep, steps, complete }: Props
   const glowOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.18, 0.42] });
   const floatY = float.interpolate({ inputRange: [0, 1], outputRange: [0, -8] });
 
-  const activeMessage = complete ? 'Your first weekly mission is ready.' : steps[currentStep] ?? 'Building your plan...';
+  const activeMessage = complete
+    ? 'Your first weekly mission is ready.'
+    : progress >= 88
+      ? 'Finalizing your calendar...'
+      : steps[currentStep] ?? 'Building your plan...';
 
   const visibleChips = useMemo(() => sessionChips.slice(0, Math.min(sessionChips.length, currentStep + 1)), [currentStep]);
 
   return (
     <View style={styles.screen}>
-      <Animated.View style={[styles.content, { opacity: reveal, transform: [{ translateY: revealY }] }]}>
+      <Animated.View style={[styles.content, { opacity: reveal, transform: [{ translateY: revealY }] }]}> 
         <Text style={styles.kicker}>{complete ? 'Mission unlocked' : 'Building plan'}</Text>
         <Text style={styles.title}>{complete ? 'Your calendar is ready.' : 'Building your training calendar.'}</Text>
         <Text style={styles.subtitle}>{activeMessage}</Text>
@@ -76,7 +86,7 @@ export function PlanGenerationExperience({ currentStep, steps, complete }: Props
           <View style={styles.calendarHeader}>
             <View>
               <Text style={styles.cardKicker}>Season structure</Text>
-              <Text style={styles.cardTitle}>{complete ? 'First mission ready' : 'Assembling weeks'}</Text>
+              <Text style={styles.cardTitle}>{complete ? 'First mission ready' : progress >= 88 ? 'Final checks' : 'Assembling weeks'}</Text>
             </View>
             <Text style={styles.percent}>{progress}%</Text>
           </View>
@@ -115,12 +125,12 @@ export function PlanGenerationExperience({ currentStep, steps, complete }: Props
           </View>
 
           <View style={styles.missionUnlock}>
-            <Animated.View style={[styles.medal, { transform: [{ scale: pulseScale }] }]}>
+            <Animated.View style={[styles.medal, { transform: [{ scale: pulseScale }] }]}> 
               <Text style={styles.medalText}>{complete ? '✓' : '★'}</Text>
             </Animated.View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.unlockTitle}>{complete ? 'Fitness Score unlocked' : 'Assigning session points'}</Text>
-              <Text style={styles.unlockText}>Key sessions earn more. Every completed workout moves the score.</Text>
+              <Text style={styles.unlockTitle}>{complete ? 'Fitness Score unlocked' : progress >= 88 ? 'Saving your plan' : 'Assigning session points'}</Text>
+              <Text style={styles.unlockText}>{progress >= 88 && !complete ? 'Almost there. We only show 100% once your plan is saved.' : 'Key sessions earn more. Every completed workout moves the score.'}</Text>
             </View>
           </View>
         </View>
@@ -142,7 +152,7 @@ export function PlanGenerationExperience({ currentStep, steps, complete }: Props
           })}
         </View>
 
-        <Text style={styles.footer}>{complete ? 'Plan saved. Opening your product tour now.' : 'Keep the app open. Longer plans can take up to a minute.'}</Text>
+        <Text style={styles.footer}>{complete ? 'Plan saved. Opening your product tour now.' : progress >= 88 ? 'Final generation can take a little longer. Keep the app open.' : 'Keep the app open. Longer plans can take up to a minute.'}</Text>
       </Animated.View>
     </View>
   );
