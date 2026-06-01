@@ -9,8 +9,7 @@ import {
   isLeapYear,
 } from "date-fns";
 
-import type { UserParams, WeekMeta, PlanType, GeneratedPlan, WeekJson, DayOfWeek, TrainingPrefs } from "@/types/plan";
-import { extractPrefs } from "@/utils/extractPrefs";
+import type { UserParams, WeekMeta, PlanType, GeneratedPlan, WeekJson, DayOfWeek } from "@/types/plan";
 import { convertPlanToSessions } from "@/utils/convertPlanToSessions";
 import { validateGeneratedPlan } from "@/utils/validateGeneratedPlan";
 import { repairGeneratedPlan } from "@/utils/repairGeneratedPlan";
@@ -108,7 +107,7 @@ function computeStravaBaselines(rows: StravaHistoryRow[]) {
     .filter((v): v is number => Number.isFinite(v ?? Number.NaN) && (v ?? 0) > 0);
 
   const bikePowerValues = bikeCandidates
-    .map((r) => (r.weighted_average_watts ?? r.average_watts ?? null))
+    .map((r) => r.weighted_average_watts ?? r.average_watts ?? null)
     .filter((v): v is number => Number.isFinite(v ?? Number.NaN) && (v ?? 0) > 0);
 
   const estimatedLthr = runHrValues.length
@@ -251,6 +250,15 @@ function normalizeGeneratedWeek(raw: unknown, meta: WeekMeta): WeekJson {
   };
 }
 
+function flattenWeekDays(weeks: WeekJson[]): Record<string, any[]> {
+  return weeks.reduce<Record<string, any[]>>((acc, week) => {
+    Object.entries(week.days).forEach(([date, sessions]) => {
+      acc[date] = sessions;
+    });
+    return acc;
+  }, {});
+}
+
 /* ----------------------------- route ----------------------------- */
 
 export async function POST(req: Request) {
@@ -304,16 +312,6 @@ export async function POST(req: Request) {
       routeName: "finalize-plan",
     });
 
-    const { data: latestPlanRow } = await supabase
-      .from("plans")
-      .select("race_date,race_type,plan")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const latestPlanParams = (latestPlanRow?.plan as any)?.params ?? null;
-
     const stravaSinceISO = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
     const { data: stravaRowsRaw, error: stravaRowsError } = await supabase
       .from("strava_activities")
@@ -336,6 +334,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Missing race type" }, { status: 400 });
     }
 
+    const raceDateParsed = parseISO(String(raceDate));
+    if (!isValidDate(raceDateParsed)) {
+      return NextResponse.json({ ok: false, error: "Invalid race date" }, { status: 400 });
+    }
+
     const preferredLongRideDayResolved = normalizeDayName(preferredLongRideDay);
     const preferredLongRunDayResolved = normalizeDayName(preferredLongRunDay);
     const unavailableDaysResolved = normalizeStringArray(unavailableDays)
@@ -356,18 +359,13 @@ export async function POST(req: Request) {
       coachingPriorities: coachingPrioritiesResolved,
     });
 
-    const raceDateParsed = parseISO(String(raceDate));
-    if (!isValidDate(raceDateParsed)) {
-      return NextResponse.json({ ok: false, error: "Invalid race date" }, { status: 400 });
-    }
-
     const startDate = startOfWeek(new Date(), { weekStartsOn: 1 });
     const totalWeeks = Math.max(
       1,
       differenceInCalendarWeeks(raceDateParsed, startDate, { weekStartsOn: 1 })
     );
-
-    const weekMeta = buildPlanMeta(totalWeeks, formatISO(startDate, { representation: "date" }));
+    const startDateISO = formatISO(startDate, { representation: "date" });
+    const weekMeta = buildPlanMeta(totalWeeks, startDateISO);
 
     const normalizedPlanType = normalizePlanType(planType);
     const finalBikeFtp = Number.isFinite(Number(bikeFTP ?? bikeFtp))
@@ -418,13 +416,8 @@ export async function POST(req: Request) {
     const generatedPlan: GeneratedPlan = {
       planType: normalizedPlanType,
       params: userParams,
-      days: generatedWeeks.reduce<Record<string, any[]>>((acc, week) => {
-        Object.entries(week.days).forEach(([date, sessions]) => {
-          acc[date] = sessions;
-        });
-        return acc;
-      }, {}),
       weeks: generatedWeeks,
+      days: flattenWeekDays(generatedWeeks),
       metadata: {
         generatedAt: new Date().toISOString(),
         totalWeeks,
@@ -434,19 +427,27 @@ export async function POST(req: Request) {
     };
 
     let planForStorage = generatedPlan;
-    const validation = validateGeneratedPlan(generatedPlan as any, {
-      raceDate: String(raceDate),
-      totalWeeks,
-      startDate: formatISO(startDate, { representation: "date" }),
+    const validation = validateGeneratedPlan({
+      plan: generatedPlan,
+      expectedWeeks: totalWeeks,
+      userParams,
     });
 
     if (!validation.ok) {
-      console.warn("[finalize-plan] Generated plan failed validation; repairing", validation.issues);
-      planForStorage = repairGeneratedPlan(generatedPlan as any, {
-        raceDate: String(raceDate),
-        totalWeeks,
-        startDate: formatISO(startDate, { representation: "date" }),
-      }) as GeneratedPlan;
+      console.warn("[finalize-plan] Generated plan failed validation; repairing", {
+        errors: validation.errors,
+        warnings: validation.warnings,
+      });
+
+      const repaired = repairGeneratedPlan({
+        plan: generatedPlan,
+        userParams,
+      });
+
+      planForStorage = {
+        ...repaired.plan,
+        days: flattenWeekDays(repaired.plan.weeks),
+      };
     }
 
     const { data: upsertedPlan, error: planSaveError } = await supabase
