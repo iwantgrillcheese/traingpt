@@ -7,6 +7,7 @@ import { PlanScreen } from '../screens/PlanScreen';
 
 type Props = {
   children: React.ReactNode;
+  onPlanCreated?: () => void;
 };
 
 function CheckingPlanScreen() {
@@ -14,12 +15,12 @@ function CheckingPlanScreen() {
     <View style={styles.loading}>
       <View style={styles.loadingMark} />
       <ActivityIndicator />
-      <Text style={styles.loadingText}>Checking your training plan…</Text>
+      <Text style={styles.loadingText}>Checking your training plan...</Text>
     </View>
   );
 }
 
-export function OnboardingGate({ children }: Props) {
+export function OnboardingGate({ children, onPlanCreated }: Props) {
   const { user } = useAuth();
   const [checkingPlan, setCheckingPlan] = useState(true);
   const [hasPlan, setHasPlan] = useState(false);
@@ -47,8 +48,13 @@ export function OnboardingGate({ children }: Props) {
     checkForPlan();
   }, [checkForPlan]);
 
+  const handlePlanCreated = useCallback(() => {
+    onPlanCreated?.();
+    setHasPlan(true);
+  }, [onPlanCreated]);
+
   if (checkingPlan) return <CheckingPlanScreen />;
-  if (!hasPlan) return <PlanScreen onPlanCreated={() => setHasPlan(true)} />;
+  if (!hasPlan) return <PlanScreen onPlanCreated={handlePlanCreated} />;
   return <>{children}</>;
 }
 
