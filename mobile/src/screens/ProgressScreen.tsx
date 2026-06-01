@@ -16,10 +16,6 @@ function startOfToday() {
   return today;
 }
 
-function dateKey(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
-
 function addDays(date: Date, days: number) {
   const next = new Date(date);
   next.setDate(next.getDate() + days);
@@ -39,18 +35,20 @@ function sessionKey(date?: string | null, title?: string | null) {
   return `${date ?? ''}-${String(title ?? '').trim().toLowerCase()}`;
 }
 
-function readinessLabel(score: number) {
+function fitnessLabel(score: number, hasTrainingData: boolean) {
+  if (!hasTrainingData) return 'Start building';
   if (score >= 85) return 'Race-ready trajectory';
-  if (score >= 70) return 'Building well';
-  if (score >= 55) return 'Needs consistency';
+  if (score >= 70) return 'Fitness building';
+  if (score >= 55) return 'Base forming';
   return 'Foundation phase';
 }
 
-function readinessCopy(score: number, streak: number) {
-  if (score >= 85) return `You are stacking the work that matters. ${streak ? `${streak} sessions banked in a row is real momentum.` : 'Keep recovery protected.'}`;
-  if (score >= 70) return 'You are trending in the right direction. The next jump comes from consistent execution, not hero sessions.';
-  if (score >= 55) return 'The plan is still very salvageable. Prioritize showing up for the next few key sessions.';
-  return 'You need rhythm before intensity. Nail the easy sessions, then let the harder work come back in.';
+function fitnessCopy(score: number, streak: number, hasTrainingData: boolean) {
+  if (!hasTrainingData) return 'Complete planned sessions to raise this score. The meter grows as you bank training, protect consistency, and follow the plan.';
+  if (score >= 85) return `Your training is clearly moving the score. ${streak ? `${streak} sessions banked in a row is real momentum.` : 'Keep recovery protected.'}`;
+  if (score >= 70) return 'Your fitness score is climbing. The next jump comes from consistent execution, not hero sessions.';
+  if (score >= 55) return 'You are building a base. Bank the next few planned sessions to push this score higher.';
+  return 'Training adds to this score. Start by completing today’s planned session and building a streak.';
 }
 
 export function ProgressScreen() {
@@ -81,7 +79,7 @@ export function ProgressScreen() {
 
   const stats = useMemo(() => currentWeekStats(sessions, completed), [sessions, completed]);
 
-  const readiness = useMemo(() => {
+  const fitness = useMemo(() => {
     const today = startOfToday();
     const planStart = sessions.length ? new Date(`${sessions[0].date}T00:00:00`) : today;
     const planEnd = sessions.length ? new Date(`${sessions[sessions.length - 1].date}T00:00:00`) : today;
@@ -97,6 +95,7 @@ export function ProgressScreen() {
 
     const plannedToDate = sessions.filter((session) => new Date(`${session.date}T00:00:00`) <= today);
     const doneToDate = plannedToDate.filter((session) => doneKeys.has(sessionKey(session.date, session.title)));
+    const hasTrainingData = plannedToDate.length > 0;
     const planAdherence = plannedToDate.length ? Math.round((doneToDate.length / plannedToDate.length) * 100) : 0;
     const weeklyAdherence = stats.planned ? stats.adherence : planAdherence;
     const weeklyVolumeScore = stats.planned ? clamp(Math.round((stats.done / stats.planned) * 100), 0, 100) : 0;
@@ -127,14 +126,14 @@ export function ProgressScreen() {
     const streakBonus = clamp(currentSessionStreak * 2 + weeklyAdherenceStreak * 4, 0, 12);
     const pointsThisWeek = stats.done * 10 + (stats.planned && stats.adherence >= 80 ? 50 : 0) + weeklyAdherenceStreak * 15;
 
-    const score = sessions.length
+    const score = hasTrainingData
       ? clamp(Math.round(planAdherence * 0.42 + weeklyAdherence * 0.28 + weeklyVolumeScore * 0.18 + streakBonus), 1, 99)
       : 0;
 
     return {
       score,
-      label: readinessLabel(score),
-      copy: readinessCopy(score, currentSessionStreak),
+      label: fitnessLabel(score, hasTrainingData),
+      copy: fitnessCopy(score, currentSessionStreak, hasTrainingData),
       planProgress,
       planAdherence,
       weeklyAdherence,
@@ -144,6 +143,7 @@ export function ProgressScreen() {
       weeklyAdherenceStreak,
       streakBonus,
       pointsThisWeek,
+      hasTrainingData,
     };
   }, [completed, sessions, stats.adherence, stats.done, stats.planned]);
 
@@ -156,45 +156,53 @@ export function ProgressScreen() {
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
     >
-      <Text style={styles.kicker}>Race readiness</Text>
-      <Text style={styles.title}>How ready are you getting?</Text>
-      <Text style={styles.subtitle}>A simple readiness view based on plan progress, week-to-date execution, consistency, and streak momentum.</Text>
+      <Text style={styles.kicker}>Fitness score</Text>
+      <Text style={styles.title}>Training makes this climb.</Text>
+      <Text style={styles.subtitle}>Complete planned sessions, build streaks, and keep weekly adherence high to raise your race readiness.</Text>
 
       <View style={styles.heroCard}>
         <View style={styles.scoreRow}>
           <View style={styles.scoreRing}>
-            <Text style={styles.scoreValue}>{readiness.score || '—'}</Text>
-            <Text style={styles.scoreLabel}>score</Text>
+            <Text style={styles.scoreValue}>{fitness.hasTrainingData ? fitness.score : '—'}</Text>
+            <Text style={styles.scoreLabel}>fitness</Text>
           </View>
           <View style={styles.scoreCopy}>
-            <Text style={styles.heroKicker}>{readiness.label}</Text>
-            <Text style={styles.heroText}>{readiness.copy}</Text>
+            <Text style={styles.heroKicker}>{fitness.label}</Text>
+            <Text style={styles.heroText}>{fitness.copy}</Text>
           </View>
         </View>
         <View style={styles.progressBarTrack}>
-          <View style={[styles.progressBarFill, { width: `${readiness.score || 4}%` }]} />
+          <View style={[styles.progressBarFill, { width: `${fitness.score || 4}%` }]} />
         </View>
+        <Text style={styles.scoreFormula}>Built from plan adherence, this week’s work, completed sessions, and streak momentum.</Text>
       </View>
 
       <View style={styles.streakCard}>
         <View style={styles.streakHeader}>
-          <Text style={styles.label}>Momentum</Text>
-          <Text style={styles.pointsPill}>+{readiness.pointsThisWeek} pts this week</Text>
+          <Text style={styles.label}>Training momentum</Text>
+          <Text style={styles.pointsPill}>+{fitness.pointsThisWeek} pts this week</Text>
         </View>
         <View style={styles.streakGrid}>
           <View style={styles.streakItem}>
-            <Text style={styles.streakValue}>{readiness.currentSessionStreak}</Text>
+            <Text style={styles.streakValue}>{fitness.currentSessionStreak}</Text>
             <Text style={styles.streakLabel}>session streak</Text>
           </View>
           <View style={styles.streakItem}>
-            <Text style={styles.streakValue}>{readiness.weeklyAdherenceStreak}</Text>
+            <Text style={styles.streakValue}>{fitness.weeklyAdherenceStreak}</Text>
             <Text style={styles.streakLabel}>80% weeks</Text>
           </View>
           <View style={styles.streakItem}>
-            <Text style={styles.streakValue}>+{readiness.streakBonus}</Text>
-            <Text style={styles.streakLabel}>readiness bonus</Text>
+            <Text style={styles.streakValue}>+{fitness.streakBonus}</Text>
+            <Text style={styles.streakLabel}>score boost</Text>
           </View>
         </View>
+      </View>
+
+      <View style={styles.howItWorksCard}>
+        <Text style={styles.label}>How to raise it</Text>
+        <Text style={styles.howItWorksText}>✓ Complete planned sessions</Text>
+        <Text style={styles.howItWorksText}>✓ Hit 80%+ weekly adherence</Text>
+        <Text style={styles.howItWorksText}>✓ Stack session and weekly streaks</Text>
       </View>
 
       <View style={styles.grid}>
@@ -212,13 +220,13 @@ export function ProgressScreen() {
 
       <View style={styles.cardLarge}>
         <Text style={styles.label}>Plan-to-date</Text>
-        <Text style={styles.bigValue}>{readiness.planAdherence || 0}%</Text>
-        <Text style={styles.cardMeta}>{readiness.doneToDate}/{readiness.plannedToDate} assigned sessions banked so far.</Text>
+        <Text style={styles.bigValue}>{fitness.planAdherence || 0}%</Text>
+        <Text style={styles.cardMeta}>{fitness.doneToDate}/{fitness.plannedToDate} assigned sessions banked so far.</Text>
       </View>
 
       <View style={styles.cardLargeSoft}>
         <Text style={styles.label}>Race build progress</Text>
-        <Text style={styles.bigValue}>{readiness.planProgress}%</Text>
+        <Text style={styles.bigValue}>{fitness.planProgress}%</Text>
         <Text style={styles.cardMeta}>How far you are through the current plan timeline.</Text>
       </View>
     </ScrollView>
@@ -242,6 +250,7 @@ const styles = StyleSheet.create({
   heroText: { marginTop: 8, color: '#d4d4d8', fontSize: 14, lineHeight: 21, fontWeight: '650' },
   progressBarTrack: { marginTop: 20, height: 9, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.14)', overflow: 'hidden' },
   progressBarFill: { height: '100%', borderRadius: 999, backgroundColor: colors.surface },
+  scoreFormula: { marginTop: 12, color: '#a1a1aa', fontSize: 12, lineHeight: 18, fontWeight: '700' },
   streakCard: { marginTop: 14, backgroundColor: colors.cream, borderColor: colors.border, borderWidth: 1, borderRadius: radius.xl, padding: 18, ...shadow.card },
   streakHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   pointsPill: { overflow: 'hidden', borderRadius: 999, backgroundColor: colors.successSoft, color: colors.success, paddingHorizontal: 10, paddingVertical: 6, fontSize: 12, fontWeight: '900' },
@@ -249,6 +258,8 @@ const styles = StyleSheet.create({
   streakItem: { flex: 1, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: 12 },
   streakValue: { color: colors.ink, fontSize: 28, lineHeight: 30, fontWeight: '900', letterSpacing: -1 },
   streakLabel: { marginTop: 5, color: colors.muted, fontSize: 11, lineHeight: 15, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  howItWorksCard: { marginTop: 12, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: radius.xl, padding: 18, ...shadow.card },
+  howItWorksText: { marginTop: 8, color: colors.inkSoft, fontSize: 15, lineHeight: 22, fontWeight: '750' },
   grid: { marginTop: 14, flexDirection: 'row', gap: 12 },
   card: { flex: 1, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: radius.lg, padding: 16, ...shadow.card },
   cardLarge: { marginTop: 12, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: radius.xl, padding: 20, ...shadow.card },
