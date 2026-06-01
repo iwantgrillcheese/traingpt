@@ -18,6 +18,18 @@ export type CompletedSessionRow = {
   status: 'done' | 'skipped' | string | null;
 };
 
+export type StravaActivityRow = {
+  id?: string;
+  user_id?: string;
+  strava_id?: number | string | null;
+  name?: string | null;
+  sport_type?: string | null;
+  start_date?: string | null;
+  start_date_local?: string | null;
+  moving_time?: number | null;
+  distance?: number | null;
+};
+
 export type PlanRow = {
   id: string;
   user_id?: string;
@@ -30,6 +42,6 @@ export type RootTabParamList = {
   Today: undefined;
   Schedule: undefined;
   Coach: undefined;
-  Progress: undefined;
+  Fitness: undefined;
   Settings: undefined;
 };
