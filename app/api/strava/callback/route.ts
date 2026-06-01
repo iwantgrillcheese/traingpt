@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from 'crypto';
 import { NextResponse } from 'next/server';
 import {
   AuthError,
@@ -13,8 +14,6 @@ function getBaseUrl(req: Request): string {
   const forwardedProto = req.headers.get('x-forwarded-proto') ?? reqUrl.protocol.replace(':', '');
   const forwardedHost = req.headers.get('x-forwarded-host') ?? reqUrl.host;
 
-  // Preserve the exact host that handled the OAuth callback. Redirecting between
-  // apex/www can make Supabase auth cookies appear missing and feel like logout.
   if (forwardedHost) return `${forwardedProto}://${forwardedHost}`;
 
   return process.env.NEXT_PUBLIC_BASE_URL?.trim() || reqUrl.origin;
@@ -25,6 +24,41 @@ function resolveReturnTo(raw: string | null): string {
   if (raw.startsWith('//')) return '/coaching';
 
   return raw;
+}
+
+function stateSecret() {
+  return process.env.STRAVA_STATE_SECRET || process.env.NEXTAUTH_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.OPENAI_API_KEY || 'traingpt-mobile-strava-dev-secret';
+}
+
+function sign(payload: string) {
+  return createHmac('sha256', stateSecret()).update(payload).digest('base64url');
+}
+
+type MobileState = {
+  type: 'mobile';
+  userId: string;
+  appRedirect: string;
+  createdAt: number;
+};
+
+function parseMobileState(raw: string | null): MobileState | null {
+  if (!raw?.startsWith('mobile.')) return null;
+  const [, encoded, signature] = raw.split('.');
+  if (!encoded || !signature) return null;
+
+  const expected = sign(encoded);
+  const left = Buffer.from(signature);
+  const right = Buffer.from(expected);
+  if (left.length !== right.length || !timingSafeEqual(left, right)) return null;
+
+  const parsed = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as MobileState;
+  if (parsed.type !== 'mobile') return null;
+  if (!parsed.userId || !parsed.appRedirect?.startsWith('traingpt://')) return null;
+
+  const ageMs = Date.now() - Number(parsed.createdAt ?? 0);
+  if (ageMs < 0 || ageMs > 1000 * 60 * 20) return null;
+
+  return parsed;
 }
 
 function redirectWithParams({
@@ -47,56 +81,79 @@ function redirectWithParams({
   return NextResponse.redirect(redirectUrl);
 }
 
+function redirectToApp(appRedirect: string, params: Record<string, string>) {
+  const redirectUrl = new URL(appRedirect);
+  for (const [key, value] of Object.entries(params)) {
+    redirectUrl.searchParams.set(key, value);
+  }
+  return NextResponse.redirect(redirectUrl);
+}
+
+async function exchangeStravaToken(code: string) {
+  if (!process.env.STRAVA_CLIENT_ID || !process.env.STRAVA_CLIENT_SECRET) {
+    throw new Error('strava_server_config');
+  }
+
+  const tokenRes = await fetch('https://www.strava.com/oauth/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      client_id: process.env.STRAVA_CLIENT_ID,
+      client_secret: process.env.STRAVA_CLIENT_SECRET,
+      code,
+      grant_type: 'authorization_code',
+    }),
+  });
+
+  const tokenData = await tokenRes.json();
+
+  if (!tokenRes.ok) {
+    console.error('[strava/callback] token exchange failed:', tokenData);
+    throw new Error('strava_token_failed');
+  }
+
+  return tokenData;
+}
+
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const code = url.searchParams.get('code');
-  const returnTo = resolveReturnTo(url.searchParams.get('state') ?? url.searchParams.get('returnTo'));
+  const rawState = url.searchParams.get('state');
+  const mobileState = parseMobileState(rawState);
+  const returnTo = resolveReturnTo(rawState ?? url.searchParams.get('returnTo'));
   const baseUrl = getBaseUrl(req);
 
   if (!code) {
-    return redirectWithParams({
-      baseUrl,
-      returnTo,
-      params: { error: 'missing_code' },
-    });
+    if (mobileState) return redirectToApp(mobileState.appRedirect, { error: 'missing_code' });
+    return redirectWithParams({ baseUrl, returnTo, params: { error: 'missing_code' } });
   }
 
   try {
+    const tokenData = await exchangeStravaToken(code);
+    const { access_token, refresh_token, expires_at, athlete } = tokenData;
+
+    if (mobileState) {
+      const supabase = await createRouteSupabaseClient(req);
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({
+          strava_access_token: access_token,
+          strava_refresh_token: refresh_token,
+          strava_expires_at: expires_at,
+          strava_athlete_id: athlete?.id ?? null,
+        })
+        .eq('id', mobileState.userId);
+
+      if (updateError) {
+        console.error('[strava/callback] mobile profile update failed:', updateError);
+        return redirectToApp(mobileState.appRedirect, { error: 'strava_profile_update_failed' });
+      }
+
+      return redirectToApp(mobileState.appRedirect, { success: 'strava_connected', sync: 'needed' });
+    }
+
     const supabase = await createRouteSupabaseClient();
     const user = await requireUser(supabase);
-
-    if (!process.env.STRAVA_CLIENT_ID || !process.env.STRAVA_CLIENT_SECRET) {
-      return redirectWithParams({
-        baseUrl,
-        returnTo,
-        params: { error: 'strava_server_config' },
-      });
-    }
-
-    const tokenRes = await fetch('https://www.strava.com/oauth/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        client_id: process.env.STRAVA_CLIENT_ID,
-        client_secret: process.env.STRAVA_CLIENT_SECRET,
-        code,
-        grant_type: 'authorization_code',
-      }),
-    });
-
-    const tokenData = await tokenRes.json();
-
-    if (!tokenRes.ok) {
-      console.error('[strava/callback] token exchange failed:', tokenData);
-
-      return redirectWithParams({
-        baseUrl,
-        returnTo,
-        params: { error: 'strava_token_failed' },
-      });
-    }
-
-    const { access_token, refresh_token, expires_at, athlete } = tokenData;
 
     const { error: updateError } = await supabase
       .from('profiles')
@@ -110,34 +167,22 @@ export async function GET(req: Request) {
 
     if (updateError) {
       console.error('[strava/callback] profile update failed:', updateError);
-
-      return redirectWithParams({
-        baseUrl,
-        returnTo,
-        params: { error: 'strava_profile_update_failed' },
-      });
+      return redirectWithParams({ baseUrl, returnTo, params: { error: 'strava_profile_update_failed' } });
     }
 
-    return redirectWithParams({
-      baseUrl,
-      returnTo,
-      params: { success: 'strava_connected', sync: 'needed' },
-    });
+    return redirectWithParams({ baseUrl, returnTo, params: { success: 'strava_connected', sync: 'needed' } });
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'unexpected_error';
     console.error('[strava/callback] failed:', error);
 
-    if (error instanceof AuthError) {
-      return redirectWithParams({
-        baseUrl,
-        returnTo,
-        params: { error: 'no_user_session' },
-      });
+    if (mobileState) {
+      return redirectToApp(mobileState.appRedirect, { error: message || 'unexpected_error' });
     }
 
-    return redirectWithParams({
-      baseUrl,
-      returnTo,
-      params: { error: 'unexpected_error' },
-    });
+    if (error instanceof AuthError) {
+      return redirectWithParams({ baseUrl, returnTo, params: { error: 'no_user_session' } });
+    }
+
+    return redirectWithParams({ baseUrl, returnTo, params: { error: message || 'unexpected_error' } });
   }
 }
