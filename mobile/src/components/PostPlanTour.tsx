@@ -28,10 +28,10 @@ const steps = [
     stat: 'Manual + Strava',
   },
   {
-    kicker: 'Fitness Score',
+    kicker: 'Race Readiness',
     title: 'Your score rises through consistency.',
-    text: 'Bank weekly points, protect the key sessions, and build momentum. This is the number you are chasing.',
-    stat: 'Score unlocked',
+    text: 'Bank weekly points, protect key sessions, and build toward the race-ready range. This is the number you are chasing.',
+    stat: 'Readiness unlocked',
   },
 ];
 
@@ -90,15 +90,15 @@ export function PostPlanTour({ visible, onOpenToday, onOpenSchedule }: Props) {
 
           {isLast ? (
             <View style={styles.finalActions}>
-              <Pressable onPress={openSchedule} style={styles.secondaryButton}>
+              <Pressable onPress={openSchedule} style={({ pressed }) => [styles.secondaryButton, pressed && styles.secondaryPressed]}>
                 <Text style={styles.secondaryText}>View Schedule</Text>
               </Pressable>
-              <Pressable onPress={openToday} style={styles.primaryButton}>
+              <Pressable onPress={openToday} style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryPressed]}>
                 <Text style={styles.primaryText}>Open Today</Text>
               </Pressable>
             </View>
           ) : (
-            <Pressable onPress={next} style={styles.primaryButtonFull}>
+            <Pressable onPress={next} style={({ pressed }) => [styles.primaryButtonFull, pressed && styles.primaryPressed]}>
               <Text style={styles.primaryText}>Continue</Text>
             </Pressable>
           )}
@@ -149,6 +149,8 @@ const styles = StyleSheet.create({
   finalActions: { marginTop: 28, flexDirection: 'row', gap: 12 },
   primaryButton: { flex: 1.3, minHeight: 58, borderRadius: 20, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
   secondaryButton: { flex: 1, minHeight: 58, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  primaryPressed: { transform: [{ scale: 0.975 }], opacity: 0.88, backgroundColor: '#27272a' },
+  secondaryPressed: { transform: [{ scale: 0.975 }], opacity: 0.88, backgroundColor: colors.surfaceMuted },
   primaryText: { color: colors.surface, fontSize: 16, fontWeight: '900' },
   secondaryText: { color: colors.ink, fontSize: 16, fontWeight: '900' },
 });
