@@ -43,27 +43,45 @@ export function LoginScreen() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={styles.navRow}>
           <Text style={styles.brand}>TrainGPT</Text>
-          <Text style={styles.badge}>Native preview</Text>
+          <Text style={styles.badge}>iOS preview</Text>
         </View>
 
         <View style={styles.heroBlock}>
-          <Text style={styles.kicker}>Race day starts here</Text>
-          <Text style={styles.title}>Build the plan. Bank the work.</Text>
-          <Text style={styles.subtitle}>TrainGPT turns your race goal into a weekly mission — every session scored, every completed workout counted.</Text>
+          <Text style={styles.kicker}>AI triathlon training</Text>
+          <Text style={styles.title}>Personalized triathlon plans in seconds.</Text>
+          <Text style={styles.subtitle}>Create a race-ready plan, follow today’s workout, track your progress, and crush your goal.</Text>
         </View>
 
-        <View style={styles.previewCard}>
-          <View style={styles.previewTopRow}>
-            <Text style={styles.previewLabel}>Weekly mission</Text>
-            <Text style={styles.previewMeta}>+220 pts</Text>
+        <View style={styles.valueCard}>
+          <Text style={styles.valueKicker}>What you get</Text>
+          <View style={styles.valueList}>
+            <View style={styles.valueRow}>
+              <View style={styles.checkDot}><Text style={styles.checkText}>✓</Text></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.valueTitle}>A plan built around your race</Text>
+                <Text style={styles.valueText}>Distance, date, experience, weekly hours, and constraints.</Text>
+              </View>
+            </View>
+            <View style={styles.valueRow}>
+              <View style={styles.checkDot}><Text style={styles.checkText}>✓</Text></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.valueTitle}>Today’s workout, clearly shown</Text>
+                <Text style={styles.valueText}>Know exactly what to do and why it matters.</Text>
+              </View>
+            </View>
+            <View style={styles.valueRow}>
+              <View style={styles.checkDot}><Text style={styles.checkText}>✓</Text></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.valueTitle}>Progress that actually feels rewarding</Text>
+                <Text style={styles.valueText}>Complete sessions, bank points, and build race readiness.</Text>
+              </View>
+            </View>
           </View>
-          <Text style={styles.previewTitle}>Hit the key sessions. Build your score.</Text>
-          <Text style={styles.previewText}>Long rides, bricks, and threshold work carry more value. Easy work still counts. Consistency wins.</Text>
         </View>
 
         <View style={styles.formCard}>
-          <Text style={styles.formTitle}>Sign in</Text>
-          <Text style={styles.formSubtitle}>Use the same account you use on TrainGPT web. Your plan, Strava sync, and training history come with you.</Text>
+          <Text style={styles.formTitle}>Start training</Text>
+          <Text style={styles.formSubtitle}>Sign in with Google to create or access your TrainGPT plan.</Text>
 
           <Pressable
             onPress={continueWithGoogle}
@@ -111,7 +129,7 @@ export function LoginScreen() {
           </Pressable>
         </View>
 
-        <Text style={styles.footer}>Google sign-in should return you directly to the app. If it opens web instead, the native redirect is not configured correctly yet.</Text>
+        <Text style={styles.footer}>Generate a plan in the app, then use TrainGPT every day to execute the work.</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -121,21 +139,23 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.pageX, paddingTop: 64, paddingBottom: 40 },
   navRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  brand: { color: colors.ink, fontSize: 18, fontWeight: '900', letterSpacing: -0.6 },
+  brand: { color: colors.ink, fontSize: 20, fontWeight: '900', letterSpacing: -0.7 },
   badge: { overflow: 'hidden', borderRadius: 999, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border, color: colors.muted, paddingHorizontal: 10, paddingVertical: 6, fontSize: 11, fontWeight: '800' },
-  heroBlock: { marginTop: 72 },
+  heroBlock: { marginTop: 64 },
   kicker: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.7 },
-  title: { marginTop: 12, color: colors.ink, fontSize: 45, lineHeight: 45, fontWeight: '900', letterSpacing: -2.3 },
-  subtitle: { marginTop: 14, color: colors.muted, fontSize: 16, lineHeight: 24, fontWeight: '600' },
-  previewCard: { marginTop: 28, backgroundColor: colors.ink, borderRadius: radius.xxl, padding: 20, ...shadow.hero },
-  previewTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  previewLabel: { color: '#a8a29e', fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.4 },
-  previewMeta: { color: '#86efac', fontSize: 12, fontWeight: '900' },
-  previewTitle: { marginTop: 16, color: colors.surface, fontSize: 25, lineHeight: 28, fontWeight: '900', letterSpacing: -1 },
-  previewText: { marginTop: 8, color: '#d6d3d1', fontSize: 14, lineHeight: 21, fontWeight: '600' },
+  title: { marginTop: 12, color: colors.ink, fontSize: 43, lineHeight: 44, fontWeight: '900', letterSpacing: -2.2 },
+  subtitle: { marginTop: 14, color: colors.muted, fontSize: 17, lineHeight: 26, fontWeight: '650' },
+  valueCard: { marginTop: 28, backgroundColor: colors.ink, borderRadius: radius.xxl, padding: 20, ...shadow.hero },
+  valueKicker: { color: '#a8a29e', fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.5 },
+  valueList: { marginTop: 14, gap: 14 },
+  valueRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  checkDot: { width: 26, height: 26, borderRadius: 999, backgroundColor: '#86efac', alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+  checkText: { color: colors.ink, fontSize: 13, fontWeight: '900' },
+  valueTitle: { color: colors.surface, fontSize: 17, lineHeight: 21, fontWeight: '900', letterSpacing: -0.5 },
+  valueText: { marginTop: 3, color: '#d6d3d1', fontSize: 13, lineHeight: 19, fontWeight: '600' },
   formCard: { marginTop: 14, backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, padding: 18, ...shadow.card },
-  formTitle: { color: colors.ink, fontSize: 22, fontWeight: '900', letterSpacing: -0.8 },
-  formSubtitle: { marginTop: 6, color: colors.muted, fontSize: 13, lineHeight: 20, fontWeight: '600' },
+  formTitle: { color: colors.ink, fontSize: 24, fontWeight: '900', letterSpacing: -0.9 },
+  formSubtitle: { marginTop: 6, color: colors.muted, fontSize: 14, lineHeight: 21, fontWeight: '600' },
   googleButton: { marginTop: 16, minHeight: 54, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
   googleButtonText: { color: colors.ink, fontSize: 15, fontWeight: '900' },
   dividerRow: { marginTop: 16, marginBottom: 2, flexDirection: 'row', alignItems: 'center', gap: 10 },
