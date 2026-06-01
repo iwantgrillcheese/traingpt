@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StyleSheet, Text, View } from 'react-native';
 import { TodayScreen } from '../screens/TodayScreen';
@@ -26,9 +27,11 @@ function TabIcon({ label, focused }: { label: string; focused: boolean }) {
   );
 }
 
-function CoreTabs() {
+function CoreTabs({ initialRouteName }: { initialRouteName: keyof RootTabs }) {
   return (
     <Tab.Navigator
+      key={initialRouteName}
+      initialRouteName={initialRouteName}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.ink,
@@ -48,9 +51,11 @@ function CoreTabs() {
 }
 
 export function AuthedExperience() {
+  const [initialTab, setInitialTab] = useState<keyof RootTabs>('Today');
+
   return (
-    <OnboardingGate>
-      <CoreTabs />
+    <OnboardingGate onPlanCreated={() => setInitialTab('Schedule')}>
+      <CoreTabs initialRouteName={initialTab} />
     </OnboardingGate>
   );
 }
