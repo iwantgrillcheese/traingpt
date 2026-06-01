@@ -1,9 +1,19 @@
 // utils/buildCoachPrompt.ts
-import type { WeekMeta, UserParams } from '@/types/plan';
+import type { DayOfWeek, WeekMeta, UserParams } from '@/types/plan';
 import { buildTriathlonWeekScaffold, scaffoldSummary } from './buildTriathlonScaffold';
 
-const dayName = (d: number) =>
-  ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d];
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
+
+function dayLabel(day?: DayOfWeek | null): string {
+  if (typeof day === 'number') return DAY_NAMES[day] ?? String(day);
+  if (typeof day === 'string' && day.trim()) return day.trim();
+  return 'not specified';
+}
+
+function dayDebug(day?: DayOfWeek | null): string {
+  if (day === undefined || day === null || day === '') return 'not specified';
+  return String(day);
+}
 
 function listOrNone(items?: string[]) {
   return items?.length ? items.join(', ') : 'none';
@@ -54,9 +64,9 @@ The weekly structure below is the source of truth. Do not move, add, or remove s
 ${scaffoldSummary(scaffold)}
 
 ## Scheduling Preferences and Constraints
-- Long Ride Day: ${userParams.preferredLongRideDay ?? dayName(longRideDay)} (${longRideDay})
-- Long Run Day: ${userParams.preferredLongRunDay ?? dayName(longRunDay)} (${longRunDay})
-- Brick Allowed Day(s): ${brickDays.map(dayName).join(', ')} (${brickDays.join(',')})
+- Long Ride Day: ${userParams.preferredLongRideDay ? dayLabel(userParams.preferredLongRideDay) : dayLabel(longRideDay)} (${dayDebug(longRideDay)})
+- Long Run Day: ${userParams.preferredLongRunDay ? dayLabel(userParams.preferredLongRunDay) : dayLabel(longRunDay)} (${dayDebug(longRunDay)})
+- Brick Allowed Day(s): ${brickDays.map(dayLabel).join(', ')} (${brickDays.map(dayDebug).join(',')})
 - Rest Day: ${userParams.restDay}
 - Unavailable Days: ${listOrNone(userParams.unavailableDays)}
 - Two-a-days allowed: ${yesNo(userParams.twoADaysAllowed)}
@@ -68,7 +78,7 @@ ${scaffoldSummary(scaffold)}
 - Parsed constraints summary: ${userParams.constraintsSummary?.trim() || 'none'}
 
 ## Metrics
-- Bike FTP: ${userParams.bikeFtp ?? 'unknown'}
+- Bike FTP: ${userParams.bikeFtp ?? userParams.bikeFTP ?? 'unknown'}
 - Run Threshold Pace: ${userParams.runPace ?? 'unknown'}
 - Swim CSS: ${userParams.swimPace ?? 'unknown'}
 
