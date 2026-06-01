@@ -469,11 +469,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Plan generated but could not be saved" }, { status: 500 });
     }
 
-    const sessions = convertPlanToSessions({
-      plan: planForStorage as any,
-      userId,
-      planId: upsertedPlan.id,
-    });
+    const sessions = convertPlanToSessions(userId, upsertedPlan.id, planForStorage as any);
 
     await supabase.from("sessions").delete().eq("user_id", userId);
 
