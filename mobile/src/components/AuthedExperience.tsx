@@ -13,8 +13,8 @@ type RootTabs = {
   Today: undefined;
   Schedule: undefined;
   Coach: undefined;
-  Progress: undefined;
-  Gear: undefined;
+  Fitness: undefined;
+  Settings: undefined;
 };
 
 const Tab = createBottomTabNavigator<RootTabs>();
@@ -44,8 +44,8 @@ function CoreTabs({ initialRouteName }: { initialRouteName: keyof RootTabs }) {
       <Tab.Screen name="Today" component={TodayScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="T" focused={focused} /> }} />
       <Tab.Screen name="Schedule" component={ScheduleScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="S" focused={focused} /> }} />
       <Tab.Screen name="Coach" component={CoachScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="C" focused={focused} /> }} />
-      <Tab.Screen name="Progress" component={ProgressScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="P" focused={focused} /> }} />
-      <Tab.Screen name="Gear" component={GearScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="G" focused={focused} /> }} />
+      <Tab.Screen name="Fitness" component={ProgressScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="F" focused={focused} /> }} />
+      <Tab.Screen name="Settings" component={GearScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="Set" focused={focused} /> }} />
     </Tab.Navigator>
   );
 }
@@ -91,6 +91,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceMuted,
   },
   tabIconActive: { backgroundColor: colors.ink },
-  tabIconText: { color: colors.muted, fontSize: 11, fontWeight: '900' },
+  tabIconText: { color: colors.muted, fontSize: 10, fontWeight: '900' },
   tabIconTextActive: { color: colors.surface },
 });
