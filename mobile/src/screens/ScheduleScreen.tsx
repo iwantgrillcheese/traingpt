@@ -1,16 +1,28 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors, radius, shadow, spacing } from '../design/theme';
 import { useAuth } from '../auth/AuthProvider';
 import { supabase } from '../lib/supabase';
 import type { CompletedSessionRow, SessionRow, StravaActivityRow } from '../types';
 import { SessionCard } from '../components/SessionCard';
 import { SessionDetailSheet } from '../components/SessionDetailSheet';
-import { currentWeekStats, formatDay, parseDate } from '../utils/training';
-import { getActiveWeekReferenceDate, getWeeklyPointStats } from '../utils/sessionPoints';
+import { formatDay, parseDate } from '../utils/training';
+import { completedKeySet, getActiveWeekReferenceDate, getTotalAvailablePoints, sessionCompletionKey } from '../utils/sessionPoints';
 
-function groupByWeek(sessions: SessionRow[]) {
-  const weeks = new Map<string, { label: string; range: string; days: Map<string, SessionRow[]> }>();
+type WeekGroup = {
+  key: string;
+  index: number;
+  label: string;
+  range: string;
+  days: [string, SessionRow[]][];
+  points: number;
+  completedCount: number;
+  sessionCount: number;
+};
+
+function groupByWeek(sessions: SessionRow[], completed: CompletedSessionRow[]): WeekGroup[] {
+  const done = completedKeySet(completed);
+  const weeks = new Map<string, { range: string; days: Map<string, SessionRow[]> }>();
 
   sessions.forEach((session) => {
     const date = parseDate(session.date);
@@ -24,23 +36,28 @@ function groupByWeek(sessions: SessionRow[]) {
     end.setDate(start.getDate() + 6);
 
     const weekKey = start.toISOString().slice(0, 10);
-    const label = `Week of ${new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(start)}`;
     const range = `${new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(start)} – ${new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(end)}`;
 
-    if (!weeks.has(weekKey)) weeks.set(weekKey, { label, range, days: new Map() });
+    if (!weeks.has(weekKey)) weeks.set(weekKey, { range, days: new Map() });
     const week = weeks.get(weekKey)!;
     const existing = week.days.get(session.date) ?? [];
     existing.push(session);
     week.days.set(session.date, existing);
   });
 
-  return Array.from(weeks.entries()).map(([key, week], index) => ({
-    key,
-    index,
-    label: `Week ${index + 1}`,
-    range: week.range,
-    days: Array.from(week.days.entries()).sort(([a], [b]) => parseDate(a).getTime() - parseDate(b).getTime()),
-  }));
+  return Array.from(weeks.entries()).map(([key, week], index) => {
+    const weekSessions = Array.from(week.days.values()).flat();
+    return {
+      key,
+      index,
+      label: `Training Week ${index + 1}`,
+      range: week.range,
+      days: Array.from(week.days.entries()).sort(([a], [b]) => parseDate(a).getTime() - parseDate(b).getTime()),
+      points: getTotalAvailablePoints(weekSessions),
+      completedCount: weekSessions.filter((session) => done.has(sessionCompletionKey(session.date, session.title))).length,
+      sessionCount: weekSessions.length,
+    };
+  });
 }
 
 export function ScheduleScreen() {
@@ -51,6 +68,7 @@ export function ScheduleScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedSession, setSelectedSession] = useState<SessionRow | null>(null);
+  const [openWeeks, setOpenWeeks] = useState<Record<string, boolean>>({});
 
   const load = useCallback(async () => {
     if (!user?.id) return;
@@ -98,10 +116,29 @@ export function ScheduleScreen() {
     await supabase.from('completed_sessions').insert({ user_id: user.id, date: session.date, session_title: session.title, status: 'skipped' });
   };
 
-  const weeks = useMemo(() => groupByWeek(sessions), [sessions]);
-  const stats = useMemo(() => currentWeekStats(sessions, completed), [sessions, completed]);
+  const weeks = useMemo(() => groupByWeek(sessions, completed), [sessions, completed]);
   const activeWeekDate = useMemo(() => getActiveWeekReferenceDate(sessions), [sessions]);
-  const pointStats = useMemo(() => getWeeklyPointStats(sessions, completed, activeWeekDate), [sessions, completed, activeWeekDate]);
+  const activeWeekKey = useMemo(() => {
+    const start = new Date(activeWeekDate);
+    const day = start.getDay();
+    const offset = day === 0 ? -6 : 1 - day;
+    start.setDate(start.getDate() + offset);
+    start.setHours(0, 0, 0, 0);
+    return start.toISOString().slice(0, 10);
+  }, [activeWeekDate]);
+
+  useEffect(() => {
+    if (!weeks.length) return;
+    setOpenWeeks((prev) => {
+      if (Object.keys(prev).length) return prev;
+      const firstOpen = weeks.find((week) => week.key === activeWeekKey)?.key ?? weeks[0].key;
+      return { [firstOpen]: true };
+    });
+  }, [activeWeekKey, weeks]);
+
+  const toggleWeek = (weekKey: string) => {
+    setOpenWeeks((prev) => ({ ...prev, [weekKey]: !prev[weekKey] }));
+  };
 
   if (loading) return <View style={styles.center}><ActivityIndicator /></View>;
 
@@ -111,47 +148,47 @@ export function ScheduleScreen() {
         <View style={styles.header}>
           <Text style={styles.kicker}>Training calendar</Text>
           <Text style={styles.title}>Schedule</Text>
-          <Text style={styles.subtitle}>Your full plan, grouped by week. Tap any session to view details, mark it done, or bank points.</Text>
+          <Text style={styles.subtitle}>Open each training week to see the work. Tap any session to view details or bank points.</Text>
         </View>
 
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryCol}>
-            <Text style={styles.summaryValue}>{pointStats.earned}/{pointStats.available || 0}</Text>
-            <Text style={styles.summaryLabel}>Active week points</Text>
-          </View>
-          <View style={styles.summaryDivider} />
-          <View style={styles.summaryCol}>
-            <Text style={styles.summaryValue}>{stats.done}/{stats.planned || 0}</Text>
-            <Text style={styles.summaryLabel}>This week complete</Text>
-          </View>
-        </View>
+        {weeks.length ? weeks.map((week) => {
+          const isOpen = Boolean(openWeeks[week.key]);
+          const isActive = week.key === activeWeekKey;
+          return (
+            <View key={week.key} style={[styles.weekCard, isActive && styles.weekCardActive]}>
+              <Pressable onPress={() => toggleWeek(week.key)} style={({ pressed }) => [styles.weekHeader, pressed && styles.pressed]}>
+                <View style={{ flex: 1 }}>
+                  <View style={styles.weekTitleRow}>
+                    <Text style={styles.weekLabel}>{week.label}</Text>
+                    {isActive ? <Text style={styles.activePill}>Active</Text> : null}
+                  </View>
+                  <Text style={styles.weekRange}>{week.range}</Text>
+                  <Text style={styles.weekMeta}>{week.completedCount}/{week.sessionCount} complete · {week.points} pts available</Text>
+                </View>
+                <Text style={styles.chevron}>{isOpen ? '⌄' : '›'}</Text>
+              </Pressable>
 
-        {weeks.length ? weeks.map((week) => (
-          <View key={week.key} style={styles.weekSection}>
-            <View style={styles.weekHeader}>
-              <View>
-                <Text style={styles.weekLabel}>{week.label}</Text>
-                <Text style={styles.weekRange}>{week.range}</Text>
-              </View>
-              <Text style={styles.weekCount}>{week.days.reduce((sum, [, items]) => sum + items.length, 0)} sessions</Text>
+              {isOpen ? (
+                <View style={styles.weekBody}>
+                  {week.days.map(([date, items]) => (
+                    <View key={date} style={styles.dayGroup}>
+                      <Text style={styles.dayLabel}>{formatDay(date)}</Text>
+                      {items.map((session) => (
+                        <SessionCard
+                          key={session.id}
+                          session={session}
+                          completed={completed}
+                          stravaActivities={stravaActivities}
+                          onPress={() => setSelectedSession(session)}
+                        />
+                      ))}
+                    </View>
+                  ))}
+                </View>
+              ) : null}
             </View>
-
-            {week.days.map(([date, items]) => (
-              <View key={date} style={styles.dayGroup}>
-                <Text style={styles.dayLabel}>{formatDay(date)}</Text>
-                {items.map((session) => (
-                  <SessionCard
-                    key={session.id}
-                    session={session}
-                    completed={completed}
-                    stravaActivities={stravaActivities}
-                    onPress={() => setSelectedSession(session)}
-                  />
-                ))}
-              </View>
-            ))}
-          </View>
-        )) : (
+          );
+        }) : (
           <View style={styles.emptyCard}>
             <Text style={styles.emptyTitle}>No sessions yet.</Text>
             <Text style={styles.emptyText}>Create a plan and your schedule will appear here.</Text>
@@ -176,22 +213,23 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.pageX, paddingTop: 62, paddingBottom: 132 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
-  header: { marginBottom: 20 },
+  header: { marginBottom: 18 },
   kicker: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.8 },
   title: { marginTop: 12, color: colors.ink, fontSize: 46, lineHeight: 47, fontWeight: '900', letterSpacing: -2.4 },
   subtitle: { marginTop: 12, color: colors.inkSoft, fontSize: 16, lineHeight: 24, fontWeight: '500' },
-  summaryCard: { flexDirection: 'row', backgroundColor: colors.ink, borderRadius: radius.xl, paddingVertical: 18, paddingHorizontal: 6, ...shadow.hero },
-  summaryCol: { flex: 1, alignItems: 'center', paddingHorizontal: 12 },
-  summaryDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.16)' },
-  summaryValue: { color: colors.surface, fontSize: 25, fontWeight: '900', letterSpacing: -0.9 },
-  summaryLabel: { marginTop: 6, color: '#d4d4d8', fontSize: 12, lineHeight: 17, fontWeight: '800', textAlign: 'center' },
-  weekSection: { marginTop: 26 },
-  weekHeader: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 12 },
-  weekLabel: { color: colors.ink, fontSize: 24, fontWeight: '900', letterSpacing: -1 },
-  weekRange: { marginTop: 3, color: colors.muted, fontSize: 13, fontWeight: '750' },
-  weekCount: { color: colors.success, fontSize: 12, fontWeight: '900' },
-  dayGroup: { marginBottom: 14 },
+  weekCard: { marginTop: 12, backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, overflow: 'hidden', ...shadow.card },
+  weekCardActive: { borderColor: '#86efac', backgroundColor: '#fbfffb' },
+  weekHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
+  weekTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  weekLabel: { color: colors.ink, fontSize: 22, fontWeight: '900', letterSpacing: -0.8 },
+  activePill: { overflow: 'hidden', borderRadius: 999, backgroundColor: colors.successSoft, color: colors.success, paddingHorizontal: 8, paddingVertical: 4, fontSize: 10, fontWeight: '900' },
+  weekRange: { marginTop: 4, color: colors.muted, fontSize: 13, fontWeight: '800' },
+  weekMeta: { marginTop: 8, color: colors.inkSoft, fontSize: 13, lineHeight: 19, fontWeight: '700' },
+  chevron: { color: colors.ink, fontSize: 30, lineHeight: 32, fontWeight: '600' },
+  weekBody: { paddingHorizontal: 14, paddingBottom: 12, borderTopWidth: 1, borderTopColor: colors.border },
+  dayGroup: { marginTop: 14 },
   dayLabel: { marginBottom: 8, color: colors.faint, fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
+  pressed: { opacity: 0.72 },
   emptyCard: { marginTop: 20, backgroundColor: colors.surface, borderRadius: radius.xl, borderColor: colors.border, borderWidth: 1, padding: 20, ...shadow.card },
   emptyTitle: { color: colors.ink, fontSize: 23, fontWeight: '900', letterSpacing: -0.8 },
   emptyText: { marginTop: 8, color: colors.muted, fontSize: 14, lineHeight: 22 },
