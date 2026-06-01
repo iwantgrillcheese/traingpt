@@ -3,10 +3,10 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, T
 import { colors, radius, shadow, spacing } from '../design/theme';
 import { useAuth } from '../auth/AuthProvider';
 import { supabase } from '../lib/supabase';
-import type { CompletedSessionRow, SessionRow, StravaActivityRow } from '../types';
+import type { CompletedSessionRow, PlanRow, SessionRow, StravaActivityRow } from '../types';
 import { SessionCard } from '../components/SessionCard';
 import { SessionDetailSheet } from '../components/SessionDetailSheet';
-import { cleanTitle, currentWeekStats, formatMinutes, getNextSession, getTodaysSessions, normalizeSport } from '../utils/training';
+import { cleanTitle, formatDay, formatMinutes, getNextSession, getTodaysSessions, normalizeSport } from '../utils/training';
 import { getActiveWeekReferenceDate, getSessionPoints, getWeeklyPointStats } from '../utils/sessionPoints';
 import { sessionHasSameDayStravaMatch } from '../utils/stravaMatching';
 
@@ -14,11 +14,17 @@ function formatToday() {
   return new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
 }
 
-function coachRead(stats: ReturnType<typeof currentWeekStats>) {
-  if (!stats.planned) return 'Build the plan first. Then this becomes your daily training room.';
-  if (stats.adherence >= 80) return 'Good day to build, not test.';
-  if (stats.adherence >= 45) return 'Stay steady and protect the key sessions.';
-  return 'Reset the week. One good session gets the rhythm back.';
+function weeksToRace(plan?: PlanRow | null) {
+  const raceDate = plan?.race_date ?? plan?.plan?.raceDate ?? plan?.plan?.race_date;
+  if (!raceDate) return null;
+  const race = new Date(`${raceDate}T00:00:00`);
+  if (Number.isNaN(race.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.ceil((race.getTime() - today.getTime()) / 86400000);
+  if (days < 0) return 'Race complete';
+  if (days < 7) return `${days} days to race day`;
+  return `${Math.ceil(days / 7)} weeks to race day`;
 }
 
 export function TodayScreen() {
@@ -26,6 +32,7 @@ export function TodayScreen() {
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [completed, setCompleted] = useState<CompletedSessionRow[]>([]);
   const [stravaActivities, setStravaActivities] = useState<StravaActivityRow[]>([]);
+  const [plan, setPlan] = useState<PlanRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,10 +42,11 @@ export function TodayScreen() {
     if (!user?.id) return;
     setError(null);
 
-    const [{ data: sessionRows, error: sessionError }, { data: completedRows, error: completedError }, { data: stravaRows }] = await Promise.all([
-      supabase.from('sessions').select('id,user_id,plan_id,date,sport,title,duration,details,structured_workout').eq('user_id', user.id).order('date', { ascending: true }).limit(400),
+    const [{ data: sessionRows, error: sessionError }, { data: completedRows, error: completedError }, { data: stravaRows }, { data: planRows }] = await Promise.all([
+      supabase.from('sessions').select('id,user_id,plan_id,date,sport,title,duration,details,structured_workout').eq('user_id', user.id).order('date', { ascending: true }).limit(500),
       supabase.from('completed_sessions').select('id,user_id,date,session_title,status').eq('user_id', user.id),
       supabase.from('strava_activities').select('id,user_id,strava_id,name,sport_type,start_date,start_date_local,moving_time,distance').eq('user_id', user.id).order('start_date', { ascending: false }).limit(120),
+      supabase.from('plans').select('id,user_id,race_type,race_date,plan').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1),
     ]);
 
     if (sessionError || completedError) {
@@ -48,6 +56,7 @@ export function TodayScreen() {
     setSessions((sessionRows ?? []) as SessionRow[]);
     setCompleted((completedRows ?? []) as CompletedSessionRow[]);
     setStravaActivities((stravaRows ?? []) as StravaActivityRow[]);
+    setPlan(((planRows ?? []) as PlanRow[])[0] ?? null);
     setLoading(false);
   }, [user?.id]);
 
@@ -62,14 +71,15 @@ export function TodayScreen() {
   const todaysSessions = useMemo(() => getTodaysSessions(sessions), [sessions]);
   const nextSession = useMemo(() => getNextSession(sessions), [sessions]);
   const heroSession = todaysSessions[0] ?? nextSession;
-  const stats = useMemo(() => currentWeekStats(sessions, completed), [sessions, completed]);
   const activeWeekDate = useMemo(() => getActiveWeekReferenceDate(sessions), [sessions]);
   const pointStats = useMemo(() => getWeeklyPointStats(sessions, completed, activeWeekDate), [sessions, completed, activeWeekDate]);
   const heroPoints = heroSession ? getSessionPoints(heroSession) : 0;
   const heroViaStrava = heroSession ? sessionHasSameDayStravaMatch(heroSession, stravaActivities) : false;
+  const raceCountdown = weeksToRace(plan);
+  const isToday = Boolean(todaysSessions.length);
   const upcoming = useMemo(
-    () => sessions.filter((session) => new Date(`${session.date}T00:00:00`) >= new Date(new Date().setHours(0, 0, 0, 0))).slice(0, 3),
-    [sessions]
+    () => sessions.filter((session) => new Date(`${session.date}T00:00:00`) >= new Date(new Date().setHours(0, 0, 0, 0))).slice(isToday ? 1 : 0, isToday ? 3 : 2),
+    [isToday, sessions]
   );
 
   const updateSessionLocally = (updated: SessionRow) => {
@@ -101,7 +111,7 @@ export function TodayScreen() {
     return (
       <View style={styles.center}>
         <ActivityIndicator />
-        <Text style={styles.loadingText}>Opening your training room...</Text>
+        <Text style={styles.loadingText}>Opening today’s workout...</Text>
       </View>
     );
   }
@@ -109,79 +119,63 @@ export function TodayScreen() {
   return (
     <>
       <ScrollView style={styles.container} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
-        <View style={styles.topRow}>
-          <View>
-            <Text style={styles.brand}>TrainGPT</Text>
-            <Text style={styles.date}>{formatToday()}</Text>
-          </View>
+        <View style={styles.header}>
+          <Text style={styles.brand}>TrainGPT</Text>
+          <Text style={styles.date}>{formatToday()}</Text>
+          <Text style={styles.title}>{isToday ? 'Do this today.' : 'Up next.'}</Text>
+          <Text style={styles.subtitle}>{raceCountdown ?? 'Your daily training work, simplified.'}</Text>
         </View>
 
-        <Text style={styles.screenTitle}>Today’s read</Text>
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        <View style={styles.insightCard}>
-          <Text style={styles.insightKicker}>Coaching insight</Text>
-          <Text style={styles.insightTitle}>{coachRead(stats)}</Text>
-          <Text style={styles.insightText}>This week: {pointStats.earned}/{pointStats.available || 0} points banked. Complete the sessions that matter and your Fitness Score moves.</Text>
-          <View style={styles.contourDot} />
-        </View>
-
         {heroSession ? (
-          <Pressable onPress={() => setSelectedSession(heroSession)} style={({ pressed }) => [styles.sessionHero, heroViaStrava && styles.stravaHero, pressed && styles.pressed]}>
-            <View style={styles.sessionHeader}>
-              <Text style={styles.cardKicker}>Today’s session</Text>
-              <Text style={[styles.plannedPill, heroViaStrava && styles.stravaPill]}>{heroViaStrava ? 'Synced via Strava' : `+${heroPoints} pts`}</Text>
+          <Pressable onPress={() => setSelectedSession(heroSession)} style={({ pressed }) => [styles.heroCard, heroViaStrava && styles.stravaHero, pressed && styles.pressed]}>
+            <View style={styles.heroTopRow}>
+              <Text style={styles.kicker}>{isToday ? 'Today’s workout' : formatDay(heroSession.date)}</Text>
+              <Text style={[styles.pointsPill, heroViaStrava && styles.stravaPill]}>{heroViaStrava ? 'Synced via Strava' : `+${heroPoints} pts`}</Text>
             </View>
+
             <Text style={styles.sessionTitle}>{cleanTitle(heroSession.title)}</Text>
-            <View style={styles.metricLine}>
-              {formatMinutes(heroSession.duration) ? <Text style={styles.metricText}>Time {formatMinutes(heroSession.duration)}</Text> : null}
-              <Text style={styles.metricText}>{normalizeSport(heroSession.sport)}</Text>
-              <Text style={styles.metricText}>{heroPoints} points available</Text>
+
+            <View style={styles.metaRow}>
+              {formatMinutes(heroSession.duration) ? <Text style={styles.metaText}>{formatMinutes(heroSession.duration)}</Text> : null}
+              <Text style={styles.metaText}>{normalizeSport(heroSession.sport)}</Text>
+              <Text style={styles.metaText}>{heroPoints} points available</Text>
             </View>
-            <View style={styles.divider} />
-            <Text style={styles.contextLabel}>Race context</Text>
-            <Text style={styles.contextValue}>Build durable fitness for race day</Text>
-            <Text style={styles.contextLabel}>Purpose</Text>
-            <Text style={styles.contextValue}>{heroSession.details?.replace(/Purpose:|Workout:|Intensity:/gi, '').trim().slice(0, 92) || 'Execute the session with control and leave enough in the tank for the week.'}</Text>
-            <Pressable onPress={() => setSelectedSession(heroSession)} style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}>
-              <Text style={styles.primaryText}>Open session</Text>
-            </Pressable>
+
+            <View style={styles.goalBox}>
+              <Text style={styles.goalLabel}>Goal</Text>
+              <Text style={styles.goalText}>{heroSession.details?.replace(/Purpose:|Workout:|Intensity:/gi, '').trim().slice(0, 120) || 'Complete the work calmly. Bank the points. Keep the week moving.'}</Text>
+            </View>
+
+            <View style={styles.primaryButton}>
+              <Text style={styles.primaryText}>Open workout</Text>
+            </View>
           </Pressable>
         ) : (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyKicker}>No plan yet</Text>
-            <Text style={styles.emptyTitle}>Build your first training plan.</Text>
-            <Text style={styles.emptyText}>Use onboarding to create a calendar. Once it’s live, Today becomes your daily training room.</Text>
+            <Text style={styles.emptyTitle}>No workout today.</Text>
+            <Text style={styles.emptyText}>Enjoy the lighter day. Your next session will appear here when it’s ready.</Text>
           </View>
         )}
 
-        <View style={styles.statsStrip}>
-          <View style={styles.statCol}><Text style={styles.statValue}>{pointStats.earned}/{pointStats.available || 0}</Text><Text style={styles.statLabel}>Weekly points</Text></View>
-          <View style={styles.statDivider} />
-          <View style={styles.statCol}><Text style={styles.statValue}>{stats.done}/{stats.planned || 0}</Text><Text style={styles.statLabel}>Sessions complete</Text></View>
-          <View style={styles.statDivider} />
-          <View style={styles.statCol}><Text style={styles.statValue}>{stats.planned ? `${stats.adherence}%` : '—'}</Text><Text style={styles.statLabel}>Adherence</Text></View>
-        </View>
-
-        <View style={styles.stravaInsight}>
-          <View style={styles.stravaIcon}><Text style={styles.stravaIconText}>◌</Text></View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.stravaKicker}>Strava matching</Text>
-            <Text style={styles.stravaTitle}>Auto-completions count</Text>
-            <Text style={styles.stravaMeta}>{stravaActivities.length} recent activities available for matching</Text>
-            <Text style={styles.stravaCopy}>Manual and Strava-matched completions both feed your weekly points and Fitness Score.</Text>
+        <View style={styles.weekCard}>
+          <Text style={styles.kicker}>This week</Text>
+          <View style={styles.weekRow}>
+            <Text style={styles.weekPoints}>{pointStats.earned}</Text>
+            <Text style={styles.weekGoal}>/ {pointStats.available || 0} pts</Text>
           </View>
+          <Text style={styles.weekText}>Bank today’s workout to move your Fitness Score.</Text>
         </View>
 
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Up next</Text>
-          <Text style={styles.sectionHint}>Pull to refresh</Text>
-        </View>
-        {upcoming.length ? upcoming.map((session) => (
-          <SessionCard key={session.id} session={session} completed={completed} stravaActivities={stravaActivities} onPress={() => setSelectedSession(session)} />
-        )) : (
-          <Text style={styles.emptyListText}>No upcoming sessions yet.</Text>
-        )}
+        {upcoming.length ? (
+          <View style={styles.nextSection}>
+            <Text style={styles.sectionTitle}>Coming up</Text>
+            {upcoming.map((session) => (
+              <SessionCard key={session.id} session={session} completed={completed} stravaActivities={stravaActivities} onPress={() => setSelectedSession(session)} />
+            ))}
+          </View>
+        ) : null}
       </ScrollView>
 
       <SessionDetailSheet
@@ -202,49 +196,35 @@ const styles = StyleSheet.create({
   content: { padding: spacing.pageX, paddingTop: 62, paddingBottom: 138 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
   loadingText: { marginTop: 10, color: colors.muted, fontWeight: '700' },
-  topRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 },
+  header: { marginBottom: 20 },
   brand: { color: colors.ink, fontSize: 20, fontWeight: '900', letterSpacing: -0.7 },
-  date: { marginTop: 2, color: colors.muted, fontSize: 15, fontWeight: '600' },
-  screenTitle: { marginTop: 34, color: colors.ink, fontSize: 42, lineHeight: 44, fontWeight: '900', letterSpacing: -2.2 },
-  error: { marginTop: 14, color: colors.danger, fontWeight: '800' },
-  insightCard: { marginTop: 18, minHeight: 178, overflow: 'hidden', backgroundColor: colors.cream, borderRadius: radius.xl, borderColor: '#eadfd2', borderWidth: 1, padding: 20, ...shadow.card },
-  insightKicker: { color: '#a67c52', fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
-  insightTitle: { marginTop: 20, color: colors.ink, fontSize: 30, lineHeight: 34, fontWeight: '900', letterSpacing: -1.3 },
-  insightText: { marginTop: 12, color: colors.inkSoft, fontSize: 15, lineHeight: 24, maxWidth: '86%' },
-  contourDot: { position: 'absolute', right: 38, bottom: 42, width: 26, height: 26, borderRadius: 999, backgroundColor: '#d8bda0', opacity: 0.45 },
-  sessionHero: { marginTop: 14, backgroundColor: colors.surface, borderRadius: radius.xl, borderColor: colors.border, borderWidth: 1, padding: 18, ...shadow.card },
+  date: { marginTop: 4, color: colors.muted, fontSize: 15, fontWeight: '700' },
+  title: { marginTop: 28, color: colors.ink, fontSize: 46, lineHeight: 47, fontWeight: '900', letterSpacing: -2.3 },
+  subtitle: { marginTop: 10, color: colors.inkSoft, fontSize: 16, lineHeight: 23, fontWeight: '650' },
+  error: { marginBottom: 12, color: colors.danger, fontWeight: '800' },
+  heroCard: { backgroundColor: colors.surface, borderRadius: radius.xxl, borderColor: colors.border, borderWidth: 1, padding: 20, ...shadow.card },
   stravaHero: { borderColor: '#bfdbfe', backgroundColor: '#f8fbff' },
-  sessionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  cardKicker: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.3 },
-  plannedPill: { overflow: 'hidden', backgroundColor: colors.successSoft, color: colors.success, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6, fontSize: 12, fontWeight: '900' },
+  heroTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  kicker: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.5 },
+  pointsPill: { overflow: 'hidden', backgroundColor: colors.successSoft, color: colors.success, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6, fontSize: 12, fontWeight: '900' },
   stravaPill: { backgroundColor: colors.blueSoft, color: colors.blue },
-  sessionTitle: { marginTop: 12, color: colors.ink, fontSize: 30, lineHeight: 33, fontWeight: '900', letterSpacing: -1.2 },
-  metricLine: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 12 },
-  metricText: { color: colors.inkSoft, fontSize: 14, fontWeight: '800' },
-  divider: { height: 1, backgroundColor: colors.border, marginVertical: 16 },
-  contextLabel: { color: colors.ink, fontSize: 15, fontWeight: '900', marginTop: 6 },
-  contextValue: { color: colors.muted, fontSize: 14, lineHeight: 20, marginTop: 3 },
-  primaryButton: { marginTop: 18, minHeight: 52, backgroundColor: colors.ink, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
-  primaryText: { color: colors.surface, fontWeight: '900', fontSize: 15 },
+  sessionTitle: { marginTop: 16, color: colors.ink, fontSize: 35, lineHeight: 37, fontWeight: '900', letterSpacing: -1.5 },
+  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 },
+  metaText: { overflow: 'hidden', borderRadius: 999, backgroundColor: colors.surfaceMuted, color: colors.inkSoft, paddingHorizontal: 10, paddingVertical: 6, fontSize: 12, fontWeight: '850' },
+  goalBox: { marginTop: 18, borderRadius: radius.lg, backgroundColor: colors.cream, borderWidth: 1, borderColor: '#eadfd2', padding: 15 },
+  goalLabel: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.4 },
+  goalText: { marginTop: 7, color: colors.inkSoft, fontSize: 15, lineHeight: 23, fontWeight: '600' },
+  primaryButton: { marginTop: 18, minHeight: 56, backgroundColor: colors.ink, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  primaryText: { color: colors.surface, fontWeight: '900', fontSize: 16 },
   pressed: { transform: [{ scale: 0.992 }], opacity: 0.94 },
-  emptyCard: { marginTop: 14, backgroundColor: colors.surface, borderRadius: radius.xxl, borderColor: colors.border, borderWidth: 1, padding: 24, ...shadow.card },
-  emptyKicker: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.5 },
-  emptyTitle: { marginTop: 10, color: colors.ink, fontSize: 30, lineHeight: 32, fontWeight: '900', letterSpacing: -1.3 },
+  emptyCard: { backgroundColor: colors.surface, borderRadius: radius.xxl, borderColor: colors.border, borderWidth: 1, padding: 24, ...shadow.card },
+  emptyTitle: { color: colors.ink, fontSize: 30, lineHeight: 32, fontWeight: '900', letterSpacing: -1.3 },
   emptyText: { marginTop: 10, color: colors.muted, fontSize: 14, lineHeight: 22 },
-  statsStrip: { marginTop: 14, flexDirection: 'row', backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, paddingVertical: 16, ...shadow.card },
-  statCol: { flex: 1, paddingHorizontal: 13 },
-  statDivider: { width: 1, backgroundColor: colors.border },
-  statValue: { color: colors.ink, fontSize: 22, fontWeight: '900', letterSpacing: -1 },
-  statLabel: { marginTop: 6, color: colors.muted, fontSize: 12, lineHeight: 17, fontWeight: '700' },
-  stravaInsight: { marginTop: 14, flexDirection: 'row', gap: 12, alignItems: 'flex-start', backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, padding: 16, ...shadow.card },
-  stravaIcon: { width: 44, height: 44, borderRadius: 15, backgroundColor: colors.blueSoft, alignItems: 'center', justifyContent: 'center' },
-  stravaIconText: { color: colors.blue, fontSize: 20, fontWeight: '900' },
-  stravaKicker: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
-  stravaTitle: { marginTop: 4, color: colors.ink, fontSize: 21, fontWeight: '900', letterSpacing: -0.7 },
-  stravaMeta: { marginTop: 3, color: colors.inkSoft, fontSize: 13, fontWeight: '700' },
-  stravaCopy: { marginTop: 9, color: colors.muted, fontSize: 13, lineHeight: 20 },
-  sectionHeader: { marginTop: 28, marginBottom: 10, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
-  sectionTitle: { color: colors.ink, fontSize: 23, fontWeight: '900', letterSpacing: -0.9 },
-  sectionHint: { color: colors.faint, fontSize: 12, fontWeight: '800' },
-  emptyListText: { color: colors.muted, fontSize: 14, lineHeight: 22 },
+  weekCard: { marginTop: 14, backgroundColor: colors.ink, borderRadius: radius.xl, padding: 18, ...shadow.hero },
+  weekRow: { marginTop: 10, flexDirection: 'row', alignItems: 'flex-end', gap: 7 },
+  weekPoints: { color: colors.surface, fontSize: 38, lineHeight: 40, fontWeight: '900', letterSpacing: -1.5 },
+  weekGoal: { color: '#d4d4d8', fontSize: 19, lineHeight: 29, fontWeight: '800' },
+  weekText: { marginTop: 8, color: '#d4d4d8', fontSize: 13, lineHeight: 20, fontWeight: '700' },
+  nextSection: { marginTop: 28 },
+  sectionTitle: { marginBottom: 10, color: colors.ink, fontSize: 23, fontWeight: '900', letterSpacing: -0.9 },
 });
