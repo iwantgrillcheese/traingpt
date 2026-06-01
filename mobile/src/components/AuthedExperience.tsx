@@ -18,10 +18,10 @@ type RootTabs = {
 
 const Tab = createBottomTabNavigator<RootTabs>();
 
-function TabIcon({ label, focused }: { label: string; focused: boolean }) {
+function TabIcon({ icon, focused }: { icon: string; focused: boolean }) {
   return (
     <View style={[styles.tabIcon, focused && styles.tabIconActive]}>
-      <Text style={[styles.tabIconText, focused && styles.tabIconTextActive]}>{label}</Text>
+      <Text style={[styles.tabIconText, focused && styles.tabIconTextActive]}>{icon}</Text>
     </View>
   );
 }
@@ -40,10 +40,10 @@ function CoreTabs({ initialRouteName }: { initialRouteName: keyof RootTabs }) {
         tabBarLabelStyle: styles.tabLabel,
       }}
     >
-      <Tab.Screen name="Today" component={TodayScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="T" focused={focused} /> }} />
-      <Tab.Screen name="Schedule" component={ScheduleScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="S" focused={focused} /> }} />
-      <Tab.Screen name="Fitness" component={ProgressScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="F" focused={focused} /> }} />
-      <Tab.Screen name="Settings" component={GearScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon label="Set" focused={focused} /> }} />
+      <Tab.Screen name="Today" component={TodayScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon icon="⌂" focused={focused} /> }} />
+      <Tab.Screen name="Schedule" component={ScheduleScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon icon="□" focused={focused} /> }} />
+      <Tab.Screen name="Fitness" component={ProgressScreen} options={{ title: 'Readiness', tabBarIcon: ({ focused }) => <TabIcon icon="◷" focused={focused} /> }} />
+      <Tab.Screen name="Settings" component={GearScreen} options={{ tabBarIcon: ({ focused }) => <TabIcon icon="⚙" focused={focused} /> }} />
     </Tab.Navigator>
   );
 }
@@ -78,34 +78,34 @@ export function AuthedExperience() {
 const styles = StyleSheet.create({
   tabBar: {
     position: 'absolute',
-    left: 14,
-    right: 14,
-    bottom: 14,
-    height: 76,
-    borderRadius: 28,
-    borderTopWidth: 0,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: 'rgba(255,255,255,0.96)',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 84,
+    borderRadius: 0,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    borderWidth: 0,
+    backgroundColor: 'rgba(255,255,255,0.98)',
     paddingTop: 8,
-    paddingBottom: 12,
+    paddingBottom: 20,
     shadowColor: colors.ink,
-    shadowOpacity: 0.08,
-    shadowRadius: 22,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 8,
+    shadowOpacity: 0.07,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: -8 },
+    elevation: 10,
   },
   tabItem: { paddingVertical: 2 },
   tabLabel: { fontSize: 10, fontWeight: '900', marginTop: 2 },
   tabIcon: {
-    width: 26,
-    height: 26,
-    borderRadius: 10,
+    width: 29,
+    height: 29,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surfaceMuted,
   },
   tabIconActive: { backgroundColor: colors.ink },
-  tabIconText: { color: colors.muted, fontSize: 10, fontWeight: '900' },
+  tabIconText: { color: colors.muted, fontSize: 14, fontWeight: '900' },
   tabIconTextActive: { color: colors.surface },
 });
