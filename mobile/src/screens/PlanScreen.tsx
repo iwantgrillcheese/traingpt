@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Easing, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors, radius, shadow, spacing } from '../design/theme';
 import { useAuth } from '../auth/AuthProvider';
 import { apiFetch } from '../lib/api';
@@ -7,6 +7,10 @@ import { apiFetch } from '../lib/api';
 type RaceType = 'Sprint' | 'Olympic' | 'Half Ironman (70.3)' | 'Ironman (140.6)';
 type Experience = 'Beginner' | 'Intermediate' | 'Advanced';
 type StepKey = 'race' | 'date' | 'experience' | 'hours' | 'strava' | 'notes' | 'review';
+
+type PlanScreenProps = {
+  onPlanCreated?: () => void;
+};
 
 const raceTypes: RaceType[] = ['Sprint', 'Olympic', 'Half Ironman (70.3)', 'Ironman (140.6)'];
 const experiences: Experience[] = ['Beginner', 'Intermediate', 'Advanced'];
@@ -19,6 +23,13 @@ const steps: { key: StepKey; eyebrow: string; title: string; subtitle: string }[
   { key: 'strava', eyebrow: 'Step 5', title: 'Use your training history.', subtitle: 'When Strava is connected, TrainGPT uses recent volume and sport balance to calibrate the plan.' },
   { key: 'notes', eyebrow: 'Step 6', title: 'Any constraints?', subtitle: 'Tell your coach about injuries, travel, weak disciplines, preferred long ride days, or schedule limits.' },
   { key: 'review', eyebrow: 'Step 7', title: 'Ready to build.', subtitle: 'Review the setup. Then TrainGPT will generate the calendar and session structure.' },
+];
+
+const floatingCards = [
+  { label: 'Swim', meta: 'Technique', x: -128, y: -18, delay: 0 },
+  { label: 'Bike', meta: 'Endurance', x: 102, y: 8, delay: 280 },
+  { label: 'Run', meta: 'Threshold', x: -98, y: 98, delay: 560 },
+  { label: 'Brick', meta: 'Race prep', x: 112, y: 132, delay: 840 },
 ];
 
 function defaultRaceDate() {
@@ -61,7 +72,7 @@ function generationSteps(hasStrava: boolean) {
       ];
 }
 
-export function PlanScreen() {
+export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
   const { user } = useAuth();
   const [stepIndex, setStepIndex] = useState(0);
   const [raceType, setRaceType] = useState<RaceType>('Half Ironman (70.3)');
@@ -72,9 +83,15 @@ export function PlanScreen() {
   const [notes, setNotes] = useState('');
   const [hasStrava] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [generationComplete, setGenerationComplete] = useState(false);
   const [generationStep, setGenerationStep] = useState(0);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const pulse = useRef(new Animated.Value(0)).current;
+  const orbit = useRef(new Animated.Value(0)).current;
+  const drift = useRef(new Animated.Value(0)).current;
+  const reveal = useRef(new Animated.Value(0)).current;
 
   const current = steps[stepIndex];
   const step = current.key;
@@ -90,11 +107,53 @@ export function PlanScreen() {
 
   useEffect(() => {
     if (!generating) return;
+
+    pulse.setValue(0);
+    orbit.setValue(0);
+    drift.setValue(0);
+    reveal.setValue(0);
+
+    Animated.timing(reveal, {
+      toValue: 1,
+      duration: 700,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 1500, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+      ])
+    );
+    const orbitLoop = Animated.loop(
+      Animated.timing(orbit, { toValue: 1, duration: 9000, easing: Easing.linear, useNativeDriver: true })
+    );
+    const driftLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(drift, { toValue: 1, duration: 2600, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(drift, { toValue: 0, duration: 2600, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ])
+    );
+
+    pulseLoop.start();
+    orbitLoop.start();
+    driftLoop.start();
+
+    return () => {
+      pulseLoop.stop();
+      orbitLoop.stop();
+      driftLoop.stop();
+    };
+  }, [drift, generating, orbit, pulse, reveal]);
+
+  useEffect(() => {
+    if (!generating || generationComplete) return;
     const interval = setInterval(() => {
       setGenerationStep((value) => Math.min(value + 1, magicSteps.length - 1));
-    }, 2800);
+    }, 2400);
     return () => clearInterval(interval);
-  }, [generating, magicSteps.length]);
+  }, [generating, generationComplete, magicSteps.length]);
 
   const generatePlan = async () => {
     if (!user?.id) return;
@@ -105,6 +164,7 @@ export function PlanScreen() {
     }
 
     setGenerating(true);
+    setGenerationComplete(false);
     setGenerationStep(0);
     setError(null);
     setSuccess(null);
@@ -133,8 +193,12 @@ export function PlanScreen() {
       }
 
       setGenerationStep(magicSteps.length - 1);
-      setSuccess('Your plan is ready. Open Today or Schedule and pull to refresh.');
-      setTimeout(() => setGenerating(false), 900);
+      setGenerationComplete(true);
+      setSuccess('Your calendar is ready. Opening Schedule…');
+      setTimeout(() => {
+        setGenerating(false);
+        onPlanCreated?.();
+      }, 1400);
     } catch (err) {
       console.error('[PlanScreen] plan generation failed', err);
       setError('Could not reach TrainGPT. Try again in a moment.');
@@ -153,25 +217,76 @@ export function PlanScreen() {
     if (stepIndex > 0) setStepIndex((value) => value - 1);
   };
 
+  const pulseScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] });
+  const glowScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.32] });
+  const glowOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.22, 0.48] });
+  const orbitRotate = orbit.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  const reverseOrbitRotate = orbit.interpolate({ inputRange: [0, 1], outputRange: ['360deg', '0deg'] });
+  const floatY = drift.interpolate({ inputRange: [0, 1], outputRange: [0, -12] });
+  const revealTranslate = reveal.interpolate({ inputRange: [0, 1], outputRange: [18, 0] });
+
   if (generating) {
     return (
       <View style={styles.magicScreen}>
-        <View style={styles.magicOrbOuter}><View style={styles.magicOrbInner}><Text style={styles.magicSpark}>✦</Text></View></View>
-        <Text style={styles.magicEyebrow}>Generating plan</Text>
-        <Text style={styles.magicTitle}>Building your training calendar.</Text>
-        <Text style={styles.magicSubtitle}>{magicSteps[generationStep]}</Text>
-        <View style={styles.magicProgressTrack}>
-          <View style={[styles.magicProgressFill, { width: `${((generationStep + 1) / magicSteps.length) * 100}%` }]} />
-        </View>
+        <Animated.View style={[styles.magicBackdropOne, { opacity: glowOpacity, transform: [{ scale: glowScale }] }]} />
+        <Animated.View style={[styles.magicBackdropTwo, { opacity: glowOpacity, transform: [{ scale: pulseScale }] }]} />
+
+        <Animated.View style={[styles.magicHero, { opacity: reveal, transform: [{ translateY: revealTranslate }] }]}>
+          <View style={styles.orbStage}>
+            <Animated.View style={[styles.orbitRing, { transform: [{ rotate: orbitRotate }] }]}>
+              <View style={styles.orbitDotTop} />
+              <View style={styles.orbitDotBottom} />
+            </Animated.View>
+            <Animated.View style={[styles.orbitRingSmall, { transform: [{ rotate: reverseOrbitRotate }] }]}>
+              <View style={styles.orbitDotSide} />
+            </Animated.View>
+            {floatingCards.map((card, index) => (
+              <Animated.View
+                key={card.label}
+                style={[
+                  styles.floatCard,
+                  {
+                    left: 138 + card.x,
+                    top: 120 + card.y,
+                    opacity: reveal,
+                    transform: [{ translateY: index % 2 === 0 ? floatY : Animated.multiply(floatY, -1) }],
+                  },
+                ]}
+              >
+                <Text style={styles.floatCardLabel}>{card.label}</Text>
+                <Text style={styles.floatCardMeta}>{card.meta}</Text>
+              </Animated.View>
+            ))}
+            <Animated.View style={[styles.magicOrbOuter, { transform: [{ scale: pulseScale }] }]}>
+              <View style={styles.magicOrbInner}>
+                <Text style={styles.magicSpark}>{generationComplete ? '✓' : '✦'}</Text>
+              </View>
+            </Animated.View>
+          </View>
+        </Animated.View>
+
+        <Animated.View style={[styles.magicCopy, { opacity: reveal, transform: [{ translateY: revealTranslate }] }]}>
+          <Text style={styles.magicEyebrow}>{generationComplete ? 'Calendar ready' : 'Generating plan'}</Text>
+          <Text style={styles.magicTitle}>{generationComplete ? 'Your season is built.' : 'Building your training calendar.'}</Text>
+          <Text style={styles.magicSubtitle}>{generationComplete ? 'Opening your schedule…' : magicSteps[generationStep]}</Text>
+          <View style={styles.magicProgressTrack}>
+            <View style={[styles.magicProgressFill, { width: `${((generationStep + 1) / magicSteps.length) * 100}%` }]} />
+          </View>
+        </Animated.View>
+
         <View style={styles.magicList}>
-          {magicSteps.map((item, index) => (
-            <View key={item} style={styles.magicRow}>
-              <Text style={[styles.magicCheck, index <= generationStep && styles.magicCheckActive]}>{index <= generationStep ? '✓' : '·'}</Text>
-              <Text style={[styles.magicItem, index === generationStep && styles.magicItemActive]}>{item}</Text>
-            </View>
-          ))}
+          {magicSteps.map((item, index) => {
+            const complete = index < generationStep || generationComplete;
+            const active = index === generationStep && !generationComplete;
+            return (
+              <View key={item} style={styles.magicRow}>
+                <Text style={[styles.magicCheck, (complete || active) && styles.magicCheckActive]}>{complete ? '✓' : active ? '•' : '·'}</Text>
+                <Text style={[styles.magicItem, active && styles.magicItemActive, complete && styles.magicItemDone]}>{item}</Text>
+              </View>
+            );
+          })}
         </View>
-        <Text style={styles.magicFooter}>Keep the app open. Longer plans can take up to a minute.</Text>
+        <Text style={styles.magicFooter}>{generationComplete ? 'Plan saved. Schedule is refreshing now.' : 'Keep the app open. Longer plans can take up to a minute.'}</Text>
       </View>
     );
   }
@@ -324,20 +439,34 @@ const styles = StyleSheet.create({
   backText: { color: colors.muted, fontWeight: '900' },
   continueButton: { flex: 1, minHeight: 54, borderRadius: radius.md, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
   continueText: { color: colors.surface, fontSize: 15, fontWeight: '900' },
-  magicScreen: { flex: 1, backgroundColor: colors.ink, paddingHorizontal: spacing.pageX, paddingTop: 92, paddingBottom: 42 },
-  magicOrbOuter: { alignSelf: 'center', width: 132, height: 132, borderRadius: 999, backgroundColor: '#1f2937', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#374151' },
-  magicOrbInner: { width: 84, height: 84, borderRadius: 999, backgroundColor: '#ffffff', alignItems: 'center', justifyContent: 'center' },
+  magicScreen: { flex: 1, backgroundColor: '#050507', paddingHorizontal: spacing.pageX, paddingTop: 54, paddingBottom: 42, overflow: 'hidden' },
+  magicBackdropOne: { position: 'absolute', top: -120, left: -80, width: 280, height: 280, borderRadius: 999, backgroundColor: '#1f3b73' },
+  magicBackdropTwo: { position: 'absolute', bottom: 120, right: -110, width: 320, height: 320, borderRadius: 999, backgroundColor: '#164e63' },
+  magicHero: { height: 300, alignItems: 'center', justifyContent: 'center' },
+  orbStage: { width: 320, height: 300, alignItems: 'center', justifyContent: 'center' },
+  orbitRing: { position: 'absolute', width: 214, height: 214, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' },
+  orbitRingSmall: { position: 'absolute', width: 156, height: 156, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' },
+  orbitDotTop: { position: 'absolute', top: -5, left: 100, width: 10, height: 10, borderRadius: 999, backgroundColor: '#ffffff' },
+  orbitDotBottom: { position: 'absolute', bottom: 16, right: 18, width: 7, height: 7, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.72)' },
+  orbitDotSide: { position: 'absolute', top: 70, right: -4, width: 8, height: 8, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.82)' },
+  magicOrbOuter: { width: 140, height: 140, borderRadius: 999, backgroundColor: 'rgba(31,41,55,0.96)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)', shadowColor: '#ffffff', shadowOpacity: 0.18, shadowRadius: 28, shadowOffset: { width: 0, height: 0 } },
+  magicOrbInner: { width: 86, height: 86, borderRadius: 999, backgroundColor: '#ffffff', alignItems: 'center', justifyContent: 'center' },
   magicSpark: { color: colors.ink, fontSize: 36, fontWeight: '900' },
-  magicEyebrow: { marginTop: 44, color: '#a1a1aa', fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.8 },
-  magicTitle: { marginTop: 12, color: '#ffffff', fontSize: 40, lineHeight: 42, fontWeight: '900', letterSpacing: -2 },
-  magicSubtitle: { marginTop: 14, color: '#d4d4d8', fontSize: 17, lineHeight: 25, fontWeight: '600' },
-  magicProgressTrack: { marginTop: 30, height: 8, borderRadius: 999, backgroundColor: '#27272a', overflow: 'hidden' },
+  floatCard: { position: 'absolute', minWidth: 88, borderRadius: 20, paddingHorizontal: 13, paddingVertical: 10, backgroundColor: 'rgba(255,255,255,0.10)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)' },
+  floatCardLabel: { color: '#ffffff', fontSize: 14, fontWeight: '900', letterSpacing: -0.2 },
+  floatCardMeta: { marginTop: 2, color: '#a1a1aa', fontSize: 11, fontWeight: '800' },
+  magicCopy: { marginTop: 4 },
+  magicEyebrow: { color: '#a1a1aa', fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.9 },
+  magicTitle: { marginTop: 12, color: '#ffffff', fontSize: 42, lineHeight: 43, fontWeight: '900', letterSpacing: -2.2 },
+  magicSubtitle: { marginTop: 14, color: '#d4d4d8', fontSize: 17, lineHeight: 25, fontWeight: '700' },
+  magicProgressTrack: { marginTop: 30, height: 8, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.14)', overflow: 'hidden' },
   magicProgressFill: { height: '100%', borderRadius: 999, backgroundColor: '#ffffff' },
   magicList: { marginTop: 30, gap: 15 },
   magicRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  magicCheck: { width: 24, height: 24, borderRadius: 999, overflow: 'hidden', backgroundColor: '#27272a', color: '#a1a1aa', textAlign: 'center', paddingTop: 2, fontWeight: '900' },
+  magicCheck: { width: 27, height: 27, borderRadius: 999, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.10)', color: '#a1a1aa', textAlign: 'center', paddingTop: 3, fontWeight: '900' },
   magicCheckActive: { backgroundColor: '#ffffff', color: colors.ink },
-  magicItem: { flex: 1, color: '#71717a', fontSize: 15, lineHeight: 21, fontWeight: '700' },
+  magicItem: { flex: 1, color: '#71717a', fontSize: 15, lineHeight: 21, fontWeight: '800' },
   magicItemActive: { color: '#ffffff' },
-  magicFooter: { marginTop: 'auto', color: '#a1a1aa', fontSize: 13, lineHeight: 20, textAlign: 'center', fontWeight: '600' },
+  magicItemDone: { color: '#d4d4d8' },
+  magicFooter: { marginTop: 'auto', color: '#a1a1aa', fontSize: 13, lineHeight: 20, textAlign: 'center', fontWeight: '700' },
 });
