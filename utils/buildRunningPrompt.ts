@@ -2,8 +2,18 @@
 import { addDays, format } from "date-fns";
 import type { WeekMeta, UserParams, DayOfWeek } from "@/types/plan";
 
-const dayName = (d: number) =>
-  ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][d];
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
+
+function dayLabel(day?: DayOfWeek | null): string {
+  if (typeof day === "number") return DAY_NAMES[day] ?? String(day);
+  if (typeof day === "string" && day.trim()) return day.trim();
+  return "not specified";
+}
+
+function dayDebug(day?: DayOfWeek | null): string {
+  if (day === undefined || day === null || day === "") return "not specified";
+  return String(day);
+}
 
 function unitLabel(unit: "mi" | "km") {
   return unit === "km" ? "per km" : "per mile";
@@ -63,7 +73,7 @@ export function buildRunningPrompt({
   };
 }) {
   const prefs = userParams.trainingPrefs ?? {};
-  const longRunDay = (prefs.longRunDay ?? 0) as DayOfWeek;
+  const longRunDay = targets?.preferredLongRunDay ?? prefs.longRunDay ?? userParams.preferredLongRunDay ?? 0;
 
   const paceUnit: "mi" | "km" = userParams.paceUnit === "km" ? "km" : "mi";
   const paceSuffix = unitSuffix(paceUnit);
@@ -101,7 +111,7 @@ You are creating ${weekMeta.label} for a RUNNING plan.
 - Cycle mode: ${mode}
 
 ## Preferences
-- Long Run Day (MUST FOLLOW): ${dayName(longRunDay)} (${longRunDay})
+- Long Run Day (MUST FOLLOW): ${dayLabel(longRunDay)} (${dayDebug(longRunDay)})
 
 ## Pace Units (STRICT)
 - Use ONLY ${paceSuffix} in all pace ranges. Do NOT output the other unit.
