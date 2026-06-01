@@ -2,8 +2,16 @@
 
 // ----------------- Plan-related types -----------------
 
-// Day-of-week: 0 = Sunday ... 6 = Saturday, or normalized day name.
-export type DayOfWeek = 0 | 1 | 2 | 3 | 4 | 5 | 6 | string;
+/**
+ * Day-of-week values currently come from multiple sources:
+ * - numeric JS day indexes: 0 = Sunday ... 6 = Saturday
+ * - normalized day names: "Monday", "Saturday", etc.
+ * - occasional legacy/free-form strings from onboarding inputs
+ *
+ * Keep this permissive while the plan engine still accepts mixed legacy inputs.
+ * Tighten this later after all day normalization is centralized at the API boundary.
+ */
+export type DayOfWeek = any;
 
 export type TrainingPrefs = {
   /** Preferred day for the long ride. Default: 6 (Saturday) */
