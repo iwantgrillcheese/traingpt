@@ -7,6 +7,7 @@ import type { CompletedSessionRow, SessionRow } from '../types';
 import { SessionCard } from '../components/SessionCard';
 import { SessionDetailSheet } from '../components/SessionDetailSheet';
 import { cleanTitle, currentWeekStats, formatDay, formatMinutes, getNextSession, getTodaysSessions, normalizeSport } from '../utils/training';
+import { getSessionPoints, getWeeklyPointStats } from '../utils/sessionPoints';
 
 function formatToday() {
   return new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
@@ -58,6 +59,8 @@ export function TodayScreen() {
   const nextSession = useMemo(() => getNextSession(sessions), [sessions]);
   const heroSession = todaysSessions[0] ?? nextSession;
   const stats = useMemo(() => currentWeekStats(sessions, completed), [sessions, completed]);
+  const pointStats = useMemo(() => getWeeklyPointStats(sessions, completed), [sessions, completed]);
+  const heroPoints = heroSession ? getSessionPoints(heroSession) : 0;
   const upcoming = useMemo(
     () => sessions.filter((session) => new Date(`${session.date}T00:00:00`) >= new Date(new Date().setHours(0, 0, 0, 0))).slice(0, 3),
     [sessions]
@@ -92,7 +95,7 @@ export function TodayScreen() {
     return (
       <View style={styles.center}>
         <ActivityIndicator />
-        <Text style={styles.loadingText}>Opening your training room…</Text>
+        <Text style={styles.loadingText}>Opening your training room...</Text>
       </View>
     );
   }
@@ -115,9 +118,9 @@ export function TodayScreen() {
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <View style={styles.insightCard}>
-          <Text style={styles.insightKicker}>✦ Coaching insight</Text>
+          <Text style={styles.insightKicker}>Coaching insight</Text>
           <Text style={styles.insightTitle}>{coachRead(stats)}</Text>
-          <Text style={styles.insightText}>Focus on the work that moves the week forward. Keep the easy work honest, protect the key session, and avoid turning today into a fitness test.</Text>
+          <Text style={styles.insightText}>This week: {pointStats.earned}/{pointStats.available || 0} points banked. Complete the sessions that matter and your Fitness Score moves.</Text>
           <View style={styles.contourDot} />
         </View>
 
@@ -125,13 +128,13 @@ export function TodayScreen() {
           <Pressable onPress={() => setSelectedSession(heroSession)} style={({ pressed }) => [styles.sessionHero, pressed && styles.pressed]}>
             <View style={styles.sessionHeader}>
               <Text style={styles.cardKicker}>Today’s session</Text>
-              <Text style={styles.plannedPill}>✓ Planned</Text>
+              <Text style={styles.plannedPill}>+{heroPoints} pts</Text>
             </View>
             <Text style={styles.sessionTitle}>{cleanTitle(heroSession.title)}</Text>
             <View style={styles.metricLine}>
               {formatMinutes(heroSession.duration) ? <Text style={styles.metricText}>◷ {formatMinutes(heroSession.duration)}</Text> : null}
               <Text style={styles.metricText}>{normalizeSport(heroSession.sport)}</Text>
-              <Text style={styles.metricText}>Z2</Text>
+              <Text style={styles.metricText}>{heroPoints} points available</Text>
             </View>
             <View style={styles.divider} />
             <Text style={styles.contextLabel}>Race context</Text>
@@ -151,14 +154,14 @@ export function TodayScreen() {
           <View style={styles.emptyCard}>
             <Text style={styles.emptyKicker}>No plan yet</Text>
             <Text style={styles.emptyTitle}>Build your first training plan.</Text>
-            <Text style={styles.emptyText}>Use the Plan tab to create a calendar. Once it’s live, Today becomes your daily training room.</Text>
+            <Text style={styles.emptyText}>Use onboarding to create a calendar. Once it’s live, Today becomes your daily training room.</Text>
           </View>
         )}
 
         <View style={styles.statsStrip}>
-          <View style={styles.statCol}><Text style={styles.statValue}>{stats.done}/{stats.planned || 0}</Text><Text style={styles.statLabel}>Sessions complete</Text></View>
+          <View style={styles.statCol}><Text style={styles.statValue}>{pointStats.earned}/{pointStats.available || 0}</Text><Text style={styles.statLabel}>Weekly points</Text></View>
           <View style={styles.statDivider} />
-          <View style={styles.statCol}><Text style={styles.statValue}>{formatMinutes(stats.minutes) ?? '—'}</Text><Text style={styles.statLabel}>Planned time</Text></View>
+          <View style={styles.statCol}><Text style={styles.statValue}>{stats.done}/{stats.planned || 0}</Text><Text style={styles.statLabel}>Sessions complete</Text></View>
           <View style={styles.statDivider} />
           <View style={styles.statCol}><Text style={styles.statValue}>{stats.planned ? `${stats.adherence}%` : '—'}</Text><Text style={styles.statLabel}>Adherence</Text></View>
         </View>
@@ -166,10 +169,10 @@ export function TodayScreen() {
         <View style={styles.stravaInsight}>
           <View style={styles.stravaIcon}><Text style={styles.stravaIconText}>◌</Text></View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.stravaKicker}>Yesterday · Ride</Text>
-            <Text style={styles.stravaTitle}>Matched well</Text>
-            <Text style={styles.stravaMeta}>197W avg · 148 bpm avg · 21.3 mi</Text>
-            <Text style={styles.stravaCopy}>Great aerobic day. You stayed steady and finished strong—perfect prep for today.</Text>
+            <Text style={styles.stravaKicker}>Strava matching</Text>
+            <Text style={styles.stravaTitle}>Auto-completions count</Text>
+            <Text style={styles.stravaMeta}>Synced workouts can bank points when they match your plan.</Text>
+            <Text style={styles.stravaCopy}>Manual and Strava-matched completions both feed your weekly points and Fitness Score.</Text>
           </View>
           <View style={styles.sparkline}><View style={styles.sparkFill} /></View>
         </View>
@@ -241,7 +244,7 @@ const styles = StyleSheet.create({
   statsStrip: { marginTop: 14, flexDirection: 'row', backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, paddingVertical: 16, ...shadow.card },
   statCol: { flex: 1, paddingHorizontal: 13 },
   statDivider: { width: 1, backgroundColor: colors.border },
-  statValue: { color: colors.ink, fontSize: 24, fontWeight: '900', letterSpacing: -1 },
+  statValue: { color: colors.ink, fontSize: 22, fontWeight: '900', letterSpacing: -1 },
   statLabel: { marginTop: 6, color: colors.muted, fontSize: 12, lineHeight: 17, fontWeight: '700' },
   stravaInsight: { marginTop: 14, flexDirection: 'row', gap: 12, alignItems: 'flex-start', backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, padding: 16, ...shadow.card },
   stravaIcon: { width: 44, height: 44, borderRadius: 15, backgroundColor: colors.blueSoft, alignItems: 'center', justifyContent: 'center' },
