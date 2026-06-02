@@ -37,6 +37,19 @@ function weeksToRace(plan?: PlanRow | null) {
   return `${Math.ceil(days / 7)} weeks to race day`;
 }
 
+function isRestSession(session?: SessionRow | null) {
+  if (!session) return false;
+  const sport = normalizeSport(session.sport);
+  const text = `${session.title ?? ''} ${session.details ?? ''}`.toLowerCase();
+  return sport === 'Rest' || text.includes('rest day') || text === 'rest' || text.includes('recovery day');
+}
+
+function restGoalText(session?: SessionRow | null) {
+  const raw = session?.details?.replace(/Purpose:|Workout:|Intensity:/gi, '').trim();
+  if (raw) return raw.slice(0, 140);
+  return 'Recharge, keep stress low, and let the work absorb. Optional: 10–15 minutes of easy mobility, light stretching, or a relaxed walk.';
+}
+
 export function TodayScreen() {
   const { user } = useAuth();
   const [sessions, setSessions] = useState<SessionRow[]>([]);
@@ -80,16 +93,18 @@ export function TodayScreen() {
 
   const todaysSessions = useMemo(() => getTodaysSessions(sessions), [sessions]);
   const nextSession = useMemo(() => getNextSession(sessions), [sessions]);
-  const heroSession = todaysSessions[0] ?? nextSession;
+  const todayRestSession = todaysSessions.find(isRestSession) ?? null;
+  const heroSession = todayRestSession ?? todaysSessions.find((session) => !isRestSession(session)) ?? nextSession;
   const activeWeekDate = useMemo(() => getActiveWeekReferenceDate(sessions), [sessions]);
   const pointStats = useMemo(() => getWeeklyPointStats(sessions, completed, activeWeekDate), [sessions, completed, activeWeekDate]);
   const heroPoints = heroSession ? getSessionPoints(heroSession) : 0;
   const heroViaStrava = heroSession ? sessionHasSameDayStravaMatch(heroSession, stravaActivities) : false;
   const raceCountdown = weeksToRace(plan);
   const isToday = Boolean(todaysSessions.length);
+  const heroIsRest = isRestSession(heroSession);
   const upcoming = useMemo(
-    () => sessions.filter((session) => new Date(`${session.date}T00:00:00`) >= startOfToday()).slice(isToday ? 1 : 0, isToday ? 3 : 2),
-    [isToday, sessions]
+    () => sessions.filter((session) => new Date(`${session.date}T00:00:00`) >= startOfToday() && session.id !== heroSession?.id).slice(0, 3),
+    [heroSession?.id, sessions]
   );
 
   const updateSessionLocally = (updated: SessionRow) => {
@@ -132,34 +147,34 @@ export function TodayScreen() {
         <View style={styles.header}>
           <Text style={styles.brand}>TrainGPT</Text>
           <Text style={styles.date}>{formatToday()}</Text>
-          <Text style={styles.title}>{isToday ? 'Do this today.' : 'Up next.'}</Text>
-          <Text style={styles.subtitle}>{raceCountdown ?? 'Your daily training work, simplified.'}</Text>
+          <Text style={styles.title}>{heroIsRest ? 'Rest up today.' : isToday ? 'Do this today.' : 'Up next.'}</Text>
+          <Text style={styles.subtitle}>{heroIsRest ? 'Recovery is part of the plan. Take the easy day seriously.' : raceCountdown ?? 'Your daily training work, simplified.'}</Text>
         </View>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         {heroSession ? (
-          <Pressable onPress={() => setSelectedSession(heroSession)} style={({ pressed }) => [styles.heroCard, heroViaStrava && styles.stravaHero, pressed && styles.pressedCard]}>
+          <Pressable onPress={() => setSelectedSession(heroSession)} style={({ pressed }) => [styles.heroCard, heroViaStrava && styles.stravaHero, heroIsRest && styles.restHero, pressed && styles.pressedCard]}>
             <View style={styles.heroTopRow}>
-              <Text style={styles.kicker}>{isToday ? 'Today’s workout' : formatDay(heroSession.date)}</Text>
-              <Text style={[styles.pointsPill, heroViaStrava && styles.stravaPill]}>{heroViaStrava ? 'Synced via Strava' : `+${heroPoints} pts`}</Text>
+              <Text style={styles.kicker}>{heroIsRest ? 'Recovery day' : isToday ? 'Today’s workout' : formatDay(heroSession.date)}</Text>
+              <Text style={[styles.pointsPill, heroViaStrava && styles.stravaPill, heroIsRest && styles.restPill]}>{heroIsRest ? 'Recharge' : heroViaStrava ? 'Synced via Strava' : `+${heroPoints} pts`}</Text>
             </View>
 
-            <Text style={styles.sessionTitle}>{cleanTitle(heroSession.title)}</Text>
+            <Text style={styles.sessionTitle}>{heroIsRest ? 'Rest and recharge' : cleanTitle(heroSession.title)}</Text>
 
             <View style={styles.metaRow}>
-              {formatMinutes(heroSession.duration) ? <Text style={styles.metaText}>{formatMinutes(heroSession.duration)}</Text> : null}
-              <Text style={styles.metaText}>{normalizeSport(heroSession.sport)}</Text>
-              <Text style={styles.metaText}>{heroPoints} points available</Text>
+              {heroIsRest ? <Text style={styles.metaText}>Optional mobility</Text> : formatMinutes(heroSession.duration) ? <Text style={styles.metaText}>{formatMinutes(heroSession.duration)}</Text> : null}
+              <Text style={styles.metaText}>{heroIsRest ? 'Recovery' : normalizeSport(heroSession.sport)}</Text>
+              {!heroIsRest ? <Text style={styles.metaText}>{heroPoints} points available</Text> : null}
             </View>
 
             <View style={styles.goalBox}>
-              <Text style={styles.goalLabel}>Goal</Text>
-              <Text style={styles.goalText}>{heroSession.details?.replace(/Purpose:|Workout:|Intensity:/gi, '').trim().slice(0, 120) || 'Complete the work calmly. Bank the points. Keep the week moving.'}</Text>
+              <Text style={styles.goalLabel}>{heroIsRest ? 'Recovery focus' : 'Goal'}</Text>
+              <Text style={styles.goalText}>{heroIsRest ? restGoalText(heroSession) : heroSession.details?.replace(/Purpose:|Workout:|Intensity:/gi, '').trim().slice(0, 120) || 'Complete the work calmly. Bank the points. Keep the week moving.'}</Text>
             </View>
 
             <View style={styles.primaryButton}>
-              <Text style={styles.primaryText}>Open workout</Text>
+              <Text style={styles.primaryText}>{heroIsRest ? 'Open recovery notes' : 'Open workout'}</Text>
             </View>
           </Pressable>
         ) : (
@@ -175,7 +190,7 @@ export function TodayScreen() {
             <Text style={styles.weekPoints}>{pointStats.earned}</Text>
             <Text style={styles.weekGoal}>/ {pointStats.available || 0} pts</Text>
           </View>
-          <Text style={styles.weekText}>Bank today’s workout to move your Race Readiness.</Text>
+          <Text style={styles.weekText}>{heroIsRest ? 'Recover well today, then keep stacking points when training resumes.' : 'Bank today’s workout to move your Race Readiness.'}</Text>
         </View>
 
         {upcoming.length ? (
@@ -214,10 +229,12 @@ const styles = StyleSheet.create({
   error: { marginBottom: 12, color: colors.danger, fontWeight: '800' },
   heroCard: { backgroundColor: colors.surface, borderRadius: radius.xxl, borderColor: colors.border, borderWidth: 1, padding: 20, ...shadow.card },
   stravaHero: { borderColor: '#bfdbfe', backgroundColor: '#f8fbff' },
+  restHero: { borderColor: '#e7e5e4', backgroundColor: '#fffaf2' },
   heroTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   kicker: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.5 },
   pointsPill: { overflow: 'hidden', backgroundColor: colors.successSoft, color: colors.success, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6, fontSize: 12, fontWeight: '900' },
   stravaPill: { backgroundColor: colors.blueSoft, color: colors.blue },
+  restPill: { backgroundColor: '#fef3c7', color: '#92400e' },
   sessionTitle: { marginTop: 16, color: colors.ink, fontSize: 35, lineHeight: 37, fontWeight: '900', letterSpacing: -1.5 },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 },
   metaText: { overflow: 'hidden', borderRadius: 999, backgroundColor: colors.surfaceMuted, color: colors.inkSoft, paddingHorizontal: 10, paddingVertical: 6, fontSize: 12, fontWeight: '850' },
