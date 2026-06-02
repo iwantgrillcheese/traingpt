@@ -7,6 +7,12 @@ function normalizedText(session: SessionRow) {
   return `${session.title ?? ''} ${session.details ?? ''} ${session.sport ?? ''}`.toLowerCase();
 }
 
+function isStrengthSession(session: SessionRow) {
+  const text = normalizedText(session);
+  const sport = normalizeSport(session.sport);
+  return sport === 'Strength' || text.includes('strength') || text.includes('mobility') || text.includes('core');
+}
+
 function startOfWeek(date: Date) {
   const start = new Date(date);
   const day = start.getDay();
@@ -29,11 +35,13 @@ export function getSessionPriority(session: SessionRow): SessionPriority {
   const duration = Number(session.duration ?? 0);
 
   if (sport === 'Rest') return 'light';
+  if (isStrengthSession(session)) return 'light';
+
   if (text.includes('long ride') || text.includes('long run')) return 'key';
   if (text.includes('threshold') || text.includes('tempo') || text.includes('interval') || text.includes('race pace')) return 'key';
   if (text.includes('brick')) return 'key';
   if (duration >= 90 && (sport === 'Bike' || sport === 'Run')) return 'key';
-  if (text.includes('technique') || text.includes('drill') || text.includes('mobility') || sport === 'Strength') return 'light';
+  if (text.includes('technique') || text.includes('drill')) return 'light';
 
   return 'supporting';
 }
@@ -44,11 +52,12 @@ export function getSessionPoints(session: SessionRow): number {
   const duration = Number(session.duration ?? 0);
 
   if (sport === 'Rest') return 5;
+  if (isStrengthSession(session)) return 10;
+
   if (text.includes('long ride') || text.includes('long run')) return 40;
   if (text.includes('threshold') || text.includes('tempo') || text.includes('interval') || text.includes('race pace')) return 30;
   if (text.includes('brick')) return 25;
   if (text.includes('technique') || text.includes('drill')) return 10;
-  if (sport === 'Strength' || text.includes('mobility')) return 10;
   if (duration >= 90 && (sport === 'Bike' || sport === 'Run')) return 35;
   if (duration >= 60) return 20;
   return 15;
