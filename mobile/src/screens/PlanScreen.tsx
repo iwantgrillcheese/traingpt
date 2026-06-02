@@ -21,7 +21,7 @@ const steps: { key: StepKey; eyebrow: string; title: string; subtitle: string }[
   { key: 'date', eyebrow: 'Step 2', title: 'When is race day?', subtitle: 'Your race date controls the length of the build, taper timing, and first-week ramp.' },
   { key: 'experience', eyebrow: 'Step 3', title: 'Where are you starting from?', subtitle: 'Choose the level that best reflects your current training background.' },
   { key: 'hours', eyebrow: 'Step 4', title: 'How many hours can you train?', subtitle: 'Pick a realistic weekly range. A good plan fits your life before it stretches your fitness.' },
-  { key: 'strava', eyebrow: 'Step 5', title: 'Use your training history.', subtitle: 'When Strava is connected, TrainGPT uses recent volume and sport balance to calibrate the plan.' },
+  { key: 'strava', eyebrow: 'Step 5', title: 'Connect training history.', subtitle: 'You can connect Strava after your plan is built to match completed activities and improve Race Readiness.' },
   { key: 'notes', eyebrow: 'Step 6', title: 'Any constraints?', subtitle: 'Tell your coach about injuries, travel, weak disciplines, preferred long ride days, or schedule limits.' },
   { key: 'review', eyebrow: 'Step 7', title: 'Ready to build.', subtitle: 'Review the setup. Then TrainGPT will generate the calendar and session structure.' },
 ];
@@ -46,24 +46,15 @@ function parseHours(option: string) {
   return '8';
 }
 
-function generationSteps(hasStrava: boolean) {
-  return hasStrava
-    ? [
-        'Reading your race goal',
-        'Analyzing recent Strava activity',
-        'Mapping base, build, peak, and taper',
-        'Placing key sessions on the calendar',
-        'Assigning session points',
-        'Unlocking your Fitness Score',
-      ]
-    : [
-        'Reading your race goal',
-        'Balancing swim, bike, and run',
-        'Choosing a safe starting load',
-        'Placing key sessions on the calendar',
-        'Assigning session points',
-        'Unlocking your Fitness Score',
-      ];
+function generationSteps() {
+  return [
+    'Reading your race goal',
+    'Balancing swim, bike, and run',
+    'Choosing a safe starting load',
+    'Placing key sessions on the calendar',
+    'Assigning session points',
+    'Unlocking Race Readiness',
+  ];
 }
 
 function progressToStep(progress: number, totalSteps: number) {
@@ -81,7 +72,6 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
   const [hourBand, setHourBand] = useState('6-8');
   const [maxHours, setMaxHours] = useState('8');
   const [notes, setNotes] = useState('');
-  const [hasStrava] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [generationComplete, setGenerationComplete] = useState(false);
   const [generationStep, setGenerationStep] = useState(0);
@@ -91,7 +81,7 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
 
   const current = steps[stepIndex];
   const step = current.key;
-  const magicSteps = generationSteps(hasStrava);
+  const magicSteps = generationSteps();
 
   const projectedWeeks = useMemo(() => {
     const parsed = new Date(`${raceDate}T00:00:00`);
@@ -203,7 +193,7 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
           {step === 'race' ? (
             <View style={styles.optionStack}>
               {raceTypes.map((option) => (
-                <Pressable key={option} onPress={() => setRaceType(option)} style={[styles.largeOption, raceType === option && styles.optionActive]}>
+                <Pressable key={option} onPress={() => setRaceType(option)} style={({ pressed }) => [styles.largeOption, raceType === option && styles.optionActive, pressed && styles.pressedOption]}>
                   <Text style={[styles.largeOptionText, raceType === option && styles.optionTextActive]}>{raceLabel(option)}</Text>
                   <Text style={[styles.largeOptionMeta, raceType === option && styles.optionTextActive]}>{option}</Text>
                 </Pressable>
@@ -222,7 +212,7 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
           {step === 'experience' ? (
             <View style={styles.optionStack}>
               {experiences.map((option) => (
-                <Pressable key={option} onPress={() => setExperience(option)} style={[styles.largeOption, experience === option && styles.optionActive]}>
+                <Pressable key={option} onPress={() => setExperience(option)} style={({ pressed }) => [styles.largeOption, experience === option && styles.optionActive, pressed && styles.pressedOption]}>
                   <Text style={[styles.largeOptionText, experience === option && styles.optionTextActive]}>{option}</Text>
                   <Text style={[styles.largeOptionMeta, experience === option && styles.optionTextActive]}>{option === 'Beginner' ? 'Newer to structured triathlon training' : option === 'Intermediate' ? 'Consistent training, building toward performance' : 'Experienced athlete with higher training tolerance'}</Text>
                 </Pressable>
@@ -233,7 +223,7 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
           {step === 'hours' ? (
             <View style={styles.grid}>
               {hourOptions.map((option) => (
-                <Pressable key={option} onPress={() => { setHourBand(option); setMaxHours(parseHours(option)); }} style={[styles.tile, hourBand === option && styles.optionActive]}>
+                <Pressable key={option} onPress={() => { setHourBand(option); setMaxHours(parseHours(option)); }} style={({ pressed }) => [styles.tile, hourBand === option && styles.optionActive, pressed && styles.pressedOption]}>
                   <Text style={[styles.tileText, hourBand === option && styles.optionTextActive]}>{option}</Text>
                   <Text style={[styles.tileMeta, hourBand === option && styles.optionTextActive]}>hrs/wk</Text>
                 </Pressable>
@@ -244,11 +234,11 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
           {step === 'strava' ? (
             <View>
               <View style={styles.stravaBox}>
-                <Text style={styles.stravaStatus}>Strava connected</Text>
-                <Text style={styles.stravaBig}>49 recent activities</Text>
-                <Text style={styles.stravaMeta}>39.8h total · Run/Bike/Swim 14/8/0</Text>
+                <Text style={styles.stravaStatus}>Optional connection</Text>
+                <Text style={styles.stravaBig}>Connect Strava after your plan is built</Text>
+                <Text style={styles.stravaMeta}>Completed activities can match to your calendar and feed Race Readiness.</Text>
               </View>
-              <Text style={styles.body}>We’ll use this to estimate recent load, discipline balance, and whether your plan should start conservatively or aggressively.</Text>
+              <Text style={styles.body}>You can build a plan now without Strava. Add training history later from Settings.</Text>
             </View>
           ) : null}
 
@@ -276,8 +266,8 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
         {success ? <View style={styles.successBox}><Text style={styles.success}>{success}</Text></View> : null}
 
         <View style={styles.footerActions}>
-          <Pressable onPress={backStep} disabled={stepIndex === 0} style={[styles.backButton, stepIndex === 0 && styles.disabledBack]}><Text style={styles.backText}>Back</Text></Pressable>
-          <Pressable onPress={continueStep} style={styles.continueButton}><Text style={styles.continueText}>{stepIndex === steps.length - 1 ? 'Generate plan' : 'Continue'}</Text></Pressable>
+          <Pressable onPress={backStep} disabled={stepIndex === 0} style={({ pressed }) => [styles.backButton, stepIndex === 0 && styles.disabledBack, pressed && stepIndex !== 0 && styles.secondaryPressed]}><Text style={styles.backText}>Back</Text></Pressable>
+          <Pressable onPress={continueStep} style={({ pressed }) => [styles.continueButton, pressed && styles.primaryPressed]}><Text style={styles.continueText}>{stepIndex === steps.length - 1 ? 'Generate plan' : 'Continue'}</Text></Pressable>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -302,6 +292,7 @@ const styles = StyleSheet.create({
   largeOptionMeta: { marginTop: 5, color: colors.muted, fontSize: 13, lineHeight: 18, fontWeight: '600' },
   optionActive: { backgroundColor: colors.ink, borderColor: colors.ink },
   optionTextActive: { color: colors.surface },
+  pressedOption: { transform: [{ scale: 0.986 }], opacity: 0.9 },
   label: { marginBottom: 10, color: colors.inkSoft, fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
   input: { minHeight: 56, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, paddingHorizontal: 16, color: colors.ink, fontSize: 17, fontWeight: '700' },
   textArea: { minHeight: 150, paddingTop: 16, textAlignVertical: 'top', fontWeight: '600' },
@@ -314,7 +305,7 @@ const styles = StyleSheet.create({
   tileMeta: { marginTop: 4, color: colors.muted, fontSize: 12, fontWeight: '800' },
   stravaBox: { backgroundColor: colors.successSoft, borderRadius: radius.lg, borderWidth: 1, borderColor: '#86efac', padding: 18 },
   stravaStatus: { color: colors.success, fontSize: 13, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
-  stravaBig: { marginTop: 12, color: colors.ink, fontSize: 28, fontWeight: '900', letterSpacing: -1.1 },
+  stravaBig: { marginTop: 12, color: colors.ink, fontSize: 26, lineHeight: 29, fontWeight: '900', letterSpacing: -1.1 },
   stravaMeta: { marginTop: 5, color: colors.inkSoft, fontSize: 14, lineHeight: 21, fontWeight: '700' },
   body: { marginTop: 14, color: colors.inkSoft, fontSize: 14, lineHeight: 22, fontWeight: '500' },
   reviewTitle: { color: colors.ink, fontSize: 30, fontWeight: '900', letterSpacing: -1.1 },
@@ -331,5 +322,7 @@ const styles = StyleSheet.create({
   disabledBack: { opacity: 0.45 },
   backText: { color: colors.muted, fontSize: 15, fontWeight: '900' },
   continueButton: { flex: 1, minHeight: 54, borderRadius: radius.md, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
+  primaryPressed: { transform: [{ scale: 0.975 }], opacity: 0.88, backgroundColor: '#27272a' },
+  secondaryPressed: { transform: [{ scale: 0.975 }], opacity: 0.88, backgroundColor: colors.surfaceMuted },
   continueText: { color: colors.surface, fontSize: 15, fontWeight: '900' },
 });
