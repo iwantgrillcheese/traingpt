@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import * as ExpoLinking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors, radius, shadow, spacing } from '../design/theme';
 import { useAuth } from '../auth/AuthProvider';
 import { apiFetch } from '../lib/api';
+import { supabase } from '../lib/supabase';
 import { PlanGenerationExperience } from '../components/PlanGenerationExperience';
 
 type RaceType = 'Sprint' | 'Olympic' | 'Half Ironman (70.3)' | 'Ironman (140.6)';
@@ -13,6 +16,16 @@ type PlanScreenProps = {
   onPlanCreated?: () => void;
 };
 
+type StravaSummary = {
+  connected: boolean;
+  loading: boolean;
+  activityCount: number;
+  totalHours: number;
+  runCount: number;
+  bikeCount: number;
+  swimCount: number;
+};
+
 const raceTypes: RaceType[] = ['Sprint', 'Olympic', 'Half Ironman (70.3)', 'Ironman (140.6)'];
 const experiences: Experience[] = ['Beginner', 'Intermediate', 'Advanced'];
 const hourOptions = ['3-5', '6-8', '9-12', '12+'];
@@ -21,7 +34,7 @@ const steps: { key: StepKey; eyebrow: string; title: string; subtitle: string }[
   { key: 'date', eyebrow: 'Step 2', title: 'When is race day?', subtitle: 'Your race date controls the length of the build, taper timing, and first-week ramp.' },
   { key: 'experience', eyebrow: 'Step 3', title: 'Where are you starting from?', subtitle: 'Choose the level that best reflects your current training background.' },
   { key: 'hours', eyebrow: 'Step 4', title: 'How many hours can you train?', subtitle: 'Pick a realistic weekly range. A good plan fits your life before it stretches your fitness.' },
-  { key: 'strava', eyebrow: 'Step 5', title: 'Connect training history.', subtitle: 'You can connect Strava after your plan is built to match completed activities and improve Race Readiness.' },
+  { key: 'strava', eyebrow: 'Step 5', title: 'Connect training history.', subtitle: 'Connect Strava so TrainGPT can use your recent swim, bike, and run history before building the plan.' },
   { key: 'notes', eyebrow: 'Step 6', title: 'Any constraints?', subtitle: 'Tell your coach about injuries, travel, weak disciplines, preferred long ride days, or schedule limits.' },
   { key: 'review', eyebrow: 'Step 7', title: 'Ready to build.', subtitle: 'Review the setup. Then TrainGPT will generate the calendar and session structure.' },
 ];
@@ -46,21 +59,47 @@ function parseHours(option: string) {
   return '8';
 }
 
-function generationSteps() {
-  return [
-    'Reading your race goal',
-    'Balancing swim, bike, and run',
-    'Choosing a safe starting load',
-    'Placing key sessions on the calendar',
-    'Assigning session points',
-    'Unlocking Race Readiness',
-  ];
+function generationSteps(hasStrava: boolean) {
+  return hasStrava
+    ? [
+        'Reading your race goal',
+        'Analyzing recent Strava activity',
+        'Balancing swim, bike, and run',
+        'Placing key sessions on the calendar',
+        'Assigning session points',
+        'Unlocking Race Readiness',
+      ]
+    : [
+        'Reading your race goal',
+        'Balancing swim, bike, and run',
+        'Choosing a safe starting load',
+        'Placing key sessions on the calendar',
+        'Assigning session points',
+        'Unlocking Race Readiness',
+      ];
 }
 
 function progressToStep(progress: number, totalSteps: number) {
   const usableRange = 88;
   const rawStep = Math.floor((Math.min(progress, usableRange) / usableRange) * totalSteps);
   return Math.min(totalSteps - 1, Math.max(0, rawStep));
+}
+
+function getQueryParam(url: string, key: string) {
+  const queryStart = url.indexOf('?');
+  const hashStart = url.indexOf('#');
+  const query = queryStart >= 0 ? url.slice(queryStart + 1, hashStart >= 0 ? hashStart : undefined) : '';
+  const hash = hashStart >= 0 ? url.slice(hashStart + 1) : '';
+  const params = new URLSearchParams(`${query}${query && hash ? '&' : ''}${hash}`);
+  return params.get(key);
+}
+
+function sportBucket(value?: string | null) {
+  const sport = String(value ?? '').toLowerCase();
+  if (sport.includes('run')) return 'run';
+  if (sport.includes('ride') || sport.includes('bike') || sport.includes('cycle')) return 'bike';
+  if (sport.includes('swim')) return 'swim';
+  return 'other';
 }
 
 export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
@@ -76,12 +115,63 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
   const [generationComplete, setGenerationComplete] = useState(false);
   const [generationStep, setGenerationStep] = useState(0);
   const [generationProgress, setGenerationProgress] = useState(0);
+  const [connectingStrava, setConnectingStrava] = useState(false);
+  const [syncingStrava, setSyncingStrava] = useState(false);
+  const [strava, setStrava] = useState<StravaSummary>({ connected: false, loading: true, activityCount: 0, totalHours: 0, runCount: 0, bikeCount: 0, swimCount: 0 });
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const current = steps[stepIndex];
   const step = current.key;
-  const magicSteps = generationSteps();
+  const magicSteps = generationSteps(strava.connected && strava.activityCount > 0);
+
+  const loadStravaSummary = useCallback(async () => {
+    if (!user?.id) return;
+    setStrava((currentState) => ({ ...currentState, loading: true }));
+
+    const [{ data: profile }, { data: activities }] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('strava_access_token,strava_refresh_token,strava_athlete_id')
+        .eq('id', user.id)
+        .maybeSingle(),
+      supabase
+        .from('strava_activities')
+        .select('sport_type,type,moving_time')
+        .eq('user_id', user.id)
+        .order('start_date', { ascending: false })
+        .limit(180),
+    ]);
+
+    const typedProfile = profile as { strava_access_token?: string | null; strava_refresh_token?: string | null } | null;
+    const typedActivities = (activities ?? []) as Array<{ sport_type?: string | null; type?: string | null; moving_time?: number | null }>;
+    const connected = Boolean(typedProfile?.strava_access_token && typedProfile?.strava_refresh_token);
+    const totalSeconds = typedActivities.reduce((sum, activity) => sum + Number(activity.moving_time ?? 0), 0);
+    const counts = typedActivities.reduce(
+      (acc, activity) => {
+        const bucket = sportBucket(activity.sport_type ?? activity.type);
+        if (bucket === 'run') acc.run += 1;
+        if (bucket === 'bike') acc.bike += 1;
+        if (bucket === 'swim') acc.swim += 1;
+        return acc;
+      },
+      { run: 0, bike: 0, swim: 0 }
+    );
+
+    setStrava({
+      connected,
+      loading: false,
+      activityCount: typedActivities.length,
+      totalHours: Math.round((totalSeconds / 3600) * 10) / 10,
+      runCount: counts.run,
+      bikeCount: counts.bike,
+      swimCount: counts.swim,
+    });
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadStravaSummary();
+  }, [loadStravaSummary]);
 
   const projectedWeeks = useMemo(() => {
     const parsed = new Date(`${raceDate}T00:00:00`);
@@ -105,6 +195,58 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
 
     return () => clearInterval(interval);
   }, [generating, generationComplete, magicSteps.length]);
+
+  const syncStrava = async () => {
+    if (!strava.connected || syncingStrava) return;
+    setSyncingStrava(true);
+    setError(null);
+    try {
+      const response = await apiFetch('/api/strava_sync', { method: 'POST' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error || 'Strava sync failed.');
+      await loadStravaSummary();
+      setSuccess('Strava synced. Your recent activities are ready for plan generation.');
+    } catch (error) {
+      console.error('[PlanScreen] Strava sync failed', error);
+      setError(error instanceof Error ? error.message : 'Could not sync Strava right now.');
+    } finally {
+      setSyncingStrava(false);
+    }
+  };
+
+  const connectStrava = async () => {
+    if (connectingStrava) return;
+    setConnectingStrava(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const appRedirect = ExpoLinking.createURL('strava/callback');
+      const response = await apiFetch('/api/strava/mobile-connect', {
+        method: 'POST',
+        body: JSON.stringify({ appRedirect }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.url) throw new Error(payload?.error || 'Could not start Strava connection.');
+
+      const result = await WebBrowser.openAuthSessionAsync(payload.url, appRedirect);
+      if (result.type === 'success') {
+        const error = getQueryParam(result.url, 'error');
+        const success = getQueryParam(result.url, 'success');
+        if (error) throw new Error(error);
+        if (success === 'strava_connected') {
+          await loadStravaSummary();
+          await syncStrava();
+          setSuccess('Strava connected. Your recent training history is ready.');
+        }
+      }
+    } catch (error) {
+      console.error('[PlanScreen] Strava connect failed', error);
+      Alert.alert('Strava connection failed', error instanceof Error ? error.message : 'Could not connect Strava right now.');
+    } finally {
+      setConnectingStrava(false);
+    }
+  };
 
   const generatePlan = async () => {
     if (!user?.id) return;
@@ -134,6 +276,7 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
           athleteNotes: notes.trim() || undefined,
           twoADaysAllowed: false,
           clientUserId: user.id,
+          useStravaHistory: strava.connected && strava.activityCount > 0,
         }),
       });
 
@@ -234,11 +377,32 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
           {step === 'strava' ? (
             <View>
               <View style={styles.stravaBox}>
-                <Text style={styles.stravaStatus}>Optional connection</Text>
-                <Text style={styles.stravaBig}>Connect Strava after your plan is built</Text>
-                <Text style={styles.stravaMeta}>Completed activities can match to your calendar and feed Race Readiness.</Text>
+                <Text style={styles.stravaStatus}>{strava.connected ? 'Strava connected' : 'Connect Strava'}</Text>
+                {strava.loading ? (
+                  <View style={styles.loadingRow}>
+                    <ActivityIndicator />
+                    <Text style={styles.loadingText}>Checking connection...</Text>
+                  </View>
+                ) : strava.connected ? (
+                  <>
+                    <Text style={styles.stravaBig}>{strava.activityCount} recent activities</Text>
+                    <Text style={styles.stravaMeta}>{strava.totalHours}h total · Run/Bike/Swim {strava.runCount}/{strava.bikeCount}/{strava.swimCount}</Text>
+                    <Text style={styles.body}>TrainGPT will use this to estimate recent load, discipline balance, and your safest starting point.</Text>
+                    <Pressable onPress={syncStrava} disabled={syncingStrava} style={({ pressed }) => [styles.stravaButtonSecondary, syncingStrava && styles.disabledButton, pressed && styles.secondaryPressed]}>
+                      <Text style={styles.stravaButtonSecondaryText}>{syncingStrava ? 'Syncing...' : 'Refresh Strava data'}</Text>
+                    </Pressable>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.stravaBig}>Use your real training history</Text>
+                    <Text style={styles.stravaMeta}>Connect Strava to pull recent swim, bike, and run activity before plan generation.</Text>
+                    <Pressable onPress={connectStrava} disabled={connectingStrava} style={({ pressed }) => [styles.stravaButton, connectingStrava && styles.disabledButton, pressed && styles.primaryPressed]}>
+                      <Text style={styles.stravaButtonText}>{connectingStrava ? 'Connecting...' : 'Connect Strava'}</Text>
+                    </Pressable>
+                    <Text style={styles.body}>You can skip this and still build a plan, but Strava history should make the starting point smarter.</Text>
+                  </>
+                )}
               </View>
-              <Text style={styles.body}>You can build a plan now without Strava. Add training history later from Settings.</Text>
             </View>
           ) : null}
 
@@ -256,6 +420,7 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
                 <View style={styles.reviewItem}><Text style={styles.reviewValue}>{projectedWeeks ?? '-'}</Text><Text style={styles.reviewLabel}>Weeks</Text></View>
                 <View style={styles.reviewItem}><Text style={styles.reviewValue}>{maxHours}h</Text><Text style={styles.reviewLabel}>Weekly cap</Text></View>
                 <View style={styles.reviewItem}><Text style={styles.reviewValue}>{experience}</Text><Text style={styles.reviewLabel}>Level</Text></View>
+                <View style={styles.reviewItem}><Text style={styles.reviewValue}>{strava.connected && strava.activityCount > 0 ? 'On' : 'Off'}</Text><Text style={styles.reviewLabel}>Strava history</Text></View>
               </View>
               <Text style={styles.body}>Next, TrainGPT will generate your calendar, assign points to each session, and unlock your first weekly mission.</Text>
             </View>
@@ -307,6 +472,13 @@ const styles = StyleSheet.create({
   stravaStatus: { color: colors.success, fontSize: 13, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
   stravaBig: { marginTop: 12, color: colors.ink, fontSize: 26, lineHeight: 29, fontWeight: '900', letterSpacing: -1.1 },
   stravaMeta: { marginTop: 5, color: colors.inkSoft, fontSize: 14, lineHeight: 21, fontWeight: '700' },
+  loadingRow: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  loadingText: { color: colors.muted, fontSize: 14, fontWeight: '700' },
+  stravaButton: { marginTop: 16, minHeight: 52, borderRadius: radius.md, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
+  stravaButtonText: { color: colors.surface, fontSize: 15, fontWeight: '900' },
+  stravaButtonSecondary: { marginTop: 16, minHeight: 50, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  stravaButtonSecondaryText: { color: colors.ink, fontSize: 14, fontWeight: '900' },
+  disabledButton: { opacity: 0.55 },
   body: { marginTop: 14, color: colors.inkSoft, fontSize: 14, lineHeight: 22, fontWeight: '500' },
   reviewTitle: { color: colors.ink, fontSize: 30, fontWeight: '900', letterSpacing: -1.1 },
   reviewGrid: { marginTop: 18, gap: 9 },
