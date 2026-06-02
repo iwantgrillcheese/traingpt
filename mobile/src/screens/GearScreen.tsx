@@ -7,11 +7,6 @@ import { useAuth } from '../auth/AuthProvider';
 import { supabase } from '../lib/supabase';
 import { apiFetch } from '../lib/api';
 
-const settingsRows = [
-  { title: 'Training preferences', text: 'Rest day, weekly hours, long ride/run preferences, and pacing units.' },
-  { title: 'Recovery signals', text: 'Oura and WHOOP readiness signals are planned for a future version.' },
-];
-
 type StravaState = {
   connected: boolean;
   athleteId: string | null;
@@ -315,13 +310,6 @@ export function GearScreen() {
         )}
       </View>
 
-      {settingsRows.map((item) => (
-        <View key={item.title} style={styles.itemCard}>
-          <Text style={styles.itemTitle}>{item.title}</Text>
-          <Text style={styles.itemText}>{item.text}</Text>
-        </View>
-      ))}
-
       <View style={styles.sectionCard}>
         <Text style={styles.sectionKicker}>Plan controls</Text>
         <Text style={styles.sectionTitle}>Start over</Text>
@@ -375,9 +363,6 @@ const styles = StyleSheet.create({
   primaryActionText: { color: colors.surface, fontSize: 14, fontWeight: '900' },
   secondaryAction: { minHeight: 50, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   secondaryActionText: { color: colors.ink, fontSize: 14, fontWeight: '900' },
-  itemCard: { marginTop: 12, backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: 18, ...shadow.card },
-  itemTitle: { color: colors.ink, fontSize: 20, fontWeight: '900', letterSpacing: -0.7 },
-  itemText: { marginTop: 8, color: colors.muted, fontSize: 14, lineHeight: 22, fontWeight: '600' },
   sectionCard: { marginTop: 18, backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, padding: 18, ...shadow.card },
   sectionKicker: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.5 },
   sectionTitle: { marginTop: 10, color: colors.ink, fontSize: 24, lineHeight: 28, fontWeight: '900', letterSpacing: -0.8 },
