@@ -5,6 +5,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useStravaAutoSync } from "../hooks/useStravaAutoSync";
+import { OuraConnectionCard } from "./OuraConnectionCard";
 import {
   DEFAULT_FUELING_PREFERENCES,
   loadFuelingPreferences,
@@ -182,7 +183,6 @@ export default function ProfilePage() {
 
     if (error) {
       console.error("Error updating marketing_opt_in:", error);
-      // Optional: revert optimistic UI on failure
       setOptIn(!newOpt);
     }
   };
@@ -406,42 +406,53 @@ export default function ProfilePage() {
           </label>
         </section>
 
-        {/* Strava */}
+        {/* Connected Apps */}
         <section className="bg-white border rounded-xl p-6 shadow-sm">
           <h2 className="text-lg font-medium mb-4">Connected Apps</h2>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-800">Strava</p>
-              <p className="text-sm text-gray-500">
-                {profile?.strava_access_token ? "Connected" : "Not connected"}
-              </p>
+          <div className="space-y-4">
+            <div className="rounded-xl border border-black/10 bg-zinc-50/70 p-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-gray-800">Strava</p>
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${profile?.strava_access_token ? "bg-orange-100 text-orange-700" : "bg-zinc-200 text-zinc-600"}`}>
+                      {profile?.strava_access_token ? "Connected" : "Not connected"}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-gray-500">
+                    {profile?.strava_access_token ? "Activity sync is active." : "Connect completed activities and training history."}
+                  </p>
+                </div>
+
+                {profile?.strava_access_token ? (
+                  <button
+                    type="button"
+                    onClick={handleDisconnectStrava}
+                    disabled={stravaActionLoading}
+                    className="rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-100 disabled:opacity-50"
+                  >
+                    {stravaActionLoading ? "Disconnecting…" : "Disconnect"}
+                  </button>
+                ) : stravaConnectUrl ? (
+                  <a
+                    href={stravaConnectUrl}
+                    className="rounded-full bg-zinc-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800"
+                  >
+                    Connect
+                  </a>
+                ) : (
+                  <p className="text-sm text-gray-500">
+                    Preparing Strava connection…
+                  </p>
+                )}
+              </div>
+              {stravaMessage ? (
+                <p className="mt-3 text-sm text-gray-600">{stravaMessage}</p>
+              ) : null}
             </div>
 
-            {profile?.strava_access_token ? (
-              <button
-                type="button"
-                onClick={handleDisconnectStrava}
-                disabled={stravaActionLoading}
-                className="text-sm font-medium text-red-500 underline disabled:opacity-50"
-              >
-                {stravaActionLoading ? "Disconnecting…" : "Disconnect"}
-              </button>
-            ) : stravaConnectUrl ? (
-              <a
-                href={stravaConnectUrl}
-                className="text-sm font-medium text-blue-500 underline"
-              >
-                Connect
-              </a>
-            ) : (
-              <p className="text-sm text-gray-500">
-                Preparing Strava connection…
-              </p>
-            )}
+            <OuraConnectionCard />
           </div>
-          {stravaMessage ? (
-            <p className="mt-3 text-sm text-gray-600">{stravaMessage}</p>
-          ) : null}
         </section>
 
         {/* Subscription */}
