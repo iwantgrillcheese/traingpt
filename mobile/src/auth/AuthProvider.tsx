@@ -4,6 +4,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { Linking } from 'react-native';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { getApiBaseUrl } from '../lib/api';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -27,19 +28,30 @@ function getQueryParam(url: string, key: string) {
   return params.get(key);
 }
 
+function getNativeAuthRedirect() {
+  return 'traingpt://auth/callback';
+}
+
+function getMobileAuthBridge() {
+  return `${getApiBaseUrl()}/auth/mobile-callback`;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   const handleOAuthUrl = useCallback(async (url: string | null) => {
     if (!url) return;
-    if (!url.startsWith('traingpt://') && !url.includes('/auth/callback')) return;
+    if (!url.startsWith('traingpt://') && !url.includes('/auth/callback') && !url.includes('/auth/mobile-callback')) return;
 
     const code = getQueryParam(url, 'code');
     const accessToken = getQueryParam(url, 'access_token');
     const refreshToken = getQueryParam(url, 'refresh_token');
+    const errorDescription = getQueryParam(url, 'error_description') ?? getQueryParam(url, 'error');
 
     try {
+      if (errorDescription) throw new Error(errorDescription);
+
       if (code) {
         const { data, error } = await supabase.auth.exchangeCodeForSession(code);
         if (error) throw error;
@@ -98,7 +110,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return error ? { error: error.message } : {};
     },
     async signInWithGoogle() {
-      const redirectTo = ExpoLinking.createURL('auth/callback');
+      const nativeRedirect = getNativeAuthRedirect();
+      const redirectTo = getMobileAuthBridge();
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -106,7 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           skipBrowserRedirect: true,
           queryParams: {
             access_type: 'offline',
-            prompt: 'consent',
+            prompt: 'select_account',
           },
         },
       });
@@ -114,7 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) return { error: error.message };
       if (!data?.url) return { error: 'Could not start Google sign-in.' };
 
-      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+      const result = await WebBrowser.openAuthSessionAsync(data.url, nativeRedirect);
       if (result.type === 'success') {
         await handleOAuthUrl(result.url);
         return {};
