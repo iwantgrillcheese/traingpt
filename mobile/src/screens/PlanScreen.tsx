@@ -5,7 +5,6 @@ import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, Sc
 import { colors, radius, shadow, spacing } from '../design/theme';
 import { useAuth } from '../auth/AuthProvider';
 import { apiFetch } from '../lib/api';
-import { supabase } from '../lib/supabase';
 import { PlanGenerationExperience } from '../components/PlanGenerationExperience';
 
 type RaceType = 'Sprint' | 'Olympic' | 'Half Ironman (70.3)' | 'Ironman (140.6)';
@@ -16,6 +15,13 @@ type PlanScreenProps = {
   onPlanCreated?: () => void;
 };
 
+type StravaHighlight = {
+  label: string;
+  value: string;
+  detail: string;
+  tone?: 'wow' | 'signal' | 'steady';
+};
+
 type StravaSummary = {
   connected: boolean;
   loading: boolean;
@@ -24,6 +30,7 @@ type StravaSummary = {
   runCount: number;
   bikeCount: number;
   swimCount: number;
+  highlights: StravaHighlight[];
 };
 
 type CalendarDay = {
@@ -113,14 +120,6 @@ function getQueryParam(url: string, key: string) {
   return params.get(key);
 }
 
-function sportBucket(value?: string | null) {
-  const sport = String(value ?? '').toLowerCase();
-  if (sport.includes('run')) return 'run';
-  if (sport.includes('ride') || sport.includes('bike') || sport.includes('cycle')) return 'bike';
-  if (sport.includes('swim')) return 'swim';
-  return 'other';
-}
-
 function monthLabel(date: Date) {
   return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(date);
 }
@@ -164,7 +163,7 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
   const [generationProgress, setGenerationProgress] = useState(0);
   const [connectingStrava, setConnectingStrava] = useState(false);
   const [syncingStrava, setSyncingStrava] = useState(false);
-  const [strava, setStrava] = useState<StravaSummary>({ connected: false, loading: true, activityCount: 0, totalHours: 0, runCount: 0, bikeCount: 0, swimCount: 0 });
+  const [strava, setStrava] = useState<StravaSummary>({ connected: false, loading: true, activityCount: 0, totalHours: 0, runCount: 0, bikeCount: 0, swimCount: 0, highlights: [] });
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -186,44 +185,25 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
     if (!user?.id) return;
     setStrava((currentState) => ({ ...currentState, loading: true }));
 
-    const [{ data: profile }, { data: activities }] = await Promise.all([
-      supabase
-        .from('profiles')
-        .select('strava_access_token,strava_refresh_token,strava_athlete_id')
-        .eq('id', user.id)
-        .maybeSingle(),
-      supabase
-        .from('strava_activities')
-        .select('sport_type,type,moving_time')
-        .eq('user_id', user.id)
-        .order('start_date', { ascending: false })
-        .limit(180),
-    ]);
+    try {
+      const response = await apiFetch('/api/strava/mobile-status');
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error || 'Could not load Strava status.');
 
-    const typedProfile = profile as { strava_access_token?: string | null; strava_refresh_token?: string | null } | null;
-    const typedActivities = (activities ?? []) as Array<{ sport_type?: string | null; type?: string | null; moving_time?: number | null }>;
-    const connected = Boolean(typedProfile?.strava_access_token && typedProfile?.strava_refresh_token);
-    const totalSeconds = typedActivities.reduce((sum, activity) => sum + Number(activity.moving_time ?? 0), 0);
-    const counts = typedActivities.reduce(
-      (acc, activity) => {
-        const bucket = sportBucket(activity.sport_type ?? activity.type);
-        if (bucket === 'run') acc.run += 1;
-        if (bucket === 'bike') acc.bike += 1;
-        if (bucket === 'swim') acc.swim += 1;
-        return acc;
-      },
-      { run: 0, bike: 0, swim: 0 }
-    );
-
-    setStrava({
-      connected,
-      loading: false,
-      activityCount: typedActivities.length,
-      totalHours: Math.round((totalSeconds / 3600) * 10) / 10,
-      runCount: counts.run,
-      bikeCount: counts.bike,
-      swimCount: counts.swim,
-    });
+      setStrava({
+        connected: Boolean(payload?.connected),
+        loading: false,
+        activityCount: Number(payload?.activityCount ?? payload?.recentActivityCount ?? 0),
+        totalHours: Number(payload?.totalHours ?? 0),
+        runCount: Number(payload?.runCount ?? 0),
+        bikeCount: Number(payload?.bikeCount ?? 0),
+        swimCount: Number(payload?.swimCount ?? 0),
+        highlights: Array.isArray(payload?.highlights) ? payload.highlights : [],
+      });
+    } catch (error) {
+      console.error('[PlanScreen] Strava status failed', error);
+      setStrava((currentState) => ({ ...currentState, connected: false, loading: false, highlights: [] }));
+    }
   }, [user?.id]);
 
   useEffect(() => {
@@ -475,6 +455,17 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
                   <>
                     <Text style={styles.stravaBig}>{strava.activityCount} recent activities</Text>
                     <Text style={styles.stravaMeta}>{strava.totalHours}h total · Run/Bike/Swim {strava.runCount}/{strava.bikeCount}/{strava.swimCount}</Text>
+                    {strava.highlights.length > 0 ? (
+                      <View style={styles.highlightGrid}>
+                        {strava.highlights.map((highlight) => (
+                          <View key={`${highlight.label}-${highlight.value}`} style={styles.highlightCard}>
+                            <Text style={styles.highlightLabel}>{highlight.label}</Text>
+                            <Text style={styles.highlightValue}>{highlight.value}</Text>
+                            <Text style={styles.highlightDetail}>{highlight.detail}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    ) : null}
                     <Text style={styles.body}>TrainGPT will use this to estimate recent load, discipline balance, and your safest starting point.</Text>
                     <Pressable onPress={syncStrava} disabled={syncingStrava} style={({ pressed }) => [styles.stravaButtonSecondary, syncingStrava && styles.disabledButton, pressed && styles.secondaryPressed]}>
                       <Text style={styles.stravaButtonSecondaryText}>{syncingStrava ? 'Syncing...' : 'Refresh Strava data'}</Text>
@@ -578,6 +569,11 @@ const styles = StyleSheet.create({
   stravaStatus: { color: colors.success, fontSize: 13, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
   stravaBig: { marginTop: 12, color: colors.ink, fontSize: 26, lineHeight: 29, fontWeight: '900', letterSpacing: -1.1 },
   stravaMeta: { marginTop: 5, color: colors.inkSoft, fontSize: 14, lineHeight: 21, fontWeight: '700' },
+  highlightGrid: { marginTop: 14, gap: 9 },
+  highlightCard: { borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: 13 },
+  highlightLabel: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1 },
+  highlightValue: { marginTop: 5, color: colors.ink, fontSize: 20, lineHeight: 24, fontWeight: '900', letterSpacing: -0.6 },
+  highlightDetail: { marginTop: 4, color: colors.inkSoft, fontSize: 13, lineHeight: 19, fontWeight: '600' },
   loadingRow: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
   loadingText: { color: colors.muted, fontSize: 14, fontWeight: '700' },
   stravaButton: { marginTop: 16, minHeight: 52, borderRadius: radius.md, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
