@@ -169,7 +169,8 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
 
   const current = steps[stepIndex];
   const step = current.key;
-  const magicSteps = generationSteps(strava.connected && strava.activityCount > 0);
+  const stravaReady = strava.connected && strava.activityCount > 0;
+  const magicSteps = generationSteps(stravaReady);
   const calendarDays = useMemo(() => buildCalendarDays(calendarMonth), [calendarMonth]);
 
   const moveCalendarMonth = (offset: number) => {
@@ -233,8 +234,8 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
     return () => clearInterval(interval);
   }, [generating, generationComplete, magicSteps.length]);
 
-  const syncStrava = async () => {
-    if (!strava.connected || syncingStrava) return;
+  const syncStrava = async (options?: { force?: boolean; showSuccess?: boolean }) => {
+    if ((!options?.force && !strava.connected) || syncingStrava) return false;
     setSyncingStrava(true);
     setError(null);
     try {
@@ -242,10 +243,12 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload?.error || 'Strava sync failed.');
       await loadStravaSummary();
-      setSuccess('Strava synced. Your recent activities are ready for plan generation.');
+      if (options?.showSuccess !== false) setSuccess('Strava synced. Your recent activities are ready for plan generation.');
+      return true;
     } catch (error) {
       console.error('[PlanScreen] Strava sync failed', error);
       setError(error instanceof Error ? error.message : 'Could not sync Strava right now.');
+      return false;
     } finally {
       setSyncingStrava(false);
     }
@@ -272,8 +275,8 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
         const success = getQueryParam(result.url, 'success');
         if (error) throw new Error(error);
         if (success === 'strava_connected') {
+          await syncStrava({ force: true, showSuccess: false });
           await loadStravaSummary();
-          await syncStrava();
           setSuccess('Strava connected. Your recent training history is ready.');
         }
       }
@@ -313,7 +316,7 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
           athleteNotes: notes.trim() || undefined,
           twoADaysAllowed: false,
           clientUserId: user.id,
-          useStravaHistory: strava.connected && strava.activityCount > 0,
+          useStravaHistory: stravaReady,
         }),
       });
 
@@ -446,10 +449,10 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
             <View>
               <View style={styles.stravaBox}>
                 <Text style={styles.stravaStatus}>{strava.connected ? 'Strava connected' : 'Connect Strava'}</Text>
-                {strava.loading ? (
+                {strava.loading || syncingStrava ? (
                   <View style={styles.loadingRow}>
                     <ActivityIndicator />
-                    <Text style={styles.loadingText}>Checking connection...</Text>
+                    <Text style={styles.loadingText}>{syncingStrava ? 'Syncing recent activities...' : 'Checking connection...'}</Text>
                   </View>
                 ) : strava.connected ? (
                   <>
@@ -467,7 +470,7 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
                       </View>
                     ) : null}
                     <Text style={styles.body}>TrainGPT will use this to estimate recent load, discipline balance, and your safest starting point.</Text>
-                    <Pressable onPress={syncStrava} disabled={syncingStrava} style={({ pressed }) => [styles.stravaButtonSecondary, syncingStrava && styles.disabledButton, pressed && styles.secondaryPressed]}>
+                    <Pressable onPress={() => syncStrava()} disabled={syncingStrava} style={({ pressed }) => [styles.stravaButtonSecondary, syncingStrava && styles.disabledButton, pressed && styles.secondaryPressed]}>
                       <Text style={styles.stravaButtonSecondaryText}>{syncingStrava ? 'Syncing...' : 'Refresh Strava data'}</Text>
                     </Pressable>
                   </>
@@ -499,7 +502,7 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
                 <View style={styles.reviewItem}><Text style={styles.reviewValue}>{projectedWeeks ?? '-'}</Text><Text style={styles.reviewLabel}>Weeks</Text></View>
                 <View style={styles.reviewItem}><Text style={styles.reviewValue}>{maxHours}h</Text><Text style={styles.reviewLabel}>Weekly cap</Text></View>
                 <View style={styles.reviewItem}><Text style={styles.reviewValue}>{experience}</Text><Text style={styles.reviewLabel}>Level</Text></View>
-                <View style={styles.reviewItem}><Text style={styles.reviewValue}>{strava.connected && strava.activityCount > 0 ? 'On' : 'Off'}</Text><Text style={styles.reviewLabel}>Strava history</Text></View>
+                <View style={styles.reviewItem}><Text style={styles.reviewValue}>{stravaReady ? 'Ready' : strava.connected ? 'Connected' : 'Off'}</Text><Text style={styles.reviewLabel}>Strava history</Text></View>
               </View>
               <Text style={styles.body}>Next, TrainGPT will generate your calendar, assign points to each session, and unlock your first weekly mission.</Text>
             </View>
