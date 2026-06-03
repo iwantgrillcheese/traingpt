@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { colors, radius, shadow } from '../design/theme';
 
@@ -26,8 +26,12 @@ export function PlanGenerationExperience({ currentStep, steps, complete, progres
   const reveal = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(0)).current;
   const float = useRef(new Animated.Value(0)).current;
+  const progressAnim = useRef(new Animated.Value(4)).current;
+  const [displayProgress, setDisplayProgress] = useState(4);
+
   const estimatedStepProgress = Math.round(((currentStep + 1) / Math.max(steps.length, 1)) * 86);
-  const progress = complete ? 100 : clamp(progressPercent ?? estimatedStepProgress, 4, 92);
+  const rawProgress = complete ? 100 : clamp(progressPercent ?? estimatedStepProgress, 4, 92);
+  const roundedProgress = Math.round(displayProgress);
 
   useEffect(() => {
     reveal.setValue(0);
@@ -40,15 +44,15 @@ export function PlanGenerationExperience({ currentStep, steps, complete, progres
 
     const pulseLoop = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 1300, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 1300, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 1500, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }),
       ])
     );
 
     const floatLoop = Animated.loop(
       Animated.sequence([
-        Animated.timing(float, { toValue: 1, duration: 2100, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(float, { toValue: 0, duration: 2100, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(float, { toValue: 1, duration: 2800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(float, { toValue: 0, duration: 2800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
       ])
     );
 
@@ -60,14 +64,29 @@ export function PlanGenerationExperience({ currentStep, steps, complete, progres
     };
   }, [float, pulse, reveal]);
 
+  useEffect(() => {
+    const listenerId = progressAnim.addListener(({ value }) => setDisplayProgress(value));
+    return () => progressAnim.removeListener(listenerId);
+  }, [progressAnim]);
+
+  useEffect(() => {
+    Animated.timing(progressAnim, {
+      toValue: rawProgress,
+      duration: complete ? 650 : 900,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [complete, progressAnim, rawProgress]);
+
   const revealY = reveal.interpolate({ inputRange: [0, 1], outputRange: [20, 0] });
-  const pulseScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] });
-  const glowOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.18, 0.42] });
-  const floatY = float.interpolate({ inputRange: [0, 1], outputRange: [0, -8] });
+  const pulseScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.05] });
+  const glowOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.18, 0.34] });
+  const floatY = float.interpolate({ inputRange: [0, 1], outputRange: [0, -5] });
+  const progressWidth = progressAnim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] });
 
   const activeMessage = complete
     ? 'Your first weekly mission is ready.'
-    : progress >= 88
+    : rawProgress >= 88
       ? 'Finalizing your calendar...'
       : steps[currentStep] ?? 'Building your plan...';
 
@@ -86,9 +105,9 @@ export function PlanGenerationExperience({ currentStep, steps, complete, progres
           <View style={styles.calendarHeader}>
             <View>
               <Text style={styles.cardKicker}>Season structure</Text>
-              <Text style={styles.cardTitle}>{complete ? 'First mission ready' : progress >= 88 ? 'Final checks' : 'Assembling weeks'}</Text>
+              <Text style={styles.cardTitle}>{complete ? 'First mission ready' : rawProgress >= 88 ? 'Final checks' : 'Assembling weeks'}</Text>
             </View>
-            <Text style={styles.percent}>{progress}%</Text>
+            <Text style={styles.percent}>{roundedProgress}%</Text>
           </View>
 
           <View style={styles.weekRow}>
@@ -129,14 +148,14 @@ export function PlanGenerationExperience({ currentStep, steps, complete, progres
               <Text style={styles.medalText}>{complete ? '✓' : '★'}</Text>
             </Animated.View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.unlockTitle}>{complete ? 'Race Readiness unlocked' : progress >= 88 ? 'Saving your plan' : 'Assigning session points'}</Text>
-              <Text style={styles.unlockText}>{progress >= 88 && !complete ? 'Almost there. We only show 100% once your plan is saved.' : 'Key sessions earn more. Every completed workout moves the score.'}</Text>
+              <Text style={styles.unlockTitle}>{complete ? 'Race Readiness unlocked' : rawProgress >= 88 ? 'Saving your plan' : 'Assigning session points'}</Text>
+              <Text style={styles.unlockText}>{rawProgress >= 88 && !complete ? 'Almost there. We only show 100% once your plan is saved.' : 'Key sessions earn more. Every completed workout moves the score.'}</Text>
             </View>
           </View>
         </View>
 
         <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${progress}%` }]} />
+          <Animated.View style={[styles.progressFill, { width: progressWidth }]} />
         </View>
 
         <View style={styles.stepList}>
@@ -152,7 +171,7 @@ export function PlanGenerationExperience({ currentStep, steps, complete, progres
           })}
         </View>
 
-        <Text style={styles.footer}>{complete ? 'Plan saved. Opening your product tour now.' : progress >= 88 ? 'Final generation can take a little longer. Keep the app open.' : 'Keep the app open. Longer plans can take up to a minute.'}</Text>
+        <Text style={styles.footer}>{complete ? 'Plan saved. Opening your product tour now.' : rawProgress >= 88 ? 'Final generation can take a little longer. Keep the app open.' : 'Keep the app open. Longer plans can take up to a minute.'}</Text>
       </Animated.View>
     </View>
   );
