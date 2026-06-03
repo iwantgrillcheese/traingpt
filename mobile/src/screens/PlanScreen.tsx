@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as ExpoLinking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, shadow, spacing } from '../design/theme';
 import { useAuth } from '../auth/AuthProvider';
 import { apiFetch } from '../lib/api';
@@ -48,9 +49,9 @@ const steps: { key: StepKey; eyebrow: string; title: string; subtitle: string }[
   { key: 'date', eyebrow: 'Step 2', title: 'When is race day?', subtitle: 'Your race date controls the length of the build, taper timing, and first-week ramp.' },
   { key: 'experience', eyebrow: 'Step 3', title: 'Where are you starting from?', subtitle: 'Choose the level that best reflects your current training background.' },
   { key: 'hours', eyebrow: 'Step 4', title: 'How many hours can you train?', subtitle: 'Pick a realistic weekly range. A good plan fits your life before it stretches your fitness.' },
-  { key: 'strava', eyebrow: 'Step 5', title: 'Connect training history.', subtitle: 'Connect Strava so TrainGPT can use your recent swim, bike, and run history before building the plan.' },
+  { key: 'strava', eyebrow: 'Step 5', title: 'Connect training history', subtitle: 'Connect Strava so TrainGPT can use your recent swim, bike, and run history before building the plan.' },
   { key: 'notes', eyebrow: 'Step 6', title: 'Any constraints?', subtitle: 'Tell your coach about injuries, travel, weak disciplines, preferred long ride days, or schedule limits.' },
-  { key: 'review', eyebrow: 'Step 7', title: 'Ready to build.', subtitle: 'Review the setup. Then TrainGPT will generate the calendar and session structure.' },
+  { key: 'review', eyebrow: 'Step 7', title: 'Ready to build', subtitle: 'Review the setup. Then TrainGPT will generate the calendar and session structure.' },
 ];
 
 function toDateKey(date: Date) {
@@ -148,6 +149,7 @@ function buildCalendarDays(monthDate: Date): CalendarDay[] {
 
 export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const initialRaceDate = useMemo(() => defaultRaceDate(), []);
   const [stepIndex, setStepIndex] = useState(0);
   const [raceType, setRaceType] = useState<RaceType>('Half Ironman (70.3)');
@@ -169,7 +171,7 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
 
   const current = steps[stepIndex];
   const step = current.key;
-  const stravaReady = strava.connected && strava.activityCount > 0;
+  const stravaReady = strava.connected || strava.activityCount > 0;
   const magicSteps = generationSteps(stravaReady);
   const calendarDays = useMemo(() => buildCalendarDays(calendarMonth), [calendarMonth]);
 
@@ -191,10 +193,12 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload?.error || 'Could not load Strava status.');
 
+      const activityCount = Number(payload?.activityCount ?? payload?.recentActivityCount ?? 0);
+
       setStrava({
-        connected: Boolean(payload?.connected),
+        connected: Boolean(payload?.connected) || activityCount > 0,
         loading: false,
-        activityCount: Number(payload?.activityCount ?? payload?.recentActivityCount ?? 0),
+        activityCount,
         totalHours: Number(payload?.totalHours ?? 0),
         runCount: Number(payload?.runCount ?? 0),
         bikeCount: Number(payload?.bikeCount ?? 0),
@@ -235,7 +239,7 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
   }, [generating, generationComplete, magicSteps.length]);
 
   const syncStrava = async (options?: { force?: boolean; showSuccess?: boolean }) => {
-    if ((!options?.force && !strava.connected) || syncingStrava) return false;
+    if ((!options?.force && !stravaReady) || syncingStrava) return false;
     setSyncingStrava(true);
     setError(null);
     try {
@@ -359,7 +363,7 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 24 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={styles.topRow}>
           <Text style={styles.brand}>TrainGPT</Text>
           <Text style={styles.progressText}>{stepIndex + 1} / {steps.length}</Text>
@@ -448,19 +452,50 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
           {step === 'strava' ? (
             <View>
               <View style={styles.stravaBox}>
-                <Text style={styles.stravaStatus}>{strava.connected ? 'Strava connected' : 'Connect Strava'}</Text>
+                <View style={styles.stravaTopRow}>
+                  <View style={styles.stravaLogo}>
+                    <Text style={styles.stravaLogoText}>S</Text>
+                  </View>
+                  <View style={styles.stravaHeaderCopy}>
+                    <Text style={styles.stravaStatus}>Strava</Text>
+                    <Text style={styles.stravaConnection}>{stravaReady ? 'Training history ready' : 'Connect training history'}</Text>
+                  </View>
+                </View>
+
                 {strava.loading || syncingStrava ? (
                   <View style={styles.loadingRow}>
                     <ActivityIndicator />
                     <Text style={styles.loadingText}>{syncingStrava ? 'Syncing recent activities...' : 'Checking connection...'}</Text>
                   </View>
-                ) : strava.connected ? (
+                ) : stravaReady ? (
                   <>
-                    <Text style={styles.stravaBig}>{strava.activityCount} recent activities</Text>
-                    <Text style={styles.stravaMeta}>{strava.totalHours}h total · Run/Bike/Swim {strava.runCount}/{strava.bikeCount}/{strava.swimCount}</Text>
+                    <Text style={styles.stravaBig}>Recent training found</Text>
+                    <View style={styles.stravaStatsGrid}>
+                      <View style={styles.stravaStatLarge}>
+                        <Text style={styles.stravaStatValue}>{strava.activityCount}</Text>
+                        <Text style={styles.stravaStatLabel}>Activities</Text>
+                      </View>
+                      <View style={styles.stravaStatLarge}>
+                        <Text style={styles.stravaStatValue}>{strava.totalHours}</Text>
+                        <Text style={styles.stravaStatLabel}>Hours</Text>
+                      </View>
+                      <View style={styles.stravaStat}>
+                        <Text style={styles.stravaStatValueSmall}>{strava.runCount}</Text>
+                        <Text style={styles.stravaStatLabel}>Runs</Text>
+                      </View>
+                      <View style={styles.stravaStat}>
+                        <Text style={styles.stravaStatValueSmall}>{strava.bikeCount}</Text>
+                        <Text style={styles.stravaStatLabel}>Rides</Text>
+                      </View>
+                      <View style={styles.stravaStat}>
+                        <Text style={styles.stravaStatValueSmall}>{strava.swimCount}</Text>
+                        <Text style={styles.stravaStatLabel}>Swims</Text>
+                      </View>
+                    </View>
+
                     {strava.highlights.length > 0 ? (
                       <View style={styles.highlightGrid}>
-                        {strava.highlights.map((highlight) => (
+                        {strava.highlights.slice(0, 3).map((highlight) => (
                           <View key={`${highlight.label}-${highlight.value}`} style={styles.highlightCard}>
                             <Text style={styles.highlightLabel}>{highlight.label}</Text>
                             <Text style={styles.highlightValue}>{highlight.value}</Text>
@@ -469,7 +504,8 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
                         ))}
                       </View>
                     ) : null}
-                    <Text style={styles.body}>TrainGPT will use this to estimate recent load, discipline balance, and your safest starting point.</Text>
+
+                    <Text style={styles.body}>TrainGPT will use this history to estimate recent load, discipline balance, and a safer starting point.</Text>
                     <Pressable onPress={() => syncStrava()} disabled={syncingStrava} style={({ pressed }) => [styles.stravaButtonSecondary, syncingStrava && styles.disabledButton, pressed && styles.secondaryPressed]}>
                       <Text style={styles.stravaButtonSecondaryText}>{syncingStrava ? 'Syncing...' : 'Refresh Strava data'}</Text>
                     </Pressable>
@@ -479,9 +515,9 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
                     <Text style={styles.stravaBig}>Use your real training history</Text>
                     <Text style={styles.stravaMeta}>Connect Strava to pull recent swim, bike, and run activity before plan generation.</Text>
                     <Pressable onPress={connectStrava} disabled={connectingStrava} style={({ pressed }) => [styles.stravaButton, connectingStrava && styles.disabledButton, pressed && styles.primaryPressed]}>
-                      <Text style={styles.stravaButtonText}>{connectingStrava ? 'Connecting...' : 'Connect Strava'}</Text>
+                      <Text style={styles.stravaButtonText}>{connectingStrava ? 'Connecting...' : 'Connect with Strava'}</Text>
                     </Pressable>
-                    <Text style={styles.body}>You can skip this and still build a plan, but Strava history should make the starting point smarter.</Text>
+                    <Text style={styles.body}>You can skip this and still build a plan. Strava history should make the first week smarter.</Text>
                   </>
                 )}
               </View>
@@ -502,7 +538,7 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
                 <View style={styles.reviewItem}><Text style={styles.reviewValue}>{projectedWeeks ?? '-'}</Text><Text style={styles.reviewLabel}>Weeks</Text></View>
                 <View style={styles.reviewItem}><Text style={styles.reviewValue}>{maxHours}h</Text><Text style={styles.reviewLabel}>Weekly cap</Text></View>
                 <View style={styles.reviewItem}><Text style={styles.reviewValue}>{experience}</Text><Text style={styles.reviewLabel}>Level</Text></View>
-                <View style={styles.reviewItem}><Text style={styles.reviewValue}>{stravaReady ? 'Ready' : strava.connected ? 'Connected' : 'Off'}</Text><Text style={styles.reviewLabel}>Strava history</Text></View>
+                <View style={styles.reviewItem}><Text style={styles.reviewValue}>{stravaReady ? 'Ready' : 'Off'}</Text><Text style={styles.reviewLabel}>Strava history</Text></View>
               </View>
               <Text style={styles.body}>Next, TrainGPT will generate your calendar, assign points to each session, and unlock your first weekly mission.</Text>
             </View>
@@ -523,16 +559,16 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.pageX, paddingTop: 58, paddingBottom: 132 },
+  content: { padding: spacing.pageX, paddingBottom: 132 },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   brand: { color: colors.ink, fontSize: 18, fontWeight: '900', letterSpacing: -0.4 },
   progressText: { color: colors.muted, fontSize: 13, fontWeight: '900' },
   progressTrack: { marginTop: 22, height: 6, borderRadius: 999, backgroundColor: colors.border, overflow: 'hidden' },
   progressFill: { height: '100%', backgroundColor: colors.ink, borderRadius: 999 },
-  eyebrow: { marginTop: 46, color: colors.faint, fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.9 },
-  title: { marginTop: 12, color: colors.ink, fontSize: 42, lineHeight: 43, fontWeight: '900', letterSpacing: -2.2 },
+  eyebrow: { marginTop: 34, color: colors.faint, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.6 },
+  title: { marginTop: 12, color: colors.ink, fontSize: 38, lineHeight: 40, fontWeight: '800', letterSpacing: -1.6 },
   subtitle: { marginTop: 14, color: colors.inkSoft, fontSize: 16, lineHeight: 25, fontWeight: '500' },
-  card: { marginTop: 28, backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, padding: 18, ...shadow.card },
+  card: { marginTop: 28, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: 18, ...shadow.card },
   optionStack: { gap: 10 },
   largeOption: { minHeight: 74, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, paddingHorizontal: 17, paddingVertical: 14, justifyContent: 'center' },
   largeOptionText: { color: colors.ink, fontSize: 22, fontWeight: '900', letterSpacing: -0.7 },
@@ -568,27 +604,33 @@ const styles = StyleSheet.create({
   tile: { width: '47.8%', minHeight: 88, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   tileText: { color: colors.ink, fontSize: 25, fontWeight: '900', letterSpacing: -0.8 },
   tileMeta: { marginTop: 4, color: colors.muted, fontSize: 12, fontWeight: '800' },
-  stravaBox: { backgroundColor: colors.successSoft, borderRadius: radius.lg, borderWidth: 1, borderColor: '#86efac', padding: 18 },
-  stravaStatus: { color: colors.success, fontSize: 13, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
-  stravaBig: { marginTop: 12, color: colors.ink, fontSize: 26, lineHeight: 29, fontWeight: '900', letterSpacing: -1.1 },
-  stravaMeta: { marginTop: 5, color: colors.inkSoft, fontSize: 14, lineHeight: 21, fontWeight: '700' },
+  stravaBox: { backgroundColor: colors.surface, borderRadius: radius.md
+    , borderWidth: 1, borderColor: colors.border, padding: 18 },
+  stravaTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  stravaLogo: { width: 52, height: 52, borderRadius: radius.md, backgroundColor: '#fc4c02', alignItems: 'center', justifyContent: 'center' },
+  stravaLogoText: { color: colors.surface, fontSize: 24, fontWeight: '900' },
+  stravaHeaderCopy: { flex: 1 },
+  stravaStatus: { color: colors.faint, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.3 },
+  stravaConnection: { marginTop: 4, color: colors.ink, fontSize: 18, fontWeight: '800', letterSpacing: -0.4 },
+  stravaBig: { marginTop: 18, color: colors.ink, fontSize: 26, lineHeight: 29, fontWeight: '800', letterSpacing: -1.1 },
+  stravaMeta: { marginTop: 8, color: colors.inkSoft, fontSize: 14, lineHeight: 21, fontWeight: '600' },
   highlightGrid: { marginTop: 14, gap: 9 },
   highlightCard: { borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: 13 },
-  highlightLabel: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1 },
-  highlightValue: { marginTop: 5, color: colors.ink, fontSize: 20, lineHeight: 24, fontWeight: '900', letterSpacing: -0.6 },
+  highlightLabel: { color: colors.faint, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1 },
+  highlightValue: { marginTop: 5, color: colors.ink, fontSize: 20, lineHeight: 24, fontWeight: '800', letterSpacing: -0.6 },
   highlightDetail: { marginTop: 4, color: colors.inkSoft, fontSize: 13, lineHeight: 19, fontWeight: '600' },
   loadingRow: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
   loadingText: { color: colors.muted, fontSize: 14, fontWeight: '700' },
-  stravaButton: { marginTop: 16, minHeight: 52, borderRadius: radius.md, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
-  stravaButtonText: { color: colors.surface, fontSize: 15, fontWeight: '900' },
+  stravaButton: { marginTop: 18, minHeight: 54, borderRadius: radius.md, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
+  stravaButtonText: { color: colors.surface, fontSize: 15, fontWeight: '800' },
   stravaButtonSecondary: { marginTop: 16, minHeight: 50, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  stravaButtonSecondaryText: { color: colors.ink, fontSize: 14, fontWeight: '900' },
+  stravaButtonSecondaryText: { color: colors.ink, fontSize: 14, fontWeight: '800' },
   disabledButton: { opacity: 0.55 },
   body: { marginTop: 14, color: colors.inkSoft, fontSize: 14, lineHeight: 22, fontWeight: '500' },
-  reviewTitle: { color: colors.ink, fontSize: 30, fontWeight: '900', letterSpacing: -1.1 },
+  reviewTitle: { color: colors.ink, fontSize: 30, fontWeight: '800', letterSpacing: -1.1 },
   reviewGrid: { marginTop: 18, gap: 9 },
-  reviewItem: { borderRadius: radius.lg, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, padding: 15 },
-  reviewValue: { color: colors.ink, fontSize: 22, fontWeight: '900' },
+  reviewItem: { borderRadius: radius.md, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, padding: 15 },
+  reviewValue: { color: colors.ink, fontSize: 22, fontWeight: '800' },
   reviewLabel: { marginTop: 5, color: colors.muted, fontSize: 12, fontWeight: '800' },
   errorBox: { marginTop: 14, borderRadius: radius.md, backgroundColor: '#fff1f2', borderWidth: 1, borderColor: '#fecdd3', padding: 13 },
   error: { color: colors.danger, fontWeight: '800', lineHeight: 20 },
@@ -602,4 +644,50 @@ const styles = StyleSheet.create({
   primaryPressed: { transform: [{ scale: 0.975 }], opacity: 0.88, backgroundColor: '#27272a' },
   secondaryPressed: { transform: [{ scale: 0.975 }], opacity: 0.88, backgroundColor: colors.surfaceMuted },
   continueText: { color: colors.surface, fontSize: 15, fontWeight: '900' },
+  stravaStatsGrid: {
+  marginTop: 16,
+  flexDirection: "row",
+  flexWrap: "wrap",
+  gap: 10,
+},
+
+stravaStatLarge: {
+  width: "48%",
+  borderRadius: 16,
+  borderWidth: 1,
+  borderColor: colors.border,
+  backgroundColor: colors.background,
+  padding: 14,
+},
+
+stravaStat: {
+  flex: 1,
+  minWidth: "30%",
+  borderRadius: 16,
+  borderWidth: 1,
+  borderColor: colors.border,
+  backgroundColor: colors.background,
+  padding: 13,
+},
+
+stravaStatValue: {
+  color: colors.ink,
+  fontSize: 25,
+  fontWeight: "800",
+},
+
+stravaStatValueSmall: {
+  color: colors.ink,
+  fontSize: 21,
+  fontWeight: "800",
+},
+
+stravaStatLabel: {
+  marginTop: 5,
+  color: colors.muted,
+  fontSize: 10,
+  fontWeight: "800",
+  textTransform: "uppercase",
+  letterSpacing: 1,
+},
 });

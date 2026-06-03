@@ -12,7 +12,8 @@
       "buildNumber": "1",
       "infoPlist": {
         "NSMotionUsageDescription": "TrainGPT may use workout context to help you understand your training.",
-        "NSCalendarsUsageDescription": "TrainGPT can help you export workouts to your calendar."
+        "NSCalendarsUsageDescription": "TrainGPT can help you export workouts to your calendar.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
