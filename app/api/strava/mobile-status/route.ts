@@ -7,7 +7,6 @@ export const runtime = 'nodejs';
 type ActivityRow = {
   name?: string | null;
   sport_type?: string | null;
-  type?: string | null;
   moving_time?: number | null;
   distance?: number | null;
   start_date?: string | null;
@@ -89,9 +88,9 @@ function buildHighlight({ label, value, detail, tone = 'signal' }: { label: stri
 }
 
 function buildHighlights(rows: ActivityRow[]) {
-  const rides = rows.filter((row) => sportBucket(row.sport_type ?? row.type) === 'bike');
-  const runs = rows.filter((row) => sportBucket(row.sport_type ?? row.type) === 'run');
-  const swims = rows.filter((row) => sportBucket(row.sport_type ?? row.type) === 'swim');
+  const rides = rows.filter((row) => sportBucket(row.sport_type) === 'bike');
+  const runs = rows.filter((row) => sportBucket(row.sport_type) === 'run');
+  const swims = rows.filter((row) => sportBucket(row.sport_type) === 'swim');
   const highlights: Array<{ label: string; value: string; detail: string; tone: 'wow' | 'signal' | 'steady' }> = [];
 
   const longestRide = rides.filter(validDistance).sort((a, b) => Number(b.distance ?? 0) - Number(a.distance ?? 0))[0];
@@ -169,7 +168,7 @@ export async function GET(req: Request) {
         .maybeSingle(),
       supabase
         .from('strava_activities')
-        .select('name,sport_type,type,moving_time,distance,start_date,start_date_local,average_speed,total_elevation_gain')
+        .select('name,sport_type,moving_time,distance,start_date,start_date_local,average_speed,total_elevation_gain')
         .eq('user_id', user.id)
         .order('start_date', { ascending: false })
         .limit(180),
@@ -193,7 +192,7 @@ export async function GET(req: Request) {
     const totalSeconds = typedActivities.reduce((sum, activity) => sum + Number(activity.moving_time ?? 0), 0);
     const counts = typedActivities.reduce(
       (acc, activity) => {
-        const bucket = sportBucket(activity.sport_type ?? activity.type);
+        const bucket = sportBucket(activity.sport_type);
         if (bucket === 'run') acc.run += 1;
         if (bucket === 'bike') acc.bike += 1;
         if (bucket === 'swim') acc.swim += 1;
