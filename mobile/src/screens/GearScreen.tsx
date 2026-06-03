@@ -11,7 +11,22 @@ type StravaState = {
   connected: boolean;
   athleteId: string | null;
   activityCount: number;
+  totalHours: number;
+  runCount: number;
+  bikeCount: number;
+  swimCount: number;
   latestActivityDate: string | null;
+};
+
+const emptyStravaState: StravaState = {
+  connected: false,
+  athleteId: null,
+  activityCount: 0,
+  totalHours: 0,
+  runCount: 0,
+  bikeCount: 0,
+  swimCount: 0,
+  latestActivityDate: null,
 };
 
 function formatLatestActivity(value: string | null) {
@@ -39,41 +54,35 @@ export function GearScreen() {
   const [connectingStrava, setConnectingStrava] = useState(false);
   const [syncingStrava, setSyncingStrava] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [strava, setStrava] = useState<StravaState>({ connected: false, athleteId: null, activityCount: 0, latestActivityDate: null });
+  const [strava, setStrava] = useState<StravaState>(emptyStravaState);
+
+  const isOwner = user?.email?.toLowerCase() === 'me@cameronmcdiarmid.com';
 
   const loadStrava = useCallback(async () => {
     if (!user?.id) return;
     setLoadingStrava(true);
 
-    const [{ data: profile }, { count }, { data: latestActivity }] = await Promise.all([
-      supabase
-        .from('profiles')
-        .select('strava_access_token,strava_refresh_token,strava_athlete_id')
-        .eq('id', user.id)
-        .maybeSingle(),
-      supabase
-        .from('strava_activities')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id),
-      supabase
-        .from('strava_activities')
-        .select('start_date_local,start_date')
-        .eq('user_id', user.id)
-        .order('start_date', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    ]);
+    try {
+      const response = await apiFetch('/api/strava/mobile-status', { method: 'GET' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error || 'Could not load Strava status.');
 
-    const typedProfile = profile as { strava_access_token?: string | null; strava_refresh_token?: string | null; strava_athlete_id?: string | number | null } | null;
-    const typedLatest = latestActivity as { start_date_local?: string | null; start_date?: string | null } | null;
-
-    setStrava({
-      connected: Boolean(typedProfile?.strava_access_token && typedProfile?.strava_refresh_token),
-      athleteId: typedProfile?.strava_athlete_id ? String(typedProfile.strava_athlete_id) : null,
-      activityCount: count ?? 0,
-      latestActivityDate: typedLatest?.start_date_local ?? typedLatest?.start_date ?? null,
-    });
-    setLoadingStrava(false);
+      setStrava({
+        connected: Boolean(payload.connected),
+        athleteId: payload.athleteId ? String(payload.athleteId) : null,
+        activityCount: Number(payload.activityCount ?? 0),
+        totalHours: Number(payload.totalHours ?? 0),
+        runCount: Number(payload.runCount ?? 0),
+        bikeCount: Number(payload.bikeCount ?? 0),
+        swimCount: Number(payload.swimCount ?? 0),
+        latestActivityDate: payload.latestActivityDate ?? null,
+      });
+    } catch (error) {
+      console.error('[Settings] load Strava status failed', error);
+      setStrava(emptyStravaState);
+    } finally {
+      setLoadingStrava(false);
+    }
   }, [user?.id]);
 
   useEffect(() => {
@@ -224,7 +233,7 @@ export function GearScreen() {
   };
 
   const resetAllAppData = async () => {
-    if (!user?.id || resettingAllData) return;
+    if (!user?.id || resettingAllData || !isOwner) return;
 
     Alert.alert(
       'Reset all app data?',
@@ -290,7 +299,12 @@ export function GearScreen() {
             <Text style={styles.sectionText}>{strava.connected ? `${strava.activityCount} activities synced. ${formatLatestActivity(strava.latestActivityDate)}.` : 'Connect Strava to import completed activities and match them to your training plan.'}</Text>
             <View style={styles.stravaStatsRow}>
               <View style={styles.stravaStat}><Text style={styles.stravaStatValue}>{strava.activityCount}</Text><Text style={styles.stravaStatLabel}>Activities</Text></View>
-              <View style={styles.stravaStat}><Text style={styles.stravaStatValue}>{strava.connected ? 'On' : 'Off'}</Text><Text style={styles.stravaStatLabel}>Sync</Text></View>
+              <View style={styles.stravaStat}><Text style={styles.stravaStatValue}>{strava.totalHours}</Text><Text style={styles.stravaStatLabel}>Hours</Text></View>
+            </View>
+            <View style={styles.stravaStatsRow}>
+              <View style={styles.stravaStat}><Text style={styles.stravaStatValue}>{strava.runCount}</Text><Text style={styles.stravaStatLabel}>Runs</Text></View>
+              <View style={styles.stravaStat}><Text style={styles.stravaStatValue}>{strava.bikeCount}</Text><Text style={styles.stravaStatLabel}>Rides</Text></View>
+              <View style={styles.stravaStat}><Text style={styles.stravaStatValue}>{strava.swimCount}</Text><Text style={styles.stravaStatLabel}>Swims</Text></View>
             </View>
             {strava.connected ? (
               <View style={styles.actionStack}>
@@ -319,14 +333,16 @@ export function GearScreen() {
         </Pressable>
       </View>
 
-      <View style={styles.sectionCard}>
-        <Text style={styles.sectionKicker}>Clean slate</Text>
-        <Text style={styles.sectionTitle}>Reset all app data</Text>
-        <Text style={styles.sectionText}>Use this for a blank test account experience. It clears your plan, completions, synced Strava activities, and Strava connection.</Text>
-        <Pressable onPress={resetAllAppData} disabled={resettingAllData} style={({ pressed }) => [styles.dangerButtonStrong, resettingAllData && styles.disabledButton, pressed && styles.dangerStrongPressed]}>
-          <Text style={styles.dangerButtonStrongText}>{resettingAllData ? 'Resetting all…' : 'Reset all app data'}</Text>
-        </Pressable>
-      </View>
+      {isOwner ? (
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionKicker}>Clean slate</Text>
+          <Text style={styles.sectionTitle}>Reset all app data</Text>
+          <Text style={styles.sectionText}>Use this for a blank test account experience. It clears your plan, completions, synced Strava activities, and Strava connection.</Text>
+          <Pressable onPress={resetAllAppData} disabled={resettingAllData} style={({ pressed }) => [styles.dangerButtonStrong, resettingAllData && styles.disabledButton, pressed && styles.dangerStrongPressed]}>
+            <Text style={styles.dangerButtonStrongText}>{resettingAllData ? 'Resetting all…' : 'Reset all app data'}</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <Pressable onPress={signOut} style={({ pressed }) => [styles.signOutButton, pressed && styles.primaryPressed]}>
         <Text style={styles.signOutText}>Sign out</Text>
