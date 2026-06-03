@@ -94,9 +94,9 @@ async function refreshStravaToken({
   return String(refreshData.access_token);
 }
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
-    const supabase = await createRouteSupabaseClient();
+    const supabase = await createRouteSupabaseClient(req);
     const user = await requireUser(supabase);
 
     if (!process.env.STRAVA_CLIENT_ID || !process.env.STRAVA_CLIENT_SECRET) {
