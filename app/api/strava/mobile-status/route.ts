@@ -188,7 +188,7 @@ export async function GET(req: Request) {
     } | null;
 
     const typedActivities = (activities ?? []) as ActivityRow[];
-
+    const activityCount = count ?? typedActivities.length;
     const totalSeconds = typedActivities.reduce((sum, activity) => sum + Number(activity.moving_time ?? 0), 0);
     const counts = typedActivities.reduce(
       (acc, activity) => {
@@ -202,12 +202,16 @@ export async function GET(req: Request) {
     );
 
     const latestActivity = typedActivities[0] ?? null;
-    const connected = Boolean(typedProfile?.strava_access_token || typedProfile?.strava_refresh_token || typedProfile?.strava_athlete_id);
+    const hasTokenConnection = Boolean(typedProfile?.strava_access_token || typedProfile?.strava_refresh_token || typedProfile?.strava_athlete_id);
+    const hasSyncedHistory = activityCount > 0;
+    const connected = hasTokenConnection || hasSyncedHistory;
 
     return NextResponse.json({
       connected,
+      hasTokenConnection,
+      hasSyncedHistory,
       athleteId: typedProfile?.strava_athlete_id ? String(typedProfile.strava_athlete_id) : null,
-      activityCount: count ?? typedActivities.length,
+      activityCount,
       recentActivityCount: typedActivities.length,
       totalHours: Math.round((totalSeconds / 3600) * 10) / 10,
       runCount: counts.run,
