@@ -57,6 +57,7 @@ export function GearScreen() {
   const [strava, setStrava] = useState<StravaState>(emptyStravaState);
 
   const isOwner = user?.email?.toLowerCase() === 'me@cameronmcdiarmid.com';
+  const stravaReady = strava.connected || strava.activityCount > 0;
 
   const loadStrava = useCallback(async () => {
     if (!user?.id) return;
@@ -67,10 +68,12 @@ export function GearScreen() {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload?.error || 'Could not load Strava status.');
 
+      const activityCount = Number(payload.activityCount ?? payload.recentActivityCount ?? 0);
+
       setStrava({
-        connected: Boolean(payload.connected),
+        connected: Boolean(payload.connected) || activityCount > 0,
         athleteId: payload.athleteId ? String(payload.athleteId) : null,
-        activityCount: Number(payload.activityCount ?? 0),
+        activityCount,
         totalHours: Number(payload.totalHours ?? 0),
         runCount: Number(payload.runCount ?? 0),
         bikeCount: Number(payload.bikeCount ?? 0),
@@ -159,7 +162,7 @@ export function GearScreen() {
   };
 
   const syncStrava = async () => {
-    if (!strava.connected || syncingStrava) return;
+    if ((!stravaReady && !strava.connected) || syncingStrava) return;
     setSyncingStrava(true);
     try {
       const response = await apiFetch('/api/strava_sync', { method: 'POST' });
@@ -289,14 +292,14 @@ export function GearScreen() {
             <Text style={styles.sectionKicker}>Connected account</Text>
             <Text style={styles.sectionTitle}>Strava</Text>
           </View>
-          <Text style={[styles.statusPill, strava.connected ? styles.connectedPill : styles.disconnectedPill]}>{strava.connected ? 'Connected' : 'Not connected'}</Text>
+          <Text style={[styles.statusPill, stravaReady ? styles.connectedPill : styles.disconnectedPill]}>{stravaReady ? 'Connected' : 'Not connected'}</Text>
         </View>
 
         {loadingStrava ? (
           <View style={styles.loadingRow}><ActivityIndicator /><Text style={styles.loadingCopy}>Checking Strava…</Text></View>
         ) : (
           <>
-            <Text style={styles.sectionText}>{strava.connected ? `${strava.activityCount} activities synced. ${formatLatestActivity(strava.latestActivityDate)}.` : 'Connect Strava to import completed activities and match them to your training plan.'}</Text>
+            <Text style={styles.sectionText}>{stravaReady ? `${strava.activityCount} activities synced. ${formatLatestActivity(strava.latestActivityDate)}.` : 'Connect Strava to import completed activities and match them to your training plan.'}</Text>
             <View style={styles.stravaStatsRow}>
               <View style={styles.stravaStat}><Text style={styles.stravaStatValue}>{strava.activityCount}</Text><Text style={styles.stravaStatLabel}>Activities</Text></View>
               <View style={styles.stravaStat}><Text style={styles.stravaStatValue}>{strava.totalHours}</Text><Text style={styles.stravaStatLabel}>Hours</Text></View>
@@ -306,7 +309,7 @@ export function GearScreen() {
               <View style={styles.stravaStat}><Text style={styles.stravaStatValue}>{strava.bikeCount}</Text><Text style={styles.stravaStatLabel}>Rides</Text></View>
               <View style={styles.stravaStat}><Text style={styles.stravaStatValue}>{strava.swimCount}</Text><Text style={styles.stravaStatLabel}>Swims</Text></View>
             </View>
-            {strava.connected ? (
+            {stravaReady ? (
               <View style={styles.actionStack}>
                 <Pressable onPress={syncStrava} disabled={syncingStrava} style={({ pressed }) => [styles.primaryAction, syncingStrava && styles.disabledButton, pressed && styles.primaryPressed]}>
                   <Text style={styles.primaryActionText}>{syncingStrava ? 'Syncing…' : 'Sync Strava now'}</Text>
