@@ -129,7 +129,7 @@ export function PlanGenerationExperience({ currentStep, steps, complete, progres
               <Text style={styles.medalText}>{complete ? '✓' : '★'}</Text>
             </Animated.View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.unlockTitle}>{complete ? 'Fitness Score unlocked' : progress >= 88 ? 'Saving your plan' : 'Assigning session points'}</Text>
+              <Text style={styles.unlockTitle}>{complete ? 'Race Readiness unlocked' : progress >= 88 ? 'Saving your plan' : 'Assigning session points'}</Text>
               <Text style={styles.unlockText}>{progress >= 88 && !complete ? 'Almost there. We only show 100% once your plan is saved.' : 'Key sessions earn more. Every completed workout moves the score.'}</Text>
             </View>
           </View>
@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
   stepRow: { flexDirection: 'row', alignItems: 'center', gap: 13 },
   stepMark: { width: 28, height: 28, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.11)', color: '#6b7280', textAlign: 'center', paddingTop: 4, fontSize: 14, fontWeight: '900' },
   stepMarkActive: { backgroundColor: colors.surface, color: colors.ink },
-  stepText: { flex: 1, color: '#6b7280', fontSize: 16, lineHeight: 22, fontWeight: '850' },
+  stepText: { flex: 1, color: '#6b7280', fontSize: 16, lineHeight: 22, fontWeight: '800' },
   stepTextActive: { color: colors.surface },
   stepTextDone: { color: '#d1d5db' },
   footer: { marginTop: 'auto', color: '#a1a1aa', fontSize: 14, lineHeight: 21, fontWeight: '800', textAlign: 'center' },
