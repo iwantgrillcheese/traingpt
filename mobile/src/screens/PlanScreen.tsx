@@ -26,9 +26,16 @@ type StravaSummary = {
   swimCount: number;
 };
 
+type CalendarDay = {
+  key: string;
+  date: Date;
+  inMonth: boolean;
+};
+
 const raceTypes: RaceType[] = ['Sprint', 'Olympic', 'Half Ironman (70.3)', 'Ironman (140.6)'];
 const experiences: Experience[] = ['Beginner', 'Intermediate', 'Advanced'];
 const hourOptions = ['3-5', '6-8', '9-12', '12+'];
+const weekdays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const steps: { key: StepKey; eyebrow: string; title: string; subtitle: string }[] = [
   { key: 'race', eyebrow: 'Step 1', title: 'What are you training for?', subtitle: 'Start with the race distance. TrainGPT will shape the calendar around the demands of the event.' },
   { key: 'date', eyebrow: 'Step 2', title: 'When is race day?', subtitle: 'Your race date controls the length of the build, taper timing, and first-week ramp.' },
@@ -39,10 +46,22 @@ const steps: { key: StepKey; eyebrow: string; title: string; subtitle: string }[
   { key: 'review', eyebrow: 'Step 7', title: 'Ready to build.', subtitle: 'Review the setup. Then TrainGPT will generate the calendar and session structure.' },
 ];
 
+function toDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateKey(value: string) {
+  const parsed = new Date(`${value}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 function defaultRaceDate() {
   const date = new Date();
   date.setDate(date.getDate() + 16 * 7);
-  return date.toISOString().slice(0, 10);
+  return toDateKey(date);
 }
 
 function raceLabel(type: RaceType) {
@@ -102,11 +121,39 @@ function sportBucket(value?: string | null) {
   return 'other';
 }
 
+function monthLabel(date: Date) {
+  return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(date);
+}
+
+function displayDate(value: string) {
+  const date = parseDateKey(value);
+  if (!date) return value;
+  return new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+}
+
+function buildCalendarDays(monthDate: Date): CalendarDay[] {
+  const first = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+  const start = new Date(first);
+  start.setDate(first.getDate() - first.getDay());
+
+  return Array.from({ length: 42 }).map((_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    return {
+      key: toDateKey(date),
+      date,
+      inMonth: date.getMonth() === monthDate.getMonth(),
+    };
+  });
+}
+
 export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
   const { user } = useAuth();
+  const initialRaceDate = useMemo(() => defaultRaceDate(), []);
   const [stepIndex, setStepIndex] = useState(0);
   const [raceType, setRaceType] = useState<RaceType>('Half Ironman (70.3)');
-  const [raceDate, setRaceDate] = useState(defaultRaceDate());
+  const [raceDate, setRaceDate] = useState(initialRaceDate);
+  const [calendarMonth, setCalendarMonth] = useState(() => parseDateKey(initialRaceDate) ?? new Date());
   const [experience, setExperience] = useState<Experience>('Intermediate');
   const [hourBand, setHourBand] = useState('6-8');
   const [maxHours, setMaxHours] = useState('8');
@@ -124,6 +171,16 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
   const current = steps[stepIndex];
   const step = current.key;
   const magicSteps = generationSteps(strava.connected && strava.activityCount > 0);
+  const calendarDays = useMemo(() => buildCalendarDays(calendarMonth), [calendarMonth]);
+
+  const moveCalendarMonth = (offset: number) => {
+    setCalendarMonth((currentMonth) => new Date(currentMonth.getFullYear(), currentMonth.getMonth() + offset, 1));
+  };
+
+  const selectRaceDate = (date: Date) => {
+    setRaceDate(toDateKey(date));
+    setCalendarMonth(new Date(date.getFullYear(), date.getMonth(), 1));
+  };
 
   const loadStravaSummary = useCallback(async () => {
     if (!user?.id) return;
@@ -347,7 +404,38 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
           {step === 'date' ? (
             <View>
               <Text style={styles.label}>Race date</Text>
-              <TextInput value={raceDate} onChangeText={setRaceDate} placeholder="YYYY-MM-DD" placeholderTextColor={colors.faint} autoCapitalize="none" style={styles.input} />
+              <View style={styles.selectedDateCard}>
+                <Text style={styles.selectedDateLabel}>Selected race day</Text>
+                <Text style={styles.selectedDateValue}>{displayDate(raceDate)}</Text>
+              </View>
+
+              <View style={styles.calendarCard}>
+                <View style={styles.calendarHeader}>
+                  <Pressable onPress={() => moveCalendarMonth(-1)} style={({ pressed }) => [styles.monthButton, pressed && styles.secondaryPressed]}>
+                    <Text style={styles.monthButtonText}>‹</Text>
+                  </Pressable>
+                  <Text style={styles.calendarTitle}>{monthLabel(calendarMonth)}</Text>
+                  <Pressable onPress={() => moveCalendarMonth(1)} style={({ pressed }) => [styles.monthButton, pressed && styles.secondaryPressed]}>
+                    <Text style={styles.monthButtonText}>›</Text>
+                  </Pressable>
+                </View>
+
+                <View style={styles.weekdayRow}>
+                  {weekdays.map((day, index) => <Text key={`${day}-${index}`} style={styles.weekdayText}>{day}</Text>)}
+                </View>
+
+                <View style={styles.calendarGrid}>
+                  {calendarDays.map((day) => {
+                    const selected = day.key === raceDate;
+                    return (
+                      <Pressable key={day.key} onPress={() => selectRaceDate(day.date)} style={({ pressed }) => [styles.dayCell, !day.inMonth && styles.dayCellMuted, selected && styles.dayCellSelected, pressed && styles.dayCellPressed]}>
+                        <Text style={[styles.dayText, !day.inMonth && styles.dayTextMuted, selected && styles.dayTextSelected]}>{day.date.getDate()}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
               <View style={styles.contextBox}><Text style={styles.contextValue}>{projectedWeeks ?? '-'} weeks to build</Text><Text style={styles.contextText}>TrainGPT will build progression, recovery, peak, and taper from this timeline.</Text></View>
             </View>
           ) : null}
@@ -461,6 +549,24 @@ const styles = StyleSheet.create({
   label: { marginBottom: 10, color: colors.inkSoft, fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
   input: { minHeight: 56, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, paddingHorizontal: 16, color: colors.ink, fontSize: 17, fontWeight: '700' },
   textArea: { minHeight: 150, paddingTop: 16, textAlignVertical: 'top', fontWeight: '600' },
+  selectedDateCard: { borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, padding: 15 },
+  selectedDateLabel: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
+  selectedDateValue: { marginTop: 6, color: colors.ink, fontSize: 22, lineHeight: 26, fontWeight: '900', letterSpacing: -0.7 },
+  calendarCard: { marginTop: 14, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, padding: 12 },
+  calendarHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  calendarTitle: { color: colors.ink, fontSize: 16, fontWeight: '900', letterSpacing: -0.3 },
+  monthButton: { width: 38, height: 38, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
+  monthButtonText: { color: colors.ink, fontSize: 28, lineHeight: 30, fontWeight: '800' },
+  weekdayRow: { marginTop: 12, flexDirection: 'row' },
+  weekdayText: { flex: 1, textAlign: 'center', color: colors.faint, fontSize: 11, fontWeight: '900' },
+  calendarGrid: { marginTop: 8, flexDirection: 'row', flexWrap: 'wrap' },
+  dayCell: { width: `${100 / 7}%`, aspectRatio: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
+  dayCellMuted: { opacity: 0.32 },
+  dayCellSelected: { backgroundColor: colors.ink },
+  dayCellPressed: { transform: [{ scale: 0.94 }], opacity: 0.85 },
+  dayText: { color: colors.ink, fontSize: 14, fontWeight: '800' },
+  dayTextMuted: { color: colors.muted },
+  dayTextSelected: { color: colors.surface, fontWeight: '900' },
   contextBox: { marginTop: 14, borderRadius: radius.lg, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, padding: 15 },
   contextValue: { color: colors.ink, fontSize: 20, fontWeight: '900', letterSpacing: -0.6 },
   contextText: { marginTop: 6, color: colors.muted, fontSize: 13, lineHeight: 20, fontWeight: '600' },
