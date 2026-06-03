@@ -362,7 +362,7 @@ export async function POST(req: Request) {
     const startDate = startOfWeek(new Date(), { weekStartsOn: 1 });
     const totalWeeks = Math.max(
       1,
-      differenceInCalendarWeeks(raceDateParsed, startDate, { weekStartsOn: 1 })
+      differenceInCalendarWeeks(raceDateParsed, startDate, { weekStartsOn: 1 }) + 1
     );
     const startDateISO = formatISO(startDate, { representation: "date" });
     const weekMeta = buildPlanMeta(totalWeeks, startDateISO);
