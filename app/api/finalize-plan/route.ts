@@ -220,6 +220,52 @@ function normalizePlanType(value: unknown): PlanType {
   return value === "running" ? "running" : "triathlon";
 }
 
+type PaceUnit = "mi" | "km";
+
+function parsePaceSeconds(value: unknown): number | null {
+  const match = String(value ?? "").match(/(\d{1,2})\s*:\s*(\d{2})/);
+  if (!match) return null;
+  const minutes = Number(match[1]);
+  const seconds = Number(match[2]);
+  if (!Number.isFinite(minutes) || !Number.isFinite(seconds) || seconds >= 60) return null;
+  return minutes * 60 + seconds;
+}
+
+function explicitPaceUnit(value: unknown): PaceUnit | null {
+  const text = String(value ?? "").toLowerCase();
+  if (text.includes("/km") || text.includes("per km")) return "km";
+  if (text.includes("/mi") || text.includes("/mile") || text.includes("per mile") || text.includes("per mi")) return "mi";
+  return null;
+}
+
+function normalizePaceUnit(value: unknown): PaceUnit | undefined {
+  return value === "km" || value === "mi" ? value : undefined;
+}
+
+function normalizeRunMetric(rawRunPace: unknown, rawPaceUnit: unknown, inferredRunPace?: string) {
+  const selectedRaw = typeof rawRunPace === "string" && rawRunPace.trim()
+    ? rawRunPace.trim()
+    : inferredRunPace;
+
+  if (!selectedRaw) return { runPace: undefined as string | undefined, paceUnit: normalizePaceUnit(rawPaceUnit) ?? "mi" as PaceUnit };
+
+  const seconds = parsePaceSeconds(selectedRaw);
+  const textUnit = explicitPaceUnit(selectedRaw);
+  const requestedUnit = normalizePaceUnit(rawPaceUnit);
+
+  // If a pace is 5:29 or faster and has no explicit unit, treating it as /mi creates
+  // absurd easy-run targets for almost every TrainGPT athlete. This usually means
+  // Strava/mobile supplied a per-km threshold without carrying the unit through.
+  const unit: PaceUnit = textUnit ?? requestedUnit ?? (seconds !== null && seconds < 330 ? "km" : "mi");
+  const suffix = unit === "km" ? " / km" : " / mi";
+  const cleaned = selectedRaw.replace(/\s*(?:\/\s*(?:km|mi|mile)|per\s+(?:km|mi|mile))\s*$/i, "").trim();
+
+  return {
+    runPace: cleaned ? `${cleaned}${suffix}` : selectedRaw,
+    paceUnit: unit,
+  };
+}
+
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
@@ -371,9 +417,11 @@ export async function POST(req: Request) {
     const finalBikeFtp = Number.isFinite(Number(bikeFTP ?? bikeFtp))
       ? Number(bikeFTP ?? bikeFtp)
       : inferredBaselines.estimatedFtp ?? undefined;
-    const finalRunPace = typeof runPace === "string" && runPace.trim()
-      ? runPace.trim()
-      : inferredBaselines.estimatedThresholdPacePerKm ?? undefined;
+    const { runPace: finalRunPace, paceUnit: finalPaceUnit } = normalizeRunMetric(
+      runPace,
+      paceUnit,
+      inferredBaselines.estimatedThresholdPacePerKm ?? undefined
+    );
     const finalExperience = typeof experience === "string" && experience.trim()
       ? experience.trim()
       : inferredAbility ?? undefined;
@@ -398,7 +446,7 @@ export async function POST(req: Request) {
       twoADaysAllowed: twoADaysAllowedResolved,
       athleteNotes: athleteNotesResolved,
       coachingPriorities: coachingPrioritiesResolved,
-      paceUnit: paceUnit === "km" ? "km" : "mi",
+      paceUnit: finalPaceUnit,
       stravaHistorySummary,
     };
 
