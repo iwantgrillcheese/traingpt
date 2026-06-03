@@ -20,8 +20,9 @@ const Tab = createBottomTabNavigator<RootTabs>();
 
 function TabIcon({ icon, focused }: { icon: string; focused: boolean }) {
   return (
-    <View style={[styles.tabIcon, focused && styles.tabIconActive]}>
+    <View style={styles.tabIcon}>
       <Text style={[styles.tabIconText, focused && styles.tabIconTextActive]}>{icon}</Text>
+      {focused ? <View style={styles.activeDot} /> : null}
     </View>
   );
 }
@@ -77,35 +78,34 @@ export function AuthedExperience() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 84,
-    borderRadius: 0,
+    height: 78,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    borderWidth: 0,
-    backgroundColor: 'rgba(255,255,255,0.98)',
-    paddingTop: 8,
-    paddingBottom: 20,
+    backgroundColor: colors.surface,
+    paddingTop: 6,
+    paddingBottom: 16,
     shadowColor: colors.ink,
-    shadowOpacity: 0.07,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: -8 },
-    elevation: 10,
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: -6 },
+    elevation: 4,
   },
   tabItem: { paddingVertical: 2 },
-  tabLabel: { fontSize: 10, fontWeight: '900', marginTop: 2 },
+  tabLabel: { fontSize: 10, fontWeight: '700', marginTop: 1 },
   tabIcon: {
-    width: 29,
-    height: 29,
-    borderRadius: 12,
+    width: 32,
+    height: 30,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surfaceMuted,
   },
-  tabIconActive: { backgroundColor: colors.ink },
-  tabIconText: { color: colors.muted, fontSize: 14, fontWeight: '900' },
-  tabIconTextActive: { color: colors.surface },
+  tabIconText: { color: colors.faint, fontSize: 16, fontWeight: '700' },
+  tabIconTextActive: { color: colors.ink },
+  activeDot: {
+    position: 'absolute',
+    bottom: 0,
+    width: 4,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: colors.ink,
+  },
 });
