@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { colors, radius, shadow, spacing } from '../design/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors, radius, shadow, spacing, typography } from '../design/theme';
 import { useAuth } from '../auth/AuthProvider';
 import { supabase } from '../lib/supabase';
 import type { CompletedSessionRow, PlanRow, SessionRow, StravaActivityRow } from '../types';
@@ -44,14 +45,21 @@ function isRestSession(session?: SessionRow | null) {
   return sport === 'Rest' || text.includes('rest day') || text === 'rest' || text.includes('recovery day');
 }
 
+function cleanGoalText(session?: SessionRow | null) {
+  const raw = session?.details?.replace(/Purpose:|Workout:|Intensity:/gi, '').trim();
+  if (raw) return raw;
+  return 'Complete the work calmly. Bank the points. Keep the week moving.';
+}
+
 function restGoalText(session?: SessionRow | null) {
   const raw = session?.details?.replace(/Purpose:|Workout:|Intensity:/gi, '').trim();
-  if (raw) return raw.slice(0, 140);
+  if (raw) return raw;
   return 'Recharge, keep stress low, and let the work absorb. Optional: 10–15 minutes of easy mobility, light stretching, or a relaxed walk.';
 }
 
 export function TodayScreen() {
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [completed, setCompleted] = useState<CompletedSessionRow[]>([]);
   const [stravaActivities, setStravaActivities] = useState<StravaActivityRow[]>([]);
@@ -143,11 +151,15 @@ export function TodayScreen() {
 
   return (
     <>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 22 }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+      >
         <View style={styles.header}>
           <Text style={styles.brand}>TrainGPT</Text>
           <Text style={styles.date}>{formatToday()}</Text>
-          <Text style={styles.title}>{heroIsRest ? 'Rest up today.' : isToday ? 'Do this today.' : 'Up next.'}</Text>
+          <Text style={styles.title}>{heroIsRest ? 'Rest up today' : isToday ? 'Do this today' : 'Up next'}</Text>
           <Text style={styles.subtitle}>{heroIsRest ? 'Recovery is part of the plan. Take the easy day seriously.' : raceCountdown ?? 'Your daily training work, simplified.'}</Text>
         </View>
 
@@ -160,7 +172,9 @@ export function TodayScreen() {
               <Text style={[styles.pointsPill, heroViaStrava && styles.stravaPill, heroIsRest && styles.restPill]}>{heroIsRest ? 'Recharge' : heroViaStrava ? 'Synced via Strava' : `+${heroPoints} pts`}</Text>
             </View>
 
-            <Text style={styles.sessionTitle}>{heroIsRest ? 'Rest and recharge' : cleanTitle(heroSession.title)}</Text>
+            <Text style={styles.sessionTitle} numberOfLines={2} ellipsizeMode="tail">
+              {heroIsRest ? 'Rest and recharge' : cleanTitle(heroSession.title)}
+            </Text>
 
             <View style={styles.metaRow}>
               {heroIsRest ? <Text style={styles.metaText}>Optional mobility</Text> : formatMinutes(heroSession.duration) ? <Text style={styles.metaText}>{formatMinutes(heroSession.duration)}</Text> : null}
@@ -170,7 +184,9 @@ export function TodayScreen() {
 
             <View style={styles.goalBox}>
               <Text style={styles.goalLabel}>{heroIsRest ? 'Recovery focus' : 'Goal'}</Text>
-              <Text style={styles.goalText}>{heroIsRest ? restGoalText(heroSession) : heroSession.details?.replace(/Purpose:|Workout:|Intensity:/gi, '').trim().slice(0, 120) || 'Complete the work calmly. Bank the points. Keep the week moving.'}</Text>
+              <Text style={styles.goalText} numberOfLines={3} ellipsizeMode="tail">
+                {heroIsRest ? restGoalText(heroSession) : cleanGoalText(heroSession)}
+              </Text>
             </View>
 
             <View style={styles.primaryButton}>
@@ -179,13 +195,13 @@ export function TodayScreen() {
           </Pressable>
         ) : (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No workout today.</Text>
+            <Text style={styles.emptyTitle}>No workout today</Text>
             <Text style={styles.emptyText}>Enjoy the lighter day. Your next session will appear here when it’s ready.</Text>
           </View>
         )}
 
         <View style={styles.weekCard}>
-          <Text style={styles.kicker}>This week</Text>
+          <Text style={styles.weekKicker}>This week</Text>
           <View style={styles.weekRow}>
             <Text style={styles.weekPoints}>{pointStats.earned}</Text>
             <Text style={styles.weekGoal}>/ {pointStats.available || 0} pts</Text>
@@ -218,40 +234,41 @@ export function TodayScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.pageX, paddingTop: 62, paddingBottom: 138 },
+  content: { padding: spacing.pageX, paddingBottom: 138 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
-  loadingText: { marginTop: 10, color: colors.muted, fontWeight: '700' },
+  loadingText: { marginTop: 10, color: colors.muted, fontWeight: '600' },
   header: { marginBottom: 20 },
-  brand: { color: colors.ink, fontSize: 20, fontWeight: '900', letterSpacing: -0.7 },
-  date: { marginTop: 4, color: colors.muted, fontSize: 15, fontWeight: '700' },
-  title: { marginTop: 28, color: colors.ink, fontSize: 46, lineHeight: 47, fontWeight: '900', letterSpacing: -2.3 },
-  subtitle: { marginTop: 10, color: colors.inkSoft, fontSize: 16, lineHeight: 23, fontWeight: '600' },
-  error: { marginBottom: 12, color: colors.danger, fontWeight: '800' },
-  heroCard: { backgroundColor: colors.surface, borderRadius: radius.xxl, borderColor: colors.border, borderWidth: 1, padding: 20, ...shadow.card },
-  stravaHero: { borderColor: '#bfdbfe', backgroundColor: '#f8fbff' },
-  restHero: { borderColor: '#e7e5e4', backgroundColor: '#fffaf2' },
+  brand: { color: colors.ink, fontSize: 19, fontWeight: '800', letterSpacing: -0.5 },
+  date: { marginTop: 4, color: colors.muted, fontSize: 15, fontWeight: '600' },
+  title: { marginTop: 26, color: colors.ink, fontSize: 39, lineHeight: 41, fontWeight: '800', letterSpacing: -1.6 },
+  subtitle: { marginTop: 10, color: colors.inkSoft, fontSize: 16, lineHeight: 23, fontWeight: '500' },
+  error: { marginBottom: 12, color: colors.danger, fontWeight: '700' },
+  heroCard: { backgroundColor: colors.surface, borderRadius: radius.card, borderColor: colors.border, borderWidth: 1, padding: 20, ...shadow.card },
+  stravaHero: { borderColor: '#c7d7ef', backgroundColor: '#f8fbff' },
+  restHero: { borderColor: colors.border, backgroundColor: colors.cream },
   heroTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-  kicker: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.5 },
-  pointsPill: { overflow: 'hidden', backgroundColor: colors.successSoft, color: colors.success, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6, fontSize: 12, fontWeight: '900' },
+  kicker: { ...typography.kicker, color: colors.faint },
+  pointsPill: { overflow: 'hidden', backgroundColor: colors.successSoft, color: colors.success, borderRadius: radius.pill, paddingHorizontal: 11, paddingVertical: 6, fontSize: 12, fontWeight: '800' },
   stravaPill: { backgroundColor: colors.blueSoft, color: colors.blue },
-  restPill: { backgroundColor: '#fef3c7', color: '#92400e' },
-  sessionTitle: { marginTop: 16, color: colors.ink, fontSize: 35, lineHeight: 37, fontWeight: '900', letterSpacing: -1.5 },
+  restPill: { backgroundColor: colors.warningSoft, color: colors.warning },
+  sessionTitle: { marginTop: 16, color: colors.ink, fontSize: 29, lineHeight: 32, fontWeight: '800', letterSpacing: -1.0 },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 },
-  metaText: { overflow: 'hidden', borderRadius: 999, backgroundColor: colors.surfaceMuted, color: colors.inkSoft, paddingHorizontal: 10, paddingVertical: 6, fontSize: 12, fontWeight: '800' },
-  goalBox: { marginTop: 18, borderRadius: radius.lg, backgroundColor: colors.cream, borderWidth: 1, borderColor: '#eadfd2', padding: 15 },
-  goalLabel: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.4 },
-  goalText: { marginTop: 7, color: colors.inkSoft, fontSize: 15, lineHeight: 23, fontWeight: '600' },
-  primaryButton: { marginTop: 18, minHeight: 56, backgroundColor: colors.ink, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
-  primaryText: { color: colors.surface, fontWeight: '900', fontSize: 16 },
+  metaText: { overflow: 'hidden', borderRadius: radius.pill, backgroundColor: colors.surfaceMuted, color: colors.inkSoft, paddingHorizontal: 10, paddingVertical: 6, fontSize: 12, fontWeight: '700' },
+  goalBox: { marginTop: 18, borderRadius: radius.card, backgroundColor: colors.cream, borderWidth: 1, borderColor: colors.border, padding: 15 },
+  goalLabel: { ...typography.kicker, color: colors.faint },
+  goalText: { marginTop: 7, color: colors.inkSoft, fontSize: 15, lineHeight: 22, fontWeight: '500' },
+  primaryButton: { marginTop: 18, minHeight: 56, backgroundColor: colors.ink, borderRadius: radius.card, alignItems: 'center', justifyContent: 'center' },
+  primaryText: { color: colors.surface, fontWeight: '800', fontSize: 16 },
   pressedCard: { transform: [{ scale: 0.988 }], opacity: 0.9, backgroundColor: '#f4f4f5' },
-  emptyCard: { backgroundColor: colors.surface, borderRadius: radius.xxl, borderColor: colors.border, borderWidth: 1, padding: 24, ...shadow.card },
-  emptyTitle: { color: colors.ink, fontSize: 30, lineHeight: 32, fontWeight: '900', letterSpacing: -1.3 },
+  emptyCard: { backgroundColor: colors.surface, borderRadius: radius.card, borderColor: colors.border, borderWidth: 1, padding: 24, ...shadow.card },
+  emptyTitle: { color: colors.ink, fontSize: 27, lineHeight: 30, fontWeight: '800', letterSpacing: -0.9 },
   emptyText: { marginTop: 10, color: colors.muted, fontSize: 14, lineHeight: 22 },
-  weekCard: { marginTop: 14, backgroundColor: colors.ink, borderRadius: radius.xl, padding: 18, ...shadow.hero },
+  weekCard: { marginTop: 14, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: radius.card, padding: 18, ...shadow.card },
+  weekKicker: { ...typography.kicker, color: colors.faint },
   weekRow: { marginTop: 10, flexDirection: 'row', alignItems: 'flex-end', gap: 7 },
-  weekPoints: { color: colors.surface, fontSize: 38, lineHeight: 40, fontWeight: '900', letterSpacing: -1.5 },
-  weekGoal: { color: '#d4d4d8', fontSize: 19, lineHeight: 29, fontWeight: '800' },
-  weekText: { marginTop: 8, color: '#d4d4d8', fontSize: 13, lineHeight: 20, fontWeight: '700' },
+  weekPoints: { color: colors.ink, fontSize: 34, lineHeight: 36, fontWeight: '800', letterSpacing: -1.2 },
+  weekGoal: { color: colors.muted, fontSize: 17, lineHeight: 26, fontWeight: '700' },
+  weekText: { marginTop: 8, color: colors.inkSoft, fontSize: 13, lineHeight: 20, fontWeight: '600' },
   nextSection: { marginTop: 28 },
-  sectionTitle: { marginBottom: 10, color: colors.ink, fontSize: 23, fontWeight: '900', letterSpacing: -0.9 },
+  sectionTitle: { marginBottom: 10, color: colors.ink, fontSize: 21, fontWeight: '800', letterSpacing: -0.6 },
 });
