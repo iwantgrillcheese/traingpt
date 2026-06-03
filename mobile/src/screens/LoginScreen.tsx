@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
   heroBlock: { marginTop: 72 },
   kicker: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.7 },
   title: { marginTop: 12, color: colors.ink, fontSize: 43, lineHeight: 44, fontWeight: '900', letterSpacing: -2.2 },
-  subtitle: { marginTop: 14, color: colors.muted, fontSize: 17, lineHeight: 26, fontWeight: '650' },
+  subtitle: { marginTop: 14, color: colors.muted, fontSize: 17, lineHeight: 26, fontWeight: '600' },
   valueCard: { marginTop: 28, backgroundColor: colors.ink, borderRadius: radius.xxl, padding: 20, ...shadow.hero },
   valueKicker: { color: '#a8a29e', fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.5 },
   valueList: { marginTop: 14, gap: 14 },
