@@ -12,11 +12,18 @@ export const colors = {
   brandSoft: '#efeae2',
   cream: '#fffaf2',
   topography: '#d8bda0',
-  success: '#166534',
-  successSoft: '#ecfdf3',
+
+  // Core semantic palette. Keep greens intentionally narrow so readiness,
+  // points, and completion states feel like one premium system.
+  success: '#1f6b4f',
+  successSoft: '#eaf4ef',
+  successMuted: '#f4faf6',
+
   danger: '#be123c',
+  dangerSoft: '#fff1f2',
   warning: '#854d0e',
   warningSoft: '#fff7ed',
+
   orange: '#f97316',
   blue: '#2563eb',
   blueSoft: '#eff6ff',
@@ -27,11 +34,15 @@ export const colors = {
 } as const;
 
 export const radius = {
-  sm: 14,
-  md: 18,
+  // Use two visual radii across the app: cards and pills. The legacy aliases
+  // intentionally map back to those two values to avoid a noisy UI system.
+  card: 24,
+  pill: 999,
+  sm: 24,
+  md: 24,
   lg: 24,
-  xl: 30,
-  xxl: 36,
+  xl: 24,
+  xxl: 24,
 } as const;
 
 export const spacing = {
@@ -50,14 +61,14 @@ export const shadow = {
   },
   hero: {
     shadowColor: '#18181b',
-    shadowOpacity: 0.14,
-    shadowRadius: 30,
-    shadowOffset: { width: 0, height: 16 },
-    elevation: 5,
+    shadowOpacity: 0.1,
+    shadowRadius: 26,
+    shadowOffset: { width: 0, height: 14 },
+    elevation: 4,
   },
   floating: {
     shadowColor: '#18181b',
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.18,
     shadowRadius: 24,
     shadowOffset: { width: 0, height: 12 },
     elevation: 10,
@@ -67,21 +78,21 @@ export const shadow = {
 export const typography = {
   kicker: {
     fontSize: 11,
-    fontWeight: '900' as const,
-    letterSpacing: 1.6,
+    fontWeight: '800' as const,
+    letterSpacing: 1.4,
     textTransform: 'uppercase' as const,
   },
   title: {
-    fontSize: 40,
-    lineHeight: 40,
-    fontWeight: '900' as const,
-    letterSpacing: -1.9,
+    fontSize: 36,
+    lineHeight: 38,
+    fontWeight: '800' as const,
+    letterSpacing: -1.5,
   },
   editorial: {
-    fontSize: 42,
-    lineHeight: 43,
-    fontWeight: '900' as const,
-    letterSpacing: -2.1,
+    fontSize: 38,
+    lineHeight: 40,
+    fontWeight: '800' as const,
+    letterSpacing: -1.6,
   },
   body: {
     fontSize: 14,
@@ -92,9 +103,9 @@ export const typography = {
 export const sportColors = {
   Swim: '#2563eb',
   Bike: '#f97316',
-  Run: '#22c55e',
+  Run: colors.success,
   Brick: '#7c3aed',
   Strength: '#6366f1',
   Rest: '#a1a1aa',
-  Session: '#09090b',
+  Session: colors.ink,
 } as const;
