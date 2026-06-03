@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../auth/AuthProvider';
 import { supabase } from '../lib/supabase';
-import { colors, radius, shadow, spacing } from '../design/theme';
+import { colors, radius, shadow, spacing, typography } from '../design/theme';
 import type { CompletedSessionRow, SessionRow } from '../types';
 import { currentWeekStats, formatMinutes, normalizeSport } from '../utils/training';
 import { SessionDetailSheet } from '../components/SessionDetailSheet';
@@ -50,11 +51,9 @@ function formatSessionDate(value?: string | null) {
 
 function formatCountdown(value?: Date | null) {
   if (!value) return 'Resets soon';
-  const now = new Date();
-  const diffMs = value.getTime() - now.getTime();
+  const diffMs = value.getTime() - new Date().getTime();
   const days = Math.max(0, Math.ceil(diffMs / 86400000));
-  if (days <= 1) return 'Resets tomorrow';
-  return `Resets in ${days} days`;
+  return days <= 1 ? 'Resets tomorrow' : `Resets in ${days} days`;
 }
 
 function cleanTitle(value?: string | null) {
@@ -62,26 +61,6 @@ function cleanTitle(value?: string | null) {
     .replace(/^[^A-Za-z0-9]+/, '')
     .replace(/^(swim|bike|run|brick|strength|rest)\s*:?\s*/i, '')
     .trim() || 'Training Session';
-}
-
-function sportIcon(value?: string | null) {
-  const sport = normalizeSport(value);
-  if (sport === 'Swim') return '≈';
-  if (sport === 'Bike') return '◌';
-  if (sport === 'Run') return '⌁';
-  if (sport === 'Brick') return '↯';
-  if (sport === 'Strength') return '▣';
-  return '•';
-}
-
-function sportTint(value?: string | null) {
-  const sport = normalizeSport(value);
-  if (sport === 'Swim') return '#e0f2fe';
-  if (sport === 'Bike') return '#dcfce7';
-  if (sport === 'Run') return '#ffedd5';
-  if (sport === 'Brick') return '#f5f3ff';
-  if (sport === 'Strength') return '#f3e8ff';
-  return colors.surfaceMuted;
 }
 
 function scoreLabel(score: number, hasTrainingData: boolean) {
@@ -94,21 +73,20 @@ function scoreLabel(score: number, hasTrainingData: boolean) {
 }
 
 function headline(score: number, hasTrainingData: boolean) {
-  if (!hasTrainingData) return 'Build toward race day.';
-  if (score >= 80) return 'You are in the race-ready range.';
-  if (score >= 65) return 'You are tracking well.';
-  return 'Keep stacking the work.';
+  if (!hasTrainingData) return 'Build toward race day';
+  if (score >= 80) return 'You are in the race-ready range';
+  if (score >= 65) return 'You are tracking well';
+  return 'Keep stacking the work';
 }
 
 function isFutureSession(date?: string | null) {
   if (!date) return false;
-  const sessionDate = new Date(`${date}T00:00:00`);
-  const today = startOfToday();
-  return sessionDate > today;
+  return new Date(`${date}T00:00:00`) > startOfToday();
 }
 
 export function ProgressScreen() {
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [completed, setCompleted] = useState<CompletedSessionRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -143,8 +121,7 @@ export function ProgressScreen() {
   const markDoneFor = async (session: SessionRow) => {
     if (!user?.id || !session.title || isFutureSession(session.date)) return;
     const existing = completed.filter((row) => row.date !== session.date || row.session_title !== session.title);
-    const next = [...existing, { user_id: user.id, date: session.date, session_title: String(session.title), status: 'done' }];
-    setCompleted(next);
+    setCompleted([...existing, { user_id: user.id, date: session.date, session_title: String(session.title), status: 'done' }]);
     await supabase.from('completed_sessions').delete().eq('user_id', user.id).eq('date', session.date).eq('session_title', session.title);
     await supabase.from('completed_sessions').insert({ user_id: user.id, date: session.date, session_title: session.title, status: 'done' });
   };
@@ -152,8 +129,7 @@ export function ProgressScreen() {
   const skipSession = async (session: SessionRow) => {
     if (!user?.id || !session.title || isFutureSession(session.date)) return;
     const existing = completed.filter((row) => row.date !== session.date || row.session_title !== session.title);
-    const next = [...existing, { user_id: user.id, date: session.date, session_title: String(session.title), status: 'skipped' }];
-    setCompleted(next);
+    setCompleted([...existing, { user_id: user.id, date: session.date, session_title: String(session.title), status: 'skipped' }]);
     await supabase.from('completed_sessions').delete().eq('user_id', user.id).eq('date', session.date).eq('session_title', session.title);
     await supabase.from('completed_sessions').insert({ user_id: user.id, date: session.date, session_title: session.title, status: 'skipped' });
   };
@@ -166,7 +142,6 @@ export function ProgressScreen() {
     const plannedToDate = sessions.filter((session) => new Date(`${session.date}T00:00:00`) <= today);
     const doneToDate = plannedToDate.filter((session) => doneKeys.has(sessionCompletionKey(session.date, session.title)));
     const hasTrainingData = plannedToDate.length > 0 || sessions.length > 0;
-
     const planAdherence = plannedToDate.length ? Math.round((doneToDate.length / plannedToDate.length) * 100) : 0;
     const weeklyAdherence = stats.planned ? stats.adherence : planAdherence;
     const activeReferenceDate = getActiveWeekReferenceDate(sessions, completed, today);
@@ -194,15 +169,13 @@ export function ProgressScreen() {
       });
       if (!weekSessions.length) break;
       const weekDone = weekSessions.filter((session) => doneKeys.has(sessionCompletionKey(session.date, session.title))).length;
-      const weekScore = Math.round((weekDone / weekSessions.length) * 100);
-      if (weekScore >= 80) weeklyAdherenceStreak += 1;
+      if (Math.round((weekDone / weekSessions.length) * 100) >= 80) weeklyAdherenceStreak += 1;
       else break;
     }
 
     const streakBonus = clamp(currentSessionStreak * 2 + weeklyAdherenceStreak * 4, 0, 12);
     const score = hasTrainingData ? clamp(Math.round(pointsToDateScore * 0.34 + weeklyPointsScore * 0.42 + planAdherence * 0.12 + weeklyAdherence * 0.06 + streakBonus), 1, 99) : 0;
     const weeklyPercent = weeklyPoints.available ? clamp(Math.round((weeklyPoints.earned / weeklyPoints.available) * 100), 0, 100) : 0;
-    const pointsToGo = Math.max(weeklyPoints.available - weeklyPoints.earned, 0);
     const nextBest = weeklyPoints.sessions
       .filter((session) => !doneKeys.has(sessionCompletionKey(session.date, session.title)))
       .sort((a, b) => getSessionPoints(b) - getSessionPoints(a))[0] ?? null;
@@ -214,7 +187,7 @@ export function ProgressScreen() {
       weeklyPercent,
       pointsThisWeek: weeklyPoints.earned,
       pointsAvailableThisWeek: weeklyPoints.available,
-      pointsToGo,
+      pointsToGo: Math.max(weeklyPoints.available - weeklyPoints.earned, 0),
       weekResetText: formatCountdown(weeklyPoints.end),
       currentSessionStreak,
       weeklyAdherence,
@@ -230,36 +203,38 @@ export function ProgressScreen() {
 
   return (
     <>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
-        <View style={styles.heroHeader}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 22 }]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+      >
+        <View style={styles.heroCard}>
           <Text style={styles.kicker}>Race readiness</Text>
-          <View style={styles.heroRow}>
-            <View style={styles.scoreBlock}>
-              <Text style={styles.scoreValue}>{readiness.hasTrainingData ? readiness.score : '—'}</Text>
-              <Text style={styles.scoreMax}>/100</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.title}>{readiness.headline}</Text>
-              <Text style={styles.subtitle}>Target <Text style={styles.bold}>80+</Text> by race week. Your score moves through consistency, plan adherence, key sessions, and performance data as we wire more sources in.</Text>
-            </View>
+          <View style={styles.scoreLine}>
+            <Text style={styles.scoreValue}>{readiness.hasTrainingData ? readiness.score : '—'}</Text>
+            <Text style={styles.scoreMax}>/100</Text>
           </View>
-          <View style={styles.targetBar}><View style={[styles.targetFill, { width: `${clamp(readiness.score, 3, 100)}%` }]} /></View>
-          <Text style={styles.targetCopy}>{readiness.label}. Keep banking quality sessions to move closer to 80.</Text>
+          <Text style={styles.title}>{readiness.headline}</Text>
+          <Text style={styles.subtitle}>Target <Text style={styles.bold}>80+</Text> by race week. Readiness moves when you complete the right sessions consistently.</Text>
+          <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${clamp(readiness.score, 3, 100)}%` }]} /></View>
+          <Text style={styles.targetCopy}>{readiness.label} · {readiness.pointsToGo} pts left this week</Text>
         </View>
 
-        <View style={styles.missionHero}>
-          <Text style={styles.heroKicker}>This week</Text>
-          <Text style={styles.heroTitle}>Bank {readiness.pointsAvailableThisWeek || 0} points</Text>
-          <Text style={styles.heroReset}>{readiness.weekResetText}</Text>
-          <View style={styles.heroPointsLine}>
-            <Text style={styles.heroPoints}>{readiness.pointsThisWeek}</Text>
-            <Text style={styles.heroGoal}>/ {readiness.pointsAvailableThisWeek || 0} pts</Text>
+        <View style={styles.card}>
+          <View style={styles.cardHeaderRow}>
+            <Text style={styles.kicker}>This week</Text>
+            <Text style={styles.resetText}>{readiness.weekResetText}</Text>
           </View>
-          <View style={styles.heroProgressTrack}><View style={[styles.heroProgressFill, { width: `${readiness.weeklyPercent || 3}%` }]} /></View>
-          <Text style={styles.heroToGo}>{readiness.pointsToGo} pts to go</Text>
+          <View style={styles.weekPointsLine}>
+            <Text style={styles.weekPoints}>{readiness.pointsThisWeek}</Text>
+            <Text style={styles.weekGoal}>/ {readiness.pointsAvailableThisWeek || 0} pts</Text>
+          </View>
+          <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${readiness.weeklyPercent || 3}%` }]} /></View>
+          <Text style={styles.cardCopy}>Your weekly score rewards planned work completed, not arbitrary points.</Text>
         </View>
 
-        <View style={styles.planCard}>
+        <View style={styles.card}>
           <View style={styles.cardHeaderRow}>
             <Text style={styles.kicker}>Mission plan</Text>
             <Text style={styles.linkText}>Tap a session</Text>
@@ -270,43 +245,39 @@ export function ProgressScreen() {
             return (
               <Pressable key={session.id} onPress={() => setSelectedSession(session)} style={({ pressed }) => [styles.sessionRow, index !== readiness.weekSessions.length - 1 && styles.sessionDivider, pressed && styles.pressed]}>
                 <View style={[styles.statusDot, done ? styles.statusDotDone : styles.statusDotEmpty]}><Text style={styles.statusDotText}>{done ? '✓' : ''}</Text></View>
-                <View style={[styles.sportIcon, { backgroundColor: sportTint(session.sport) }]}><Text style={styles.sportIconText}>{sportIcon(session.sport)}</Text></View>
                 <View style={styles.sessionCopy}>
-                  <Text style={styles.sessionTitle}>{cleanTitle(session.title)}</Text>
-                  <Text style={styles.sessionMeta}>{formatSessionDate(session.date)} · {formatMinutes(session.duration) ?? 'Planned'}</Text>
+                  <Text style={styles.sessionTitle} numberOfLines={1} ellipsizeMode="tail">{cleanTitle(session.title)}</Text>
+                  <Text style={styles.sessionMeta}>{formatSessionDate(session.date)} · {formatMinutes(session.duration) ?? 'Planned'} · {normalizeSport(session.sport)}</Text>
                 </View>
-                <Text style={done ? styles.sessionPointsDone : styles.sessionPoints}>+{points} pts</Text>
+                <Text style={done ? styles.sessionPointsDone : styles.sessionPoints}>+{points}</Text>
                 <Text style={styles.smallChevron}>›</Text>
               </Pressable>
             );
           }) : (
-            <View style={styles.emptyState}><Text style={styles.emptyTitle}>No sessions this week yet.</Text><Text style={styles.emptyText}>Create a plan and your weekly point target will appear here.</Text></View>
+            <View style={styles.emptyState}><Text style={styles.emptyTitle}>No sessions this week yet</Text><Text style={styles.emptyText}>Create a plan and your weekly point target will appear here.</Text></View>
           )}
         </View>
 
         {readiness.nextBest ? (
           <Pressable onPress={() => setSelectedSession(readiness.nextBest)} style={({ pressed }) => [styles.nextCard, pressed && styles.pressed]}>
-            <View style={styles.nextBadge}><Text style={styles.nextBadgeText}>Highest-value remaining session</Text></View>
-            <View style={styles.nextRow}>
-              <View style={[styles.nextIcon, { backgroundColor: sportTint(readiness.nextBest.sport) }]}><Text style={styles.sportIconText}>{sportIcon(readiness.nextBest.sport)}</Text></View>
-              <View style={styles.nextCopy}>
-                <Text style={styles.nextTitle}>{cleanTitle(readiness.nextBest.title)}</Text>
-                <Text style={styles.sessionMeta}>{formatMinutes(readiness.nextBest.duration) ?? 'Planned'} · most points still available this week</Text>
-              </View>
-              <View style={styles.nextPointsWrap}><Text style={styles.nextPoints}>+{getSessionPoints(readiness.nextBest)} pts</Text><Text style={styles.nextMeta}>available</Text></View>
+            <Text style={styles.kicker}>Next best workout</Text>
+            <Text style={styles.nextTitle} numberOfLines={2} ellipsizeMode="tail">{cleanTitle(readiness.nextBest.title)}</Text>
+            <View style={styles.nextMetaRow}>
+              <Text style={styles.sessionMeta}>{formatMinutes(readiness.nextBest.duration) ?? 'Planned'} · highest-value remaining session</Text>
+              <Text style={styles.nextPoints}>+{getSessionPoints(readiness.nextBest)} pts</Text>
             </View>
           </Pressable>
         ) : null}
 
-        <View style={styles.pointsBoostCard}>
-          <Text style={styles.boostKicker}>How readiness moves</Text>
-          <Text style={styles.explainText}>This version weights weekly points, plan-to-date adherence, key session completion, and streak consistency. Next step is adding actual Strava performance trends so the score reflects not just showing up, but getting fitter.</Text>
-          <View style={styles.boostGrid}>
-            <View style={styles.boostItem}><Text style={styles.boostValue}>{readiness.currentSessionStreak}</Text><Text style={styles.boostTitle}>Session streak</Text></View>
-            <View style={styles.boostDivider} />
-            <View style={styles.boostItem}><Text style={styles.boostValue}>{readiness.weeklyAdherence}%</Text><Text style={styles.boostTitle}>Adherence</Text></View>
-            <View style={styles.boostDivider} />
-            <View style={styles.boostItem}><Text style={styles.boostValue}>+{readiness.streakBonus}</Text><Text style={styles.boostTitle}>Consistency boost</Text></View>
+        <View style={styles.card}>
+          <Text style={styles.kicker}>How readiness moves</Text>
+          <Text style={styles.explainText}>This version weights weekly points, plan-to-date adherence, key session completion, and streak consistency. Strava performance trends can make it smarter next.</Text>
+          <View style={styles.metricGrid}>
+            <View style={styles.metricItem}><Text style={styles.metricValue}>{readiness.currentSessionStreak}</Text><Text style={styles.metricTitle}>Streak</Text></View>
+            <View style={styles.metricDivider} />
+            <View style={styles.metricItem}><Text style={styles.metricValue}>{readiness.weeklyAdherence}%</Text><Text style={styles.metricTitle}>Adherence</Text></View>
+            <View style={styles.metricDivider} />
+            <View style={styles.metricItem}><Text style={styles.metricValue}>+{readiness.streakBonus}</Text><Text style={styles.metricTitle}>Boost</Text></View>
           </View>
         </View>
       </ScrollView>
@@ -318,67 +289,51 @@ export function ProgressScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  content: { paddingHorizontal: spacing.pageX, paddingTop: 70, paddingBottom: spacing.pageBottom },
+  content: { paddingHorizontal: spacing.pageX, paddingBottom: spacing.pageBottom },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
-  kicker: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.8 },
-  heroHeader: { backgroundColor: colors.surface, borderRadius: radius.xxl, borderWidth: 1, borderColor: colors.border, padding: 18, ...shadow.card },
-  heroRow: { marginTop: 12, flexDirection: 'row', gap: 16, alignItems: 'center' },
-  scoreBlock: { width: 106, height: 106, borderRadius: 999, borderWidth: 8, borderColor: colors.success, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
-  scoreValue: { color: colors.ink, fontSize: 36, lineHeight: 38, fontWeight: '900', letterSpacing: -1.4 },
-  scoreMax: { color: colors.muted, fontSize: 13, fontWeight: '800' },
-  title: { color: colors.ink, fontSize: 30, lineHeight: 31, fontWeight: '900', letterSpacing: -1.4 },
-  subtitle: { marginTop: 8, color: colors.inkSoft, fontSize: 14, lineHeight: 21, fontWeight: '600' },
-  bold: { color: colors.ink, fontWeight: '900' },
-  targetBar: { marginTop: 18, height: 9, borderRadius: 999, backgroundColor: colors.border, overflow: 'hidden' },
-  targetFill: { height: '100%', borderRadius: 999, backgroundColor: colors.success },
-  targetCopy: { marginTop: 9, color: colors.muted, fontSize: 13, fontWeight: '700', lineHeight: 19 },
-  missionHero: { marginTop: 14, overflow: 'hidden', backgroundColor: '#07522f', borderRadius: radius.xl, padding: 20, ...shadow.hero },
-  heroKicker: { color: 'rgba(255,255,255,0.72)', fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.8 },
-  heroTitle: { marginTop: 10, color: colors.surface, fontSize: 31, lineHeight: 33, fontWeight: '900', letterSpacing: -1.2 },
-  heroReset: { alignSelf: 'flex-start', marginTop: 10, overflow: 'hidden', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.82)', paddingHorizontal: 10, paddingVertical: 6, fontSize: 12, fontWeight: '800' },
-  heroPointsLine: { marginTop: 16, flexDirection: 'row', alignItems: 'flex-end', gap: 7 },
-  heroPoints: { color: colors.surface, fontSize: 40, lineHeight: 42, fontWeight: '900', letterSpacing: -1.6 },
-  heroGoal: { color: 'rgba(255,255,255,0.66)', fontSize: 19, lineHeight: 30, fontWeight: '800' },
-  heroProgressTrack: { marginTop: 10, height: 10, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.16)', overflow: 'hidden' },
-  heroProgressFill: { height: '100%', borderRadius: 999, backgroundColor: '#d9f99d' },
-  heroToGo: { marginTop: 8, color: '#d9f99d', fontSize: 13, fontWeight: '900' },
-  planCard: { marginTop: 14, backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, padding: 16, ...shadow.card },
-  cardHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
-  linkText: { color: colors.success, fontSize: 13, fontWeight: '900' },
-  sessionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12 },
+  kicker: { ...typography.kicker, color: colors.faint },
+  heroCard: { backgroundColor: colors.surface, borderRadius: radius.card, borderWidth: 1, borderColor: colors.border, padding: 20, ...shadow.card },
+  scoreLine: { marginTop: 14, flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
+  scoreValue: { color: colors.ink, fontSize: 68, lineHeight: 70, fontWeight: '800', letterSpacing: -3.2 },
+  scoreMax: { color: colors.muted, fontSize: 18, lineHeight: 36, fontWeight: '700' },
+  title: { marginTop: 10, color: colors.ink, fontSize: 25, lineHeight: 29, fontWeight: '800', letterSpacing: -0.9 },
+  subtitle: { marginTop: 8, color: colors.inkSoft, fontSize: 14, lineHeight: 21, fontWeight: '500' },
+  bold: { color: colors.ink, fontWeight: '800' },
+  progressTrack: { marginTop: 18, height: 8, borderRadius: radius.pill, backgroundColor: colors.surfaceMuted, overflow: 'hidden' },
+  progressFill: { height: '100%', borderRadius: radius.pill, backgroundColor: colors.success },
+  targetCopy: { marginTop: 9, color: colors.muted, fontSize: 13, fontWeight: '600', lineHeight: 19 },
+  card: { marginTop: 14, backgroundColor: colors.surface, borderRadius: radius.card, borderWidth: 1, borderColor: colors.border, padding: 16, ...shadow.card },
+  cardHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, gap: 12 },
+  resetText: { color: colors.muted, fontSize: 12, fontWeight: '600' },
+  weekPointsLine: { marginTop: 8, flexDirection: 'row', alignItems: 'flex-end', gap: 7 },
+  weekPoints: { color: colors.ink, fontSize: 34, lineHeight: 36, fontWeight: '800', letterSpacing: -1.2 },
+  weekGoal: { color: colors.muted, fontSize: 17, lineHeight: 26, fontWeight: '700' },
+  cardCopy: { marginTop: 9, color: colors.inkSoft, fontSize: 13, lineHeight: 20, fontWeight: '500' },
+  linkText: { color: colors.success, fontSize: 13, fontWeight: '700' },
+  sessionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13 },
   sessionDivider: { borderBottomWidth: 1, borderBottomColor: colors.border },
-  statusDot: { width: 24, height: 24, borderRadius: 999, alignItems: 'center', justifyContent: 'center', borderWidth: 1.4 },
+  statusDot: { width: 23, height: 23, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', borderWidth: 1.3 },
   statusDotDone: { borderColor: colors.success, backgroundColor: colors.success },
-  statusDotEmpty: { borderColor: colors.faint, borderStyle: 'dashed' },
-  statusDotText: { color: colors.surface, fontSize: 12, fontWeight: '900' },
-  sportIcon: { width: 40, height: 40, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  sportIconText: { color: colors.ink, fontSize: 17, fontWeight: '900' },
+  statusDotEmpty: { borderColor: colors.borderStrong, backgroundColor: colors.surface },
+  statusDotText: { color: colors.surface, fontSize: 12, fontWeight: '800' },
   sessionCopy: { flex: 1, minWidth: 0 },
-  sessionTitle: { color: colors.ink, fontSize: 16, fontWeight: '900', letterSpacing: -0.4 },
-  sessionMeta: { marginTop: 3, color: colors.muted, fontSize: 12, fontWeight: '600' },
-  sessionPoints: { color: colors.muted, fontSize: 13, fontWeight: '900' },
-  sessionPointsDone: { overflow: 'hidden', borderRadius: 999, backgroundColor: colors.successSoft, color: colors.success, paddingHorizontal: 8, paddingVertical: 5, fontSize: 12, fontWeight: '900' },
-  smallChevron: { color: colors.faint, fontSize: 20, fontWeight: '700' },
+  sessionTitle: { color: colors.ink, fontSize: 16, fontWeight: '800', letterSpacing: -0.25 },
+  sessionMeta: { marginTop: 3, color: colors.muted, fontSize: 12, fontWeight: '500' },
+  sessionPoints: { color: colors.muted, fontSize: 13, fontWeight: '700' },
+  sessionPointsDone: { overflow: 'hidden', borderRadius: radius.pill, backgroundColor: colors.successSoft, color: colors.success, paddingHorizontal: 8, paddingVertical: 5, fontSize: 12, fontWeight: '700' },
+  smallChevron: { color: colors.faint, fontSize: 20, fontWeight: '600' },
   emptyState: { paddingVertical: 20 },
-  emptyTitle: { color: colors.ink, fontSize: 18, fontWeight: '900' },
+  emptyTitle: { color: colors.ink, fontSize: 18, fontWeight: '800' },
   emptyText: { marginTop: 6, color: colors.muted, fontSize: 14, lineHeight: 21 },
-  nextCard: { marginTop: 14, backgroundColor: colors.cream, borderRadius: radius.xl, borderWidth: 1, borderColor: '#eadfd2', padding: 16, ...shadow.card },
-  nextBadge: { marginBottom: 12 },
-  nextBadgeText: { color: colors.success, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.5 },
-  nextRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  nextIcon: { width: 52, height: 52, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
-  nextCopy: { flex: 1, minWidth: 0 },
-  nextTitle: { color: colors.ink, fontSize: 19, fontWeight: '900', letterSpacing: -0.6 },
-  nextPointsWrap: { alignItems: 'flex-end', gap: 2 },
-  nextPoints: { color: colors.success, fontSize: 22, fontWeight: '900', letterSpacing: -0.6 },
-  nextMeta: { color: colors.muted, fontSize: 11, fontWeight: '700' },
-  pointsBoostCard: { marginTop: 14, backgroundColor: '#f0fdf4', borderRadius: radius.xl, borderWidth: 1, borderColor: '#dcfce7', padding: 16, ...shadow.card },
-  boostKicker: { color: colors.success, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.7 },
-  explainText: { marginTop: 8, color: colors.inkSoft, fontSize: 13, lineHeight: 20, fontWeight: '600' },
-  boostGrid: { marginTop: 14, flexDirection: 'row', alignItems: 'stretch' },
-  boostItem: { flex: 1, alignItems: 'center' },
-  boostDivider: { width: 1, backgroundColor: '#bbf7d0', marginHorizontal: 8 },
-  boostValue: { color: colors.success, fontSize: 24, fontWeight: '900', letterSpacing: -0.8 },
-  boostTitle: { marginTop: 5, color: colors.inkSoft, fontSize: 10, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.9, textAlign: 'center' },
+  nextCard: { marginTop: 14, backgroundColor: colors.cream, borderRadius: radius.card, borderWidth: 1, borderColor: colors.border, padding: 16, ...shadow.card },
+  nextTitle: { marginTop: 9, color: colors.ink, fontSize: 20, lineHeight: 24, fontWeight: '800', letterSpacing: -0.6 },
+  nextMetaRow: { marginTop: 8, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 },
+  nextPoints: { color: colors.success, fontSize: 17, fontWeight: '800', letterSpacing: -0.3 },
+  explainText: { marginTop: 8, color: colors.inkSoft, fontSize: 13, lineHeight: 20, fontWeight: '500' },
+  metricGrid: { marginTop: 14, flexDirection: 'row', alignItems: 'stretch' },
+  metricItem: { flex: 1, alignItems: 'center' },
+  metricDivider: { width: 1, backgroundColor: colors.border, marginHorizontal: 8 },
+  metricValue: { color: colors.ink, fontSize: 22, fontWeight: '800', letterSpacing: -0.6 },
+  metricTitle: { marginTop: 5, color: colors.muted, fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, textAlign: 'center' },
   pressed: { opacity: 0.72 },
 });
