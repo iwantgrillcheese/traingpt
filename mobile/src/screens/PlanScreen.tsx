@@ -155,7 +155,7 @@ function buildCalendarDays(monthDate: Date): CalendarDay[] {
 }
 
 export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const insets = useSafeAreaInsets();
   const initialRaceDate = useMemo(() => defaultRaceDate(), []);
   const [stepIndex, setStepIndex] = useState(0);
@@ -367,6 +367,18 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
     if (stepIndex > 0) setStepIndex((value) => value - 1);
   };
 
+  const handleSignOut = async () => {
+    setError(null);
+    setSuccess(null);
+
+    try {
+      await signOut();
+    } catch (error) {
+      console.error('[PlanScreen] sign out failed', error);
+      setError('Could not sign out. Try again.');
+    }
+  };
+
   if (generating) {
     return <PlanGenerationExperience currentStep={generationStep} steps={magicSteps} complete={generationComplete} progressPercent={generationProgress} />;
   }
@@ -376,7 +388,12 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 28 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={styles.topRow}>
           <Text style={styles.brand}>TrainGPT</Text>
-          <Text style={styles.progressText}>{stepIndex + 1} / {steps.length}</Text>
+          <View style={styles.topRowActions}>
+            <Pressable onPress={handleSignOut} hitSlop={10} style={({ pressed }) => [styles.signOutButton, pressed && styles.secondaryPressed]}>
+              <Text style={styles.signOutText}>Sign out</Text>
+            </Pressable>
+            <Text style={styles.progressText}>{stepIndex + 1} / {steps.length}</Text>
+          </View>
         </View>
         <View style={styles.progressTrack}>
           <View style={[styles.progressFill, { width: `${((stepIndex + 1) / steps.length) * 100}%` }]} />
@@ -560,6 +577,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.pageX, paddingBottom: 132 },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  topRowActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  signOutButton: { minHeight: 34, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
+  signOutText: { color: colors.muted, fontSize: 12, fontWeight: '800' },
   brand: { color: colors.ink, fontSize: 18, fontWeight: '900', letterSpacing: -0.4 },
   progressText: { color: colors.muted, fontSize: 13, fontWeight: '800' },
   progressTrack: { marginTop: 18, height: 5, borderRadius: 999, backgroundColor: colors.border, overflow: 'hidden' },
