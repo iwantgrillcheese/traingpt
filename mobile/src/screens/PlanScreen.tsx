@@ -25,6 +25,7 @@ type StravaHighlight = {
 
 type StravaSummary = {
   connected: boolean;
+  hasSyncedHistory: boolean;
   loading: boolean;
   activityCount: number;
   totalHours: number;
@@ -172,7 +173,7 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
   const [generationProgress, setGenerationProgress] = useState(0);
   const [connectingStrava, setConnectingStrava] = useState(false);
   const [syncingStrava, setSyncingStrava] = useState(false);
-  const [strava, setStrava] = useState<StravaSummary>({ connected: false, loading: true, activityCount: 0, totalHours: 0, runCount: 0, bikeCount: 0, swimCount: 0, highlights: [] });
+  const [strava, setStrava] = useState<StravaSummary>({ connected: false, hasSyncedHistory: false, loading: true, activityCount: 0, totalHours: 0, runCount: 0, bikeCount: 0, swimCount: 0, highlights: [] });
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -202,6 +203,7 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
 
       setStrava({
         connected: Boolean(payload?.connected),
+        hasSyncedHistory: Boolean(payload?.hasSyncedHistory),
         loading: false,
         activityCount: Number(payload?.activityCount ?? payload?.recentActivityCount ?? 0),
         totalHours: Number(payload?.totalHours ?? 0),
@@ -212,7 +214,7 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
       });
     } catch (error) {
       console.error('[PlanScreen] Strava status failed', error);
-      setStrava((currentState) => ({ ...currentState, connected: false, loading: false, highlights: [] }));
+      setStrava((currentState) => ({ ...currentState, connected: false, hasSyncedHistory: false, loading: false, highlights: [] }));
     }
   }, [user?.id]);
 
@@ -249,12 +251,19 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
     setError(null);
 
     try {
-      const response = await apiFetch('/api/strava_sync', { method: 'POST' });
+      const response = await apiFetch('/api/strava_sync', {
+        method: 'POST',
+        body: JSON.stringify({ forceBackfill: Boolean(options?.force) }),
+      });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload?.error || 'Strava sync failed.');
       await loadStravaSummary();
       setError(null);
-      if (options?.showSuccess !== false) setSuccess('Strava synced. Recent activities are ready.');
+      if (options?.showSuccess !== false) {
+        const inserted = Number(payload?.inserted ?? 0);
+        const totalFetched = Number(payload?.totalFetched ?? 0);
+        setSuccess(totalFetched > 0 ? `Strava synced. ${inserted} new activities imported.` : 'Strava is connected. No new activities found.');
+      }
       return true;
     } catch (error) {
       console.error('[PlanScreen] Strava sync failed', error);
@@ -287,10 +296,10 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
         const oauthSuccess = getQueryParam(result.url, 'success');
         if (oauthError) throw new Error(oauthError);
         if (oauthSuccess === 'strava_connected') {
-          await syncStrava({ force: true, showSuccess: false });
+          const synced = await syncStrava({ force: true, showSuccess: false });
           await loadStravaSummary();
           setError(null);
-          setSuccess('Strava connected. Recent training history is ready.');
+          setSuccess(synced ? 'Strava connected. Recent training history is ready.' : 'Strava connected. Tap refresh to sync activities.');
         }
       }
     } catch (error) {
@@ -500,8 +509,8 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
                 </View>
               ) : stravaReady ? (
                 <>
-                  <Text style={styles.stravaBig}>Training history ready</Text>
-                  <Text style={styles.stravaMeta}>TrainGPT found your recent activity and will use it to calibrate your opening load.</Text>
+                  <Text style={styles.stravaBig}>{strava.activityCount > 0 ? 'Training history ready' : 'Strava connected'}</Text>
+                  <Text style={styles.stravaMeta}>{strava.activityCount > 0 ? 'TrainGPT found recent activity and will use it to calibrate your opening load.' : 'Connection is active. Tap refresh to import your recent training history.'}</Text>
 
                   <View style={styles.stravaStatsGrid}>
                     <View style={styles.stravaStatLarge}><Text style={styles.stravaStatValue}>{strava.activityCount}</Text><Text style={styles.stravaStatLabel}>Activities</Text></View>
