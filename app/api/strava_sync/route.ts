@@ -161,24 +161,34 @@ export async function POST(req: Request) {
         ? Math.max(0, latestStoredUnix - 60 * 60)
         : Math.floor(Date.now() / 1000) - 60 * 60 * 24 * 90;
 
-    const listRes = await fetch(
-      `https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=200`,
-      {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      }
-    );
+const summaryList: StravaSummaryActivity[] = [];
 
-    if (!listRes.ok) {
-      const errText = await listRes.text();
-      console.error('[strava_sync] activity list failed:', errText);
-
-      return NextResponse.json(
-        { error: 'Failed to fetch Strava activities.' },
-        { status: 500 }
-      );
+for (let page = 1; page <= 3; page += 1) {
+  const listRes = await fetch(
+    `https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=200&page=${page}`,
+    {
+      headers: { Authorization: `Bearer ${accessToken}` },
     }
+  );
 
-    const summaryList = (await listRes.json()) as StravaSummaryActivity[];
+  if (!listRes.ok) {
+    const errText = await listRes.text();
+    console.error('[strava_sync] activity list failed:', errText);
+
+    return NextResponse.json(
+      { error: 'Failed to fetch Strava activities.' },
+      { status: 500 }
+    );
+  }
+
+  const pageActivities = (await listRes.json()) as StravaSummaryActivity[];
+
+  if (!Array.isArray(pageActivities) || pageActivities.length === 0) break;
+
+  summaryList.push(...pageActivities);
+
+  if (pageActivities.length < 200) break;
+};
 
     if (!Array.isArray(summaryList) || summaryList.length === 0) {
       return NextResponse.json({
