@@ -44,12 +44,13 @@ const raceTypes: RaceType[] = ['Sprint', 'Olympic', 'Half Ironman (70.3)', 'Iron
 const experiences: Experience[] = ['Beginner', 'Intermediate', 'Advanced'];
 const hourOptions = ['3-5', '6-8', '9-12', '12+'];
 const weekdays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
 const steps: { key: StepKey; eyebrow: string; title: string; subtitle: string }[] = [
   { key: 'race', eyebrow: 'Step 1', title: 'What are you training for?', subtitle: 'Start with the race distance. TrainGPT will shape the calendar around the demands of the event.' },
-  { key: 'date', eyebrow: 'Step 2', title: 'When is race day?', subtitle: 'Your race date controls the length of the build, taper timing, and first-week ramp.' },
+  { key: 'date', eyebrow: 'Step 2', title: 'Race day', subtitle: 'Pick the date. TrainGPT will use it to set your build length, peak timing, and taper.' },
   { key: 'experience', eyebrow: 'Step 3', title: 'Where are you starting from?', subtitle: 'Choose the level that best reflects your current training background.' },
   { key: 'hours', eyebrow: 'Step 4', title: 'How many hours can you train?', subtitle: 'Pick a realistic weekly range. A good plan fits your life before it stretches your fitness.' },
-  { key: 'strava', eyebrow: 'Step 5', title: 'Connect training history', subtitle: 'Connect Strava so TrainGPT can use your recent swim, bike, and run history before building the plan.' },
+  { key: 'strava', eyebrow: 'Step 5', title: 'Connect Strava', subtitle: 'Import recent swim, bike, and run history so your first week starts from reality.' },
   { key: 'notes', eyebrow: 'Step 6', title: 'Any constraints?', subtitle: 'Tell your coach about injuries, travel, weak disciplines, preferred long ride days, or schedule limits.' },
   { key: 'review', eyebrow: 'Step 7', title: 'Ready to build', subtitle: 'Review the setup. Then TrainGPT will generate the calendar and session structure.' },
 ];
@@ -131,6 +132,12 @@ function displayDate(value: string) {
   return new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }).format(date);
 }
 
+function shortDisplayDate(value: string) {
+  const date = parseDateKey(value);
+  if (!date) return value;
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+}
+
 function buildCalendarDays(monthDate: Date): CalendarDay[] {
   const first = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
   const start = new Date(first);
@@ -171,7 +178,7 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
 
   const current = steps[stepIndex];
   const step = current.key;
-  const stravaReady = strava.connected || strava.activityCount > 0;
+  const stravaReady = strava.connected;
   const magicSteps = generationSteps(stravaReady);
   const calendarDays = useMemo(() => buildCalendarDays(calendarMonth), [calendarMonth]);
 
@@ -193,12 +200,10 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload?.error || 'Could not load Strava status.');
 
-      const activityCount = Number(payload?.activityCount ?? payload?.recentActivityCount ?? 0);
-
       setStrava({
-        connected: Boolean(payload?.connected) || activityCount > 0,
+        connected: Boolean(payload?.connected),
         loading: false,
-        activityCount,
+        activityCount: Number(payload?.activityCount ?? payload?.recentActivityCount ?? 0),
         totalHours: Number(payload?.totalHours ?? 0),
         runCount: Number(payload?.runCount ?? 0),
         bikeCount: Number(payload?.bikeCount ?? 0),
@@ -242,15 +247,18 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
     if ((!options?.force && !stravaReady) || syncingStrava) return false;
     setSyncingStrava(true);
     setError(null);
+
     try {
       const response = await apiFetch('/api/strava_sync', { method: 'POST' });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload?.error || 'Strava sync failed.');
       await loadStravaSummary();
-      if (options?.showSuccess !== false) setSuccess('Strava synced. Your recent activities are ready for plan generation.');
+      setError(null);
+      if (options?.showSuccess !== false) setSuccess('Strava synced. Recent activities are ready.');
       return true;
     } catch (error) {
       console.error('[PlanScreen] Strava sync failed', error);
+      setSuccess(null);
       setError(error instanceof Error ? error.message : 'Could not sync Strava right now.');
       return false;
     } finally {
@@ -275,17 +283,19 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
 
       const result = await WebBrowser.openAuthSessionAsync(payload.url, appRedirect);
       if (result.type === 'success') {
-        const error = getQueryParam(result.url, 'error');
-        const success = getQueryParam(result.url, 'success');
-        if (error) throw new Error(error);
-        if (success === 'strava_connected') {
+        const oauthError = getQueryParam(result.url, 'error');
+        const oauthSuccess = getQueryParam(result.url, 'success');
+        if (oauthError) throw new Error(oauthError);
+        if (oauthSuccess === 'strava_connected') {
           await syncStrava({ force: true, showSuccess: false });
           await loadStravaSummary();
-          setSuccess('Strava connected. Your recent training history is ready.');
+          setError(null);
+          setSuccess('Strava connected. Recent training history is ready.');
         }
       }
     } catch (error) {
       console.error('[PlanScreen] Strava connect failed', error);
+      setSuccess(null);
       Alert.alert('Strava connection failed', error instanceof Error ? error.message : 'Could not connect Strava right now.');
     } finally {
       setConnectingStrava(false);
@@ -363,7 +373,7 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.container}>
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 24 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 28 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={styles.topRow}>
           <Text style={styles.brand}>TrainGPT</Text>
           <Text style={styles.progressText}>{stepIndex + 1} / {steps.length}</Text>
@@ -390,10 +400,19 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
 
           {step === 'date' ? (
             <View>
-              <Text style={styles.label}>Race date</Text>
-              <View style={styles.selectedDateCard}>
-                <Text style={styles.selectedDateLabel}>Selected race day</Text>
-                <Text style={styles.selectedDateValue}>{displayDate(raceDate)}</Text>
+              <View style={styles.raceHero}>
+                <Text style={styles.raceHeroLabel}>Selected race day</Text>
+                <Text style={styles.raceHeroDate}>{shortDisplayDate(raceDate)}</Text>
+                <View style={styles.raceHeroDivider} />
+                <View style={styles.phaseRow}>
+                  <View style={styles.phaseMetric}>
+                    <Text style={styles.phaseMetricValue}>{projectedWeeks ?? '-'}</Text>
+                    <Text style={styles.phaseMetricLabel}>weeks to build</Text>
+                  </View>
+                  <View style={styles.phasePill}>
+                    <Text style={styles.phasePillText}>Base → Build → Peak → Taper</Text>
+                  </View>
+                </View>
               </View>
 
               <View style={styles.calendarCard}>
@@ -415,15 +434,13 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
                   {calendarDays.map((day) => {
                     const selected = day.key === raceDate;
                     return (
-                      <Pressable key={day.key} onPress={() => selectRaceDate(day.date)} style={({ pressed }) => [styles.dayCell, !day.inMonth && styles.dayCellMuted, selected && styles.dayCellSelected, pressed && styles.dayCellPressed]}>
+                      <Pressable key={day.key} onPress={() => selectRaceDate(day.date)} style={({ pressed }) => [styles.dayCell, selected && styles.dayCellSelected, pressed && styles.dayCellPressed]}>
                         <Text style={[styles.dayText, !day.inMonth && styles.dayTextMuted, selected && styles.dayTextSelected]}>{day.date.getDate()}</Text>
                       </Pressable>
                     );
                   })}
                 </View>
               </View>
-
-              <View style={styles.contextBox}><Text style={styles.contextValue}>{projectedWeeks ?? '-'} weeks to build</Text><Text style={styles.contextText}>TrainGPT will build progression, recovery, peak, and taper from this timeline.</Text></View>
             </View>
           ) : null}
 
@@ -450,77 +467,59 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
           ) : null}
 
           {step === 'strava' ? (
-            <View>
-              <View style={styles.stravaBox}>
-                <View style={styles.stravaTopRow}>
-                  <View style={styles.stravaLogo}>
-                    <Text style={styles.stravaLogoText}>S</Text>
-                  </View>
-                  <View style={styles.stravaHeaderCopy}>
-                    <Text style={styles.stravaStatus}>Strava</Text>
-                    <Text style={styles.stravaConnection}>{stravaReady ? 'Training history ready' : 'Connect training history'}</Text>
-                  </View>
+            <View style={styles.stravaBox}>
+              <View style={styles.stravaTopRow}>
+                <View style={styles.stravaLogo}><Text style={styles.stravaLogoText}>S</Text></View>
+                <View style={styles.stravaHeaderCopy}>
+                  <Text style={styles.stravaStatus}>Strava</Text>
+                  <Text style={styles.stravaConnection}>{stravaReady ? 'Connected' : 'Optional import'}</Text>
                 </View>
-
-                {strava.loading || syncingStrava ? (
-                  <View style={styles.loadingRow}>
-                    <ActivityIndicator />
-                    <Text style={styles.loadingText}>{syncingStrava ? 'Syncing recent activities...' : 'Checking connection...'}</Text>
-                  </View>
-                ) : stravaReady ? (
-                  <>
-                    <Text style={styles.stravaBig}>Recent training found</Text>
-                    <View style={styles.stravaStatsGrid}>
-                      <View style={styles.stravaStatLarge}>
-                        <Text style={styles.stravaStatValue}>{strava.activityCount}</Text>
-                        <Text style={styles.stravaStatLabel}>Activities</Text>
-                      </View>
-                      <View style={styles.stravaStatLarge}>
-                        <Text style={styles.stravaStatValue}>{strava.totalHours}</Text>
-                        <Text style={styles.stravaStatLabel}>Hours</Text>
-                      </View>
-                      <View style={styles.stravaStat}>
-                        <Text style={styles.stravaStatValueSmall}>{strava.runCount}</Text>
-                        <Text style={styles.stravaStatLabel}>Runs</Text>
-                      </View>
-                      <View style={styles.stravaStat}>
-                        <Text style={styles.stravaStatValueSmall}>{strava.bikeCount}</Text>
-                        <Text style={styles.stravaStatLabel}>Rides</Text>
-                      </View>
-                      <View style={styles.stravaStat}>
-                        <Text style={styles.stravaStatValueSmall}>{strava.swimCount}</Text>
-                        <Text style={styles.stravaStatLabel}>Swims</Text>
-                      </View>
-                    </View>
-
-                    {strava.highlights.length > 0 ? (
-                      <View style={styles.highlightGrid}>
-                        {strava.highlights.slice(0, 3).map((highlight) => (
-                          <View key={`${highlight.label}-${highlight.value}`} style={styles.highlightCard}>
-                            <Text style={styles.highlightLabel}>{highlight.label}</Text>
-                            <Text style={styles.highlightValue}>{highlight.value}</Text>
-                            <Text style={styles.highlightDetail}>{highlight.detail}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    ) : null}
-
-                    <Text style={styles.body}>TrainGPT will use this history to estimate recent load, discipline balance, and a safer starting point.</Text>
-                    <Pressable onPress={() => syncStrava()} disabled={syncingStrava} style={({ pressed }) => [styles.stravaButtonSecondary, syncingStrava && styles.disabledButton, pressed && styles.secondaryPressed]}>
-                      <Text style={styles.stravaButtonSecondaryText}>{syncingStrava ? 'Syncing...' : 'Refresh Strava data'}</Text>
-                    </Pressable>
-                  </>
-                ) : (
-                  <>
-                    <Text style={styles.stravaBig}>Use your real training history</Text>
-                    <Text style={styles.stravaMeta}>Connect Strava to pull recent swim, bike, and run activity before plan generation.</Text>
-                    <Pressable onPress={connectStrava} disabled={connectingStrava} style={({ pressed }) => [styles.stravaButton, connectingStrava && styles.disabledButton, pressed && styles.primaryPressed]}>
-                      <Text style={styles.stravaButtonText}>{connectingStrava ? 'Connecting...' : 'Connect with Strava'}</Text>
-                    </Pressable>
-                    <Text style={styles.body}>You can skip this and still build a plan. Strava history should make the first week smarter.</Text>
-                  </>
-                )}
               </View>
+
+              {strava.loading || syncingStrava ? (
+                <View style={styles.loadingRow}>
+                  <ActivityIndicator />
+                  <Text style={styles.loadingText}>{syncingStrava ? 'Syncing recent activities...' : 'Checking connection...'}</Text>
+                </View>
+              ) : stravaReady ? (
+                <>
+                  <Text style={styles.stravaBig}>Training history ready</Text>
+                  <Text style={styles.stravaMeta}>TrainGPT found your recent activity and will use it to calibrate your opening load.</Text>
+
+                  <View style={styles.stravaStatsGrid}>
+                    <View style={styles.stravaStatLarge}><Text style={styles.stravaStatValue}>{strava.activityCount}</Text><Text style={styles.stravaStatLabel}>Activities</Text></View>
+                    <View style={styles.stravaStatLarge}><Text style={styles.stravaStatValue}>{strava.totalHours}</Text><Text style={styles.stravaStatLabel}>Hours</Text></View>
+                    <View style={styles.stravaStat}><Text style={styles.stravaStatValueSmall}>{strava.runCount}</Text><Text style={styles.stravaStatLabel}>Runs</Text></View>
+                    <View style={styles.stravaStat}><Text style={styles.stravaStatValueSmall}>{strava.bikeCount}</Text><Text style={styles.stravaStatLabel}>Rides</Text></View>
+                    <View style={styles.stravaStat}><Text style={styles.stravaStatValueSmall}>{strava.swimCount}</Text><Text style={styles.stravaStatLabel}>Swims</Text></View>
+                  </View>
+
+                  {strava.highlights.length > 0 ? (
+                    <View style={styles.highlightGrid}>
+                      {strava.highlights.slice(0, 3).map((highlight) => (
+                        <View key={`${highlight.label}-${highlight.value}`} style={styles.highlightCard}>
+                          <Text style={styles.highlightLabel}>{highlight.label}</Text>
+                          <Text style={styles.highlightValue}>{highlight.value}</Text>
+                          <Text style={styles.highlightDetail}>{highlight.detail}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
+
+                  <Pressable onPress={() => syncStrava()} disabled={syncingStrava} style={({ pressed }) => [styles.stravaButtonSecondary, syncingStrava && styles.disabledButton, pressed && styles.secondaryPressed]}>
+                    <Text style={styles.stravaButtonSecondaryText}>{syncingStrava ? 'Syncing...' : 'Refresh Strava data'}</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.stravaBig}>Use real training history</Text>
+                  <Text style={styles.stravaMeta}>Connect Strava to pull recent swim, bike, and run activity before plan generation.</Text>
+                  <Pressable onPress={connectStrava} disabled={connectingStrava} style={({ pressed }) => [styles.stravaButton, connectingStrava && styles.disabledButton, pressed && styles.primaryPressed]}>
+                    <Text style={styles.stravaButtonText}>{connectingStrava ? 'Connecting...' : 'Connect with Strava'}</Text>
+                  </Pressable>
+                  <Text style={styles.body}>You can skip this and still build a plan.</Text>
+                </>
+              )}
             </View>
           ) : null}
 
@@ -546,7 +545,7 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
         </View>
 
         {error ? <View style={styles.errorBox}><Text style={styles.error}>{error}</Text></View> : null}
-        {success ? <View style={styles.successBox}><Text style={styles.success}>{success}</Text></View> : null}
+        {!error && success ? <View style={styles.successBox}><Text style={styles.success}>{success}</Text></View> : null}
 
         <View style={styles.footerActions}>
           <Pressable onPress={backStep} disabled={stepIndex === 0} style={({ pressed }) => [styles.backButton, stepIndex === 0 && styles.disabledBack, pressed && stepIndex !== 0 && styles.secondaryPressed]}><Text style={styles.backText}>Back</Text></Pressable>
@@ -562,16 +561,16 @@ const styles = StyleSheet.create({
   content: { padding: spacing.pageX, paddingBottom: 132 },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   brand: { color: colors.ink, fontSize: 18, fontWeight: '900', letterSpacing: -0.4 },
-  progressText: { color: colors.muted, fontSize: 13, fontWeight: '900' },
-  progressTrack: { marginTop: 22, height: 6, borderRadius: 999, backgroundColor: colors.border, overflow: 'hidden' },
+  progressText: { color: colors.muted, fontSize: 13, fontWeight: '800' },
+  progressTrack: { marginTop: 18, height: 5, borderRadius: 999, backgroundColor: colors.border, overflow: 'hidden' },
   progressFill: { height: '100%', backgroundColor: colors.ink, borderRadius: 999 },
-  eyebrow: { marginTop: 34, color: colors.faint, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.6 },
-  title: { marginTop: 12, color: colors.ink, fontSize: 38, lineHeight: 40, fontWeight: '800', letterSpacing: -1.6 },
+  eyebrow: { marginTop: 30, color: colors.faint, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.6 },
+  title: { marginTop: 12, color: colors.ink, fontSize: 34, lineHeight: 37, fontWeight: '800', letterSpacing: -1.5 },
   subtitle: { marginTop: 14, color: colors.inkSoft, fontSize: 16, lineHeight: 25, fontWeight: '500' },
   card: { marginTop: 28, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: 18, ...shadow.card },
   optionStack: { gap: 10 },
   largeOption: { minHeight: 74, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, paddingHorizontal: 17, paddingVertical: 14, justifyContent: 'center' },
-  largeOptionText: { color: colors.ink, fontSize: 22, fontWeight: '900', letterSpacing: -0.7 },
+  largeOptionText: { color: colors.ink, fontSize: 22, fontWeight: '800', letterSpacing: -0.7 },
   largeOptionMeta: { marginTop: 5, color: colors.muted, fontSize: 13, lineHeight: 18, fontWeight: '600' },
   optionActive: { backgroundColor: colors.ink, borderColor: colors.ink },
   optionTextActive: { color: colors.surface },
@@ -579,40 +578,42 @@ const styles = StyleSheet.create({
   label: { marginBottom: 10, color: colors.inkSoft, fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
   input: { minHeight: 56, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, paddingHorizontal: 16, color: colors.ink, fontSize: 17, fontWeight: '700' },
   textArea: { minHeight: 150, paddingTop: 16, textAlignVertical: 'top', fontWeight: '600' },
-  selectedDateCard: { borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, padding: 15 },
-  selectedDateLabel: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
-  selectedDateValue: { marginTop: 6, color: colors.ink, fontSize: 22, lineHeight: 26, fontWeight: '900', letterSpacing: -0.7 },
+  raceHero: { borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, padding: 18 },
+  raceHeroLabel: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
+  raceHeroDate: { marginTop: 8, color: colors.ink, fontSize: 30, lineHeight: 34, fontWeight: '800', letterSpacing: -1.1 },
+  raceHeroDivider: { marginTop: 16, height: 1, backgroundColor: colors.border },
+  phaseRow: { marginTop: 14, gap: 12 },
+  phaseMetric: {},
+  phaseMetricValue: { color: colors.ink, fontSize: 24, fontWeight: '800', letterSpacing: -0.8 },
+  phaseMetricLabel: { marginTop: 3, color: colors.muted, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1 },
+  phasePill: { alignSelf: 'flex-start', borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 8 },
+  phasePillText: { color: colors.inkSoft, fontSize: 12, fontWeight: '800' },
   calendarCard: { marginTop: 14, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, padding: 12 },
   calendarHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  calendarTitle: { color: colors.ink, fontSize: 16, fontWeight: '900', letterSpacing: -0.3 },
-  monthButton: { width: 38, height: 38, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
-  monthButtonText: { color: colors.ink, fontSize: 28, lineHeight: 30, fontWeight: '800' },
+  calendarTitle: { color: colors.ink, fontSize: 15, fontWeight: '800', letterSpacing: -0.3 },
+  monthButton: { width: 36, height: 36, borderRadius: 13, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
+  monthButtonText: { color: colors.ink, fontSize: 25, lineHeight: 28, fontWeight: '800' },
   weekdayRow: { marginTop: 12, flexDirection: 'row' },
-  weekdayText: { flex: 1, textAlign: 'center', color: colors.faint, fontSize: 11, fontWeight: '900' },
-  calendarGrid: { marginTop: 8, flexDirection: 'row', flexWrap: 'wrap' },
-  dayCell: { width: `${100 / 7}%`, aspectRatio: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
-  dayCellMuted: { opacity: 0.32 },
+  weekdayText: { flex: 1, textAlign: 'center', color: colors.faint, fontSize: 10, fontWeight: '900' },
+  calendarGrid: { marginTop: 6, flexDirection: 'row', flexWrap: 'wrap' },
+  dayCell: { width: `${100 / 7}%`, aspectRatio: 1.12, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
   dayCellSelected: { backgroundColor: colors.ink },
   dayCellPressed: { transform: [{ scale: 0.94 }], opacity: 0.85 },
-  dayText: { color: colors.ink, fontSize: 14, fontWeight: '800' },
-  dayTextMuted: { color: colors.muted },
+  dayText: { color: colors.ink, fontSize: 14, fontWeight: '700' },
+  dayTextMuted: { color: colors.faint, opacity: 0.5 },
   dayTextSelected: { color: colors.surface, fontWeight: '900' },
-  contextBox: { marginTop: 14, borderRadius: radius.lg, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, padding: 15 },
-  contextValue: { color: colors.ink, fontSize: 20, fontWeight: '900', letterSpacing: -0.6 },
-  contextText: { marginTop: 6, color: colors.muted, fontSize: 13, lineHeight: 20, fontWeight: '600' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   tile: { width: '47.8%', minHeight: 88, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   tileText: { color: colors.ink, fontSize: 25, fontWeight: '900', letterSpacing: -0.8 },
   tileMeta: { marginTop: 4, color: colors.muted, fontSize: 12, fontWeight: '800' },
-  stravaBox: { backgroundColor: colors.surface, borderRadius: radius.md
-    , borderWidth: 1, borderColor: colors.border, padding: 18 },
+  stravaBox: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: 18 },
   stravaTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   stravaLogo: { width: 52, height: 52, borderRadius: radius.md, backgroundColor: '#fc4c02', alignItems: 'center', justifyContent: 'center' },
   stravaLogoText: { color: colors.surface, fontSize: 24, fontWeight: '900' },
   stravaHeaderCopy: { flex: 1 },
   stravaStatus: { color: colors.faint, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.3 },
-  stravaConnection: { marginTop: 4, color: colors.ink, fontSize: 18, fontWeight: '800', letterSpacing: -0.4 },
-  stravaBig: { marginTop: 18, color: colors.ink, fontSize: 26, lineHeight: 29, fontWeight: '800', letterSpacing: -1.1 },
+  stravaConnection: { marginTop: 4, color: colors.ink, fontSize: 17, fontWeight: '800', letterSpacing: -0.4 },
+  stravaBig: { marginTop: 18, color: colors.ink, fontSize: 24, lineHeight: 28, fontWeight: '800', letterSpacing: -1 },
   stravaMeta: { marginTop: 8, color: colors.inkSoft, fontSize: 14, lineHeight: 21, fontWeight: '600' },
   highlightGrid: { marginTop: 14, gap: 9 },
   highlightCard: { borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: 13 },
@@ -644,50 +645,10 @@ const styles = StyleSheet.create({
   primaryPressed: { transform: [{ scale: 0.975 }], opacity: 0.88, backgroundColor: '#27272a' },
   secondaryPressed: { transform: [{ scale: 0.975 }], opacity: 0.88, backgroundColor: colors.surfaceMuted },
   continueText: { color: colors.surface, fontSize: 15, fontWeight: '900' },
-  stravaStatsGrid: {
-  marginTop: 16,
-  flexDirection: "row",
-  flexWrap: "wrap",
-  gap: 10,
-},
-
-stravaStatLarge: {
-  width: "48%",
-  borderRadius: 16,
-  borderWidth: 1,
-  borderColor: colors.border,
-  backgroundColor: colors.background,
-  padding: 14,
-},
-
-stravaStat: {
-  flex: 1,
-  minWidth: "30%",
-  borderRadius: 16,
-  borderWidth: 1,
-  borderColor: colors.border,
-  backgroundColor: colors.background,
-  padding: 13,
-},
-
-stravaStatValue: {
-  color: colors.ink,
-  fontSize: 25,
-  fontWeight: "800",
-},
-
-stravaStatValueSmall: {
-  color: colors.ink,
-  fontSize: 21,
-  fontWeight: "800",
-},
-
-stravaStatLabel: {
-  marginTop: 5,
-  color: colors.muted,
-  fontSize: 10,
-  fontWeight: "800",
-  textTransform: "uppercase",
-  letterSpacing: 1,
-},
+  stravaStatsGrid: { marginTop: 16, flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  stravaStatLarge: { width: '48%', borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, padding: 14 },
+  stravaStat: { flex: 1, minWidth: '30%', borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, padding: 13 },
+  stravaStatValue: { color: colors.ink, fontSize: 25, fontWeight: '800' },
+  stravaStatValueSmall: { color: colors.ink, fontSize: 21, fontWeight: '800' },
+  stravaStatLabel: { marginTop: 5, color: colors.muted, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1 },
 });
