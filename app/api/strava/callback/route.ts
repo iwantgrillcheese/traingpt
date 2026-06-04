@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import {
   AuthError,
   createRouteSupabaseClient,
@@ -89,6 +90,22 @@ function redirectToApp(appRedirect: string, params: Record<string, string>) {
   return NextResponse.redirect(redirectUrl);
 }
 
+function createServiceSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !serviceRoleKey) {
+    throw new Error('supabase_service_role_missing');
+  }
+
+  return createClient(url, serviceRoleKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+}
+
 async function exchangeStravaToken(code: string) {
   if (!process.env.STRAVA_CLIENT_ID || !process.env.STRAVA_CLIENT_SECRET) {
     throw new Error('strava_server_config');
@@ -133,7 +150,9 @@ export async function GET(req: Request) {
     const { access_token, refresh_token, expires_at, athlete } = tokenData;
 
     if (mobileState) {
-      const supabase = await createRouteSupabaseClient(req);
+      // Mobile returns from Strava without a reliable Supabase browser cookie.
+      // The signed state already identifies the user, so use a service-role update for mobile OAuth only.
+      const supabase = createServiceSupabaseClient();
       const { error: updateError } = await supabase
         .from('profiles')
         .update({
