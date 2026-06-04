@@ -1,0 +1,683 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import * as ExpoLinking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors, radius, shadow, spacing } from '../design/theme';
+import { useAuth } from '../auth/AuthProvider';
+import { apiFetch } from '../lib/api';
+import { PlanGenerationExperience } from '../components/PlanGenerationExperience';
+
+type RaceType = 'Sprint' | 'Olympic' | 'Half Ironman (70.3)' | 'Ironman (140.6)';
+type Experience = 'Beginner' | 'Intermediate' | 'Advanced';
+type StepKey = 'race' | 'date' | 'experience' | 'hours' | 'strava' | 'notes' | 'review';
+
+type PlanScreenProps = {
+  onPlanCreated?: () => void;
+};
+
+type StravaHighlight = {
+  label: string;
+  value: string;
+  detail: string;
+  tone?: 'wow' | 'signal' | 'steady';
+};
+
+type StravaSummary = {
+  connected: boolean;
+  hasSyncedHistory: boolean;
+  loading: boolean;
+  activityCount: number;
+  totalHours: number;
+  runCount: number;
+  bikeCount: number;
+  swimCount: number;
+  highlights: StravaHighlight[];
+};
+
+type CalendarDay = {
+  key: string;
+  date: Date;
+  inMonth: boolean;
+};
+
+const raceTypes: RaceType[] = ['Sprint', 'Olympic', 'Half Ironman (70.3)', 'Ironman (140.6)'];
+const experiences: Experience[] = ['Beginner', 'Intermediate', 'Advanced'];
+const hourOptions = ['3-5', '6-8', '9-12', '12+'];
+const weekdays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+const steps: { key: StepKey; eyebrow: string; title: string; subtitle: string }[] = [
+  { key: 'race', eyebrow: 'Step 1', title: 'What are you training for?', subtitle: 'Start with the race distance. TrainGPT will shape the calendar around the demands of the event.' },
+  { key: 'date', eyebrow: 'Step 2', title: 'Race day', subtitle: 'Pick the date. TrainGPT will use it to set your build length, peak timing, and taper.' },
+  { key: 'experience', eyebrow: 'Step 3', title: 'Where are you starting from?', subtitle: 'Choose the level that best reflects your current training background.' },
+  { key: 'hours', eyebrow: 'Step 4', title: 'How many hours can you train?', subtitle: 'Pick a realistic weekly range. A good plan fits your life before it stretches your fitness.' },
+  { key: 'strava', eyebrow: 'Step 5', title: 'Connect Strava', subtitle: 'Import recent swim, bike, and run history so your first week starts from reality.' },
+  { key: 'notes', eyebrow: 'Step 6', title: 'Any constraints?', subtitle: 'Tell your coach about injuries, travel, weak disciplines, preferred long ride days, or schedule limits.' },
+  { key: 'review', eyebrow: 'Step 7', title: 'Ready to build', subtitle: 'Review the setup. Then TrainGPT will generate the calendar and session structure.' },
+];
+
+function toDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateKey(value: string) {
+  const parsed = new Date(`${value}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function defaultRaceDate() {
+  const date = new Date();
+  date.setDate(date.getDate() + 16 * 7);
+  return toDateKey(date);
+}
+
+function raceLabel(type: RaceType) {
+  if (type === 'Half Ironman (70.3)') return '70.3';
+  if (type === 'Ironman (140.6)') return '140.6';
+  return type;
+}
+
+function parseHours(option: string) {
+  if (option === '3-5') return '5';
+  if (option === '6-8') return '8';
+  if (option === '9-12') return '10';
+  if (option === '12+') return '12';
+  return '8';
+}
+
+function generationSteps(hasStrava: boolean) {
+  return hasStrava
+    ? [
+        'Reading your race goal',
+        'Analyzing recent Strava activity',
+        'Balancing swim, bike, and run',
+        'Placing key sessions on the calendar',
+        'Assigning session points',
+        'Unlocking Race Readiness',
+      ]
+    : [
+        'Reading your race goal',
+        'Balancing swim, bike, and run',
+        'Choosing a safe starting load',
+        'Placing key sessions on the calendar',
+        'Assigning session points',
+        'Unlocking Race Readiness',
+      ];
+}
+
+function progressToStep(progress: number, totalSteps: number) {
+  const usableRange = 88;
+  const rawStep = Math.floor((Math.min(progress, usableRange) / usableRange) * totalSteps);
+  return Math.min(totalSteps - 1, Math.max(0, rawStep));
+}
+
+function getQueryParam(url: string, key: string) {
+  const queryStart = url.indexOf('?');
+  const hashStart = url.indexOf('#');
+  const query = queryStart >= 0 ? url.slice(queryStart + 1, hashStart >= 0 ? hashStart : undefined) : '';
+  const hash = hashStart >= 0 ? url.slice(hashStart + 1) : '';
+  const params = new URLSearchParams(`${query}${query && hash ? '&' : ''}${hash}`);
+  return params.get(key);
+}
+
+function monthLabel(date: Date) {
+  return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(date);
+}
+
+function displayDate(value: string) {
+  const date = parseDateKey(value);
+  if (!date) return value;
+  return new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+}
+
+function shortDisplayDate(value: string) {
+  const date = parseDateKey(value);
+  if (!date) return value;
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+}
+
+function buildCalendarDays(monthDate: Date): CalendarDay[] {
+  const first = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+  const start = new Date(first);
+  start.setDate(first.getDate() - first.getDay());
+
+  return Array.from({ length: 42 }).map((_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    return {
+      key: toDateKey(date),
+      date,
+      inMonth: date.getMonth() === monthDate.getMonth(),
+    };
+  });
+}
+
+export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
+  const { user, signOut } = useAuth();
+  const insets = useSafeAreaInsets();
+  const initialRaceDate = useMemo(() => defaultRaceDate(), []);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [raceType, setRaceType] = useState<RaceType>('Half Ironman (70.3)');
+  const [raceDate, setRaceDate] = useState(initialRaceDate);
+  const [calendarMonth, setCalendarMonth] = useState(() => parseDateKey(initialRaceDate) ?? new Date());
+  const [experience, setExperience] = useState<Experience>('Intermediate');
+  const [hourBand, setHourBand] = useState('6-8');
+  const [maxHours, setMaxHours] = useState('8');
+  const [notes, setNotes] = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [generationComplete, setGenerationComplete] = useState(false);
+  const [generationStep, setGenerationStep] = useState(0);
+  const [generationProgress, setGenerationProgress] = useState(0);
+  const [connectingStrava, setConnectingStrava] = useState(false);
+  const [syncingStrava, setSyncingStrava] = useState(false);
+  const [strava, setStrava] = useState<StravaSummary>({ connected: false, hasSyncedHistory: false, loading: true, activityCount: 0, totalHours: 0, runCount: 0, bikeCount: 0, swimCount: 0, highlights: [] });
+  const [success, setSuccess] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const current = steps[stepIndex];
+  const step = current.key;
+  const stravaReady = strava.connected;
+  const magicSteps = generationSteps(stravaReady);
+  const calendarDays = useMemo(() => buildCalendarDays(calendarMonth), [calendarMonth]);
+
+  const moveCalendarMonth = (offset: number) => {
+    setCalendarMonth((currentMonth) => new Date(currentMonth.getFullYear(), currentMonth.getMonth() + offset, 1));
+  };
+
+  const selectRaceDate = (date: Date) => {
+    setRaceDate(toDateKey(date));
+    setCalendarMonth(new Date(date.getFullYear(), date.getMonth(), 1));
+  };
+
+  const loadStravaSummary = useCallback(async () => {
+    if (!user?.id) return;
+    setStrava((currentState) => ({ ...currentState, loading: true }));
+
+    try {
+      const response = await apiFetch('/api/strava/mobile-status');
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error || 'Could not load Strava status.');
+
+      setStrava({
+        connected: Boolean(payload?.connected),
+        hasSyncedHistory: Boolean(payload?.hasSyncedHistory),
+        loading: false,
+        activityCount: Number(payload?.activityCount ?? payload?.recentActivityCount ?? 0),
+        totalHours: Number(payload?.totalHours ?? 0),
+        runCount: Number(payload?.runCount ?? 0),
+        bikeCount: Number(payload?.bikeCount ?? 0),
+        swimCount: Number(payload?.swimCount ?? 0),
+        highlights: Array.isArray(payload?.highlights) ? payload.highlights : [],
+      });
+    } catch (error) {
+      console.error('[PlanScreen] Strava status failed', error);
+      setStrava((currentState) => ({ ...currentState, connected: false, hasSyncedHistory: false, loading: false, highlights: [] }));
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadStravaSummary();
+  }, [loadStravaSummary]);
+
+  const projectedWeeks = useMemo(() => {
+    const parsed = new Date(`${raceDate}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) return null;
+    const days = Math.ceil((parsed.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    if (days <= 0) return null;
+    return Math.max(1, Math.round(days / 7));
+  }, [raceDate]);
+
+  useEffect(() => {
+    if (!generating || generationComplete) return undefined;
+
+    const interval = setInterval(() => {
+      setGenerationProgress((value) => {
+        const increment = value < 25 ? 4 : value < 55 ? 2.5 : value < 78 ? 1.25 : value < 88 ? 0.5 : 0;
+        const next = Math.min(90, value + increment);
+        setGenerationStep(progressToStep(next, magicSteps.length));
+        return next;
+      });
+    }, 1200);
+
+    return () => clearInterval(interval);
+  }, [generating, generationComplete, magicSteps.length]);
+
+  const syncStrava = async (options?: { force?: boolean; showSuccess?: boolean }) => {
+    if ((!options?.force && !stravaReady) || syncingStrava) return false;
+    setSyncingStrava(true);
+    setError(null);
+
+    try {
+      const response = await apiFetch('/api/strava_sync', {
+        method: 'POST',
+        body: JSON.stringify({ forceBackfill: Boolean(options?.force) }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error || 'Strava sync failed.');
+      await loadStravaSummary();
+      setError(null);
+      if (options?.showSuccess !== false) {
+        const inserted = Number(payload?.inserted ?? 0);
+        const totalFetched = Number(payload?.totalFetched ?? 0);
+        setSuccess(totalFetched > 0 ? `Strava synced. ${inserted} new activities imported.` : 'Strava is connected. No new activities found.');
+      }
+      return true;
+    } catch (error) {
+      console.error('[PlanScreen] Strava sync failed', error);
+      setSuccess(null);
+      setError(error instanceof Error ? error.message : 'Could not sync Strava right now.');
+      return false;
+    } finally {
+      setSyncingStrava(false);
+    }
+  };
+
+  const connectStrava = async () => {
+    if (connectingStrava) return;
+    setConnectingStrava(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const appRedirect = ExpoLinking.createURL('strava/callback');
+      const response = await apiFetch('/api/strava/mobile-connect', {
+        method: 'POST',
+        body: JSON.stringify({ appRedirect }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.url) throw new Error(payload?.error || 'Could not start Strava connection.');
+
+      const result = await WebBrowser.openAuthSessionAsync(payload.url, appRedirect);
+      if (result.type === 'success') {
+        const oauthError = getQueryParam(result.url, 'error');
+        const oauthSuccess = getQueryParam(result.url, 'success');
+        if (oauthError) throw new Error(oauthError);
+        if (oauthSuccess === 'strava_connected') {
+          const synced = await syncStrava({ force: true, showSuccess: false });
+          await loadStravaSummary();
+          setError(null);
+          setSuccess(synced ? 'Strava connected. Recent training history is ready.' : 'Strava connected. Tap refresh to sync activities.');
+        }
+      }
+    } catch (error) {
+      console.error('[PlanScreen] Strava connect failed', error);
+      setSuccess(null);
+      Alert.alert('Strava connection failed', error instanceof Error ? error.message : 'Could not connect Strava right now.');
+    } finally {
+      setConnectingStrava(false);
+    }
+  };
+
+  const generatePlan = async () => {
+    if (!user?.id) return;
+    const hours = Number(maxHours);
+    if (!raceDate || !Number.isFinite(hours) || hours <= 0) {
+      setError('Enter a valid race date and weekly training hours.');
+      return;
+    }
+
+    setGenerating(true);
+    setGenerationComplete(false);
+    setGenerationStep(0);
+    setGenerationProgress(4);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await apiFetch('/api/finalize-plan', {
+        method: 'POST',
+        body: JSON.stringify({
+          raceType,
+          raceDate,
+          experience,
+          maxHours: hours,
+          restDay: 'Monday',
+          planType: 'triathlon',
+          athleteNotes: notes.trim() || undefined,
+          twoADaysAllowed: false,
+          clientUserId: user.id,
+          useStravaHistory: stravaReady,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.ok === false) {
+        setError(payload?.error || 'Could not generate your plan yet.');
+        setGenerating(false);
+        return;
+      }
+
+      setGenerationProgress(100);
+      setGenerationStep(magicSteps.length - 1);
+      setGenerationComplete(true);
+      setSuccess('Your calendar is ready. Opening Schedule...');
+      setTimeout(() => {
+        setGenerating(false);
+        onPlanCreated?.();
+      }, 1600);
+    } catch (err) {
+      console.error('[PlanScreen] plan generation failed', err);
+      setError('Could not reach TrainGPT. Try again in a moment.');
+      setGenerating(false);
+    }
+  };
+
+  const continueStep = () => {
+    setError(null);
+    if (stepIndex < steps.length - 1) setStepIndex((value) => value + 1);
+    else generatePlan();
+  };
+
+  const backStep = () => {
+    setError(null);
+    if (stepIndex > 0) setStepIndex((value) => value - 1);
+  };
+
+  const handleSignOut = async () => {
+    setError(null);
+    setSuccess(null);
+
+    try {
+      await signOut();
+    } catch (error) {
+      console.error('[PlanScreen] sign out failed', error);
+      setError('Could not sign out. Try again.');
+    }
+  };
+
+  if (generating) {
+    return <PlanGenerationExperience currentStep={generationStep} steps={magicSteps} complete={generationComplete} progressPercent={generationProgress} />;
+  }
+
+  return (
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.container}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 28 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <View style={styles.topRow}>
+          <Text style={styles.brand}>TrainGPT</Text>
+          <View style={styles.topRowActions}>
+            <Pressable onPress={handleSignOut} hitSlop={10} style={({ pressed }) => [styles.signOutButton, pressed && styles.secondaryPressed]}>
+              <Text style={styles.signOutText}>Sign out</Text>
+            </Pressable>
+            <Text style={styles.progressText}>{stepIndex + 1} / {steps.length}</Text>
+          </View>
+        </View>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${((stepIndex + 1) / steps.length) * 100}%` }]} />
+        </View>
+
+        <Text style={styles.eyebrow}>{current.eyebrow}</Text>
+        <Text style={styles.title}>{current.title}</Text>
+        <Text style={styles.subtitle}>{current.subtitle}</Text>
+
+        <View style={styles.card}>
+          {step === 'race' ? (
+            <View style={styles.optionStack}>
+              {raceTypes.map((option) => (
+                <Pressable key={option} onPress={() => setRaceType(option)} style={({ pressed }) => [styles.largeOption, raceType === option && styles.optionActive, pressed && styles.pressedOption]}>
+                  <Text style={[styles.largeOptionText, raceType === option && styles.optionTextActive]}>{raceLabel(option)}</Text>
+                  <Text style={[styles.largeOptionMeta, raceType === option && styles.optionTextActive]}>{option}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+
+          {step === 'date' ? (
+            <View>
+              <View style={styles.raceHero}>
+                <Text style={styles.raceHeroLabel}>Selected race day</Text>
+                <Text style={styles.raceHeroDate}>{shortDisplayDate(raceDate)}</Text>
+                <View style={styles.raceHeroDivider} />
+                <View style={styles.phaseRow}>
+                  <View style={styles.phaseMetric}>
+                    <Text style={styles.phaseMetricValue}>{projectedWeeks ?? '-'}</Text>
+                    <Text style={styles.phaseMetricLabel}>weeks to build</Text>
+                  </View>
+                  <View style={styles.phasePill}>
+                    <Text style={styles.phasePillText}>Base → Build → Peak → Taper</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.calendarCard}>
+                <View style={styles.calendarHeader}>
+                  <Pressable onPress={() => moveCalendarMonth(-1)} style={({ pressed }) => [styles.monthButton, pressed && styles.secondaryPressed]}>
+                    <Text style={styles.monthButtonText}>‹</Text>
+                  </Pressable>
+                  <Text style={styles.calendarTitle}>{monthLabel(calendarMonth)}</Text>
+                  <Pressable onPress={() => moveCalendarMonth(1)} style={({ pressed }) => [styles.monthButton, pressed && styles.secondaryPressed]}>
+                    <Text style={styles.monthButtonText}>›</Text>
+                  </Pressable>
+                </View>
+
+                <View style={styles.weekdayRow}>
+                  {weekdays.map((day, index) => <Text key={`${day}-${index}`} style={styles.weekdayText}>{day}</Text>)}
+                </View>
+
+                <View style={styles.calendarGrid}>
+                  {calendarDays.map((day) => {
+                    const selected = day.key === raceDate;
+                    return (
+                      <Pressable key={day.key} onPress={() => selectRaceDate(day.date)} style={({ pressed }) => [styles.dayCell, selected && styles.dayCellSelected, pressed && styles.dayCellPressed]}>
+                        <Text style={[styles.dayText, !day.inMonth && styles.dayTextMuted, selected && styles.dayTextSelected]}>{day.date.getDate()}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
+          ) : null}
+
+          {step === 'experience' ? (
+            <View style={styles.optionStack}>
+              {experiences.map((option) => (
+                <Pressable key={option} onPress={() => setExperience(option)} style={({ pressed }) => [styles.largeOption, experience === option && styles.optionActive, pressed && styles.pressedOption]}>
+                  <Text style={[styles.largeOptionText, experience === option && styles.optionTextActive]}>{option}</Text>
+                  <Text style={[styles.largeOptionMeta, experience === option && styles.optionTextActive]}>{option === 'Beginner' ? 'Newer to structured triathlon training' : option === 'Intermediate' ? 'Consistent training, building toward performance' : 'Experienced athlete with higher training tolerance'}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+
+          {step === 'hours' ? (
+            <View style={styles.grid}>
+              {hourOptions.map((option) => (
+                <Pressable key={option} onPress={() => { setHourBand(option); setMaxHours(parseHours(option)); }} style={({ pressed }) => [styles.tile, hourBand === option && styles.optionActive, pressed && styles.pressedOption]}>
+                  <Text style={[styles.tileText, hourBand === option && styles.optionTextActive]}>{option}</Text>
+                  <Text style={[styles.tileMeta, hourBand === option && styles.optionTextActive]}>hrs/wk</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+
+          {step === 'strava' ? (
+            <View style={styles.stravaBox}>
+              <View style={styles.stravaTopRow}>
+                <View style={styles.stravaLogo}><Text style={styles.stravaLogoText}>S</Text></View>
+                <View style={styles.stravaHeaderCopy}>
+                  <Text style={styles.stravaStatus}>Strava</Text>
+                  <Text style={styles.stravaConnection}>{stravaReady ? 'Connected' : 'Optional import'}</Text>
+                </View>
+              </View>
+
+              {strava.loading || syncingStrava ? (
+                <View style={styles.loadingRow}>
+                  <ActivityIndicator />
+                  <Text style={styles.loadingText}>{syncingStrava ? 'Syncing recent activities...' : 'Checking connection...'}</Text>
+                </View>
+              ) : stravaReady ? (
+                <>
+                  <Text style={styles.stravaBig}>{strava.activityCount > 0 ? 'Training history ready' : 'Strava connected'}</Text>
+                  <Text style={styles.stravaMeta}>{strava.activityCount > 0 ? 'TrainGPT found recent activity and will use it to calibrate your opening load.' : 'Connection is active. Tap refresh to import your recent training history.'}</Text>
+
+                  <View style={styles.stravaStatsGrid}>
+                    <View style={styles.stravaStatLarge}><Text style={styles.stravaStatValue}>{strava.activityCount}</Text><Text style={styles.stravaStatLabel}>Activities</Text></View>
+                    <View style={styles.stravaStatLarge}><Text style={styles.stravaStatValue}>{strava.totalHours}</Text><Text style={styles.stravaStatLabel}>Hours</Text></View>
+                    <View style={styles.stravaStat}><Text style={styles.stravaStatValueSmall}>{strava.runCount}</Text><Text style={styles.stravaStatLabel}>Runs</Text></View>
+                    <View style={styles.stravaStat}><Text style={styles.stravaStatValueSmall}>{strava.bikeCount}</Text><Text style={styles.stravaStatLabel}>Rides</Text></View>
+                    <View style={styles.stravaStat}><Text style={styles.stravaStatValueSmall}>{strava.swimCount}</Text><Text style={styles.stravaStatLabel}>Swims</Text></View>
+                  </View>
+
+                  {strava.highlights.length > 0 ? (
+                    <View style={styles.highlightGrid}>
+                      {strava.highlights.slice(0, 3).map((highlight) => (
+                        <View key={`${highlight.label}-${highlight.value}`} style={styles.highlightCard}>
+                          <Text style={styles.highlightLabel}>{highlight.label}</Text>
+                          <Text style={styles.highlightValue}>{highlight.value}</Text>
+                          <Text style={styles.highlightDetail}>{highlight.detail}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
+
+                  <Pressable onPress={() => syncStrava()} disabled={syncingStrava} style={({ pressed }) => [styles.stravaButtonSecondary, syncingStrava && styles.disabledButton, pressed && styles.secondaryPressed]}>
+                    <Text style={styles.stravaButtonSecondaryText}>{syncingStrava ? 'Syncing...' : 'Refresh Strava data'}</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.stravaBig}>Use real training history</Text>
+                  <Text style={styles.stravaMeta}>Connect Strava to pull recent swim, bike, and run activity before plan generation.</Text>
+                  <Pressable onPress={connectStrava} disabled={connectingStrava} style={({ pressed }) => [styles.stravaButton, connectingStrava && styles.disabledButton, pressed && styles.primaryPressed]}>
+                    <Text style={styles.stravaButtonText}>{connectingStrava ? 'Connecting...' : 'Connect with Strava'}</Text>
+                  </Pressable>
+                  <Text style={styles.body}>You can skip this and still build a plan.</Text>
+                </>
+              )}
+            </View>
+          ) : null}
+
+          {step === 'notes' ? (
+            <View>
+              <Text style={styles.label}>Coach notes</Text>
+              <TextInput value={notes} onChangeText={setNotes} placeholder="Travel, injuries, weak disciplines, schedule constraints, long ride preferences..." placeholderTextColor={colors.faint} multiline style={[styles.input, styles.textArea]} />
+            </View>
+          ) : null}
+
+          {step === 'review' ? (
+            <View>
+              <Text style={styles.reviewTitle}>{raceLabel(raceType)} plan</Text>
+              <View style={styles.reviewGrid}>
+                <View style={styles.reviewItem}><Text style={styles.reviewValue}>{projectedWeeks ?? '-'}</Text><Text style={styles.reviewLabel}>Weeks</Text></View>
+                <View style={styles.reviewItem}><Text style={styles.reviewValue}>{maxHours}h</Text><Text style={styles.reviewLabel}>Weekly cap</Text></View>
+                <View style={styles.reviewItem}><Text style={styles.reviewValue}>{experience}</Text><Text style={styles.reviewLabel}>Level</Text></View>
+                <View style={styles.reviewItem}><Text style={styles.reviewValue}>{stravaReady ? 'Ready' : 'Off'}</Text><Text style={styles.reviewLabel}>Strava history</Text></View>
+              </View>
+              <Text style={styles.body}>Next, TrainGPT will generate your calendar, assign points to each session, and unlock your first weekly mission.</Text>
+            </View>
+          ) : null}
+        </View>
+
+        {error ? <View style={styles.errorBox}><Text style={styles.error}>{error}</Text></View> : null}
+        {!error && success ? <View style={styles.successBox}><Text style={styles.success}>{success}</Text></View> : null}
+
+        <View style={styles.footerActions}>
+          <Pressable onPress={backStep} disabled={stepIndex === 0} style={({ pressed }) => [styles.backButton, stepIndex === 0 && styles.disabledBack, pressed && stepIndex !== 0 && styles.secondaryPressed]}><Text style={styles.backText}>Back</Text></Pressable>
+          <Pressable onPress={continueStep} style={({ pressed }) => [styles.continueButton, pressed && styles.primaryPressed]}><Text style={styles.continueText}>{stepIndex === steps.length - 1 ? 'Generate plan' : 'Continue'}</Text></Pressable>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { padding: spacing.pageX, paddingBottom: 132 },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  topRowActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  signOutButton: { minHeight: 34, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
+  signOutText: { color: colors.muted, fontSize: 12, fontWeight: '800' },
+  brand: { color: colors.ink, fontSize: 18, fontWeight: '900', letterSpacing: -0.4 },
+  progressText: { color: colors.muted, fontSize: 13, fontWeight: '800' },
+  progressTrack: { marginTop: 18, height: 5, borderRadius: 999, backgroundColor: colors.border, overflow: 'hidden' },
+  progressFill: { height: '100%', backgroundColor: colors.ink, borderRadius: 999 },
+  eyebrow: { marginTop: 30, color: colors.faint, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.6 },
+  title: { marginTop: 12, color: colors.ink, fontSize: 34, lineHeight: 37, fontWeight: '800', letterSpacing: -1.5 },
+  subtitle: { marginTop: 14, color: colors.inkSoft, fontSize: 16, lineHeight: 25, fontWeight: '500' },
+  card: { marginTop: 28, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: 18, ...shadow.card },
+  optionStack: { gap: 10 },
+  largeOption: { minHeight: 74, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, paddingHorizontal: 17, paddingVertical: 14, justifyContent: 'center' },
+  largeOptionText: { color: colors.ink, fontSize: 22, fontWeight: '800', letterSpacing: -0.7 },
+  largeOptionMeta: { marginTop: 5, color: colors.muted, fontSize: 13, lineHeight: 18, fontWeight: '600' },
+  optionActive: { backgroundColor: colors.ink, borderColor: colors.ink },
+  optionTextActive: { color: colors.surface },
+  pressedOption: { transform: [{ scale: 0.986 }], opacity: 0.9 },
+  label: { marginBottom: 10, color: colors.inkSoft, fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
+  input: { minHeight: 56, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, paddingHorizontal: 16, color: colors.ink, fontSize: 17, fontWeight: '700' },
+  textArea: { minHeight: 150, paddingTop: 16, textAlignVertical: 'top', fontWeight: '600' },
+  raceHero: { borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, padding: 18 },
+  raceHeroLabel: { color: colors.faint, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
+  raceHeroDate: { marginTop: 8, color: colors.ink, fontSize: 30, lineHeight: 34, fontWeight: '800', letterSpacing: -1.1 },
+  raceHeroDivider: { marginTop: 16, height: 1, backgroundColor: colors.border },
+  phaseRow: { marginTop: 14, gap: 12 },
+  phaseMetric: {},
+  phaseMetricValue: { color: colors.ink, fontSize: 24, fontWeight: '800', letterSpacing: -0.8 },
+  phaseMetricLabel: { marginTop: 3, color: colors.muted, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1 },
+  phasePill: { alignSelf: 'flex-start', borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 8 },
+  phasePillText: { color: colors.inkSoft, fontSize: 12, fontWeight: '800' },
+  calendarCard: { marginTop: 14, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, padding: 12 },
+  calendarHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  calendarTitle: { color: colors.ink, fontSize: 15, fontWeight: '800', letterSpacing: -0.3 },
+  monthButton: { width: 36, height: 36, borderRadius: 13, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
+  monthButtonText: { color: colors.ink, fontSize: 25, lineHeight: 28, fontWeight: '800' },
+  weekdayRow: { marginTop: 12, flexDirection: 'row' },
+  weekdayText: { flex: 1, textAlign: 'center', color: colors.faint, fontSize: 10, fontWeight: '900' },
+  calendarGrid: { marginTop: 6, flexDirection: 'row', flexWrap: 'wrap' },
+  dayCell: { width: `${100 / 7}%`, aspectRatio: 1.12, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
+  dayCellSelected: { backgroundColor: colors.ink },
+  dayCellPressed: { transform: [{ scale: 0.94 }], opacity: 0.85 },
+  dayText: { color: colors.ink, fontSize: 14, fontWeight: '700' },
+  dayTextMuted: { color: colors.faint, opacity: 0.5 },
+  dayTextSelected: { color: colors.surface, fontWeight: '900' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  tile: { width: '47.8%', minHeight: 88, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  tileText: { color: colors.ink, fontSize: 25, fontWeight: '900', letterSpacing: -0.8 },
+  tileMeta: { marginTop: 4, color: colors.muted, fontSize: 12, fontWeight: '800' },
+  stravaBox: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: 18 },
+  stravaTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  stravaLogo: { width: 52, height: 52, borderRadius: radius.md, backgroundColor: '#fc4c02', alignItems: 'center', justifyContent: 'center' },
+  stravaLogoText: { color: colors.surface, fontSize: 24, fontWeight: '900' },
+  stravaHeaderCopy: { flex: 1 },
+  stravaStatus: { color: colors.faint, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.3 },
+  stravaConnection: { marginTop: 4, color: colors.ink, fontSize: 17, fontWeight: '800', letterSpacing: -0.4 },
+  stravaBig: { marginTop: 18, color: colors.ink, fontSize: 24, lineHeight: 28, fontWeight: '800', letterSpacing: -1 },
+  stravaMeta: { marginTop: 8, color: colors.inkSoft, fontSize: 14, lineHeight: 21, fontWeight: '600' },
+  highlightGrid: { marginTop: 14, gap: 9 },
+  highlightCard: { borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: 13 },
+  highlightLabel: { color: colors.faint, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1 },
+  highlightValue: { marginTop: 5, color: colors.ink, fontSize: 20, lineHeight: 24, fontWeight: '800', letterSpacing: -0.6 },
+  highlightDetail: { marginTop: 4, color: colors.inkSoft, fontSize: 13, lineHeight: 19, fontWeight: '600' },
+  loadingRow: { marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  loadingText: { color: colors.muted, fontSize: 14, fontWeight: '700' },
+  stravaButton: { marginTop: 18, minHeight: 54, borderRadius: radius.md, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
+  stravaButtonText: { color: colors.surface, fontSize: 15, fontWeight: '800' },
+  stravaButtonSecondary: { marginTop: 16, minHeight: 50, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  stravaButtonSecondaryText: { color: colors.ink, fontSize: 14, fontWeight: '800' },
+  disabledButton: { opacity: 0.55 },
+  body: { marginTop: 14, color: colors.inkSoft, fontSize: 14, lineHeight: 22, fontWeight: '500' },
+  reviewTitle: { color: colors.ink, fontSize: 30, fontWeight: '800', letterSpacing: -1.1 },
+  reviewGrid: { marginTop: 18, gap: 9 },
+  reviewItem: { borderRadius: radius.md, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, padding: 15 },
+  reviewValue: { color: colors.ink, fontSize: 22, fontWeight: '800' },
+  reviewLabel: { marginTop: 5, color: colors.muted, fontSize: 12, fontWeight: '800' },
+  errorBox: { marginTop: 14, borderRadius: radius.md, backgroundColor: '#fff1f2', borderWidth: 1, borderColor: '#fecdd3', padding: 13 },
+  error: { color: colors.danger, fontWeight: '800', lineHeight: 20 },
+  successBox: { marginTop: 14, borderRadius: radius.md, backgroundColor: colors.successSoft, borderWidth: 1, borderColor: '#bbf7d0', padding: 13 },
+  success: { color: colors.success, fontWeight: '800', lineHeight: 20 },
+  footerActions: { marginTop: 22, flexDirection: 'row', gap: 12 },
+  backButton: { width: 96, minHeight: 54, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  disabledBack: { opacity: 0.45 },
+  backText: { color: colors.muted, fontSize: 15, fontWeight: '900' },
+  continueButton: { flex: 1, minHeight: 54, borderRadius: radius.md, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
+  primaryPressed: { transform: [{ scale: 0.975 }], opacity: 0.88, backgroundColor: '#27272a' },
+  secondaryPressed: { transform: [{ scale: 0.975 }], opacity: 0.88, backgroundColor: colors.surfaceMuted },
+  continueText: { color: colors.surface, fontSize: 15, fontWeight: '900' },
+  stravaStatsGrid: { marginTop: 16, flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  stravaStatLarge: { width: '48%', borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, padding: 14 },
+  stravaStat: { flex: 1, minWidth: '30%', borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, padding: 13 },
+  stravaStatValue: { color: colors.ink, fontSize: 25, fontWeight: '800' },
+  stravaStatValueSmall: { color: colors.ink, fontSize: 21, fontWeight: '800' },
+  stravaStatLabel: { marginTop: 5, color: colors.muted, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1 },
+});
