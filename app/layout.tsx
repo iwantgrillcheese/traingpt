@@ -1,6 +1,7 @@
 import './globals.css';
 import Providers from './providers';
 import { Analytics } from '@vercel/analytics/react';
+import SessionCompleteCelebration from './components/SessionCompleteCelebration';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -25,6 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
       <body className="font-sans">
         <Providers>{children}</Providers>
+        <SessionCompleteCelebration />
         <Analytics />
       </body>
     </html>
