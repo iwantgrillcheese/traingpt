@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import CoachingDashboard from '../components/CoachingDashboard';
+import CoachingPointsDashboard from '../components/CoachingPointsDashboard';
 import type { Session as TrainSession } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 import { getWeeklySummary, type WeeklySummary } from '@/utils/getWeeklySummary';
@@ -273,7 +273,7 @@ export default function CoachingClient() {
         </div>
       ) : null}
 
-      <CoachingDashboard
+      <CoachingPointsDashboard
         userId={user.id}
         sessions={sessions}
         completedSessions={completedSessions as any}
