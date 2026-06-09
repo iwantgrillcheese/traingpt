@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import CoachingDashboard from '../components/CoachingDashboard';
-import CoachingCommandCenter from '../components/CoachingCommandCenter';
 import type { Session as TrainSession } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 import { getWeeklySummary, type WeeklySummary } from '@/utils/getWeeklySummary';
@@ -77,7 +76,6 @@ export default function CoachingClient() {
   const searchParams = useSearchParams();
   const loadRunRef = useRef(0);
   const [reloadToken, setReloadToken] = useState(0);
-  const [commandCenterPrompt, setCommandCenterPrompt] = useState<string | null>(null);
 
   const stravaSync = useStravaAutoSync({
     enabled: Boolean(user?.id),
@@ -85,7 +83,6 @@ export default function CoachingClient() {
   });
 
   const initialPrompt = searchParams?.get('q') ?? '';
-  const effectiveInitialPrompt = commandCenterPrompt ?? initialPrompt;
   const initialContext: CoachingContextPayload | null = useMemo(
     () => decodeCoachingContext(searchParams?.get('ctx')),
     [searchParams]
@@ -276,15 +273,6 @@ export default function CoachingClient() {
         </div>
       ) : null}
 
-      <CoachingCommandCenter
-        sessions={sessions}
-        completedSessions={completedSessions as any}
-        stravaActivities={stravaActivities}
-        stravaConnected={stravaConnected}
-        raceDate={raceDate}
-        onAskCoach={setCommandCenterPrompt}
-      />
-
       <CoachingDashboard
         userId={user.id}
         sessions={sessions}
@@ -294,7 +282,7 @@ export default function CoachingClient() {
         weeklySummary={weeklySummary}
         stravaConnected={stravaConnected}
         raceDate={raceDate}
-        initialPrompt={effectiveInitialPrompt}
+        initialPrompt={initialPrompt}
         initialContext={initialContext}
       />
     </>
