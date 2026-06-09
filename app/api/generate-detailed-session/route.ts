@@ -122,7 +122,7 @@ Use ranges when precision is uncertain and clearly label assumptions.`
 
     const completion = await openai.chat.completions.create(
       stripUnsupportedParams({
-        model: 'gpt-4-turbo',
+        model: process.env.OPENAI_CHAT_MODEL || 'gpt-4o',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },

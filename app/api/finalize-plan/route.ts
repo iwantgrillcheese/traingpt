@@ -450,14 +450,46 @@ export async function POST(req: Request) {
       stravaHistorySummary,
     };
 
-    const { startPlan } = await import("@/utils/start-plan");
+    // Scaffold-first generation: triathlon plans are built instantly from the
+    // deterministic scaffold (structure, durations, and zone targets are all
+    // computed locally). LLM enrichment of session details happens AFTER this
+    // response returns, one week at a time, via /api/enrich-week — the athlete
+    // sees their full plan in ~2 seconds instead of waiting on a loading wall.
+    let generatedWeeksRaw: WeekJson[];
+    let scaffoldFirst = false;
 
-    const generatedWeeksRaw = await startPlan({
-      totalWeeks,
-      weekMeta,
-      userParams,
-      deadlineMs: startedAt + HARD_BUDGET_MS,
-    });
+    if (normalizedPlanType === "triathlon") {
+      const { buildTriathlonWeekScaffold } = await import("@/utils/buildTriathlonScaffold");
+      const scaffoldWeeks = weekMeta.map((meta, index) =>
+        buildTriathlonWeekScaffold({ userParams, weekMeta: meta, index, totalWeeks })
+      );
+
+      if (scaffoldWeeks.every((week): week is WeekJson => !!week)) {
+        generatedWeeksRaw = scaffoldWeeks;
+        scaffoldFirst = true;
+      } else {
+        // Defensive fallback: race type did not match the triathlon scaffold.
+        const { startPlan } = await import("@/utils/start-plan");
+        generatedWeeksRaw = await startPlan({
+          totalWeeks,
+          weekMeta,
+          userParams,
+          deadlineMs: startedAt + HARD_BUDGET_MS,
+        });
+      }
+    } else {
+      // Running plans keep the sequential validated LLM pipeline. Passing the
+      // plan type through is required for the running prompt + validateRunWeek
+      // path to engage (previously it silently defaulted to "triathlon").
+      const { startPlan } = await import("@/utils/start-plan");
+      generatedWeeksRaw = await startPlan({
+        totalWeeks,
+        weekMeta,
+        userParams,
+        planType: normalizedPlanType,
+        deadlineMs: startedAt + HARD_BUDGET_MS,
+      });
+    }
 
     const generatedWeeks = generatedWeeksRaw.map((week, index) => normalizeGeneratedWeek(week, weekMeta[index]));
 
@@ -469,8 +501,11 @@ export async function POST(req: Request) {
       metadata: {
         generatedAt: new Date().toISOString(),
         totalWeeks,
-        source: "finalize-plan",
+        source: scaffoldFirst ? "finalize-plan-scaffold" : "finalize-plan",
         stravaCalibrated: stravaHistoryRows.length > 0,
+        ...(scaffoldFirst
+          ? { enrichment: { pending: true, enrichedWeeks: [] as number[] } }
+          : {}),
       },
     };
 
@@ -535,6 +570,8 @@ export async function POST(req: Request) {
       planId: upsertedPlan.id,
       sessionsCreated: sessions.length,
       stravaCalibrated: stravaHistoryRows.length > 0,
+      enrichmentPending: scaffoldFirst,
+      totalWeeks,
       durationMs: Date.now() - startedAt,
     });
   } catch (error) {

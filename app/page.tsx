@@ -365,10 +365,10 @@ export default function Home() {
               Personalized triathlon planning
             </p>
             <h1 className="mt-5 max-w-4xl text-5xl font-semibold tracking-[-0.055em] text-zinc-950 sm:text-6xl lg:text-7xl">
-              Your triathlon training plan, generated in seconds.
+              A triathlon plan built from your real training, coached every week.
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-8 text-zinc-600">
-              Build a personalized swim, bike, and run schedule around your race, availability, and current fitness. Then follow it with Strava-connected tracking and weekly coaching guidance.
+              Generate your full swim, bike, and run schedule from your race, availability, and Strava history in seconds — then follow it with structured sessions, progress tracking, and weekly coaching guidance.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <button

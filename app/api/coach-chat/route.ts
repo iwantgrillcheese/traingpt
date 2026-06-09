@@ -356,7 +356,7 @@ ${issues.length ? issues.map((x) => `• ${x}`).join('\n') : '• None'}
 
     const completion = await openai.chat.completions.create(
       stripUnsupportedParams({
-        model: 'gpt-4-turbo',
+        model: process.env.OPENAI_CHAT_MODEL || 'gpt-4o',
         messages,
       })
     );

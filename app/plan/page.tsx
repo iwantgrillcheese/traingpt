@@ -4,6 +4,7 @@ import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } fr
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { track } from '@/lib/analytics/posthog-client';
+import { startPlanEnrichment } from '@/lib/enrichmentRunner';
 
 export const dynamic = 'force-dynamic';
 
@@ -578,6 +579,12 @@ function PlanPageContent() {
         max_hours: form.maxHours,
         generation_time_ms: Date.now() - startedAt,
       });
+
+      if (json?.enrichmentPending && typeof json?.planId === 'string') {
+        // Fire-and-forget: the plan is fully usable now (scaffold details are
+        // complete); the coach detailing pass continues across the redirect.
+        void startPlanEnrichment({ planId: json.planId, totalWeeks: Number(json?.totalWeeks ?? 0) });
+      }
 
       const planIdParam = typeof json?.planId === 'string' ? `&planId=${encodeURIComponent(json.planId)}` : '';
       router.replace(`/schedule?walkthrough=1${planIdParam}`);
