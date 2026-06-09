@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
-import ProfileAvatar from './profile avatar';
+import ProfileAvatar from './ProfileAvatar';
 
 const APP_ROUTES = ['/schedule', '/coaching', '/plan', '/settings'];
 const SIDEBAR_STORAGE_KEY = 'traingpt.sidebarCollapsed';
