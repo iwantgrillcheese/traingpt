@@ -3,6 +3,10 @@
     {
       "path": "/api/send-email/upcoming-week",
       "schedule": "0 21 * * 0"
+    },
+    {
+      "path": "/api/send-email/daily-session",
+      "schedule": "0 13 * * *"
     }
   ]
 }
