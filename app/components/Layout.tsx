@@ -1,30 +1,34 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import clsx from 'clsx';
-import ProfileAvatar from './ProfileAvatar';
+import type { ReactNode } from "react";
 
-const APP_ROUTES = ['/schedule', '/coaching', '/plan', '/settings'];
-const SIDEBAR_STORAGE_KEY = 'traingpt.sidebarCollapsed';
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import clsx from "clsx";
+import ProfileAvatar from "./ProfileAvatar";
+
+const APP_ROUTES = ["/schedule", "/coaching", "/plan", "/settings"];
+const SIDEBAR_STORAGE_KEY = "traingpt.sidebarCollapsed";
 
 const DESKTOP_NAV_ITEMS = [
-  { label: 'Schedule', href: '/schedule', shortLabel: 'S' },
-  { label: 'Coaching', href: '/coaching', shortLabel: 'C' },
-  { label: 'Plan', href: '/plan', shortLabel: 'P' },
-  { label: 'Settings', href: '/settings', shortLabel: '⚙' },
+  { label: "Schedule", href: "/schedule", shortLabel: "S", icon: "▦" },
+  { label: "Coach", href: "/coaching", shortLabel: "C", icon: "◈" },
+  { label: "Plan", href: "/plan", shortLabel: "P", icon: "◎" },
+  { label: "Settings", href: "/settings", shortLabel: "⚙", icon: "⚙" },
 ];
 
 const MOBILE_PRIMARY_NAV_ITEMS = [
-  { label: 'Schedule', href: '/schedule' },
-  { label: 'Coach', href: '/coaching' },
-  { label: 'Plan', href: '/plan' },
+  { label: "Schedule", href: "/schedule", icon: "▦" },
+  { label: "Coach", href: "/coaching", icon: "◈" },
+  { label: "Plan", href: "/plan", icon: "◎" },
 ];
 
 function isAppRoute(pathname: string | null) {
   if (!pathname) return false;
-  return APP_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+  return APP_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
+  );
 }
 
 function isActive(pathname: string | null, href: string) {
@@ -38,8 +42,8 @@ function useSidebarCollapsed() {
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
-      if (stored === 'true') setCollapsed(true);
-      if (stored === 'false') setCollapsed(false);
+      if (stored === "true") setCollapsed(true);
+      if (stored === "false") setCollapsed(false);
     } catch {
       // localStorage can be unavailable in private contexts. Default expanded.
     }
@@ -58,6 +62,29 @@ function useSidebarCollapsed() {
   return { collapsed, setCollapsed: updateCollapsed };
 }
 
+function BrandLockup({ collapsed = false }: { collapsed?: boolean }) {
+  return (
+    <Link
+      href="/schedule"
+      className={clsx("flex items-center gap-3", collapsed && "justify-center")}
+    >
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl bg-[#2563FF] text-[13px] font-black tracking-[-0.08em] text-white shadow-[0_12px_30px_rgba(37,99,255,0.22)]">
+        TG
+      </span>
+      {!collapsed ? (
+        <span className="min-w-0">
+          <span className="block text-[16px] font-black tracking-[-0.04em] text-[#101114]">
+            TrainGPT
+          </span>
+          <span className="block text-[10px] font-black uppercase tracking-[0.18em] text-[#9CA3AF]">
+            Adaptive coach
+          </span>
+        </span>
+      ) : null}
+    </Link>
+  );
+}
+
 function AppSidebar({
   pathname,
   collapsed,
@@ -70,49 +97,40 @@ function AppSidebar({
   return (
     <aside
       className={clsx(
-        'hidden border-r border-zinc-200 bg-white lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:flex lg:flex-col lg:transition-[width] lg:duration-200 lg:ease-out',
-        collapsed ? 'lg:w-[64px]' : 'lg:w-[232px]'
+        "hidden border-r border-[#E3E0D8] bg-[#F7F6F2]/95 lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:flex lg:flex-col lg:transition-[width] lg:duration-200 lg:ease-out",
+        collapsed ? "lg:w-[72px]" : "lg:w-[248px]",
       )}
     >
       <div
         className={clsx(
-          'flex items-center border-b border-zinc-100',
-          collapsed ? 'justify-center px-2 py-4' : 'justify-between px-4 py-5'
+          "flex items-center border-b border-[#E3E0D8]",
+          collapsed ? "justify-center px-2 py-4" : "justify-between px-4 py-5",
         )}
       >
-        <Link
-          href="/schedule"
-          className={clsx(
-            'min-w-0 font-semibold tracking-tight text-zinc-950',
-            collapsed ? 'sr-only' : 'block text-[17px]'
-          )}
-        >
-          TrainGPT
-        </Link>
-
-        {collapsed ? null : (
-          <Link href="/schedule" className="hidden">
-            TrainGPT
-          </Link>
-        )}
+        <BrandLockup collapsed={collapsed} />
 
         <button
           type="button"
           onClick={onToggleCollapsed}
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           className={clsx(
-            'inline-flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-500 transition hover:bg-zinc-50 hover:text-zinc-950',
-            collapsed && 'mx-auto'
+            "inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#E3E0D8] bg-white text-[#6B7280] transition hover:border-[#CFCBC1] hover:text-[#101114]",
+            collapsed && "absolute bottom-4",
           )}
         >
           <span aria-hidden="true" className="text-[15px] leading-none">
-            {collapsed ? '›' : '‹'}
+            {collapsed ? "›" : "‹"}
           </span>
         </button>
       </div>
 
-      <nav className={clsx('flex flex-1 flex-col text-sm', collapsed ? 'px-2 py-3' : 'px-3 py-4')}>
-        <div className="space-y-1">
+      <nav
+        className={clsx(
+          "flex flex-1 flex-col text-sm",
+          collapsed ? "px-2 py-4" : "px-3 py-4",
+        )}
+      >
+        <div className="space-y-1.5">
           {DESKTOP_NAV_ITEMS.map((item) => {
             const active = isActive(pathname, item.href);
 
@@ -123,27 +141,52 @@ function AppSidebar({
                 title={collapsed ? item.label : undefined}
                 aria-label={collapsed ? item.label : undefined}
                 className={clsx(
-                  'flex items-center rounded-xl font-medium transition-colors',
-                  collapsed ? 'h-10 justify-center px-0 text-[13px]' : 'px-3 py-2.5 text-[14px]',
+                  "group flex items-center rounded-2xl font-bold transition-all",
+                  collapsed
+                    ? "h-11 justify-center px-0 text-[13px]"
+                    : "gap-3 px-3 py-2.5 text-[14px]",
                   active
-                    ? 'bg-zinc-100 text-zinc-950'
-                    : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950'
+                    ? "bg-[#EAF0FF] text-[#2563FF] shadow-[inset_0_0_0_1px_rgba(37,99,255,0.10)]"
+                    : "text-[#6B7280] hover:bg-white hover:text-[#101114]",
                 )}
               >
-                {collapsed ? (
-                  <span className="flex h-6 w-6 items-center justify-center rounded-md text-[12px]">
-                    {item.shortLabel}
-                  </span>
-                ) : (
-                  item.label
-                )}
+                <span
+                  className={clsx(
+                    "grid h-8 w-8 shrink-0 place-items-center rounded-xl text-[13px]",
+                    active
+                      ? "bg-white text-[#2563FF]"
+                      : "bg-white/60 text-[#9CA3AF] group-hover:text-[#101114]",
+                  )}
+                >
+                  {collapsed ? item.shortLabel : item.icon}
+                </span>
+                {!collapsed ? <span>{item.label}</span> : null}
               </Link>
             );
           })}
         </div>
 
-        <div className={clsx('mt-auto border-t border-zinc-100 pt-3', collapsed && 'flex justify-center')}>
-          <ProfileAvatar variant={collapsed ? 'rail' : 'sidebar'} />
+        {!collapsed ? (
+          <div className="mt-5 rounded-[1.35rem] border border-[#D7DDFF] bg-[#EAF0FF] p-4">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#2563FF]">
+              Race readiness
+            </p>
+            <p className="mt-2 text-2xl font-black tracking-[-0.06em] text-[#101114]">
+              Build to 80+
+            </p>
+            <p className="mt-1 text-xs leading-5 text-[#46506A]">
+              Do the work, bank the proof, adapt the week.
+            </p>
+          </div>
+        ) : null}
+
+        <div
+          className={clsx(
+            "mt-auto border-t border-[#E3E0D8] pt-3",
+            collapsed && "flex justify-center",
+          )}
+        >
+          <ProfileAvatar variant={collapsed ? "rail" : "sidebar"} />
         </div>
       </nav>
     </aside>
@@ -152,12 +195,9 @@ function AppSidebar({
 
 function MobileHeader() {
   return (
-    <header className="sticky top-0 z-40 border-b border-zinc-200 bg-white/95 backdrop-blur lg:hidden">
+    <header className="sticky top-0 z-40 border-b border-[#E3E0D8] bg-[#F7F6F2]/92 backdrop-blur lg:hidden">
       <div className="flex h-14 items-center justify-between px-4">
-        <Link href="/schedule" className="text-sm font-semibold tracking-tight text-zinc-950">
-          TrainGPT
-        </Link>
-
+        <BrandLockup />
         <ProfileAvatar variant="compact" />
       </div>
     </header>
@@ -166,8 +206,7 @@ function MobileHeader() {
 
 function MobileBottomNav({ pathname }: { pathname: string | null }) {
   const [moreOpen, setMoreOpen] = useState(false);
-
-  const settingsActive = isActive(pathname, '/settings');
+  const settingsActive = isActive(pathname, "/settings");
 
   return (
     <>
@@ -181,10 +220,12 @@ function MobileBottomNav({ pathname }: { pathname: string | null }) {
       ) : null}
 
       {moreOpen ? (
-        <div className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+76px)] z-50 overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-[0_24px_80px_rgba(24,24,27,0.18)] lg:hidden">
-          <div className="border-b border-zinc-100 px-4 py-3">
-            <div className="text-sm font-semibold text-zinc-950">More</div>
-            <div className="mt-0.5 text-xs text-zinc-500">Account and product settings</div>
+        <div className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+76px)] z-50 overflow-hidden rounded-3xl border border-[#E3E0D8] bg-white shadow-[0_24px_80px_rgba(16,17,20,0.18)] lg:hidden">
+          <div className="border-b border-[#E3E0D8] px-4 py-3">
+            <div className="text-sm font-black text-[#101114]">More</div>
+            <div className="mt-0.5 text-xs text-[#6B7280]">
+              Account and product settings
+            </div>
           </div>
 
           <div className="p-2">
@@ -192,24 +233,28 @@ function MobileBottomNav({ pathname }: { pathname: string | null }) {
               href="/settings"
               onClick={() => setMoreOpen(false)}
               className={clsx(
-                'flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-medium transition-colors',
+                "flex items-center justify-between rounded-2xl px-4 py-3 text-sm font-bold transition-colors",
                 settingsActive
-                  ? 'bg-zinc-950 text-white'
-                  : 'text-zinc-700 hover:bg-zinc-50 hover:text-zinc-950'
+                  ? "bg-[#2563FF] text-white"
+                  : "text-[#4B5563] hover:bg-[#F7F6F2] hover:text-[#101114]",
               )}
             >
               <span>Settings</span>
-              <span className={settingsActive ? 'text-white/60' : 'text-zinc-400'}>›</span>
+              <span
+                className={settingsActive ? "text-white/60" : "text-[#9CA3AF]"}
+              >
+                ›
+              </span>
             </Link>
 
-            <div className="mt-2 rounded-2xl border border-zinc-200 bg-zinc-50 p-2">
+            <div className="mt-2 rounded-2xl border border-[#E3E0D8] bg-[#F7F6F2] p-2">
               <ProfileAvatar variant="sidebar" />
             </div>
           </div>
         </div>
       ) : null}
 
-      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-zinc-200 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom)+6px)] pt-2 backdrop-blur lg:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-[#E3E0D8] bg-white/96 px-2 pb-[calc(env(safe-area-inset-bottom)+6px)] pt-2 shadow-[0_-12px_40px_rgba(16,17,20,0.08)] backdrop-blur lg:hidden">
         <div className="mx-auto grid max-w-md grid-cols-4 gap-1">
           {MOBILE_PRIMARY_NAV_ITEMS.map((item) => {
             const active = isActive(pathname, item.href);
@@ -219,13 +264,14 @@ function MobileBottomNav({ pathname }: { pathname: string | null }) {
                 key={item.href}
                 href={item.href}
                 className={clsx(
-                  'flex h-11 items-center justify-center rounded-2xl text-[12px] font-semibold transition-colors',
+                  "flex h-12 flex-col items-center justify-center gap-0.5 rounded-2xl text-[11px] font-black transition-colors",
                   active
-                    ? 'bg-zinc-950 text-white'
-                    : 'text-zinc-500 active:bg-zinc-100 active:text-zinc-950'
+                    ? "bg-[#EAF0FF] text-[#2563FF]"
+                    : "text-[#6B7280] active:bg-[#F7F6F2] active:text-[#101114]",
                 )}
               >
-                {item.label}
+                <span className="text-[13px] leading-none">{item.icon}</span>
+                <span>{item.label}</span>
               </Link>
             );
           })}
@@ -234,15 +280,16 @@ function MobileBottomNav({ pathname }: { pathname: string | null }) {
             type="button"
             onClick={() => setMoreOpen((open) => !open)}
             className={clsx(
-              'flex h-11 items-center justify-center rounded-2xl text-[12px] font-semibold transition-colors',
+              "flex h-12 flex-col items-center justify-center gap-0.5 rounded-2xl text-[11px] font-black transition-colors",
               moreOpen || settingsActive
-                ? 'bg-zinc-950 text-white'
-                : 'text-zinc-500 active:bg-zinc-100 active:text-zinc-950'
+                ? "bg-[#EAF0FF] text-[#2563FF]"
+                : "text-[#6B7280] active:bg-[#F7F6F2] active:text-[#101114]",
             )}
             aria-expanded={moreOpen}
             aria-haspopup="dialog"
           >
-            More
+            <span className="text-[13px] leading-none">•••</span>
+            <span>More</span>
           </button>
         </div>
       </nav>
@@ -250,23 +297,26 @@ function MobileBottomNav({ pathname }: { pathname: string | null }) {
   );
 }
 
-export default function Layout({ children }: { children: React.ReactNode }) {
+export default function Layout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { collapsed, setCollapsed } = useSidebarCollapsed();
 
   const shellOffsetClass = useMemo(
-    () => (collapsed ? 'lg:pl-[64px]' : 'lg:pl-[232px]'),
-    [collapsed]
+    () => (collapsed ? "lg:pl-[72px]" : "lg:pl-[248px]"),
+    [collapsed],
   );
 
   if (!isAppRoute(pathname)) {
-    return <div className="min-h-[100dvh] bg-white text-zinc-950">{children}</div>;
+    return (
+      <div className="min-h-[100dvh] bg-white text-[#101114]">{children}</div>
+    );
   }
 
-  const isSchedule = pathname === '/schedule' || pathname?.startsWith('/schedule/');
+  const isSchedule =
+    pathname === "/schedule" || pathname?.startsWith("/schedule/");
 
   return (
-    <div className="min-h-[100dvh] bg-[#fbfbfa] text-zinc-950">
+    <div className="min-h-[100dvh] bg-[#F7F6F2] text-[#101114]">
       <AppSidebar
         pathname={pathname}
         collapsed={collapsed}
@@ -274,7 +324,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       />
       <MobileHeader />
 
-      <main className={clsx('min-h-[100dvh] pb-24 transition-[padding] duration-200 ease-out lg:pb-0', shellOffsetClass)}>
+      <main
+        className={clsx(
+          "min-h-[100dvh] pb-24 transition-[padding] duration-200 ease-out lg:pb-0",
+          shellOffsetClass,
+        )}
+      >
         {isSchedule ? (
           children
         ) : (

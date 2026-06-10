@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
   addDays,
@@ -8,12 +8,12 @@ import {
   isSameMonth,
   startOfMonth,
   startOfWeek,
-} from 'date-fns';
-import { useMemo } from 'react';
-import DayCell from './DayCell';
-import type { MergedSession } from '@/utils/mergeSessionWithStrava';
-import type { StravaActivity } from '@/types/strava';
-import type { CompletedSession } from '@/types/session';
+} from "date-fns";
+import { useMemo } from "react";
+import DayCell from "./DayCell";
+import type { MergedSession } from "@/utils/mergeSessionWithStrava";
+import type { StravaActivity } from "@/types/strava";
+import type { CompletedSession } from "@/types/session";
 
 type MonthGridProps = {
   currentMonth: Date;
@@ -25,7 +25,7 @@ type MonthGridProps = {
   onAddSessionClick?: (date: Date) => void;
 };
 
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export default function MonthGrid({
   currentMonth,
@@ -51,12 +51,12 @@ export default function MonthGrid({
   }, [currentMonth]);
 
   return (
-    <section className="overflow-hidden rounded-[18px] border border-zinc-200 bg-white">
-      <div className="grid grid-cols-7 border-b border-zinc-200 bg-white">
+    <section className="overflow-hidden rounded-[24px] border border-[#E3E0D8] bg-white shadow-[0_18px_60px_rgba(16,17,20,0.05)]">
+      <div className="grid grid-cols-7 border-b border-[#E3E0D8] bg-[#F7F6F2]">
         {WEEKDAYS.map((weekday) => (
           <div
             key={weekday}
-            className="px-3 py-3 text-center text-[11px] font-medium uppercase tracking-[0.12em] text-zinc-400"
+            className="px-3 py-3 text-center text-[11px] font-black uppercase tracking-[0.12em] text-[#9CA3AF]"
           >
             {weekday}
           </div>
@@ -65,7 +65,7 @@ export default function MonthGrid({
 
       <div className="grid grid-cols-7">
         {days.map((date) => {
-          const dayKey = format(date, 'yyyy-MM-dd');
+          const dayKey = format(date, "yyyy-MM-dd");
           return (
             <DayCell
               key={dayKey}
