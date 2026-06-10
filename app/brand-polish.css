@@ -1,0 +1,18 @@
+:root {
+  --tg-bg: #f7f6f2;
+  --tg-surface: #ffffff;
+  --tg-ink: #101114;
+  --tg-muted: #6b7280;
+  --tg-line: #e3e0d8;
+  --tg-blue: #2563ff;
+  --tg-blue-soft: #eaf0ff;
+  --tg-lime: #c6f33c;
+  --tg-orange: #ff6a00;
+  --tg-orange-soft: #fff0e6;
+  --tg-purple: #7c3aed;
+}
+
+.tg-brand-surface {
+  background:
+    radial-gradient(circle at 15% 5%, rgba(37, 99, 255, 0.10), transparent 26rem),
+    linear-gradient(180deg, #fbfaf8 
