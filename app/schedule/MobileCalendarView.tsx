@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState } from 'react';
-import { format, isBefore, isToday, parseISO, startOfDay } from 'date-fns';
-import clsx from 'clsx';
-import AddSessionModalTP from './AddSessionModalTP';
-import MobileSessionModal from './MobileSessionModal';
-import { exportCalendarClient } from '@/utils/exportCalendarClient';
-import type { CompletedSession } from '@/types/session';
-import type { StravaActivity } from '@/types/strava';
-import type { MergedSession } from '@/utils/mergeSessionWithStrava';
+import { useEffect, useMemo, useState } from "react";
+import { format, isBefore, isToday, parseISO, startOfDay } from "date-fns";
+import clsx from "clsx";
+import AddSessionModalTP from "./AddSessionModalTP";
+import MobileSessionModal from "./MobileSessionModal";
+import { exportCalendarClient } from "@/utils/exportCalendarClient";
+import type { CompletedSession } from "@/types/session";
+import type { StravaActivity } from "@/types/strava";
+import type { MergedSession } from "@/utils/mergeSessionWithStrava";
 
 type Props = {
   sessions: MergedSession[];
@@ -32,33 +32,34 @@ function parseDate(value?: string | null) {
 }
 
 function dateKey(value?: string | null) {
-  return format(parseDate(value), 'yyyy-MM-dd');
+  return format(parseDate(value), "yyyy-MM-dd");
 }
 
 function normalizeSport(value?: string | null) {
-  const v = String(value ?? '').toLowerCase();
+  const v = String(value ?? "").toLowerCase();
 
-  if (v.includes('swim')) return 'Swim';
-  if (v.includes('bike') || v.includes('ride')) return 'Bike';
-  if (v.includes('run')) return 'Run';
-  if (v.includes('brick')) return 'Brick';
-  if (v.includes('strength')) return 'Strength';
-  if (v.includes('rest')) return 'Rest';
+  if (v.includes("swim")) return "Swim";
+  if (v.includes("bike") || v.includes("ride")) return "Bike";
+  if (v.includes("run")) return "Run";
+  if (v.includes("brick")) return "Brick";
+  if (v.includes("strength")) return "Strength";
+  if (v.includes("rest")) return "Rest";
 
-  return 'Session';
+  return "Session";
 }
 
 function cleanTitle(title?: string | null) {
-  return String(title ?? 'Untitled session')
-    .replace(/^\p{Extended_Pictographic}\s*/u, '')
-    .replace(/^[\s—–-]+/, '')
-    .replace(/^[\s:•·]+/, '')
-    .replace(/\s{2,}/g, ' ')
+  return String(title ?? "Untitled session")
+    .replace(/^\p{Extended_Pictographic}\s*/u, "")
+    .replace(/^[\s—–-]+/, "")
+    .replace(/^[\s:•·]+/, "")
+    .replace(/\s{2,}/g, " ")
     .trim();
 }
 
 function formatMinutes(value?: number | null) {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return null;
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0)
+    return null;
 
   if (value < 60) return `${Math.round(value)} min`;
 
@@ -69,11 +70,11 @@ function formatMinutes(value?: number | null) {
 }
 
 function detailPreview(details?: string | null) {
-  const text = String(details ?? '')
-    .replace(/Purpose:\s*/gi, '')
-    .replace(/Workout:\s*/gi, '')
-    .replace(/Intensity:\s*/gi, '')
-    .replace(/Coach note:\s*/gi, '')
+  const text = String(details ?? "")
+    .replace(/Purpose:\s*/gi, "")
+    .replace(/Workout:\s*/gi, "")
+    .replace(/Intensity:\s*/gi, "")
+    .replace(/Coach note:\s*/gi, "")
     .split(/\n|\./)
     .map((part) => part.trim())
     .find((part) => part.length > 16);
@@ -82,42 +83,50 @@ function detailPreview(details?: string | null) {
   return text.length > 96 ? `${text.slice(0, 93).trim()}…` : text;
 }
 
-function getCompletionStatus(session: MergedSession, completedSessions: CompletedSession[]) {
+function getCompletionStatus(
+  session: MergedSession,
+  completedSessions: CompletedSession[],
+) {
   const match = completedSessions.find(
-    (item) => item.date === session.date && item.session_title === session.title
+    (item) =>
+      item.date === session.date && item.session_title === session.title,
   );
 
   if (!match) return null;
 
-  return match.status === 'skipped' ? 'skipped' : 'done';
+  return match.status === "skipped" ? "skipped" : "done";
 }
 
-function getSessionStatus(session: MergedSession, completedSessions: CompletedSession[]) {
+function getSessionStatus(
+  session: MergedSession,
+  completedSessions: CompletedSession[],
+) {
   const manualStatus = getCompletionStatus(session, completedSessions);
 
-  if (manualStatus === 'skipped') return 'skipped';
-  if (manualStatus === 'done' || session.stravaActivity) return 'done';
+  if (manualStatus === "skipped") return "skipped";
+  if (manualStatus === "done" || session.stravaActivity) return "done";
 
   const sessionDay = startOfDay(parseDate(session.date));
   const today = startOfDay(new Date());
 
-  if (isBefore(sessionDay, today)) return 'missed';
+  if (isBefore(sessionDay, today)) return "missed";
 
-  return 'planned';
+  return "planned";
 }
 
 function statusLabel(status: ReturnType<typeof getSessionStatus>) {
-  if (status === 'done') return 'Done';
-  if (status === 'skipped') return 'Skipped';
-  if (status === 'missed') return 'Past';
-  return 'Planned';
+  if (status === "done") return "Done";
+  if (status === "skipped") return "Skipped";
+  if (status === "missed") return "Past";
+  return "Planned";
 }
 
 function statusClass(status: ReturnType<typeof getSessionStatus>) {
-  if (status === 'done') return 'bg-zinc-950 text-white';
-  if (status === 'skipped') return 'bg-zinc-100 text-zinc-500';
-  if (status === 'missed') return 'bg-white text-zinc-400 ring-1 ring-inset ring-zinc-200';
-  return 'bg-white text-zinc-600 ring-1 ring-inset ring-zinc-200';
+  if (status === "done") return "bg-[#2563FF] text-white";
+  if (status === "skipped") return "bg-[#EAF0FF] text-[#6B7280]";
+  if (status === "missed")
+    return "bg-white text-[#9CA3AF] ring-1 ring-inset ring-[#E3E0D8]";
+  return "bg-white text-[#4B5563] ring-1 ring-inset ring-[#E3E0D8]";
 }
 
 function groupSessionsByDate(sessions: MergedSession[]) {
@@ -144,20 +153,20 @@ function groupSessionsByDate(sessions: MergedSession[]) {
 }
 
 function getPlanRangeLabel(groups: ReturnType<typeof groupSessionsByDate>) {
-  if (!groups.length) return 'No sessions yet';
+  if (!groups.length) return "No sessions yet";
 
   const first = groups[0].date;
   const last = groups[groups.length - 1].date;
 
-  if (format(first, 'yyyy') !== format(last, 'yyyy')) {
-    return `${format(first, 'MMM d, yyyy')} – ${format(last, 'MMM d, yyyy')}`;
+  if (format(first, "yyyy") !== format(last, "yyyy")) {
+    return `${format(first, "MMM d, yyyy")} – ${format(last, "MMM d, yyyy")}`;
   }
 
-  if (format(first, 'MMM') !== format(last, 'MMM')) {
-    return `${format(first, 'MMM d')} – ${format(last, 'MMM d, yyyy')}`;
+  if (format(first, "MMM") !== format(last, "MMM")) {
+    return `${format(first, "MMM d")} – ${format(last, "MMM d, yyyy")}`;
   }
 
-  return `${format(first, 'MMM d')} – ${format(last, 'd, yyyy')}`;
+  return `${format(first, "MMM d")} – ${format(last, "d, yyyy")}`;
 }
 
 export default function MobileCalendarView({
@@ -168,19 +177,25 @@ export default function MobileCalendarView({
   raceGoal,
 }: Props) {
   const [localSessions, setLocalSessions] = useState<MergedSession[]>(sessions);
-  const [localCompleted, setLocalCompleted] = useState<CompletedSession[]>(completedSessions);
-  const [selectedSession, setSelectedSession] = useState<MergedSession | null>(null);
+  const [localCompleted, setLocalCompleted] =
+    useState<CompletedSession[]>(completedSessions);
+  const [selectedSession, setSelectedSession] = useState<MergedSession | null>(
+    null,
+  );
   const [addSessionDate, setAddSessionDate] = useState<Date | null>(null);
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => setLocalSessions(sessions), [sessions]);
   useEffect(() => setLocalCompleted(completedSessions), [completedSessions]);
 
-  const groups = useMemo(() => groupSessionsByDate(localSessions), [localSessions]);
+  const groups = useMemo(
+    () => groupSessionsByDate(localSessions),
+    [localSessions],
+  );
 
   const completion = useMemo(() => {
     const done = localSessions.filter(
-      (session) => getSessionStatus(session, localCompleted) === 'done'
+      (session) => getSessionStatus(session, localCompleted) === "done",
     ).length;
 
     return {
@@ -195,7 +210,9 @@ export default function MobileCalendarView({
     return (
       localSessions
         .filter((session) => startOfDay(parseDate(session.date)) >= today)
-        .sort((a, b) => parseDate(a.date).getTime() - parseDate(b.date).getTime())[0] ?? null
+        .sort(
+          (a, b) => parseDate(a.date).getTime() - parseDate(b.date).getTime(),
+        )[0] ?? null
     );
   }, [localSessions]);
 
@@ -209,30 +226,38 @@ export default function MobileCalendarView({
   };
 
   const handleSessionDeleted = (sessionId: string) => {
-    setLocalSessions((prev) => prev.filter((session) => session.id !== sessionId));
+    setLocalSessions((prev) =>
+      prev.filter((session) => session.id !== sessionId),
+    );
     setSelectedSession(null);
     onSessionDeleted?.(sessionId);
   };
 
   const handleSessionUpdated = (updated: MergedSession) => {
     setLocalSessions((prev) =>
-      prev.map((session) => (session.id === updated.id ? { ...session, ...updated } : session))
+      prev.map((session) =>
+        session.id === updated.id ? { ...session, ...updated } : session,
+      ),
     );
-    setSelectedSession((prev) => (prev?.id === updated.id ? { ...prev, ...updated } : prev));
+    setSelectedSession((prev) =>
+      prev?.id === updated.id ? { ...prev, ...updated } : prev,
+    );
   };
 
   return (
-    <main className="min-h-[100dvh] bg-[#fbfbfa] text-zinc-950">
-      <header className="sticky top-0 z-20 border-b border-zinc-200/80 bg-[#fbfbfa]/95 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+1rem)] backdrop-blur-xl sm:px-5 sm:pb-4">
+    <main className="min-h-[100dvh] bg-[#F7F6F2] text-[#101114]">
+      <header className="sticky top-0 z-20 border-b border-[#E3E0D8]/80 bg-[#F7F6F2]/95 px-4 pb-3 pt-[calc(env(safe-area-inset-top)+1rem)] backdrop-blur-xl sm:px-5 sm:pb-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-[25px] font-semibold tracking-[-0.045em] text-zinc-950 sm:text-[28px]">
+            <h1 className="text-[28px] font-black tracking-[-0.07em] text-[#101114] sm:text-[30px]">
               Schedule
             </h1>
-            <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-zinc-500 sm:text-[13px]">
+            <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-[#6B7280] sm:text-[13px]">
               {getPlanRangeLabel(groups)}
-              {weekPhase ? ` · ${weekPhase}` : ''}
-              {completion.total ? ` · ${completion.done}/${completion.total} complete` : ''}
+              {weekPhase ? ` · ${weekPhase}` : ""}
+              {completion.total
+                ? ` · ${completion.done}/${completion.total} complete`
+                : ""}
             </p>
           </div>
 
@@ -241,14 +266,14 @@ export default function MobileCalendarView({
               type="button"
               onClick={handleCalendarExport}
               disabled={exporting}
-              className="min-h-10 rounded-full border border-zinc-200 bg-white px-3 py-2 text-[12px] font-semibold text-zinc-700 shadow-sm active:scale-[0.99] disabled:opacity-60"
+              className="min-h-10 rounded-full border border-[#E3E0D8] bg-white px-3 py-2 text-[12px] font-semibold text-[#4B5563] shadow-sm active:scale-[0.99] disabled:opacity-60"
             >
-              {exporting ? 'Sharing…' : 'Export'}
+              {exporting ? "Sharing…" : "Export"}
             </button>
             <button
               type="button"
               onClick={() => setAddSessionDate(new Date())}
-              className="min-h-10 rounded-full bg-zinc-950 px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm active:scale-[0.99]"
+              className="min-h-10 rounded-full bg-[#2563FF] px-4 py-2.5 text-[13px] font-black text-white shadow-[0_12px_30px_rgba(37,99,255,0.22)] active:scale-[0.99]"
             >
               + Add
             </button>
@@ -259,21 +284,22 @@ export default function MobileCalendarView({
           <button
             type="button"
             onClick={() => setSelectedSession(nextSession)}
-            className="mt-3 block w-full rounded-[1.25rem] border border-zinc-200 bg-white px-4 py-3 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04)] active:scale-[0.997] sm:mt-4 sm:rounded-2xl"
+            className="mt-3 block w-full rounded-[1.5rem] border border-[#D7DDFF] bg-[#EAF0FF] px-4 py-3 text-left shadow-[0_12px_32px_rgba(37,99,255,0.10)] active:scale-[0.997] sm:mt-4 sm:rounded-2xl"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#9CA3AF]">
                   Next up
                 </div>
-                <div className="mt-1 line-clamp-2 text-[15px] font-semibold leading-5 tracking-[-0.02em] text-zinc-950">
-                  {`${cleanTitle(nextSession.title)}${formatMinutes(nextSession.duration ?? null) ? ` · ${formatMinutes(nextSession.duration ?? null)}` : ''}`}
+                <div className="mt-1 line-clamp-2 text-[16px] font-black leading-5 tracking-[-0.03em] text-[#101114]">
+                  {`${cleanTitle(nextSession.title)}${formatMinutes(nextSession.duration ?? null) ? ` · ${formatMinutes(nextSession.duration ?? null)}` : ""}`}
                 </div>
-                <div className="mt-1 text-[12px] text-zinc-500">
-                  {format(parseDate(nextSession.date), 'EEE, MMM d')} · {normalizeSport(nextSession.sport)}
+                <div className="mt-1 text-[12px] text-[#6B7280]">
+                  {format(parseDate(nextSession.date), "EEE, MMM d")} ·{" "}
+                  {normalizeSport(nextSession.sport)}
                 </div>
               </div>
-              <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-semibold text-zinc-600">
+              <span className="rounded-full bg-[#EAF0FF] px-2.5 py-1 text-[11px] font-semibold text-[#4B5563]">
                 Open
               </span>
             </div>
@@ -288,29 +314,32 @@ export default function MobileCalendarView({
               const today = isToday(group.date);
 
               return (
-                <section key={group.key} className="scroll-mt-32 rounded-[1.65rem] border border-zinc-200/70 bg-white/55 p-3 shadow-[0_1px_2px_rgba(15,23,42,0.03)] sm:p-0 sm:border-0 sm:bg-transparent sm:shadow-none">
+                <section
+                  key={group.key}
+                  className="scroll-mt-32 rounded-[1.65rem] border border-[#E3E0D8]/70 bg-white p-3 shadow-[0_1px_2px_rgba(15,23,42,0.03)] sm:p-0 sm:border-0 sm:bg-transparent sm:shadow-none"
+                >
                   <div className="mb-3 flex items-end justify-between gap-3">
                     <div>
                       <div className="flex items-center gap-2">
-                        <h2 className="text-[18px] font-semibold tracking-[-0.035em] text-zinc-950 sm:text-[20px]">
-                          {today ? 'Today' : format(group.date, 'EEEE')}
+                        <h2 className="text-[18px] font-semibold tracking-[-0.035em] text-[#101114] sm:text-[20px]">
+                          {today ? "Today" : format(group.date, "EEEE")}
                         </h2>
                         {today ? (
-                          <span className="rounded-full bg-zinc-950 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-white">
+                          <span className="rounded-full bg-[#2563FF] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-white">
                             Today
                           </span>
                         ) : null}
                       </div>
-                      <p className="mt-0.5 text-[12px] text-zinc-500 sm:text-[13px]">
-                        {format(group.date, 'MMMM d')}
-                        {raceGoal ? ` · ${raceGoal}` : ''}
+                      <p className="mt-0.5 text-[12px] text-[#6B7280] sm:text-[13px]">
+                        {format(group.date, "MMMM d")}
+                        {raceGoal ? ` · ${raceGoal}` : ""}
                       </p>
                     </div>
 
                     <button
                       type="button"
                       onClick={() => setAddSessionDate(group.date)}
-                      className="min-h-9 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-zinc-700"
+                      className="min-h-9 rounded-full border border-[#E3E0D8] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#4B5563]"
                     >
                       Add
                     </button>
@@ -321,34 +350,40 @@ export default function MobileCalendarView({
                       const status = getSessionStatus(session, localCompleted);
                       const duration = formatMinutes(session.duration ?? null);
                       const sport = normalizeSport(session.sport);
-                      const preview = detailPreview((session as any).details ?? null);
+                      const preview = detailPreview(
+                        (session as any).details ?? null,
+                      );
 
                       return (
                         <button
                           key={session.id}
                           type="button"
                           onClick={() => setSelectedSession(session)}
-                          className="block w-full rounded-[1.25rem] border border-zinc-200 bg-white p-3.5 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04)] active:scale-[0.997] sm:rounded-2xl sm:p-4"
+                          className="block w-full rounded-[1.35rem] border border-[#E3E0D8] bg-white p-3.5 text-left shadow-[0_6px_20px_rgba(16,17,20,0.04)] active:scale-[0.997] sm:rounded-2xl sm:p-4"
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2 text-[12px] font-medium text-zinc-500">
-                                <span className="h-1.5 w-1.5 rounded-full bg-zinc-950" />
+                              <div className="flex items-center gap-2 text-[12px] font-medium text-[#6B7280]">
+                                <span className="h-1.5 w-1.5 rounded-full bg-[#2563FF]" />
                                 <span>{sport}</span>
-                                {duration ? <span className="text-zinc-300">•</span> : null}
+                                {duration ? (
+                                  <span className="text-[#CFCBC1]">•</span>
+                                ) : null}
                                 {duration ? <span>{duration}</span> : null}
                               </div>
 
-                              <div className="mt-1.5 line-clamp-2 text-[15px] font-semibold leading-5 tracking-[-0.02em] text-zinc-950 sm:text-[16px]">
+                              <div className="mt-1.5 line-clamp-2 text-[15px] font-black leading-5 tracking-[-0.03em] text-[#101114] sm:text-[16px]">
                                 {cleanTitle(session.title)}
                               </div>
 
                               {preview ? (
-                                <div className="mt-1.5 line-clamp-2 text-[12px] leading-5 text-zinc-500 sm:text-[13px]">{preview}</div>
+                                <div className="mt-1.5 line-clamp-2 text-[12px] leading-5 text-[#6B7280] sm:text-[13px]">
+                                  {preview}
+                                </div>
                               ) : null}
 
                               {session.stravaActivity ? (
-                                <div className="mt-2 inline-flex rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-medium text-zinc-600">
+                                <div className="mt-2 inline-flex rounded-full bg-[#EAF0FF] px-2.5 py-1 text-[11px] font-medium text-[#4B5563]">
                                   From Strava
                                 </div>
                               ) : null}
@@ -356,8 +391,8 @@ export default function MobileCalendarView({
 
                             <span
                               className={clsx(
-                                'shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold',
-                                statusClass(status)
+                                "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                                statusClass(status),
                               )}
                             >
                               {statusLabel(status)}
@@ -372,17 +407,17 @@ export default function MobileCalendarView({
             })}
           </div>
         ) : (
-          <div className="rounded-3xl border border-dashed border-zinc-200 bg-white px-5 py-12 text-center">
-            <div className="text-[17px] font-semibold tracking-[-0.02em] text-zinc-950">
+          <div className="rounded-3xl border border-dashed border-[#E3E0D8] bg-white px-5 py-12 text-center">
+            <div className="text-[17px] font-semibold tracking-[-0.02em] text-[#101114]">
               No sessions yet
             </div>
-            <div className="mx-auto mt-2 max-w-[260px] text-[13px] leading-5 text-zinc-500">
+            <div className="mx-auto mt-2 max-w-[260px] text-[13px] leading-5 text-[#6B7280]">
               Generate a plan or add your first workout manually.
             </div>
             <button
               type="button"
               onClick={() => setAddSessionDate(new Date())}
-              className="mt-5 rounded-full bg-zinc-950 px-4 py-2.5 text-[13px] font-semibold text-white"
+              className="mt-5 rounded-full bg-[#2563FF] px-4 py-2.5 text-[13px] font-black text-white"
             >
               Add session
             </button>
