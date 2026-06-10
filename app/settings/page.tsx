@@ -187,6 +187,26 @@ export default function ProfilePage() {
     }
   };
 
+  const [dailyEmail, setDailyEmail] = useState<boolean | null>(null);
+  const dailyEmailChecked = dailyEmail ?? Boolean((profile as any)?.daily_email_opt_in);
+
+  const toggleDailyEmail = async () => {
+    if (!user?.id) return;
+
+    const next = !dailyEmailChecked;
+    setDailyEmail(next);
+
+    const { error: dailyError } = await supabase
+      .from("profiles")
+      .update({ daily_email_opt_in: next })
+      .eq("id", user.id);
+
+    if (dailyError) {
+      console.error("Error updating daily_email_opt_in:", dailyError);
+      setDailyEmail(!next);
+    }
+  };
+
   const handleProfileUpdate = async (field: string, value: any) => {
     if (!user?.id) return;
 
@@ -404,6 +424,15 @@ export default function ProfilePage() {
             />
             I’d like to receive occasional product updates and tips
           </label>
+          <label className="mt-3 flex items-center gap-3 text-sm text-zinc-700">
+            <input
+              type="checkbox"
+              checked={dailyEmailChecked}
+              onChange={toggleDailyEmail}
+              className="w-4 h-4"
+            />
+            Email me each morning I have a session — the workout and targets, before the day gets busy
+          </label>
         </section>
 
         {/* Connected Apps */}
@@ -415,7 +444,7 @@ export default function ProfilePage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium text-zinc-800">Strava</p>
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${profile?.strava_access_token ? "bg-orange-100 text-orange-700" : "bg-zinc-200 text-zinc-600"}`}>
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${profile?.strava_access_token ? "bg-emerald-100 text-emerald-700" : "bg-zinc-200 text-zinc-600"}`}>
                       {profile?.strava_access_token ? "Connected" : "Not connected"}
                     </span>
                   </div>
@@ -463,7 +492,7 @@ export default function ProfilePage() {
             Stripe.
           </p>
           <button
-            className="rounded-md bg-blue-600 text-white px-4 py-2 text-sm hover:bg-blue-700 transition"
+            className="rounded-full bg-zinc-950 text-white px-4 py-2 text-sm font-semibold hover:bg-zinc-800 transition"
             onClick={handleManageSubscription}
           >
             Manage Subscription

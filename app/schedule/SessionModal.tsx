@@ -429,14 +429,13 @@ export default function SessionModal({
               </div>
             ) : null}
 
-            <section className="rounded-2xl border border-zinc-200 bg-zinc-50/60 p-4">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Planned session</div>
+            <section>
               {plannedSections.length ? (
-                <div className="mt-3 grid gap-3">
+                <div className="space-y-5">
                   {plannedSections.map((section) => (
-                    <div key={section.label} className="rounded-2xl border border-zinc-200 bg-white p-3">
-                      <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-zinc-400">{section.label}</div>
-                      <p className="mt-1 text-[14px] leading-6 text-zinc-700">{section.body}</p>
+                    <div key={section.label}>
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">{section.label}</div>
+                      <p className="mt-1.5 text-[15px] leading-7 text-zinc-800">{section.body}</p>
                     </div>
                   ))}
                 </div>
@@ -584,9 +583,6 @@ export default function SessionModal({
             <div className="flex items-center gap-2">
               <button type="button" onClick={onClose} className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-[13px] font-semibold text-zinc-700 hover:bg-zinc-50">
                 Close
-              </button>
-              <button type="button" onClick={plusRequired ? goToUpgrade : handleGenerate} disabled={loading} className="rounded-xl bg-zinc-950 px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-zinc-800 disabled:opacity-60">
-                {loading ? 'Generating…' : plusRequired ? 'Upgrade to Plus' : workoutSections.length ? 'Regenerate with Plus' : 'Generate with Plus'}
               </button>
             </div>
           </div>

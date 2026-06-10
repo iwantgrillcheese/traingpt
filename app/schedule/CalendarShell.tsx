@@ -398,9 +398,6 @@ export default function CalendarShell({
             <div className="border-t border-zinc-200 px-5 py-2 lg:px-8">
               <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[12px] text-zinc-500">
                 <span>{weekPhaseSummary || 'Active training block'}</span>
-                <span>{weeklyStats.planned ? `${weeklyStats.done}/${weeklyStats.planned} sessions complete` : 'No sessions this week'}</span>
-                <span>{weeklyStats.minutes ? `${formatMinutes(weeklyStats.minutes)} planned` : 'Volume not set'}</span>
-                <span>{weeklyStats.planned ? `${weeklyStats.adherence}% adherence` : null}</span>
               </div>
             </div>
           </header>
@@ -437,18 +434,18 @@ export default function CalendarShell({
 
                   <div className="border-t border-zinc-200 bg-[#fbfaf8] p-5 lg:border-l lg:border-t-0 lg:p-6">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400">This week</div>
-                    <div className="mt-4 grid grid-cols-3 gap-2 lg:grid-cols-1">
-                      <div className="rounded-2xl border border-zinc-200 bg-white p-3">
-                        <div className="text-[11px] font-medium text-zinc-400">Complete</div>
-                        <div className="mt-1 text-xl font-semibold tracking-[-0.04em] text-zinc-950">{weeklyStats.done}/{weeklyStats.planned || 0}</div>
+                    <div className="mt-2 grid grid-cols-3 gap-x-4 lg:grid-cols-1 lg:gap-x-0">
+                      <div className="flex items-baseline justify-between gap-3 border-t border-zinc-200 py-2.5">
+                        <span className="text-[12px] text-zinc-400">Complete</span>
+                        <span className="text-[15px] font-semibold tracking-[-0.02em] text-zinc-950">{weeklyStats.done}/{weeklyStats.planned || 0}</span>
                       </div>
-                      <div className="rounded-2xl border border-zinc-200 bg-white p-3">
-                        <div className="text-[11px] font-medium text-zinc-400">Volume</div>
-                        <div className="mt-1 text-xl font-semibold tracking-[-0.04em] text-zinc-950">{weeklyStats.minutes ? formatMinutes(weeklyStats.minutes) : '—'}</div>
+                      <div className="flex items-baseline justify-between gap-3 border-t border-zinc-200 py-2.5">
+                        <span className="text-[12px] text-zinc-400">Volume</span>
+                        <span className="text-[15px] font-semibold tracking-[-0.02em] text-zinc-950">{weeklyStats.minutes ? formatMinutes(weeklyStats.minutes) : '—'}</span>
                       </div>
-                      <div className="rounded-2xl border border-zinc-200 bg-white p-3">
-                        <div className="text-[11px] font-medium text-zinc-400">Adherence</div>
-                        <div className="mt-1 text-xl font-semibold tracking-[-0.04em] text-zinc-950">{weeklyStats.planned ? `${weeklyStats.adherence}%` : '—'}</div>
+                      <div className="flex items-baseline justify-between gap-3 border-t border-zinc-200 py-2.5">
+                        <span className="text-[12px] text-zinc-400">Adherence</span>
+                        <span className="text-[15px] font-semibold tracking-[-0.02em] text-zinc-950">{weeklyStats.planned ? `${weeklyStats.adherence}%` : '—'}</span>
                       </div>
                     </div>
                   </div>

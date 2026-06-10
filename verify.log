@@ -33,7 +33,7 @@ $ next build
 Browserslist: browsers data (caniuse-lite) is 13 months old. Please run:
   npx update-browserslist-db@latest
   Why you should do it regularly: https://github.com/browserslist/update-db#readme
- ✓ Compiled successfully in 28.8s
+ ✓ Compiled successfully in 28.1s
    Skipping linting
    Checking validity of types ...
    Collecting page data ...
@@ -95,11 +95,11 @@ Route (app)                                  Size  First Load JS
 ├ ƒ /plan-preview/[planId]                5.14 kB         204 kB
 ├ ○ /privacy                              1.39 kB         104 kB
 ├ ○ /profile                              1.07 kB         142 kB
-├ ○ /race                                 3.55 kB         152 kB
+├ ○ /race                                 3.54 kB         152 kB
 ├ ○ /races                                1.53 kB         104 kB
 ├ ○ /robots.txt                             232 B         103 kB
-├ ○ /schedule                             53.4 kB         262 kB
-├ ○ /settings                             6.29 kB         151 kB
+├ ○ /schedule                               54 kB         263 kB
+├ ○ /settings                             6.28 kB         151 kB
 ├ ○ /sitemap.xml                            232 B         103 kB
 └ ○ /terms                                1.18 kB         104 kB
 + First Load JS shared by all              103 kB
@@ -142,4 +142,4 @@ $ next-sitemap
    ○ https://www.traingpt.co/sitemap-0.xml
 
 
-Done in 81.09s.
+Done in 79.85s.

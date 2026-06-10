@@ -169,6 +169,37 @@ function EmptyCard({ children }: { children: React.ReactNode }) {
   return <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-5 text-sm leading-6 text-zinc-500">{children}</div>;
 }
 
+
+function SessionDetailLines({ details, fallback }: { details?: string | null; fallback: string }) {
+  const text = String(details ?? '').trim();
+  const sections = text
+    ? (text
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const match = line.match(/^(Purpose|Workout|Intensity|Coach note|Adaptation):\s*(.+)$/i);
+          return match ? { label: match[1], body: match[2].trim() } : null;
+        })
+        .filter(Boolean) as Array<{ label: string; body: string }>)
+    : [];
+
+  if (!sections.length) {
+    return <p className="mt-2 text-sm leading-5 text-zinc-500">{text || fallback}</p>;
+  }
+
+  return (
+    <div className="mt-3 space-y-2">
+      {sections.slice(0, 4).map((section) => (
+        <p key={section.label} className="text-[13px] leading-5 text-zinc-600">
+          <span className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-zinc-400">{section.label} · </span>
+          {section.body}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 export default function CoachingPointsDashboard({ sessions, completedSessions, stravaActivities, stravaConnected, raceDate }: Props) {
   const today = startOfDay(new Date());
   const weekStart = startOfWeek(today, { weekStartsOn: 1 });
@@ -255,13 +286,13 @@ export default function CoachingPointsDashboard({ sessions, completedSessions, s
         <div className="mb-6"><StravaConnectBanner stravaConnected={stravaConnected} /></div>
 
         <section className="mb-6 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-          <div className="rounded-[28px] bg-[#065f35] p-6 text-white sm:p-7">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-100/70">This week</p>
-            <h2 className="mt-5 text-4xl font-semibold tracking-tight">Bank {plannedPoints || 0} points</h2>
-            <div className="mt-8 flex items-end gap-3"><span className="text-6xl font-semibold tracking-tight">{earnedPoints}</span><span className="pb-2 text-2xl font-semibold text-emerald-100/70">/ {plannedPoints || 0} pts</span></div>
-            <div className="mt-6 h-3 rounded-full bg-white/20"><div className="h-3 rounded-full bg-lime-200" style={{ width: `${Math.min(100, pointsPct)}%` }} /></div>
-            <p className="mt-4 text-base font-semibold text-lime-200">{pointsRemaining} pts to go</p>
-            <p className="mt-3 text-sm leading-6 text-emerald-50/80">Points are not fluff. They are a simple training-value proxy for completed work.</p>
+          <div className="rounded-[28px] bg-zinc-950 p-6 text-white sm:p-7">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400">This week</p>
+            <h2 className="mt-5 text-4xl font-semibold tracking-tight">Points this week</h2>
+            <div className="mt-8 flex items-end gap-3"><span className="text-6xl font-semibold tracking-tight">{earnedPoints}</span><span className="pb-2 text-2xl font-semibold text-zinc-400">/ {plannedPoints || 0} pts</span></div>
+            <div className="mt-6 h-3 rounded-full bg-white/20"><div className="h-3 rounded-full bg-white" style={{ width: `${Math.min(100, pointsPct)}%` }} /></div>
+            <p className="mt-4 text-base font-semibold text-zinc-300">{pointsRemaining} pts to go</p>
+            
           </div>
 
           <div className="rounded-[28px] border border-zinc-200 bg-white p-6 sm:p-7">
@@ -297,8 +328,8 @@ export default function CoachingPointsDashboard({ sessions, completedSessions, s
         </section>
 
         <section className="mb-6 rounded-[28px] border border-zinc-200 bg-white p-5 sm:p-6">
-          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="text-lg font-semibold tracking-tight text-zinc-950">Mission plan</h2><p className="mt-1 text-sm text-zinc-500">Upcoming sessions and the points they are worth.</p></div><span className="text-sm text-zinc-400">Next 10 days</span></div>
-          {upcomingSessions.length > 0 ? <div className="grid gap-3 lg:grid-cols-3">{upcomingSessions.map((session) => { const points = calculateSessionPoints({ sport: session.sport, title: session.title, durationMinutes: sessionDurationMinutes(session) }); return <div key={session.id} className="rounded-2xl border border-zinc-200 bg-white p-4"><div className="mb-4 flex items-center justify-between gap-3"><div className="flex items-center gap-2"><span className={`h-2 w-2 rounded-full ${sportDotClass(session.sport)}`} /><span className="text-xs font-medium uppercase tracking-[0.14em] text-zinc-400">{session.sport}</span></div><span className="text-xs text-zinc-400">{getSessionDateLabel(session)}</span></div><p className="text-base font-semibold leading-6 text-zinc-950">{session.title}</p><p className="mt-2 text-sm leading-5 text-zinc-500">{session.details || `${formatMinutes(sessionDurationMinutes(session))} planned`}</p><p className="mt-4 text-sm font-semibold text-emerald-700">+{points} pts</p></div>; })}</div> : <EmptyCard>No upcoming sessions found. Once your plan has sessions in the next 10 days, they will appear here.</EmptyCard>}
+          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="text-lg font-semibold tracking-tight text-zinc-950">Up next</h2><p className="mt-1 text-sm text-zinc-500">Upcoming sessions and the points they are worth.</p></div><span className="text-sm text-zinc-400">Next 10 days</span></div>
+          {upcomingSessions.length > 0 ? <div className="grid gap-3 lg:grid-cols-3">{upcomingSessions.map((session) => { const points = calculateSessionPoints({ sport: session.sport, title: session.title, durationMinutes: sessionDurationMinutes(session) }); return <div key={session.id} className="rounded-2xl border border-zinc-200 bg-white p-4"><div className="mb-4 flex items-center justify-between gap-3"><div className="flex items-center gap-2"><span className={`h-2 w-2 rounded-full ${sportDotClass(session.sport)}`} /><span className="text-xs font-medium uppercase tracking-[0.14em] text-zinc-400">{session.sport}</span></div><span className="text-xs text-zinc-400">{getSessionDateLabel(session)}</span></div><p className="text-base font-semibold leading-6 text-zinc-950">{session.title}</p><SessionDetailLines details={session.details} fallback={`${formatMinutes(sessionDurationMinutes(session))} planned`} /><p className="mt-4 text-sm font-semibold text-emerald-700">+{points} pts</p></div>; })}</div> : <EmptyCard>No upcoming sessions found. Once your plan has sessions in the next 10 days, they will appear here.</EmptyCard>}
         </section>
 
         <section className="rounded-[28px] border border-zinc-200 bg-white p-5 sm:p-6">

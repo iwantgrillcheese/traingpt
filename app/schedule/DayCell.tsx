@@ -288,7 +288,7 @@ export default function DayCell({
         <button
           type="button"
           onClick={() => onAddSessionClick?.(date)}
-          className="mt-auto rounded-md border border-dashed border-zinc-200 bg-white/60 px-2 py-1.5 text-center text-[11px] font-medium text-zinc-400 opacity-70 transition hover:border-zinc-300 hover:text-zinc-700 group-hover:opacity-100"
+          className="mt-auto rounded-md border border-dashed border-zinc-200 bg-white/60 px-2 py-1.5 text-center text-[11px] font-medium text-zinc-400 opacity-0 transition hover:border-zinc-300 hover:text-zinc-700 group-hover:opacity-100"
         >
           + Add
         </button>
