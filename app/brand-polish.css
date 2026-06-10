@@ -13,6 +13,9 @@
 }
 
 .tg-brand-surface {
-  background:
-    radial-gradient(circle at 15% 5%, rgba(37, 99, 255, 0.10), transparent 26rem),
-    linear-gradient(180deg, #fbfaf8 
+  background: #fbfaf8;
+  color: var(--tg-ink);
+}
+
+.tg-blue-button {
+  background: var(--
