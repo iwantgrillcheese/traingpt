@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, shadow, spacing, typography } from '../design/theme';
 import { useAuth } from '../auth/AuthProvider';
 import { apiFetch } from '../lib/api';
+import { supabase } from '../lib/supabase';
 
 type StravaStatus = { connected: boolean; activityCount: number; totalHours: number; loading: boolean; };
 const rows = [{ label: 'Subscription', value: 'Plus status coming soon' }, { label: 'Training zones', value: 'Managed on web' }, { label: 'Notifications', value: 'Native reminders next' }];
@@ -28,6 +29,30 @@ export function SettingsScreen() {
   }, []);
 
   useEffect(() => { loadStravaStatus(); }, [loadStravaStatus]);
+
+  const [dailyEmail, setDailyEmail] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (!user?.id) return;
+      const { data } = await supabase.from('profiles').select('daily_email_opt_in').eq('id', user.id).maybeSingle();
+      if (active) setDailyEmail(Boolean(data?.daily_email_opt_in));
+    })();
+    return () => {
+      active = false;
+    };
+  }, [user?.id]);
+
+  const toggleDailyEmail = async (next: boolean) => {
+    if (!user?.id) return;
+    setDailyEmail(next);
+    const { error } = await supabase.from('profiles').update({ daily_email_opt_in: next }).eq('id', user.id);
+    if (error) {
+      console.error('[SettingsScreen] daily email toggle failed', error);
+      setDailyEmail(!next);
+    }
+  };
 
   const disconnectStrava = async () => {
     if (disconnecting) return;
@@ -58,7 +83,23 @@ export function SettingsScreen() {
         <View style={styles.stravaHeader}><View><Text style={styles.rowLabel}>Strava</Text><Text style={styles.rowValue}>{strava.loading ? 'Checking connection...' : strava.connected ? `${strava.activityCount} activities · ${strava.totalHours}h imported` : 'Not connected'}</Text></View>{strava.loading ? <ActivityIndicator /> : null}</View>
         {strava.connected ? <Pressable onPress={disconnectStrava} disabled={disconnecting} style={({ pressed }) => [styles.secondaryButton, disconnecting && styles.disabled, pressed && styles.pressed]}><Text style={styles.secondaryButtonText}>{disconnecting ? 'Disconnecting...' : 'Disconnect Strava'}</Text></Pressable> : <Text style={styles.helperText}>Connect Strava during plan generation to import recent swim, bike, and run history.</Text>}
       </View>
-      <View style={styles.listCard}>{rows.map((row, index) => <View key={row.label} style={[styles.row, index !== rows.length - 1 && styles.rowBorder]}><Text style={styles.rowLabel}>{row.label}</Text><Text style={styles.rowValue}>{row.value}</Text></View>)}</View>
+      <View style={styles.listCard}>
+        <View style={[styles.row, styles.rowBorder, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }]}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rowLabel}>Daily session email</Text>
+            <Text style={styles.rowValue}>Each morning you have a session — the workout and targets.</Text>
+          </View>
+          {dailyEmail === null ? (
+            <ActivityIndicator />
+          ) : (
+            <Switch
+              value={dailyEmail}
+              onValueChange={toggleDailyEmail}
+              trackColor={{ false: colors.border, true: colors.ink }}
+              thumbColor={colors.surface}
+            />
+          )}
+        </View>{rows.map((row, index) => <View key={row.label} style={[styles.row, index !== rows.length - 1 && styles.rowBorder]}><Text style={styles.rowLabel}>{row.label}</Text><Text style={styles.rowValue}>{row.value}</Text></View>)}</View>
       <Pressable onPress={signOut} style={({ pressed }) => [styles.button, pressed && styles.pressed]}><Text style={styles.buttonText}>Sign out</Text></Pressable>
     </ScrollView>
   );

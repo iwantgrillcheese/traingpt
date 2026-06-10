@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import type { CompletedSessionRow, PlanRow, SessionRow, StravaActivityRow } from '../types';
 import { SessionCard } from '../components/SessionCard';
 import { SessionDetailSheet } from '../components/SessionDetailSheet';
+import { CoachUpdateCard } from '../components/CoachUpdateCard';
 import { cleanTitle, formatDay, formatMinutes, getNextSession, getTodaysSessions, normalizeSport } from '../utils/training';
 import { getActiveWeekReferenceDate, getSessionPoints, getWeeklyPointStats } from '../utils/sessionPoints';
 import { sessionHasSameDayStravaMatch } from '../utils/stravaMatching';
@@ -164,6 +165,8 @@ export function TodayScreen() {
         </View>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        <CoachUpdateCard />
 
         {heroSession ? (
           <Pressable onPress={() => setSelectedSession(heroSession)} style={({ pressed }) => [styles.heroCard, heroViaStrava && styles.stravaHero, heroIsRest && styles.restHero, pressed && styles.pressedCard]}>

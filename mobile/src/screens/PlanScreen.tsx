@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, shadow, spacing } from '../design/theme';
 import { useAuth } from '../auth/AuthProvider';
 import { apiFetch } from '../lib/api';
+import { enrichPlanInBackground } from '../utils/enrichPlan';
 import { PlanGenerationExperience } from '../components/PlanGenerationExperience';
 
 type RaceType = 'Sprint' | 'Olympic' | 'Half Ironman (70.3)' | 'Ironman (140.6)';
@@ -344,6 +345,16 @@ export function PlanScreen({ onPlanCreated }: PlanScreenProps) {
       setGenerationProgress(100);
       setGenerationStep(magicSteps.length - 1);
       setGenerationComplete(true);
+
+      if (payload?.enrichmentPending && typeof payload?.planId === 'string') {
+        // Plan is fully usable now (scaffold details are complete); the coach
+        // detailing pass runs in the background while the app stays open.
+        void enrichPlanInBackground({
+          planId: payload.planId,
+          totalWeeks: Number(payload?.totalWeeks ?? 0),
+          userId: user.id,
+        });
+      }
       setSuccess('Your calendar is ready. Opening Schedule...');
       setTimeout(() => {
         setGenerating(false);
