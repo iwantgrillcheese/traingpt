@@ -115,6 +115,16 @@ export async function GET(req: NextRequest) {
       continue;
     }
 
+    const { data: adaptationRows } = await supabase
+      .from('plan_adaptations')
+      .select('summary, created_at')
+      .eq('user_id', user.id)
+      .gte('created_at', new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    const adaptationSummary = adaptationRows?.[0]?.summary ?? null;
+
     const sessionsThisWeek = (sessions ?? [])
       .filter((session: SessionRow) => session.status !== 'skipped')
       .map((session: SessionRow) => ({
@@ -136,7 +146,7 @@ export async function GET(req: NextRequest) {
       await sendUpcomingWeekEmail({
         email: user.email,
         sessions: sessionsThisWeek,
-        coachNote: `Your week is set. Check the plan, adjust around real life, and use your AI coach whenever you need clarity.`,
+        coachNote: adaptationSummary ?? `Your week is set. Check the plan, adjust around real life, and use your AI coach whenever you need clarity.`,
         weekRange,
       });
 

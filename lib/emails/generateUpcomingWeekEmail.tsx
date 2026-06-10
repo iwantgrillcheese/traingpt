@@ -64,9 +64,11 @@ function summarizeSessions(sessions: EmailSession[]) {
 export function generateUpcomingWeekEmail({
   sessions,
   weekRange,
+  coachNote,
 }: {
   sessions: EmailSession[];
   weekRange: string;
+  coachNote?: string | null;
 }) {
   const groupedByDay = Object.fromEntries(
     WEEKDAYS.map((day) => [day, [] as Array<{ title: string; sport: string; duration: string | null }>])
@@ -88,6 +90,7 @@ export function generateUpcomingWeekEmail({
       weekRange,
       groupedSessions: groupedByDay,
       summary: summarizeSessions(sessions),
+      coachNote,
     })
   );
 }

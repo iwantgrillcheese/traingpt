@@ -19,7 +19,7 @@ export async function sendUpcomingWeekEmail({
   }
 
   const resend = new Resend(apiKey);
-  const html = await generateUpcomingWeekEmail({ sessions, weekRange });
+  const html = await generateUpcomingWeekEmail({ sessions, weekRange, coachNote });
 
   await resend.emails.send({
     from: 'TrainGPT <hello@traingpt.co>',

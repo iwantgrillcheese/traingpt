@@ -36,10 +36,12 @@ export function UpcomingWeekEmail({
   weekRange,
   groupedSessions,
   summary,
+  coachNote,
 }: {
   weekRange: string;
   groupedSessions: Record<string, GroupedSession[]>;
   summary: WeeklySummary;
+  coachNote?: string | null;
 }) {
   const previewText = `${summary.sessionCount} sessions planned for ${weekRange}`;
 
@@ -75,7 +77,8 @@ export function UpcomingWeekEmail({
 
           <Section style={styles.noteSection}>
             <Text style={styles.noteText}>
-              Review your week before Monday. Protect the key endurance work, move sessions that conflict with real life, and open any workout for more detail when you need it.
+              {coachNote?.trim() ||
+                'Review your week before Monday. Protect the key endurance work, move sessions that conflict with real life, and open any workout for more detail when you need it.'}
             </Text>
           </Section>
 

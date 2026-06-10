@@ -7,6 +7,10 @@
     {
       "path": "/api/send-email/daily-session",
       "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/adapt-week",
+      "schedule": "0 20 * * 0"
     }
   ]
 }
