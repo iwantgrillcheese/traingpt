@@ -18,7 +18,7 @@ export default function SessionTag({ session, onClick }: Props) {
     : undefined;
 
   if (typeof session !== 'string') {
-    return <div className="px-2 py-1 text-xs text-gray-500 italic">Unrecognized session</div>;
+    return <div className="px-2 py-1 text-xs text-zinc-500 italic">Unrecognized session</div>;
   }
 
   const icon = session.charAt(0);
@@ -32,15 +32,15 @@ export default function SessionTag({ session, onClick }: Props) {
       style={style}
       onClick={() => onClick?.(session)}
       className={clsx(
-        'group flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2',
-        'text-sm text-gray-800 shadow-[0_1px_0_rgba(0,0,0,0.03)]',
-        'hover:bg-gray-50 hover:border-gray-300 transition cursor-grab active:cursor-grabbing',
+        'group flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2',
+        'text-sm text-zinc-800 shadow-[0_1px_0_rgba(0,0,0,0.03)]',
+        'hover:bg-zinc-50 hover:border-zinc-300 transition cursor-grab active:cursor-grabbing',
         isDragging && 'opacity-60 shadow-md'
       )}
     >
       <span className="md:hidden text-sm">{icon}</span>
       <span className="truncate font-medium">{label}</span>
-      <span className="ml-auto hidden md:block text-[11px] text-gray-500 opacity-0 group-hover:opacity-100 transition">
+      <span className="ml-auto hidden md:block text-[11px] text-zinc-500 opacity-0 group-hover:opacity-100 transition">
         Drag
       </span>
     </div>

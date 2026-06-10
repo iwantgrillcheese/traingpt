@@ -21,7 +21,7 @@ export default function BlogHome() {
         <div className="grid md:grid-cols-3 gap-6">
           <div className="md:col-span-2">
             <Link href={`/blog/${featured.slug}`}>
-              <div className="aspect-video bg-gray-200 rounded-xl overflow-hidden mb-6 relative">
+              <div className="aspect-video bg-zinc-200 rounded-xl overflow-hidden mb-6 relative">
                 <Image
                   src={featured.image}
                   alt={featured.title}
@@ -30,10 +30,10 @@ export default function BlogHome() {
                 />
               </div>
               <h2 className="text-3xl font-semibold mb-2">{featured.title}</h2>
-              <p className="text-gray-500 mb-2 text-sm">
+              <p className="text-zinc-500 mb-2 text-sm">
                 {featured.tag} · {featured.date}
               </p>
-              <p className="text-gray-700 text-base">{featured.description}</p>
+              <p className="text-zinc-700 text-base">{featured.description}</p>
             </Link>
           </div>
 
@@ -42,7 +42,7 @@ export default function BlogHome() {
             {secondary.map((post) => (
               <Link key={post.slug} href={`/blog/${post.slug}`}>
                 <div>
-                  <div className="aspect-square bg-gray-100 rounded-xl mb-2 relative overflow-hidden">
+                  <div className="aspect-square bg-zinc-100 rounded-xl mb-2 relative overflow-hidden">
                     <Image
                       src={post.image}
                       alt={post.title}
@@ -50,7 +50,7 @@ export default function BlogHome() {
                       className="object-cover"
                     />
                   </div>
-                  <p className="text-sm text-gray-500 mb-1">
+                  <p className="text-sm text-zinc-500 mb-1">
                     {post.tag} · {post.date}
                   </p>
                   <h3 className="font-medium text-md leading-snug">{post.title}</h3>
@@ -68,7 +68,7 @@ export default function BlogHome() {
           {grid.map((post) => (
             <Link key={post.slug} href={`/blog/${post.slug}`}>
               <div>
-                <div className="aspect-square bg-gray-100 rounded-xl mb-3 relative overflow-hidden">
+                <div className="aspect-square bg-zinc-100 rounded-xl mb-3 relative overflow-hidden">
                   <Image
                     src={post.image}
                     alt={post.title}
@@ -76,7 +76,7 @@ export default function BlogHome() {
                     className="object-cover"
                   />
                 </div>
-                <p className="text-sm text-gray-500 mb-1">
+                <p className="text-sm text-zinc-500 mb-1">
                   {post.tag} · {post.date}
                 </p>
                 <h3 className="font-medium text-lg leading-tight">{post.title}</h3>

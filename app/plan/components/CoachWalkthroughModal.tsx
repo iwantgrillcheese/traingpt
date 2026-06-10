@@ -30,23 +30,23 @@ export default function CoachWalkthroughModal({
         className="
           relative w-full max-w-2xl
           max-h-[85vh] md:max-h-[80vh]
-          rounded-3xl border border-gray-200 bg-white shadow-xl
+          rounded-3xl border border-zinc-200 bg-white shadow-xl
           overflow-hidden
           flex flex-col
         "
       >
         {/* Header (fixed) */}
-        <div className="px-6 pt-6 pb-4 border-b border-gray-100 shrink-0">
-          <div className="text-xs font-medium text-gray-500">Coach Walkthrough</div>
-          <div className="mt-1 text-xl font-semibold tracking-tight text-gray-900">
+        <div className="px-6 pt-6 pb-4 border-b border-zinc-100 shrink-0">
+          <div className="text-xs font-medium text-zinc-500">Coach Walkthrough</div>
+          <div className="mt-1 text-xl font-semibold tracking-tight text-zinc-900">
             Walkthrough for {raceLabel}
           </div>
-          <div className="mt-2 text-sm text-gray-600">
+          <div className="mt-2 text-sm text-zinc-600">
             This is a 3–5 minute walkthrough to make sure you feel confident before week 1.
           </div>
 
           <div className="mt-4 flex items-center justify-between">
-            <div className="text-xs text-gray-500">
+            <div className="text-xs text-zinc-500">
               {index + 1} of {guides.length}
             </div>
             <div className="flex items-center gap-2">
@@ -56,7 +56,7 @@ export default function CoachWalkthroughModal({
                   onDismissForever();
                   router.push('/schedule');
                 }}
-                className="text-sm px-4 py-2 rounded-full bg-black text-white hover:bg-gray-800 transition"
+                className="text-sm px-4 py-2 rounded-full bg-black text-white hover:bg-zinc-800 transition"
               >
                 Continue to Schedule
               </button>
@@ -66,7 +66,7 @@ export default function CoachWalkthroughModal({
                   onDismissForever();
                   onClose();
                 }}
-                className="text-sm px-4 py-2 rounded-full border border-gray-200 bg-white hover:bg-gray-50 transition"
+                className="text-sm px-4 py-2 rounded-full border border-zinc-200 bg-white hover:bg-zinc-50 transition"
               >
                 Skip
               </button>
@@ -95,7 +95,7 @@ export default function CoachWalkthroughModal({
               }}
             />
           ) : (
-            <div className="text-sm text-gray-600">No guides available.</div>
+            <div className="text-sm text-zinc-600">No guides available.</div>
           )}
 
           <div className="mt-5 flex items-center justify-between">
@@ -103,7 +103,7 @@ export default function CoachWalkthroughModal({
               type="button"
               onClick={() => setIndex((i) => Math.max(0, i - 1))}
               disabled={index === 0}
-              className="text-sm px-4 py-2 rounded-full border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 transition"
+              className="text-sm px-4 py-2 rounded-full border border-zinc-200 bg-white hover:bg-zinc-50 disabled:opacity-40 transition"
             >
               Back
             </button>
@@ -112,7 +112,7 @@ export default function CoachWalkthroughModal({
               type="button"
               onClick={() => setIndex((i) => Math.min(guides.length - 1, i + 1))}
               disabled={index >= guides.length - 1}
-              className="text-sm px-4 py-2 rounded-full border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 transition"
+              className="text-sm px-4 py-2 rounded-full border border-zinc-200 bg-white hover:bg-zinc-50 disabled:opacity-40 transition"
             >
               Next
             </button>

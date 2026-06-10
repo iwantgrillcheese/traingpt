@@ -217,54 +217,54 @@ export default function RacePage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-6">
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-        <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Race Hub</p>
-        <h1 className="mt-1 text-2xl font-semibold text-gray-900">{raceName?.trim() || raceType || 'Target race'}</h1>
-        <p className="mt-1 text-sm text-gray-600">{raceDateLabel}</p>
-        <p className="mt-2 inline-flex rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-sm font-medium text-gray-700">
+      <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Race Hub</p>
+        <h1 className="mt-1 text-2xl font-semibold text-zinc-900">{raceName?.trim() || raceType || 'Target race'}</h1>
+        <p className="mt-1 text-sm text-zinc-600">{raceDateLabel}</p>
+        <p className="mt-2 inline-flex rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-sm font-medium text-zinc-700">
           {countdownLabel(raceDate)}
         </p>
 
         <div className="mt-4 flex flex-wrap gap-2">
           <a
             href="/schedule"
-            className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="inline-flex items-center rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
           >
             Back to Schedule
           </a>
           <a
             href={`/coaching?q=${encodeURIComponent(`Race prep check-in for ${raceType ?? 'my race'} on ${raceDate ?? 'TBD'}. What should I focus on this week?`)}`}
-            className="inline-flex items-center rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800"
+            className="inline-flex items-center rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800"
           >
             Ask coach about race prep
           </a>
         </div>
       </section>
 
-      <section className="mt-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-        <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Readiness</p>
-        <h2 className="mt-1 text-xl font-semibold text-gray-900">{readiness.score}/100 · {readiness.label}</h2>
-        <p className="mt-2 text-sm text-gray-600">
+      <section className="mt-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Readiness</p>
+        <h2 className="mt-1 text-xl font-semibold text-zinc-900">{readiness.score}/100 · {readiness.label}</h2>
+        <p className="mt-2 text-sm text-zinc-600">
           Score based on adherence, consistency, and race proximity. Use this as directional feedback, then adjust training and logistics this week.
         </p>
       </section>
 
-      <section className="mt-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-        <h3 className="text-lg font-semibold text-gray-900">Race checklist</h3>
-        <p className="mt-1 text-sm text-gray-600">Local checklist state is saved on this device.</p>
+      <section className="mt-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <h3 className="text-lg font-semibold text-zinc-900">Race checklist</h3>
+        <p className="mt-1 text-sm text-zinc-600">Local checklist state is saved on this device.</p>
 
         <div className="mt-4 space-y-4">
           {CHECKLIST_SECTIONS.map((section) => (
-            <div key={section.key} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-              <h4 className="text-sm font-semibold text-gray-900">{section.title}</h4>
+            <div key={section.key} className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+              <h4 className="text-sm font-semibold text-zinc-900">{section.title}</h4>
               <div className="mt-3 space-y-2">
                 {section.items.map((item) => (
-                  <label key={item.id} className="flex cursor-pointer items-center gap-2 text-sm text-gray-700">
+                  <label key={item.id} className="flex cursor-pointer items-center gap-2 text-sm text-zinc-700">
                     <input
                       type="checkbox"
                       checked={Boolean(checked[item.id])}
                       onChange={() => toggleChecklist(item.id)}
-                      className="h-4 w-4 rounded border-gray-300"
+                      className="h-4 w-4 rounded border-zinc-300"
                     />
                     <span>{item.label}</span>
                   </label>

@@ -112,7 +112,7 @@ export function OuraConnectionCard() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <p className="text-sm font-medium text-gray-800">Oura</p>
+            <p className="text-sm font-medium text-zinc-800">Oura</p>
             <span
               className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
                 connected ? "bg-emerald-100 text-emerald-700" : "bg-zinc-200 text-zinc-600"
@@ -121,7 +121,7 @@ export function OuraConnectionCard() {
               {connected ? "Connected" : "Not connected"}
             </span>
           </div>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-zinc-500">
             {loading
               ? "Checking Oura connection…"
               : connected

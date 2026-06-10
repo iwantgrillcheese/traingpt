@@ -56,7 +56,7 @@ export default function TermsPage() {
         <a href="mailto:hello@traingpt.co" className="underline">hello@traingpt.co</a>.
       </p>
 
-      <p className="text-sm text-gray-500 mt-12">Last updated: June 4, 2025</p>
+      <p className="text-sm text-zinc-500 mt-12">Last updated: June 4, 2025</p>
     </main>
   );
 }

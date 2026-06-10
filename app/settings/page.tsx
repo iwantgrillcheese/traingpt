@@ -292,7 +292,7 @@ export default function ProfilePage() {
 
   if (profileLoading || authLoading) {
     return (
-      <div className="text-center py-20 text-gray-500">Loading profile...</div>
+      <div className="text-center py-20 text-zinc-500">Loading profile...</div>
     );
   }
 
@@ -300,7 +300,7 @@ export default function ProfilePage() {
     return (
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-12 sm:py-16 text-center">
         <h1 className="text-2xl font-semibold mb-3">Settings unavailable</h1>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-zinc-500">
           {profileError || "Please sign in again to manage your account."}
         </p>
         <Link
@@ -325,7 +325,7 @@ export default function ProfilePage() {
           <h2 className="text-lg font-medium mb-4">Training Zones</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm text-gray-500 mb-1">
+              <label className="block text-sm text-zinc-500 mb-1">
                 Swim Threshold (mm:ss / 100m)
               </label>
               <input
@@ -345,7 +345,7 @@ export default function ProfilePage() {
             </div>
 
             <div>
-              <label className="block text-sm text-gray-500 mb-1">
+              <label className="block text-sm text-zinc-500 mb-1">
                 Bike FTP (watts)
               </label>
               <input
@@ -359,7 +359,7 @@ export default function ProfilePage() {
             </div>
 
             <div>
-              <label className="block text-sm text-gray-500 mb-1">
+              <label className="block text-sm text-zinc-500 mb-1">
                 Run Threshold (mm:ss /{" "}
                 {profile.run_pace_unit === "km" ? "km" : "mile"})
               </label>
@@ -376,7 +376,7 @@ export default function ProfilePage() {
                 placeholder="e.g. 7:30"
               />
               <div className="mt-2">
-                <label className="text-xs text-gray-500 mr-2">Units:</label>
+                <label className="text-xs text-zinc-500 mr-2">Units:</label>
                 <select
                   value={profile.run_pace_unit || "mile"}
                   onChange={(e) =>
@@ -395,7 +395,7 @@ export default function ProfilePage() {
         {/* Email Opt-In */}
         <section className="bg-white border rounded-xl p-6 shadow-sm">
           <h2 className="text-lg font-medium mb-4">Email Preferences</h2>
-          <label className="flex items-center gap-3 text-sm text-gray-700">
+          <label className="flex items-center gap-3 text-sm text-zinc-700">
             <input
               type="checkbox"
               checked={optIn}
@@ -414,12 +414,12 @@ export default function ProfilePage() {
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-gray-800">Strava</p>
+                    <p className="text-sm font-medium text-zinc-800">Strava</p>
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${profile?.strava_access_token ? "bg-orange-100 text-orange-700" : "bg-zinc-200 text-zinc-600"}`}>
                       {profile?.strava_access_token ? "Connected" : "Not connected"}
                     </span>
                   </div>
-                  <p className="mt-1 text-sm text-gray-500">
+                  <p className="mt-1 text-sm text-zinc-500">
                     {profile?.strava_access_token ? "Activity sync is active." : "Connect completed activities and training history."}
                   </p>
                 </div>
@@ -441,13 +441,13 @@ export default function ProfilePage() {
                     Connect
                   </a>
                 ) : (
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-zinc-500">
                     Preparing Strava connection…
                   </p>
                 )}
               </div>
               {stravaMessage ? (
-                <p className="mt-3 text-sm text-gray-600">{stravaMessage}</p>
+                <p className="mt-3 text-sm text-zinc-600">{stravaMessage}</p>
               ) : null}
             </div>
 
@@ -458,7 +458,7 @@ export default function ProfilePage() {
         {/* Subscription */}
         <section className="bg-white border rounded-xl p-6 shadow-sm">
           <h2 className="text-lg font-medium mb-4">Subscription</h2>
-          <p className="text-sm text-gray-600 mb-4">
+          <p className="text-sm text-zinc-600 mb-4">
             View your current plan, update payment info, or cancel anytime via
             Stripe.
           </p>
@@ -472,7 +472,7 @@ export default function ProfilePage() {
 
         <section className="bg-white border rounded-xl p-6 shadow-sm">
           <h2 className="text-lg font-medium mb-2">Fueling</h2>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-zinc-600">
             Set defaults for workout fueling guidance. You can still adjust
             these per-session from your calendar.
           </p>
@@ -559,7 +559,7 @@ export default function ProfilePage() {
               Open fueling shop guide
             </Link>
           </div>
-          <p className="text-sm text-gray-600 mb-4">
+          <p className="text-sm text-zinc-600 mb-4">
             Want workout-specific nutrition guidance? Turn on fueling when
             generating a detailed session from your calendar.
           </p>

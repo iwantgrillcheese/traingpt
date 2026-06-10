@@ -134,9 +134,9 @@ export default function CoachChatModal({ open, onClose, prefill }: Props) {
       <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" aria-hidden="true" />
 
       <div className="fixed inset-0 flex items-center justify-center p-4 sm:p-6">
-        <Dialog.Panel className="w-full max-w-lg space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl sm:p-6">
+        <Dialog.Panel className="w-full max-w-lg space-y-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl sm:p-6">
           <div className="flex items-center justify-between">
-            <Dialog.Title className="text-base font-semibold text-gray-900">
+            <Dialog.Title className="text-base font-semibold text-zinc-900">
               Coach analysis
             </Dialog.Title>
 
@@ -144,7 +144,7 @@ export default function CoachChatModal({ open, onClose, prefill }: Props) {
               <button
                 type="button"
                 onClick={clearChat}
-                className="text-xs font-medium text-gray-500 hover:text-gray-900"
+                className="text-xs font-medium text-zinc-500 hover:text-zinc-900"
                 disabled={loading}
               >
                 Clear
@@ -153,7 +153,7 @@ export default function CoachChatModal({ open, onClose, prefill }: Props) {
               <button
                 type="button"
                 onClick={onClose}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 text-gray-700 hover:bg-gray-50"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-zinc-200 text-zinc-700 hover:bg-zinc-50"
                 aria-label="Close"
               >
                 <XMarkIcon className="h-5 w-5" />
@@ -168,14 +168,14 @@ export default function CoachChatModal({ open, onClose, prefill }: Props) {
                 type="button"
                 onClick={() => askCoach(q)}
                 disabled={loading}
-                className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
               >
                 {q}
               </button>
             ))}
           </div>
 
-          <div className="h-64 overflow-y-auto rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm">
+          <div className="h-64 overflow-y-auto rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-sm">
             <div className="space-y-2">
               {messages.map((message, index) => (
                 <div
@@ -183,8 +183,8 @@ export default function CoachChatModal({ open, onClose, prefill }: Props) {
                   className={clsx(
                     'max-w-[86%] rounded-2xl px-3 py-2 leading-relaxed whitespace-pre-wrap',
                     message.role === 'user'
-                      ? 'ml-auto bg-gray-900 text-white'
-                      : 'mr-auto border border-gray-200 bg-white text-gray-900'
+                      ? 'ml-auto bg-zinc-900 text-white'
+                      : 'mr-auto border border-zinc-200 bg-white text-zinc-900'
                   )}
                 >
                   {message.content}
@@ -192,18 +192,18 @@ export default function CoachChatModal({ open, onClose, prefill }: Props) {
               ))}
 
               {loading && animatedResponse ? (
-                <div className="mr-auto max-w-[86%] rounded-2xl border border-gray-200 bg-white px-3 py-2 whitespace-pre-wrap text-gray-900">
+                <div className="mr-auto max-w-[86%] rounded-2xl border border-zinc-200 bg-white px-3 py-2 whitespace-pre-wrap text-zinc-900">
                   {animatedResponse}
                   <span className="animate-pulse">▍</span>
                 </div>
               ) : null}
 
               {loading && !animatedResponse ? (
-                <div className="text-xs text-gray-500 italic">Thinking…</div>
+                <div className="text-xs text-zinc-500 italic">Thinking…</div>
               ) : null}
 
               {messages.length === 0 && !loading ? (
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-zinc-500">
                   Ask a specific question about your training, your progress, or what to do next.
                 </div>
               ) : null}
@@ -221,14 +221,14 @@ export default function CoachChatModal({ open, onClose, prefill }: Props) {
               value={input}
               onChange={(event) => setInput(event.target.value)}
               placeholder="Ask about your training…"
-              className="flex-1 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-gray-900/10 focus:outline-none"
+              className="flex-1 rounded-full border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:ring-2 focus:ring-zinc-900/10 focus:outline-none"
               disabled={loading}
             />
 
             <button
               type="submit"
               disabled={!canSubmit}
-              className="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+              className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
             >
               Ask
             </button>

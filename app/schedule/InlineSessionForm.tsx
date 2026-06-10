@@ -50,7 +50,7 @@ export default function InlineSessionForm({ date, onClose, onAdded }: any) {
   // ✅ Conditional rendering, not conditional hooks
   if (loading) {
     return (
-      <div className="text-center text-sm text-gray-400 py-4">
+      <div className="text-center text-sm text-zinc-400 py-4">
         Loading user…
       </div>
     );
@@ -58,7 +58,7 @@ export default function InlineSessionForm({ date, onClose, onAdded }: any) {
 
   if (!user) {
     return (
-      <div className="text-center text-sm text-gray-400 py-4">
+      <div className="text-center text-sm text-zinc-400 py-4">
         Please sign in to add a session.
       </div>
     );
@@ -74,7 +74,7 @@ export default function InlineSessionForm({ date, onClose, onAdded }: any) {
         type="text"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
-        className="rounded-md border border-gray-300 p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="rounded-md border border-zinc-300 p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         placeholder="e.g., Long Ride 3hr Z2"
       />
 
@@ -82,7 +82,7 @@ export default function InlineSessionForm({ date, onClose, onAdded }: any) {
         <button
           type="button"
           onClick={onClose}
-          className="px-3 py-1 text-gray-500 hover:text-gray-700 text-sm"
+          className="px-3 py-1 text-zinc-500 hover:text-zinc-700 text-sm"
         >
           Cancel
         </button>

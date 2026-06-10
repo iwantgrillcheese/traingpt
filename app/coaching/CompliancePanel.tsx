@@ -70,8 +70,8 @@ export default function CompliancePanel({ weeklySummary, viewMode }: Props) {
     <div className="rounded-2xl border bg-white p-6 shadow-sm">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">Consistency</h2>
-          <p className="mt-1 text-sm text-gray-500">
+          <h2 className="text-lg font-semibold text-zinc-900">Consistency</h2>
+          <p className="mt-1 text-sm text-zinc-500">
             {isPlan ? 'Overall consistency since plan start.' : 'How reliably you’re executing this week.'}
           </p>
         </div>
@@ -86,21 +86,21 @@ export default function CompliancePanel({ weeklySummary, viewMode }: Props) {
         </div>
       </div>
 
-      <p className="mt-3 text-sm leading-relaxed text-gray-700">{message}</p>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-700">{message}</p>
 
       <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
         {isPlan ? (
           <>
-            <div className="rounded-xl bg-gray-50 p-3">
-              <p className="text-xs text-gray-500">Completed</p>
-              <p className="mt-1 font-semibold text-gray-900">
+            <div className="rounded-xl bg-zinc-50 p-3">
+              <p className="text-xs text-zinc-500">Completed</p>
+              <p className="mt-1 font-semibold text-zinc-900">
                 {planCompleted}/{planPlanned}
               </p>
             </div>
 
-            <div className="rounded-xl bg-gray-50 p-3">
-              <p className="text-xs text-gray-500">Trend</p>
-              <p className="mt-1 font-semibold text-gray-900">
+            <div className="rounded-xl bg-zinc-50 p-3">
+              <p className="text-xs text-zinc-500">Trend</p>
+              <p className="mt-1 font-semibold text-zinc-900">
                 {trend !== undefined ? (
                   <span
                     className={clsx(
@@ -109,40 +109,40 @@ export default function CompliancePanel({ weeklySummary, viewMode }: Props) {
                         ? 'bg-green-100 text-green-700'
                         : trend < 0
                         ? 'bg-red-100 text-red-700'
-                        : 'bg-gray-100 text-gray-700'
+                        : 'bg-zinc-100 text-zinc-700'
                     )}
                   >
                     {trend > 0 ? '+' : ''}
                     {trend}%
                   </span>
                 ) : (
-                  <span className="text-gray-400">—</span>
+                  <span className="text-zinc-400">—</span>
                 )}
               </p>
             </div>
           </>
         ) : (
           <>
-            <div className="rounded-xl bg-gray-50 p-3">
-              <p className="text-xs text-gray-500">Completed so far</p>
-              <p className="mt-1 font-semibold text-gray-900">
+            <div className="rounded-xl bg-zinc-50 p-3">
+              <p className="text-xs text-zinc-500">Completed so far</p>
+              <p className="mt-1 font-semibold text-zinc-900">
                 {completedSoFar}/{plannedSoFar}
               </p>
-              <p className="mt-1 text-xs text-gray-400">Counts planned up to today</p>
+              <p className="mt-1 text-xs text-zinc-400">Counts planned up to today</p>
             </div>
 
-            <div className="rounded-xl bg-gray-50 p-3">
-              <p className="text-xs text-gray-500">Remaining this week</p>
-              <p className="mt-1 font-semibold text-gray-900">
+            <div className="rounded-xl bg-zinc-50 p-3">
+              <p className="text-xs text-zinc-500">Remaining this week</p>
+              <p className="mt-1 font-semibold text-zinc-900">
                 {Math.max(0, plannedThisWeek.length - completedSoFar)}
               </p>
-              <p className="mt-1 text-xs text-gray-400">Mon–Sun window</p>
+              <p className="mt-1 text-xs text-zinc-400">Mon–Sun window</p>
             </div>
           </>
         )}
       </div>
 
-      <div className="mt-4 text-[11px] text-gray-400">
+      <div className="mt-4 text-[11px] text-zinc-400">
         {isPlan
           ? 'Tracks all sessions assigned since your plan started.'
           : 'Tracks sessions planned this week. We’ll upgrade this to time-based consistency next.'}

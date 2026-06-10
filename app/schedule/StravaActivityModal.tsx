@@ -48,8 +48,8 @@ function formatPaceOrSpeed(activity: any) {
 function metricRow(label: string, value: string) {
   return (
     <div className="flex items-center justify-between py-2">
-      <div className="text-sm text-gray-600">{label}</div>
-      <div className="text-sm font-medium text-gray-900">{value}</div>
+      <div className="text-sm text-zinc-600">{label}</div>
+      <div className="text-sm font-medium text-zinc-900">{value}</div>
     </div>
   );
 }
@@ -159,7 +159,7 @@ export default function StravaActivityModal({ activity, open, onClose }: Props) 
           </div>
         </div>
 
-        <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-gray-200">
+        <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-zinc-200">
           <div className="min-w-0">
             <div className="text-sm font-semibold uppercase tracking-wide text-zinc-500">Activity breakdown</div>
           </div>
@@ -168,8 +168,8 @@ export default function StravaActivityModal({ activity, open, onClose }: Props) 
         <div className="px-6 py-5">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4">
-              <div className="text-sm font-semibold text-gray-900">Overview</div>
-              <div className="mt-2 divide-y divide-gray-100">
+              <div className="text-sm font-semibold text-zinc-900">Overview</div>
+              <div className="mt-2 divide-y divide-zinc-100">
                 {metricRow('Duration', duration)}
                 {metricRow('Distance', distance)}
                 {metricRow(isRun ? 'Avg pace' : 'Avg speed', paceOrSpeed)}
@@ -178,8 +178,8 @@ export default function StravaActivityModal({ activity, open, onClose }: Props) 
             </div>
 
             <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4">
-              <div className="text-sm font-semibold text-gray-900">Effort</div>
-              <div className="mt-2 divide-y divide-gray-100">
+              <div className="text-sm font-semibold text-zinc-900">Effort</div>
+              <div className="mt-2 divide-y divide-zinc-100">
                 {metricRow('Avg HR', avgHr)}
                 {metricRow('Max HR', maxHr)}
                 {metricRow('Avg watts', avgWatts)}
@@ -207,13 +207,13 @@ export default function StravaActivityModal({ activity, open, onClose }: Props) 
 
           {analysis ? (
             <div className="mt-5 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-              <div className="text-sm font-semibold text-gray-900">Coach analysis</div>
-              <div className="mt-2 whitespace-pre-wrap text-sm text-gray-800 leading-relaxed">
+              <div className="text-sm font-semibold text-zinc-900">Coach analysis</div>
+              <div className="mt-2 whitespace-pre-wrap text-sm text-zinc-800 leading-relaxed">
                 {analysis}
               </div>
             </div>
           ) : (
-            <div className="mt-5 text-sm text-gray-500">
+            <div className="mt-5 text-sm text-zinc-500">
               Tip: Analyzing is best when you’ve got planned sessions in the calendar — we can compare compliance and adjust tomorrow.
             </div>
           )}

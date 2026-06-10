@@ -42,13 +42,13 @@ export default async function BlogPostPage({ params }: PageProps) {
   const htmlContent = await marked.parse(post.content);
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-16 text-gray-800">
-      <p className="text-sm text-gray-400 mb-2">
+    <div className="max-w-3xl mx-auto px-6 py-16 text-zinc-800">
+      <p className="text-sm text-zinc-400 mb-2">
         {post.tag} • {post.date}
       </p>
       <h1 className="text-4xl font-bold mb-6">{post.title}</h1>
       <img src={post.image} alt={post.title} className="w-full rounded-xl mb-10 shadow" />
-      <div className="prose prose-lg mx-auto text-gray-700">
+      <div className="prose prose-lg mx-auto text-zinc-700">
         <div dangerouslySetInnerHTML={{ __html: htmlContent }} />
       </div>
     </div>

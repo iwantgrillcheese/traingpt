@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation';
 
 import CalendarShell from './CalendarShell';
+import CoachUpdateCard from '@/app/components/CoachUpdateCard';
 import PostPlanWalkthrough from '../plan/components/PostPlanWalkthrough';
 
 import { supabase } from '@/lib/supabase/client';
@@ -553,6 +554,7 @@ export default function SchedulePage() {
       ) : null}
 
       <main className="flex-grow">
+        <CoachUpdateCard />
         <CalendarShell
             sessions={enrichedSessions}
             completedSessions={completedSessions}

@@ -106,11 +106,11 @@ export default function DesktopContextPanel({
         : 'text-rose-700 bg-rose-50 border-rose-200';
 
   return (
-    <aside className="sticky top-6 h-fit rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+    <aside className="sticky top-6 h-fit rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
       <div className="mb-4">
-        <div className="text-xs text-gray-500">This week</div>
+        <div className="text-xs text-zinc-500">This week</div>
         <div className="mt-1 flex items-baseline justify-between gap-3">
-          <div className="text-lg font-semibold text-gray-900">{weekLabel}</div>
+          <div className="text-lg font-semibold text-zinc-900">{weekLabel}</div>
           <div className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${complianceTone}`}>
             {complianceThisWeek}% compliance
           </div>
@@ -118,54 +118,54 @@ export default function DesktopContextPanel({
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
-          <div className="text-xs text-gray-500">Planned</div>
-          <div className="mt-1 text-xl font-semibold text-gray-900">{plannedThisWeek}</div>
+        <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+          <div className="text-xs text-zinc-500">Planned</div>
+          <div className="mt-1 text-xl font-semibold text-zinc-900">{plannedThisWeek}</div>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
-          <div className="text-xs text-gray-500">Completed</div>
-          <div className="mt-1 text-xl font-semibold text-gray-900">{completedThisWeek}</div>
+        <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+          <div className="text-xs text-zinc-500">Completed</div>
+          <div className="mt-1 text-xl font-semibold text-zinc-900">{completedThisWeek}</div>
         </div>
       </div>
 
       <div className="mt-5">
-        <div className="text-sm font-semibold text-gray-900">Next up</div>
+        <div className="text-sm font-semibold text-zinc-900">Next up</div>
         {nextUp ? (
-          <div className="mt-2 rounded-xl border border-gray-200 bg-white p-3">
-            <div className="text-xs text-gray-500">
+          <div className="mt-2 rounded-xl border border-zinc-200 bg-white p-3">
+            <div className="text-xs text-zinc-500">
               {format(parseISO((nextUp as any).date), 'EEE, MMM d')}
             </div>
-            <div className="mt-1 text-sm font-medium text-gray-900">
+            <div className="mt-1 text-sm font-medium text-zinc-900">
               {getSessionTitle(nextUp)}
             </div>
-            <div className="mt-1 text-xs text-gray-500">
+            <div className="mt-1 text-xs text-zinc-500">
               {getSessionSport(nextUp)}
             </div>
           </div>
         ) : (
-          <div className="mt-2 text-sm text-gray-500">No upcoming sessions found.</div>
+          <div className="mt-2 text-sm text-zinc-500">No upcoming sessions found.</div>
         )}
       </div>
 
       <div className="mt-5">
-        <div className="text-sm font-semibold text-gray-900">This week mix</div>
+        <div className="text-sm font-semibold text-zinc-900">This week mix</div>
         <div className="mt-2 space-y-2">
           {Object.entries(sportCountsThisWeek)
             .sort((a, b) => b[1] - a[1])
             .slice(0, 6)
             .map(([sport, count]) => (
               <div key={sport} className="flex items-center justify-between text-sm">
-                <span className="text-gray-700 capitalize">{sport}</span>
-                <span className="text-gray-500">{count}</span>
+                <span className="text-zinc-700 capitalize">{sport}</span>
+                <span className="text-zinc-500">{count}</span>
               </div>
             ))}
           {Object.keys(sportCountsThisWeek).length === 0 ? (
-            <div className="text-sm text-gray-500">No planned sessions this week.</div>
+            <div className="text-sm text-zinc-500">No planned sessions this week.</div>
           ) : null}
         </div>
       </div>
 
-      <div className="mt-5 border-t border-gray-100 pt-4 text-xs text-gray-500">
+      <div className="mt-5 border-t border-zinc-100 pt-4 text-xs text-zinc-500">
         Tip: click any session to open the modal and generate a structured workout.
       </div>
     </aside>
