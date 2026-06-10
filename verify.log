@@ -1,0 +1,143 @@
+yarn run v1.22.22
+$ yarn lint && yarn typecheck && yarn build
+$ next lint
+`next lint` is deprecated and will be removed in Next.js 16.
+For new projects, use create-next-app to choose your preferred linter.
+For existing projects, migrate to the ESLint CLI:
+npx @next/codemod@canary next-lint-to-eslint-cli .
+
+
+./app/blog/[slug]/page.tsx
+50:7  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./app/components/StravaConnectBanner.tsx
+111:15  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+139:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./app/layout.tsx
+11:9  Warning: Custom fonts not added in `pages/_document.js` will only load for a single page. This is discouraged. See: https://nextjs.org/docs/messages/no-page-custom-font  @next/next/no-page-custom-font
+
+./app/profile/page.tsx
+46:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./app/schedule/DesktopContextPanel.tsx
+99:6  Warning: React Hook useMemo has a missing dependency: 'today'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules
+$ tsc -p tsconfig.json --noEmit
+$ next build
+   ▲ Next.js 15.5.9
+   - Environments: .env.local
+
+   Creating an optimized production build ...
+Browserslist: browsers data (caniuse-lite) is 13 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+ ✓ Compiled successfully in 27.0s
+   Skipping linting
+   Checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/21) ...
+   Generating static pages (5/21) 
+   Generating static pages (10/21) 
+   Generating static pages (15/21) 
+ ✓ Generating static pages (21/21)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                  Size  First Load JS
+┌ ○ /                                     5.56 kB         191 kB
+├ ○ /_not-found                             995 B         104 kB
+├ ○ /about                                1.28 kB         107 kB
+├ ƒ /api/calendar/export                    227 B         103 kB
+├ ƒ /api/coach-chat                         227 B         103 kB
+├ ƒ /api/dev/reset-my-data                  227 B         103 kB
+├ ƒ /api/enrich-week                        227 B         103 kB
+├ ƒ /api/finalize-plan                      227 B         103 kB
+├ ƒ /api/generate-detailed-session          227 B         103 kB
+├ ƒ /api/oura/callback                      227 B         103 kB
+├ ƒ /api/oura/connect                       227 B         103 kB
+├ ƒ /api/oura/disconnect                    227 B         103 kB
+├ ƒ /api/oura/status                        227 B         103 kB
+├ ƒ /api/oura/sync                          227 B         103 kB
+├ ƒ /api/schedule/create-session            227 B         103 kB
+├ ƒ /api/schedule/mark-done                 227 B         103 kB
+├ ƒ /api/schedule/mark-skip                 227 B         103 kB
+├ ƒ /api/schedule/update-session            227 B         103 kB
+├ ƒ /api/send-email/upcoming-week           227 B         103 kB
+├ ƒ /api/send-email/welcome                 227 B         103 kB
+├ ƒ /api/send-welcome-email                 227 B         103 kB
+├ ƒ /api/strava_disconnect                  227 B         103 kB
+├ ƒ /api/strava_sync                        227 B         103 kB
+├ ƒ /api/strava/analyze                     227 B         103 kB
+├ ƒ /api/strava/callback                    227 B         103 kB
+├ ƒ /api/strava/disconnect                  227 B         103 kB
+├ ƒ /api/strava/mobile-connect              227 B         103 kB
+├ ƒ /api/strava/mobile-status               227 B         103 kB
+├ ƒ /api/strava/training-profile            227 B         103 kB
+├ ƒ /api/stripe/checkout                    227 B         103 kB
+├ ƒ /api/stripe/confirm-session             227 B         103 kB
+├ ƒ /api/stripe/portal                      227 B         103 kB
+├ ƒ /api/weekly-summary                     227 B         103 kB
+├ ƒ /api/weekly-summary-text                227 B         103 kB
+├ ƒ /auth/callback                          227 B         103 kB
+├ ƒ /auth/mobile-callback                   227 B         103 kB
+├ ○ /blog                                 6.33 kB         153 kB
+├ ƒ /blog/[slug]                            227 B         103 kB
+├ ƒ /coaching                             79.8 kB         289 kB
+├ ○ /fueling                                166 B         106 kB
+├ ○ /login                                1.61 kB         143 kB
+├ ○ /oura                                  2.4 kB         109 kB
+├ ○ /payment/success                      2.49 kB         105 kB
+├ ○ /plan                                 8.88 kB         207 kB
+├ ƒ /plan-preview/[planId]                5.14 kB         204 kB
+├ ○ /privacy                              1.39 kB         104 kB
+├ ○ /profile                              1.07 kB         142 kB
+├ ○ /race                                 3.55 kB         152 kB
+├ ○ /races                                1.53 kB         104 kB
+├ ○ /robots.txt                             227 B         103 kB
+├ ○ /schedule                             53.4 kB         262 kB
+├ ○ /settings                             6.29 kB         151 kB
+├ ○ /sitemap.xml                            227 B         103 kB
+└ ○ /terms                                1.18 kB         104 kB
++ First Load JS shared by all              103 kB
+  ├ chunks/1255-99293dce922b7178.js       46.3 kB
+  ├ chunks/4bd1b696-f785427dddbba9fb.js   54.2 kB
+  └ other shared chunks (total)           1.97 kB
+
+Route (pages)                                Size  First Load JS
+─ ƒ /api/stripe/webhook                       0 B        99.1 kB
++ First Load JS shared by all             99.1 kB
+  ├ chunks/framework-ec21dd808c5d3f81.js  59.7 kB
+  ├ chunks/main-ae1826a167f2c545.js       37.5 kB
+  └ other shared chunks (total)           1.93 kB
+
+ƒ Middleware                              65.2 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+$ next-sitemap
+✨ [next-sitemap] Loading next-sitemap config: file:///workspaces/traingpt/next-sitemap.config.js
+✅ [next-sitemap] Generation completed
+┌───────────────┬────────┐
+│ (index)       │ Values │
+├───────────────┼────────┤
+│ indexSitemaps │ 1      │
+│ sitemaps      │ 1      │
+└───────────────┴────────┘
+-----------------------------------------------------
+ SITEMAP INDICES 
+-----------------------------------------------------
+
+   ○ https://www.traingpt.co/sitemap.xml
+
+
+-----------------------------------------------------
+ SITEMAPS 
+-----------------------------------------------------
+
+   ○ https://www.traingpt.co/sitemap-0.xml
+
+
+Done in 70.67s.

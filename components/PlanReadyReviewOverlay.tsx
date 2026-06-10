@@ -127,6 +127,8 @@ export default function PlanReadyReviewOverlay() {
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [data, setData] = useState<ReviewData | null>(null);
+  const [dailyEmailOptIn, setDailyEmailOptIn] = useState(true);
+  const [savingOptIn, setSavingOptIn] = useState(false);
 
   const shouldActivate = useCallback(() => {
     if (typeof window === 'undefined') return false;
@@ -189,6 +191,14 @@ export default function PlanReadyReviewOverlay() {
     const totalMinutes = week.reduce((total, session) => total + (Number(session.duration) || 0), 0);
     const firstThree = week.slice(0, 3);
 
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const firstUpcoming =
+      sessions.find((session) => {
+        const date = parseDate(session.date);
+        return date && date >= todayStart && normalizeSport(session.sport) !== 'Rest';
+      }) ?? null;
+
     return {
       planId: plan.id,
       raceLabel: plan.race_type ?? plan.plan?.params?.raceType ?? 'Training plan',
@@ -200,10 +210,30 @@ export default function PlanReadyReviewOverlay() {
       weekSessions: week.length,
       weekVolume: formatDuration(totalMinutes),
       firstThree,
+      firstUpcoming,
     };
   }, [data]);
 
+  const persistDailyEmailOptIn = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      setSavingOptIn(true);
+      const { error } = await supabase
+        .from('profiles')
+        .update({ daily_email_opt_in: dailyEmailOptIn })
+        .eq('id', user.id);
+      if (error) throw error;
+      track('daily_email_opt_in_set', { opted_in: dailyEmailOptIn, source: 'plan_ready_review' });
+    } catch (error) {
+      // Non-fatal: the overlay should never block on a preference write.
+      console.error('[PlanReadyReviewOverlay] failed to save daily email preference', error);
+    } finally {
+      setSavingOptIn(false);
+    }
+  }, [dailyEmailOptIn, user?.id]);
+
   const close = () => {
+    void persistDailyEmailOptIn();
     setOpen(false);
     removeWalkthroughParam();
   };
@@ -305,6 +335,28 @@ export default function PlanReadyReviewOverlay() {
               )}
             </div>
           </section>
+
+          {summary.firstUpcoming ? (
+            <section className="mt-4 rounded-[1.5rem] bg-zinc-950 p-4 text-white sm:p-5">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">Your first session</div>
+              <div className="mt-1 text-xl font-semibold tracking-[-0.04em]">
+                {formatShortDate(summary.firstUpcoming.date)} — {cleanTitle(summary.firstUpcoming.title)}
+                {formatDuration(summary.firstUpcoming.duration) ? ` · ${formatDuration(summary.firstUpcoming.duration)}` : ''}
+              </div>
+              <label className="mt-4 flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-white/15 bg-white/5 p-3">
+                <span className="text-sm leading-5 text-zinc-200">
+                  Email me each morning I have a session — what to do and at what intensity, before the day gets busy.
+                </span>
+                <input
+                  type="checkbox"
+                  checked={dailyEmailOptIn}
+                  onChange={(event) => setDailyEmailOptIn(event.target.checked)}
+                  disabled={savingOptIn}
+                  className="h-5 w-5 shrink-0 accent-white"
+                />
+              </label>
+            </section>
+          ) : null}
 
           <div className="mt-4 grid gap-2 sm:grid-cols-3">
             <button type="button" onClick={close} className="min-h-12 rounded-2xl bg-zinc-950 px-4 text-sm font-semibold text-white">

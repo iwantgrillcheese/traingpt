@@ -1,0 +1,9 @@
+# *
+User-agent: *
+Allow: /
+
+# Host
+Host: https://www.traingpt.co
+
+# Sitemaps
+Sitemap: https://www.traingpt.co/sitemap.xml
