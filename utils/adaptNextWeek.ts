@@ -116,7 +116,10 @@ function eachSession(week: WeekJson, fn: (session: StructuredPlanSession, date: 
 
 function buildSummary(inputs: AdaptationInputs, changes: AdaptationChange[]): string {
   const { completedCount, plannedCount } = inputs;
-  const base = `You completed ${completedCount} of ${plannedCount} sessions last week.`;
+  const base =
+    plannedCount > 0
+      ? `You completed ${completedCount} of ${plannedCount} sessions last week.`
+      : 'Last week had no scheduled sessions.';
 
   if (inputs.nextWeekIsRaceWeek) {
     return `${base} It's race week — the plan stays exactly as designed. Trust the taper.`;
@@ -166,6 +169,19 @@ export function adaptNextWeek({
     return { week, changes, summary: buildSummary(inputs, changes) };
   }
 
+  // Rule 0.5 — dormancy guard: a completely silent week (no completions, no
+  // Strava, no manual marks) means the athlete is paused, not struggling.
+  // Rewriting a plan nobody is following helps no one, and repeating a 20%
+  // trim every silent week would shrink the plan into nothing. Adaptation
+  // rules below are for athletes who showed up partially.
+  if (inputs.completedCount === 0) {
+    return {
+      week,
+      changes,
+      summary: `Last week didn't happen — life does that sometimes. The plan is right where you left it: this week runs as written, and the only move that matters is doing the very next session on the calendar.`,
+    };
+  }
+
   // Rule 1 — anchor repeat: a missed Long Ride / Long Run means next week's
   // matching anchor must not progress past what was already missed.
   for (const missed of inputs.missedAnchors) {
@@ -195,7 +211,9 @@ export function adaptNextWeek({
   }
 
   const lowCompliance = inputs.complianceRatio < 0.5 && inputs.plannedCount >= 3;
-  const midCompliance = !lowCompliance && (inputs.complianceRatio < 0.8 || inputs.missedAnchors.length > 0);
+  // A missed anchor at otherwise-high compliance is handled by the cap rule
+  // alone — downgrading quality on top of it double-punishes one bad Saturday.
+  const midCompliance = !lowCompliance && inputs.complianceRatio < 0.8;
 
   // Rule 2 — reset week: most of last week was missed. Trim volume, strip intensity.
   if (lowCompliance && !inputs.nextWeekDeload) {

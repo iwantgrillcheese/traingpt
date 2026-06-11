@@ -588,8 +588,8 @@ export default function Home() {
               endurance coaching
             </div>
             <h1 className="mt-6 max-w-4xl text-6xl font-black leading-[0.9] tracking-[-0.08em] text-[#101114] sm:text-7xl lg:text-[5.6rem]">
-              Smarter training.{" "}
-              <span className="text-[#2563FF]">Stronger you.</span>
+              Training that adapts{" "}
+              <span className="text-[#2563FF]">to the week you had.</span>
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-8 text-[#4B5563]">
               TrainGPT builds your plan around your race, schedule, and real

@@ -3,3 +3,5 @@ node_modules
 .vercel
 .env*.local
 tsconfig.tsbuildinfo
+verify.log
+public/sitemap-0.xml
