@@ -33,7 +33,7 @@ $ next build
 Browserslist: browsers data (caniuse-lite) is 13 months old. Please run:
   npx update-browserslist-db@latest
   Why you should do it regularly: https://github.com/browserslist/update-db#readme
- ✓ Compiled successfully in 27.0s
+ ✓ Compiled successfully in 25.1s
    Skipping linting
    Checking validity of types ...
    Collecting page data ...
@@ -142,4 +142,4 @@ $ next-sitemap
    ○ https://www.traingpt.co/sitemap-0.xml
 
 
-Done in 71.71s.
+Done in 66.50s.

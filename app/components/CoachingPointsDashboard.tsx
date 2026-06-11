@@ -393,6 +393,11 @@ export default function CoachingPointsDashboard({
         : readiness >= 35
           ? "Needs consistency"
           : "Foundation";
+
+  // Day-one honesty: with zero completed work and zero points, a numeric
+  // readiness grade is noise that reads as a punishment. Show a baseline
+  // state until there is real signal to grade.
+  const hasReadinessSignal = completionPct > 0 || pointsPct > 0;
   const deltaText =
     Math.abs(deltaMinutes) < 5
       ? "flat vs last week"
@@ -556,26 +561,26 @@ export default function CoachingPointsDashboard({
               <div className="flex h-36 w-36 items-center justify-center rounded-full border-[12px] border-[#C6F33C]">
                 <div className="text-center">
                   <p className="text-5xl font-semibold tracking-tight">
-                    {readiness}
+                    {hasReadinessSignal ? readiness : "—"}
                   </p>
-                  <p className="text-lg font-semibold text-[#6B7280]">/100</p>
+                  <p className="text-lg font-semibold text-[#6B7280]">{hasReadinessSignal ? "/100" : ""}</p>
                 </div>
               </div>
               <div>
                 <h2 className="text-3xl font-semibold tracking-tight text-[#101114]">
-                  {readinessLabel}
+                  {hasReadinessSignal ? readinessLabel : "Building your baseline"}
                 </h2>
                 <p className="mt-3 max-w-xl text-base leading-7 text-[#4B5563]">
-                  Target 80+ by race week. This reflects consistency, plan
-                  adherence, key sessions, fatigue control, and Strava-confirmed
-                  work.
+                  {hasReadinessSignal
+                    ? "Target 80+ by race week. This reflects consistency, plan adherence, key sessions, fatigue control, and Strava-confirmed work."
+                    : "Readiness starts measuring once there is real work to grade — complete your first sessions and sync Strava."}
                 </p>
               </div>
             </div>
             <div className="mt-6 h-2 rounded-full bg-[#E9ECE8]">
               <div
                 className="h-2 rounded-full bg-[#C6F33C]"
-                style={{ width: `${readiness}%` }}
+                style={{ width: `${hasReadinessSignal ? readiness : 0}%` }}
               />
             </div>
           </div>

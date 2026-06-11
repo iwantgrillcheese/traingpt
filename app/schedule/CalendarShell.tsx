@@ -438,9 +438,11 @@ export default function CalendarShell({
   const commandDuration = commandSession?.duration
     ? formatMinutes(Number(commandSession.duration))
     : null;
-  const readinessScore = weeklyStats.planned
-    ? Math.min(95, Math.max(28, 52 + Math.round(weeklyStats.adherence * 0.36)))
-    : 48;
+  // The rail ring shows THIS WEEK'S adherence — a real number the athlete can
+  // verify against the calendar below it. Race readiness is computed (for
+  // real) on the Coach page only; inventing a second score here put two
+  // contradictory numbers on adjacent screens.
+  const weekScore = weeklyStats.planned ? weeklyStats.adherence : null;
 
   return (
     <main className="min-h-[100dvh] bg-[#F7F6F2] text-[#101114]">
@@ -524,14 +526,6 @@ export default function CalendarShell({
                 {weekPhaseSummary || "Active training block"}
               </span>
               <span>{weekLabel}</span>
-              <span>
-                {weeklyStats.minutes
-                  ? `${formatMinutes(weeklyStats.minutes)} planned`
-                  : "Volume pending"}
-              </span>
-              <span>
-                {weeklyStats.done}/{weeklyStats.planned || 0} complete
-              </span>
             </div>
           </div>
         </header>
@@ -573,32 +567,34 @@ export default function CalendarShell({
 
                 <div className="border-t border-[#E3E0D8] bg-[#F7F6F2] p-5 lg:border-l lg:border-t-0 lg:p-6">
                   <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[#9CA3AF]">
-                    Race readiness
+                    This week
                   </div>
                   <div className="mt-4 flex items-center gap-4 lg:block">
                     <div
                       className="grid h-24 w-24 shrink-0 place-items-center rounded-full p-2"
                       style={{
-                        background: `conic-gradient(#C6F33C 0 ${readinessScore}%, #E3E0D8 ${readinessScore}% 100%)`,
+                        background: `conic-gradient(#C6F33C 0 ${weekScore ?? 0}%, #E3E0D8 ${weekScore ?? 0}% 100%)`,
                       }}
                     >
                       <div className="grid h-full w-full place-items-center rounded-full bg-white">
                         <span className="text-3xl font-black tracking-[-0.07em] text-[#101114]">
-                          {readinessScore}
+                          {weekScore ?? "—"}
                         </span>
                       </div>
                     </div>
                     <div className="mt-0 min-w-0 lg:mt-4">
                       <div className="text-lg font-black tracking-[-0.04em] text-[#101114]">
-                        {readinessScore >= 80
-                          ? "On track"
-                          : readinessScore >= 65
-                            ? "Building"
-                            : "Needs consistency"}
+                        {weekScore === null
+                          ? "No sessions scheduled"
+                          : weekScore >= 80
+                            ? "On plan"
+                            : weekScore >= 40
+                              ? "Building the week"
+                              : "Time to bank one"}
                       </div>
                       <p className="mt-1 text-[13px] leading-5 text-[#6B7280]">
-                        Target 80+ by race week. Consistency and key sessions
-                        move this.
+                        Sessions completed vs planned this week — the Sunday
+                        rewrite works from this.
                       </p>
                     </div>
                   </div>
@@ -618,16 +614,6 @@ export default function CalendarShell({
                       <span className="text-[15px] font-black text-[#101114]">
                         {weeklyStats.minutes
                           ? formatMinutes(weeklyStats.minutes)
-                          : "—"}
-                      </span>
-                    </div>
-                    <div className="rounded-2xl bg-white px-3 py-2">
-                      <span className="block text-[11px] font-bold text-[#9CA3AF]">
-                        Adherence
-                      </span>
-                      <span className="text-[15px] font-black text-[#101114]">
-                        {weeklyStats.planned
-                          ? `${weeklyStats.adherence}%`
                           : "—"}
                       </span>
                     </div>

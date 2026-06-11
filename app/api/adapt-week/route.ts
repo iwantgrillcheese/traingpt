@@ -182,7 +182,7 @@ export async function GET(req: NextRequest) {
           .lte('date', endedWeekEnd),
         supabase
           .from('completed_sessions')
-          .select('date, session_title')
+          .select('date, session_title, status')
           .eq('user_id', planRow.user_id)
           .gte('date', endedWeekStart)
           .lte('date', endedWeekEnd),
@@ -196,10 +196,12 @@ export async function GET(req: NextRequest) {
 
       const planned = ((sessionRows ?? []) as DbSessionRow[]).filter((row) => isCountableSport(row.sport));
 
+      // completed_sessions stores both 'done' and 'skipped' rows — a skipped
+      // session must never count as completed work.
       const completedKeys = new Set(
-        ((completedRows ?? []) as Array<{ date: string | null; session_title: string | null }>).map(
-          (row) => `${row.date}::${String(row.session_title ?? '').trim().toLowerCase()}`
-        )
+        ((completedRows ?? []) as Array<{ date: string | null; session_title: string | null; status?: string | null }>)
+          .filter((row) => String(row.status ?? 'done').toLowerCase() !== 'skipped')
+          .map((row) => `${row.date}::${String(row.session_title ?? '').trim().toLowerCase()}`)
       );
 
       const { merged } = mergeSessionsWithStrava(planned as any[], (stravaRows ?? []) as any[]);
