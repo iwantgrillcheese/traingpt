@@ -13,6 +13,7 @@ export type Session = {
   intensity?: string | null;
   coach_note?: string | null;
   structured_workout: string | null;
+  athlete_notes?: string | null;
   strava_id: number | null;
 };
 

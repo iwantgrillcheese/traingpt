@@ -1,12 +1,13 @@
 'use client';
 
 import { Dialog } from '@headlessui/react';
-import { format, parseISO } from 'date-fns';
-import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { format, isAfter, parseISO, startOfDay } from 'date-fns';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { supabase } from '@/lib/supabase/client';
+
+import ActivityStatsPanel from './ActivityStatsPanel';
 import { track } from '@/lib/analytics/posthog-client';
+import { supabase } from '@/lib/supabase/client';
 import type { CompletedSession, Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 
@@ -23,23 +24,14 @@ type Props = {
   raceGoal?: string | null;
 };
 
-type DetailSection = {
-  label: string;
-  body: string;
-};
+type DetailSection = { label: string; body: string };
+type WorkoutSection = { title: string; items: string[] };
+type NotesStatus = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 
 function XIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
       <path d="M7 7l10 10M17 7 7 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function SparkIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" {...props}>
-      <path d="M10 2.8 11.6 8l5.4 2-5.4 2L10 17.2 8.4 12 3 10l5.4-2L10 2.8Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -68,6 +60,16 @@ function formatMinutes(value?: number | null) {
   return m ? `${h}h ${m}m` : `${h}h`;
 }
 
+function formatMovingTime(seconds?: number | null) {
+  if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds <= 0) return null;
+  return formatMinutes(seconds / 60);
+}
+
+function formatDistance(meters?: number | null) {
+  if (typeof meters !== 'number' || !Number.isFinite(meters) || meters <= 0) return null;
+  return `${(meters / 1609.34).toFixed(1)} mi`;
+}
+
 function cleanDetails(value?: string | null) {
   return String(value ?? '')
     .replace(/\b(details\s*[—–-]\s*){2,}/gi, '')
@@ -82,7 +84,6 @@ function cleanDetails(value?: string | null) {
 function parseSections(value?: string | null): DetailSection[] {
   const text = cleanDetails(value);
   if (!text) return [];
-
   const sections = text
     .split('\n')
     .map((line) => line.trim())
@@ -93,18 +94,45 @@ function parseSections(value?: string | null): DetailSection[] {
       return { label: match[1].replace(/^coach note$/i, 'Coach note'), body: match[2].trim() };
     })
     .filter((item): item is DetailSection => Boolean(item));
-
   return sections.length ? sections : [{ label: 'Workout', body: text }];
 }
 
-function summarizeSections(sections: DetailSection[]) {
-  const purpose = sections.find((section) => section.label.toLowerCase() === 'purpose')?.body;
-  const workout = sections.find((section) => section.label.toLowerCase() === 'workout')?.body;
-  const fallback = sections[0]?.body;
-  return {
-    purpose: purpose ?? fallback ?? 'Execute this session with steady effort and good form.',
-    workout: workout ?? sections.find((section) => section.label.toLowerCase() === 'intensity')?.body ?? null,
-  };
+function parseWorkout(raw?: string | null): WorkoutSection[] {
+  const text = String(raw ?? '').trim();
+  if (!text) return [];
+  const lines = text.split('\n').map((line) => line.trim()).filter(Boolean);
+  const headings = ['warmup', 'warm-up', 'main set', 'main', 'cooldown', 'cool-down', 'fueling', 'workout'];
+  const sections: WorkoutSection[] = [];
+  let current: WorkoutSection | null = null;
+
+  for (const line of lines) {
+    const clean = line.replace(/\*\*/g, '').replace(/[:：]$/g, '').trim();
+    const lower = clean.toLowerCase();
+    const isHeading = (line.endsWith(':') || line.endsWith('：') || /^\*\*.*\*\*:/.test(line)) && headings.includes(lower);
+    if (/^workout\s*title\s*:/i.test(clean)) continue;
+
+    if (isHeading) {
+      current = { title: clean, items: [] };
+      sections.push(current);
+      continue;
+    }
+
+    if (!current) {
+      current = { title: 'Workout', items: [] };
+      sections.push(current);
+    }
+    current.items.push(line.replace(/^[-•]\s*/, '').replace(/\*\*/g, '').trim());
+  }
+
+  return sections.filter((section) => section.items.length > 0);
+}
+
+function notesStatusText(status: NotesStatus) {
+  if (status === 'dirty') return 'Unsaved';
+  if (status === 'saving') return 'Saving…';
+  if (status === 'saved') return 'Saved';
+  if (status === 'error') return 'Couldn’t save';
+  return 'Autosaves';
 }
 
 export default function MobileSessionModal({
@@ -116,17 +144,31 @@ export default function MobileSessionModal({
   onCompletedUpdate,
   onSessionDeleted,
   onSessionUpdated,
-  weekPhase,
   raceGoal,
 }: Props) {
-  const router = useRouter();
-  const [showDetails, setShowDetails] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [marking, setMarking] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [plusRequired, setPlusRequired] = useState(false);
-  const [upgradeUrl, setUpgradeUrl] = useState('/settings');
-  const [output, setOutput] = useState<string | null>(session?.structured_workout ?? null);
+  const [notesDraft, setNotesDraft] = useState('');
+  const [notesStatus, setNotesStatus] = useState<NotesStatus>('idle');
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedNotes = useRef('');
+
+  useEffect(() => {
+    const notes = session?.athlete_notes ?? '';
+    setNotesDraft(notes);
+    lastSavedNotes.current = notes;
+    setNotesStatus('idle');
+    setErrorMessage(null);
+  }, [session?.id, session?.athlete_notes]);
+
+  useEffect(() => {
+    if (!open || !session?.id) return;
+    track('session_opened', { sport: session.sport || 'unknown', date: session.date || null, is_planned: true });
+  }, [open, session?.id, session?.sport, session?.date]);
+
+  useEffect(() => () => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+  }, []);
 
   const manualStatus = useMemo<'done' | 'skipped' | null>(() => {
     const match = completedSessions.find((item) => item.date === session?.date && item.session_title === session?.title);
@@ -136,15 +178,18 @@ export default function MobileSessionModal({
 
   if (!session) return null;
 
+  const sessionDate = parseISO(session.date);
+  const formattedDate = format(sessionDate, 'EEE, MMM d');
+  const isFutureSession = isAfter(startOfDay(sessionDate), startOfDay(new Date()));
   const title = cleanTitle(session.title);
   const sport = normalizeSport(session.sport);
-  const formattedDate = format(parseISO(session.date), 'EEE, MMM d');
   const plannedDuration = formatMinutes(session.duration ?? null);
+  const completedDuration = formatMovingTime(stravaActivity?.moving_time ?? null);
+  const completedDistance = formatDistance(stravaActivity?.distance ?? null);
   const isCompleted = Boolean(stravaActivity) || manualStatus === 'done';
   const isSkipped = !stravaActivity && manualStatus === 'skipped';
   const sections = parseSections(session.details);
-  const summary = summarizeSections(sections);
-  const workoutSections = parseSections(output);
+  const workoutSections = parseWorkout(session.structured_workout);
 
   const applyLocalStatus = (nextStatus: 'done' | 'skipped' | null) => {
     const base = completedSessions.filter((item) => item.date !== session.date || item.session_title !== session.title);
@@ -153,6 +198,11 @@ export default function MobileSessionModal({
   };
 
   const updateStatus = async (mode: 'done' | 'skipped') => {
+    if (mode === 'done' && isFutureSession) {
+      setErrorMessage('Future workouts cannot be marked complete yet. Move the session or wait until the workout day.');
+      return;
+    }
+
     setMarking(true);
     setErrorMessage(null);
     const previous = completedSessions;
@@ -164,21 +214,14 @@ export default function MobileSessionModal({
       const res = await fetch(mode === 'done' ? '/api/schedule/mark-done' : '/api/schedule/mark-skip', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_date: session.date,
-          session_title: session.title,
-          undo: shouldUndo,
-          clientUserId: auth.user?.id ?? null,
-        }),
+        body: JSON.stringify({ session_date: session.date, session_title: session.title, undo: shouldUndo, clientUserId: auth.user?.id ?? null }),
       });
-
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) {
         onCompletedUpdate(previous);
         setErrorMessage(payload?.error || 'Could not update session status.');
         return;
       }
-
       const active = mode === 'done' ? payload?.completed === true : payload?.skipped === true;
       onCompletedUpdate(applyLocalStatus(active ? mode : null));
     } catch (error) {
@@ -190,58 +233,37 @@ export default function MobileSessionModal({
     }
   };
 
-  const goToUpgrade = () => {
-    track('plus_upgrade_clicked', { feature: 'detailed_workouts', source: 'mobile_session_modal' });
-    router.push(upgradeUrl);
-  };
-
-  const handleGenerate = async () => {
-    setLoading(true);
+  const saveNotes = async (nextNotes: string) => {
+    if (nextNotes === lastSavedNotes.current) {
+      setNotesStatus('idle');
+      return;
+    }
+    setNotesStatus('saving');
     setErrorMessage(null);
-    setPlusRequired(false);
-
     try {
-      const res = await fetch('/api/generate-detailed-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId: session.id,
-          title: session.title,
-          sport: session.sport,
-          date: session.date,
-          details: session.details ?? '',
-          fueling: { enabled: false },
-        }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data?.structured_workout) {
-        if (data?.code === 'PLUS_REQUIRED') {
-          setPlusRequired(true);
-          setUpgradeUrl(
-            session.plan_id
-              ? `/plan-preview/${session.plan_id}?feature=detailed-workouts`
-              : typeof data?.upgradeUrl === 'string'
-                ? data.upgradeUrl
-                : '/settings'
-          );
-          track('plus_gate_viewed', { feature: 'detailed_workouts', source: 'mobile_session_modal' });
-          return;
-        }
-        setErrorMessage(data?.error || 'Failed to generate detailed workout.');
+      const cleanNotes = nextNotes.trim() || null;
+      const { error } = await supabase.from('sessions').update({ athlete_notes: cleanNotes }).eq('id', session.id);
+      if (error) {
+        setNotesStatus('error');
+        setErrorMessage('Could not save notes.');
         return;
       }
-
-      const structured = String(data.structured_workout).trim();
-      setOutput(structured);
-      setShowDetails(true);
-      onSessionUpdated?.({ ...session, structured_workout: structured, details: session.details });
+      lastSavedNotes.current = nextNotes;
+      setNotesStatus('saved');
+      onSessionUpdated?.({ ...session, athlete_notes: cleanNotes });
+      window.setTimeout(() => setNotesStatus('idle'), 1200);
     } catch (error) {
       console.error(error);
-      setErrorMessage('Unexpected error generating workout.');
-    } finally {
-      setLoading(false);
+      setNotesStatus('error');
+      setErrorMessage('Unexpected error saving notes.');
     }
+  };
+
+  const scheduleNotesSave = (nextNotes: string) => {
+    setNotesDraft(nextNotes);
+    setNotesStatus(nextNotes === lastSavedNotes.current ? 'idle' : 'dirty');
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => saveNotes(nextNotes), 700);
   };
 
   const handleDelete = async () => {
@@ -262,9 +284,8 @@ export default function MobileSessionModal({
       <div className="fixed inset-x-0 bottom-0 flex max-h-[92dvh] items-end justify-center px-2 pt-10">
         <Dialog.Panel className="flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[2rem] border border-zinc-200 bg-white shadow-[0_-24px_80px_rgba(15,23,42,0.24)]">
           <div className="mx-auto mt-2 h-1.5 w-12 rounded-full bg-zinc-200" />
-
           <div className="border-b border-zinc-200 px-5 pb-4 pt-4">
-            <div className="mb-3 flex items-start justify-between gap-3">
+            <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                   <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-[12px] font-medium text-zinc-600">{sport}</span>
@@ -274,12 +295,12 @@ export default function MobileSessionModal({
                 </div>
                 <Dialog.Title className="text-[30px] font-semibold leading-[0.98] tracking-[-0.055em] text-zinc-950">{title}</Dialog.Title>
                 <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[14px] leading-5 text-zinc-500">
-                  {plannedDuration ? <span>{plannedDuration}</span> : null}
+                  {plannedDuration ? <span>Planned {plannedDuration}</span> : null}
+                  {completedDuration ? <span>Completed {completedDuration}</span> : null}
+                  {completedDistance ? <span>{completedDistance}</span> : null}
                   {raceGoal ? <span>{raceGoal}</span> : null}
-                  {weekPhase ? <span>{weekPhase}</span> : null}
                 </div>
               </div>
-
               <button type="button" onClick={onClose} className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-zinc-200 bg-white text-zinc-500 active:scale-[0.98]">
                 <XIcon className="h-5 w-5" />
               </button>
@@ -290,84 +311,61 @@ export default function MobileSessionModal({
             {errorMessage ? <div className="mb-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-[13px] font-medium text-rose-700">{errorMessage}</div> : null}
 
             <section className="rounded-[1.5rem] border border-zinc-200 bg-zinc-50 p-4">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">Overview</div>
-              <p className="mt-2 text-[15px] leading-6 text-zinc-800">{summary.purpose}</p>
-              {summary.workout ? <p className="mt-3 border-t border-zinc-200 pt-3 text-[14px] leading-6 text-zinc-600">{summary.workout}</p> : null}
-            </section>
-
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                disabled={marking}
-                onClick={() => updateStatus('done')}
-                className={clsx('min-h-12 rounded-2xl border px-3 text-[14px] font-semibold', isCompleted ? 'border-zinc-950 bg-zinc-950 text-white' : 'border-zinc-200 bg-white text-zinc-800')}
-              >
-                {manualStatus === 'done' ? 'Undo done' : 'Mark done'}
-              </button>
-              <button
-                type="button"
-                disabled={marking || Boolean(stravaActivity)}
-                onClick={() => updateStatus('skipped')}
-                className={clsx('min-h-12 rounded-2xl border px-3 text-[14px] font-semibold disabled:opacity-50', isSkipped ? 'border-zinc-300 bg-zinc-100 text-zinc-800' : 'border-zinc-200 bg-white text-zinc-800')}
-              >
-                {isSkipped ? 'Unskip' : 'Skip'}
-              </button>
-            </div>
-
-            <section className="mt-3 rounded-[1.5rem] border border-zinc-200 bg-white p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">Detailed workout</div>
-                  <p className="mt-1 text-[14px] leading-5 text-zinc-500">Warm-up, main set, cooldown, and optional fueling.</p>
-                </div>
-                <span className="rounded-full bg-zinc-950 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white">Plus</span>
+              <div className="space-y-4">
+                {sections.length ? sections.map((section) => (
+                  <div key={section.label}>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">{section.label}</div>
+                    <p className="mt-1 text-[15px] leading-6 text-zinc-800">{section.body}</p>
+                  </div>
+                )) : <p className="text-[14px] leading-6 text-zinc-500">No detailed prescription was saved for this session.</p>}
               </div>
-
-              {workoutSections.length && showDetails ? (
-                <div className="mt-4 space-y-3">
-                  {workoutSections.map((section) => (
-                    <div key={section.label} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
-                      <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-zinc-400">{section.label}</div>
-                      <p className="mt-1 text-[14px] leading-6 text-zinc-700">{section.body}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-
-              {plusRequired ? (
-                <button type="button" onClick={goToUpgrade} className="mt-4 min-h-12 w-full rounded-2xl bg-zinc-950 px-4 text-[14px] font-semibold text-white">
-                  Unlock Plus
-                </button>
-              ) : (
-                <button type="button" onClick={handleGenerate} disabled={loading} className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-zinc-950 px-4 text-[14px] font-semibold text-white disabled:opacity-60">
-                  <SparkIcon className="h-4 w-4" />
-                  {loading ? 'Generating…' : output ? 'Regenerate details' : 'Generate details'}
-                </button>
-              )}
             </section>
 
-            {sections.length > 1 ? (
-              <button type="button" onClick={() => setShowDetails((value) => !value)} className="mt-3 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-[14px] font-semibold text-zinc-700">
-                {showDetails ? 'Hide full plan details' : 'Show full plan details'}
-              </button>
-            ) : null}
-
-            {showDetails && sections.length > 1 ? (
+            {workoutSections.length ? (
               <section className="mt-3 rounded-[1.5rem] border border-zinc-200 bg-white p-4">
-                <div className="space-y-3">
-                  {sections.map((section) => (
-                    <div key={section.label} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
-                      <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-zinc-400">{section.label}</div>
-                      <p className="mt-1 text-[14px] leading-6 text-zinc-700">{section.body}</p>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">Workout structure</div>
+                <div className="mt-3 space-y-3">
+                  {workoutSections.map((section) => (
+                    <div key={section.title} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
+                      <div className="text-[14px] font-semibold text-zinc-950">{section.title}</div>
+                      <ul className="mt-2 space-y-1.5 text-[14px] leading-6 text-zinc-700">
+                        {section.items.map((item, index) => (
+                          <li key={`${section.title}-${index}`} className="flex gap-2"><span className="mt-2.5 h-1 w-1 shrink-0 rounded-full bg-zinc-400" /><span>{item}</span></li>
+                        ))}
+                      </ul>
                     </div>
                   ))}
                 </div>
               </section>
             ) : null}
 
-            <button type="button" onClick={handleDelete} className="mx-auto mt-4 block px-4 py-2 text-[13px] font-medium text-zinc-300">
-              Delete session
-            </button>
+            {stravaActivity ? <div className="mt-3"><ActivityStatsPanel activity={stravaActivity} sportType={session.sport} plannedSession={session} /></div> : null}
+
+            <section className="mt-3 rounded-[1.5rem] border border-zinc-200 bg-zinc-50 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">Athlete notes</div>
+                <div className={clsx('text-[12px] font-semibold', notesStatus === 'error' ? 'text-rose-600' : 'text-zinc-400')}>{notesStatusText(notesStatus)}</div>
+              </div>
+              <textarea
+                value={notesDraft}
+                onChange={(event) => scheduleNotesSave(event.target.value)}
+                onBlur={() => saveNotes(notesDraft)}
+                placeholder="How did this feel? Add anything your coach should know."
+                rows={4}
+                className="mt-3 w-full resize-none rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-[14px] leading-6 text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-zinc-400"
+              />
+            </section>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button type="button" disabled={marking || (isFutureSession && manualStatus !== 'done')} onClick={() => updateStatus('done')} className={clsx('min-h-12 rounded-2xl border px-3 text-[14px] font-semibold disabled:opacity-45', isCompleted ? 'border-zinc-950 bg-zinc-950 text-white' : 'border-zinc-200 bg-white text-zinc-800')}>
+                {isFutureSession && manualStatus !== 'done' ? 'Locked' : manualStatus === 'done' ? 'Undo done' : 'Mark done'}
+              </button>
+              <button type="button" disabled={marking || Boolean(stravaActivity)} onClick={() => updateStatus('skipped')} className={clsx('min-h-12 rounded-2xl border px-3 text-[14px] font-semibold disabled:opacity-50', isSkipped ? 'border-zinc-300 bg-zinc-100 text-zinc-800' : 'border-zinc-200 bg-white text-zinc-800')}>
+                {isSkipped ? 'Unskip' : 'Skip'}
+              </button>
+            </div>
+
+            <button type="button" onClick={handleDelete} className="mx-auto mt-4 block px-4 py-2 text-[13px] font-medium text-zinc-300">Delete session</button>
           </div>
         </Dialog.Panel>
       </div>
