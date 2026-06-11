@@ -1,6 +1,8 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { supabase } from "@/lib/supabase/client";
 
 import {
   addDays,
@@ -124,24 +126,6 @@ function getActivityDate(activity: StravaActivity) {
   return safeParseDate(activity.start_date_local || activity.start_date);
 }
 
-function sessionPriority(session: Session) {
-  const title =
-    `${session.title ?? ""} ${session.details ?? ""} ${session.purpose ?? ""}`.toLowerCase();
-  const duration = sessionDurationMinutes(session);
-  let score = 0;
-  if (title.includes("long")) score += 8;
-  if (title.includes("brick")) score += 8;
-  if (title.includes("threshold")) score += 7;
-  if (title.includes("tempo")) score += 6;
-  if (title.includes("interval")) score += 6;
-  if (title.includes("race")) score += 5;
-  if (title.includes("endurance")) score += 3;
-  if (duration >= 90) score += 4;
-  if (duration >= 150) score += 4;
-  if (session.sport === "Rest") score -= 10;
-  return score;
-}
-
 function calculateSessionPoints(input: {
   sport?: string | null;
   title?: string | null;
@@ -165,11 +149,6 @@ function calculateSessionPoints(input: {
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
-}
-
-function getSessionDateLabel(session: Session) {
-  const parsed = safeParseDate(session.date);
-  return parsed ? format(parsed, "EEE, MMM d") : "Date TBD";
 }
 
 function raceCountdown(raceDate?: string | null) {
@@ -206,58 +185,6 @@ function MetricTile({
   );
 }
 
-function EmptyCard({ children }: { children: ReactNode }) {
-  return (
-    <div className="rounded-2xl border border-dashed border-[#E3E0D8] bg-[#F7F6F2] p-5 text-sm leading-6 text-[#6B7280]">
-      {children}
-    </div>
-  );
-}
-
-function SessionDetailLines({
-  details,
-  fallback,
-}: {
-  details?: string | null;
-  fallback: string;
-}) {
-  const text = String(details ?? "").trim();
-  const sections = text
-    ? (text
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .map((line) => {
-          const match = line.match(
-            /^(Purpose|Workout|Intensity|Coach note|Adaptation):\s*(.+)$/i,
-          );
-          return match ? { label: match[1], body: match[2].trim() } : null;
-        })
-        .filter(Boolean) as Array<{ label: string; body: string }>)
-    : [];
-
-  if (!sections.length) {
-    return (
-      <p className="mt-2 text-sm leading-5 text-[#6B7280]">
-        {text || fallback}
-      </p>
-    );
-  }
-
-  return (
-    <div className="mt-3 space-y-2">
-      {sections.slice(0, 4).map((section) => (
-        <p key={section.label} className="text-[13px] leading-5 text-[#4B5563]">
-          <span className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-[#9CA3AF]">
-            {section.label} ·{" "}
-          </span>
-          {section.body}
-        </p>
-      ))}
-    </div>
-  );
-}
-
 export default function CoachingPointsDashboard({
   sessions,
   completedSessions,
@@ -272,6 +199,51 @@ export default function CoachingPointsDashboard({
   const priorWeekEnd = subDays(weekEnd, 7);
   const weekLabel = `${format(weekStart, "MMM d")} – ${format(weekEnd, "MMM d")}`;
   const countdown = raceCountdown(raceDate);
+
+  type AdaptationChange = {
+    date?: string;
+    sport?: string;
+    title?: string;
+    change?: string;
+    from?: string;
+    to?: string;
+    reason?: string;
+  };
+  type AdaptationRow = {
+    id: string;
+    summary: string | null;
+    changes: AdaptationChange[] | null;
+    created_at: string;
+  };
+
+  const [adaptation, setAdaptation] = useState<AdaptationRow | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const { data: auth } = await supabase.auth.getUser();
+        const userId = auth?.user?.id;
+        if (!userId) return;
+        const since = new Date(Date.now() - 8 * 86400000).toISOString();
+        const { data } = await supabase
+          .from("plan_adaptations")
+          .select("id,summary,changes,created_at")
+          .eq("user_id", userId)
+          .gte("created_at", since)
+          .order("created_at", { ascending: false })
+          .limit(1);
+        if (active) {
+          setAdaptation(((data ?? [])[0] as AdaptationRow | undefined) ?? null);
+        }
+      } catch {
+        // Quietly absent is the right failure mode for an ambient card.
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const plannedThisWeek = sessions
     .filter((session) => {
@@ -425,30 +397,6 @@ export default function CoachingPointsDashboard({
     });
   }
 
-  const upcomingSessions = sessions
-    .filter((session) => {
-      const date = safeParseDate(session.date);
-      return date
-        ? isWithinRange(date, today, addDays(today, 10)) &&
-            session.sport !== "Rest"
-        : false;
-    })
-    .sort(
-      (a, b) =>
-        sessionPriority(b) - sessionPriority(a) ||
-        String(a.date).localeCompare(String(b.date)),
-    )
-    .slice(0, 3);
-
-  const missionText =
-    plannedPoints > 0
-      ? `${pointsRemaining} pts to go. Points reflect planned training value: longer, key, and race-specific sessions count more.`
-      : "Complete your next planned session to start banking points.";
-
-  const weeklyReview =
-    plannedThisWeek.length > 0
-      ? `This week is ${earnedPoints}/${plannedPoints} points with ${completedThisWeek.length}/${plannedThisWeek.length} sessions complete. ${missionText}`
-      : "No planned sessions this week yet. Generate a plan to create a weekly points target.";
 
   return (
     <main className="min-h-screen bg-[#F7F6F2] text-[#101114]">
@@ -475,53 +423,45 @@ export default function CoachingPointsDashboard({
           <StravaConnectBanner stravaConnected={stravaConnected} />
         </div>
 
-        <section className="mb-6 overflow-hidden rounded-[30px] border border-[#E3E0D8] bg-white shadow-[0_24px_80px_rgba(16,17,20,0.08)]">
-          <div className="grid gap-0 lg:grid-cols-[1.1fr_0.9fr]">
-            <div className="bg-[#101114] p-6 text-white sm:p-7">
-              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/40">
-                Coach insight
-              </p>
-              <h2 className="mt-4 text-3xl font-black tracking-[-0.07em] sm:text-4xl">
-                {readiness >= 70
+        <section className="mb-6 overflow-hidden rounded-[30px] bg-[#101114] text-white shadow-[0_24px_80px_rgba(16,17,20,0.14)]">
+          <div className="p-6 sm:p-7">
+            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/40">
+              Coach update
+            </p>
+            <h2 className="mt-4 text-3xl font-black tracking-[-0.07em] sm:text-4xl">
+              {adaptation?.summary
+                ? "Your Sunday review."
+                : readiness >= 70
                   ? "Good build — keep the rhythm."
                   : "The next win is consistency."}
-              </h2>
-              <p className="mt-4 text-base leading-7 text-white/65">
-                {weeklyReview}
-              </p>
-              <div className="mt-6 flex flex-wrap gap-2">
-                <span className="rounded-full bg-white px-4 py-2 text-[13px] font-black text-[#101114]">
-                  View adapted week
-                </span>
-                <span className="rounded-full border border-white/15 px-4 py-2 text-[13px] font-bold text-white/75">
-                  Ask coach
-                </span>
+            </h2>
+            <p className="mt-4 max-w-3xl text-base leading-7 text-white/65">
+              {adaptation?.summary ??
+                "Every Sunday the coach reads your completed week and rewrites the next one. Complete sessions and the review lands here."}
+            </p>
+            {adaptation && Array.isArray(adaptation.changes) && adaptation.changes.length > 0 ? (
+              <div className="mt-5 grid gap-3 border-t border-white/10 pt-5 sm:grid-cols-2">
+                {adaptation.changes.slice(0, 4).map((change, index) => (
+                  <div key={index}>
+                    <p className="text-sm font-black text-white">
+                      {(change.title ?? change.change) + " "}· {change.from} → {change.to}
+                    </p>
+                    {change.reason ? (
+                      <p className="mt-0.5 text-sm leading-5 text-white/55">
+                        {change.reason}
+                      </p>
+                    ) : null}
+                  </div>
+                ))}
               </div>
-            </div>
-            <div className="p-6 sm:p-7">
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#2563FF]">
-                What moves readiness next
-              </p>
-              <div className="mt-5 grid gap-3">
-                <div className="rounded-2xl bg-[#F7F6F2] p-4">
-                  <p className="text-sm font-black text-[#101114]">
-                    Complete the key session
-                  </p>
-                  <p className="mt-1 text-sm leading-5 text-[#6B7280]">
-                    Long, race-specific sessions carry more weight than filler
-                    volume.
-                  </p>
-                </div>
-                <div className="rounded-2xl bg-[#EAF0FF] p-4">
-                  <p className="text-sm font-black text-[#101114]">
-                    Sync the proof
-                  </p>
-                  <p className="mt-1 text-sm leading-5 text-[#46506A]">
-                    Strava-confirmed work improves the accuracy of the next
-                    coaching decision.
-                  </p>
-                </div>
-              </div>
+            ) : null}
+            <div className="mt-6">
+              <Link
+                href="/schedule"
+                className="inline-flex rounded-full bg-white px-4 py-2 text-[13px] font-black text-[#101114]"
+              >
+                View this week’s schedule
+              </Link>
             </div>
           </div>
         </section>
@@ -586,16 +526,7 @@ export default function CoachingPointsDashboard({
           </div>
         </section>
 
-        <section className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricTile
-            label="Points earned"
-            value={`${earnedPoints}`}
-            detail={
-              plannedPoints > 0
-                ? `${pointsRemaining} remaining this week`
-                : "No target yet"
-            }
-          />
+        <section className="mb-6 grid gap-3 sm:grid-cols-2">
           <MetricTile
             label="Time trained"
             value={formatMinutes(actualMinutes)}
@@ -610,14 +541,9 @@ export default function CoachingPointsDashboard({
                 : "No planned sessions this week"
             }
           />
-          <MetricTile
-            label="Plan to date"
-            value={`${completedSessions.length}`}
-            detail={`${sessions.length} planned sessions total`}
-          />
         </section>
 
-        <section className="mb-6 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <section className="mb-6">
           <div className="rounded-[28px] border border-[#E3E0D8] bg-white p-5 sm:p-6">
             <div className="mb-5 flex items-start justify-between gap-4">
               <div>
@@ -671,79 +597,10 @@ export default function CoachingPointsDashboard({
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-[#E3E0D8] bg-white p-5 sm:p-6">
-            <div className="mb-5">
-              <h2 className="text-lg font-semibold tracking-tight text-[#101114]">
-                Weekly review
-              </h2>
-              <p className="mt-1 text-sm text-[#6B7280]">
-                A plain-English read on points, consistency, and training
-                volume.
-              </p>
-            </div>
-            <p className="text-base leading-7 text-[#374151]">{weeklyReview}</p>
-          </div>
+          
         </section>
 
-        <section className="mb-6 rounded-[28px] border border-[#E3E0D8] bg-white p-5 sm:p-6">
-          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold tracking-tight text-[#101114]">
-                Up next
-              </h2>
-              <p className="mt-1 text-sm text-[#6B7280]">
-                Upcoming sessions and the points they are worth.
-              </p>
-            </div>
-            <span className="text-sm text-[#9CA3AF]">Next 10 days</span>
-          </div>
-          {upcomingSessions.length > 0 ? (
-            <div className="grid gap-3 lg:grid-cols-3">
-              {upcomingSessions.map((session) => {
-                const points = calculateSessionPoints({
-                  sport: session.sport,
-                  title: session.title,
-                  durationMinutes: sessionDurationMinutes(session),
-                });
-                return (
-                  <div
-                    key={session.id}
-                    className="rounded-2xl border border-[#E3E0D8] bg-white p-4"
-                  >
-                    <div className="mb-4 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`h-2 w-2 rounded-full ${sportDotClass(session.sport)}`}
-                        />
-                        <span className="text-xs font-medium uppercase tracking-[0.14em] text-[#9CA3AF]">
-                          {session.sport}
-                        </span>
-                      </div>
-                      <span className="text-xs text-[#9CA3AF]">
-                        {getSessionDateLabel(session)}
-                      </span>
-                    </div>
-                    <p className="text-base font-semibold leading-6 text-[#101114]">
-                      {session.title}
-                    </p>
-                    <SessionDetailLines
-                      details={session.details}
-                      fallback={`${formatMinutes(sessionDurationMinutes(session))} planned`}
-                    />
-                    <p className="mt-4 text-sm font-semibold text-[#2563FF]">
-                      +{points} pts
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <EmptyCard>
-              No upcoming sessions found. Once your plan has sessions in the
-              next 10 days, they will appear here.
-            </EmptyCard>
-          )}
-        </section>
+        
 
         <section className="rounded-[28px] border border-[#E3E0D8] bg-white p-5 sm:p-6">
           <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
