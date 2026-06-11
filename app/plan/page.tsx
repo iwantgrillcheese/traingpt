@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import React, {
   Suspense,
   useCallback,
@@ -858,6 +860,23 @@ function PlanPageContent() {
               background, and the week you can actually live with.
             </p>
           </div>
+
+          {hasPlan ? (
+            <div className="flex flex-col gap-3 rounded-2xl border border-[#D7DDFF] bg-[#EFF3FF] p-4 sm:max-w-xl">
+              <p className="text-sm leading-6 text-[#1E3A8A]">
+                <span className="font-bold">You already have an active plan.</span>{" "}
+                Looking for this week’s training? It’s on your schedule —
+                rebuilding here replaces your current plan and its adaptation
+                history.
+              </p>
+              <Link
+                href="/schedule"
+                className="inline-flex w-fit items-center justify-center rounded-full bg-[#2563FF] px-4 py-2 text-[13px] font-black text-white"
+              >
+                Go to my schedule
+              </Link>
+            </div>
+          ) : null}
           {stravaConnected ? (
             <div className="rounded-2xl border border-[#E3E0D8] bg-white px-4 py-3 text-sm text-[#4B5563]">
               <span className="font-medium text-[#101114]">

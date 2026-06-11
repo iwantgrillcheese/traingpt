@@ -1,7 +1,5 @@
 "use client";
 
-import type { ReactNode } from "react";
-
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -14,14 +12,14 @@ const SIDEBAR_STORAGE_KEY = "traingpt.sidebarCollapsed";
 const DESKTOP_NAV_ITEMS = [
   { label: "Schedule", href: "/schedule", shortLabel: "S", icon: "▦" },
   { label: "Coach", href: "/coaching", shortLabel: "C", icon: "◈" },
-  { label: "Plan", href: "/plan", shortLabel: "P", icon: "◎" },
+  { label: "Plan builder", href: "/plan", shortLabel: "B", icon: "◎" },
   { label: "Settings", href: "/settings", shortLabel: "⚙", icon: "⚙" },
 ];
 
 const MOBILE_PRIMARY_NAV_ITEMS = [
   { label: "Schedule", href: "/schedule", icon: "▦" },
   { label: "Coach", href: "/coaching", icon: "◈" },
-  { label: "Plan", href: "/plan", icon: "◎" },
+  { label: "Builder", href: "/plan", icon: "◎" },
 ];
 
 function isAppRoute(pathname: string | null) {
