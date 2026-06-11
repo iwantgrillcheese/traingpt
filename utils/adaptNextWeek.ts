@@ -169,6 +169,19 @@ export function adaptNextWeek({
     return { week, changes, summary: buildSummary(inputs, changes) };
   }
 
+  // Rule 0.5 — dormancy guard: a completely silent week (no completions, no
+  // Strava, no manual marks) means the athlete is paused, not struggling.
+  // Rewriting a plan nobody is following helps no one, and repeating a 20%
+  // trim every silent week would shrink the plan into nothing. Adaptation
+  // rules below are for athletes who showed up partially.
+  if (inputs.completedCount === 0) {
+    return {
+      week,
+      changes,
+      summary: `Last week didn't happen — life does that sometimes. The plan is right where you left it: this week runs as written, and the only move that matters is doing the very next session on the calendar.`,
+    };
+  }
+
   // Rule 1 — anchor repeat: a missed Long Ride / Long Run means next week's
   // matching anchor must not progress past what was already missed.
   for (const missed of inputs.missedAnchors) {
