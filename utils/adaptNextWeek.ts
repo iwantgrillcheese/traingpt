@@ -116,7 +116,10 @@ function eachSession(week: WeekJson, fn: (session: StructuredPlanSession, date: 
 
 function buildSummary(inputs: AdaptationInputs, changes: AdaptationChange[]): string {
   const { completedCount, plannedCount } = inputs;
-  const base = `You completed ${completedCount} of ${plannedCount} sessions last week.`;
+  const base =
+    plannedCount > 0
+      ? `You completed ${completedCount} of ${plannedCount} sessions last week.`
+      : 'Last week had no scheduled sessions.';
 
   if (inputs.nextWeekIsRaceWeek) {
     return `${base} It's race week — the plan stays exactly as designed. Trust the taper.`;
@@ -195,7 +198,9 @@ export function adaptNextWeek({
   }
 
   const lowCompliance = inputs.complianceRatio < 0.5 && inputs.plannedCount >= 3;
-  const midCompliance = !lowCompliance && (inputs.complianceRatio < 0.8 || inputs.missedAnchors.length > 0);
+  // A missed anchor at otherwise-high compliance is handled by the cap rule
+  // alone — downgrading quality on top of it double-punishes one bad Saturday.
+  const midCompliance = !lowCompliance && inputs.complianceRatio < 0.8;
 
   // Rule 2 — reset week: most of last week was missed. Trim volume, strip intensity.
   if (lowCompliance && !inputs.nextWeekDeload) {
