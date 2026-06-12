@@ -14,6 +14,7 @@ import { convertPlanToSessions } from "@/utils/convertPlanToSessions";
 import { validateGeneratedPlan } from "@/utils/validateGeneratedPlan";
 import { repairGeneratedPlan } from "@/utils/repairGeneratedPlan";
 import { AuthError, assertSameUser, createRouteSupabaseClient, requireUser } from "@/lib/supabase/server";
+import { sendWelcomeEmail } from "@/lib/emails/send-welcome-email";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -562,6 +563,20 @@ export async function POST(req: Request) {
         console.error("[finalize-plan] session save failed", sessionsError);
         return NextResponse.json({ ok: false, error: "Plan generated but sessions could not be saved" }, { status: 500 });
       }
+    }
+
+    // Plan-ready email — this pipeline existed, fully built, with zero
+    // callers. The helper swallows its own errors, so it can never fail the
+    // plan creation it celebrates.
+    if (user.email) {
+      await sendWelcomeEmail({
+        to: user.email,
+        name: "Athlete",
+        plan:
+          raceType && raceDate
+            ? `${String(raceType)} plan for ${String(raceDate)}`
+            : "your custom training plan",
+      });
     }
 
     return NextResponse.json({

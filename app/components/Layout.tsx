@@ -305,6 +305,19 @@ export default function Layout({ children }: { children: ReactNode }) {
     [collapsed],
   );
 
+  // One-time signup welcome. The server claims the send atomically via
+  // profiles.welcome_email_sent_at, so this is safe to fire on every hard
+  // load; sessionStorage just saves the network call within a session.
+  useEffect(() => {
+    try {
+      if (window.sessionStorage.getItem("tg.signupEmailChecked")) return;
+      window.sessionStorage.setItem("tg.signupEmailChecked", "1");
+    } catch {
+      // private mode etc. — server idempotency still protects us
+    }
+    void fetch("/api/send-email/signup", { method: "POST" }).catch(() => {});
+  }, []);
+
   if (!isAppRoute(pathname)) {
     return (
       <div className="min-h-[100dvh] bg-white text-[#101114]">{children}</div>
