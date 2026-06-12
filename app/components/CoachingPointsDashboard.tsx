@@ -258,6 +258,34 @@ export default function CoachingPointsDashboard({
     return date ? isWithinRange(date, weekStart, weekEnd) : false;
   });
 
+  const remainingThisWeek = plannedThisWeek.filter((session) => {
+    const date = safeParseDate(session.date);
+    return date ? !isBefore(date, today) : false;
+  });
+  const anchorSession = remainingThisWeek.reduce<Session | null>((best, session) => {
+    if (!best) return session;
+    const points = calculateSessionPoints({
+      sport: session.sport,
+      title: session.title,
+      durationMinutes: sessionDurationMinutes(session),
+    });
+    const bestPoints = calculateSessionPoints({
+      sport: best.sport,
+      title: best.title,
+      durationMinutes: sessionDurationMinutes(best),
+    });
+    return points > bestPoints ? session : best;
+  }, null);
+  const reviewDateLabel = format(weekEnd, "EEEE, MMM d");
+  const anchorDate = anchorSession ? safeParseDate(anchorSession.date) : null;
+  const fallbackHeadline = anchorSession
+    ? `${format(anchorDate ?? today, "EEEE")}’s ${anchorSession.title} is the week’s anchor.`
+    : completedThisWeek.length > 0
+      ? "Week banked. Review incoming."
+      : "Nothing left on the board this week.";
+  const fallbackBody = `Bank what you can — your coach review lands ${reviewDateLabel} and rewrites next week from what actually happened.`;
+
+
   const currentWeekActivities = stravaActivities.filter((activity) => {
     const date = getActivityDate(activity);
     return date ? isWithinRange(date, weekStart, weekEnd) : false;
@@ -429,15 +457,10 @@ export default function CoachingPointsDashboard({
               Coach update
             </p>
             <h2 className="mt-4 text-3xl font-black tracking-[-0.07em] sm:text-4xl">
-              {adaptation?.summary
-                ? "Your Sunday review."
-                : readiness >= 70
-                  ? "Good build — keep the rhythm."
-                  : "The next win is consistency."}
+              {adaptation?.summary ? "Your Sunday review." : fallbackHeadline}
             </h2>
             <p className="mt-4 max-w-3xl text-base leading-7 text-white/65">
-              {adaptation?.summary ??
-                "Every Sunday the coach reads your completed week and rewrites the next one. Complete sessions and the review lands here."}
+              {adaptation?.summary ?? fallbackBody}
             </p>
             {adaptation && Array.isArray(adaptation.changes) && adaptation.changes.length > 0 ? (
               <div className="mt-5 grid gap-3 border-t border-white/10 pt-5 sm:grid-cols-2">
