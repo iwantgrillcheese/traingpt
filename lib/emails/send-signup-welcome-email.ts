@@ -10,7 +10,7 @@ export async function sendSignupWelcomeEmail({ email }: { email: string }) {
   }
 
   const resend = new Resend(apiKey);
-  const html = await render(SignupWelcomeEmail({}));
+  const html = await render(SignupWelcomeEmail());
 
   await resend.emails.send({
     from: 'TrainGPT <hello@traingpt.co>',
