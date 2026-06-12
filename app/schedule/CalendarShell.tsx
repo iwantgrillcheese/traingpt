@@ -7,13 +7,16 @@ import {
   endOfWeek,
   format,
   isAfter,
+  isBefore,
   isSameDay,
   parseISO,
+  startOfDay,
   startOfMonth,
   startOfWeek,
   subDays,
   subMonths,
 } from "date-fns";
+import Link from "next/link";
 import {
   DndContext,
   MouseSensor,
@@ -47,6 +50,7 @@ type CalendarShellProps = {
   nextSummary?: string;
   weekPhaseSummary?: string;
   raceGoal?: string | null;
+  raceDate?: string | null;
   onOpenWalkthroughAction?: () => void;
   walkthroughLoading?: boolean;
 };
@@ -202,6 +206,7 @@ export default function CalendarShell({
   timezone = "America/Los_Angeles",
   weekPhaseSummary,
   raceGoal,
+  raceDate = null,
   onOpenWalkthroughAction,
   walkthroughLoading,
 }: CalendarShellProps) {
@@ -444,6 +449,17 @@ export default function CalendarShell({
   // contradictory numbers on adjacent screens.
   const weekScore = weeklyStats.planned ? weeklyStats.adherence : null;
 
+  // Returning users whose race already happened should be greeted with a
+  // next step, not a plan pointed at the past.
+  const raceHasPassed = (() => {
+    if (!raceDate) return false;
+    try {
+      return isBefore(parseISO(raceDate), startOfDay(new Date()));
+    } catch {
+      return false;
+    }
+  })();
+
   return (
     <main className="min-h-[100dvh] bg-[#F7F6F2] text-[#101114]">
       <div className="min-w-0">
@@ -529,6 +545,27 @@ export default function CalendarShell({
             </div>
           </div>
         </header>
+
+        {raceHasPassed ? (
+          <div className="mx-auto mt-5 w-full max-w-[1400px] px-5 lg:px-8">
+            <div className="flex flex-col gap-3 rounded-2xl border border-[#D7DDFF] bg-[#EFF3FF] p-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm leading-6 text-[#1E3A8A]">
+                <span className="font-bold">
+                  {raceGoal ? `Your ${raceGoal} has passed.` : "Your race date has passed."}
+                </span>{" "}
+                The coach is still here — point it at your next race and a new
+                plan renders in seconds, calibrated to everything you’ve done
+                since.
+              </p>
+              <Link
+                href="/plan"
+                className="inline-flex w-fit shrink-0 items-center justify-center rounded-full bg-[#2563FF] px-4 py-2 text-[13px] font-black text-white"
+              >
+                Plan my next race
+              </Link>
+            </div>
+          </div>
+        ) : null}
 
         <div className="px-5 py-5 lg:px-8">
           {commandSession ? (

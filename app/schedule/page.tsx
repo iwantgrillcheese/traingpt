@@ -567,6 +567,7 @@ export default function SchedulePage() {
             nextSummary={scheduleSummary.nextLabel}
             weekPhaseSummary={scheduleSummary.weekPhase}
             raceGoal={raceHub?.raceType ?? raceHub?.raceName ?? null}
+            raceDate={raceHub?.raceDate ?? null}
           />
       </main>
     </div>
