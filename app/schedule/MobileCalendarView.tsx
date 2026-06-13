@@ -348,7 +348,12 @@ export default function MobileCalendarView({
                   <div className="space-y-2">
                     {group.sessions.map((session) => {
                       const status = getSessionStatus(session, localCompleted);
-                      const duration = formatMinutes(session.duration ?? null);
+                      const actualMinutes = session.stravaActivity?.moving_time
+                        ? Math.round(Number(session.stravaActivity.moving_time) / 60)
+                        : null;
+                      const duration = formatMinutes(
+                        actualMinutes ?? session.duration ?? null,
+                      );
                       const sport = normalizeSport(session.sport);
                       const preview = detailPreview(
                         (session as any).details ?? null,

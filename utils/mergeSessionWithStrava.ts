@@ -5,8 +5,9 @@ import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
 
 export type MergedSession = Omit<Session, 'duration'> & {
   stravaActivity?: StravaActivity;
-  duration?: number | null; // planned or completed duration in minutes
-  distance_km?: number;
+  duration?: number | null; // PLANNED duration in minutes — never overwritten
+  completedDurationMinutes?: number | null; // actual moving time when matched
+  distance_km?: number; // actual distance when matched
 };
 
 export type MergedResult = {
@@ -130,7 +131,10 @@ export default function mergeSessionsWithStrava(
     return {
       ...session,
       stravaActivity: bestMatch,
-      duration: durationMinutes ?? undefined,
+      // The planned duration is the plan — overwriting it with the actual
+      // made "Plan vs actual" a tautology and lied to every consumer that
+      // asked what was prescribed. Actuals live in their own named fields.
+      completedDurationMinutes: durationMinutes ?? null,
       distance_km: Number.isFinite(distanceMeters) && distanceMeters > 0 ? distanceMeters / 1000 : undefined,
     };
   });
