@@ -192,7 +192,7 @@ function SessionCard({
           "group w-full rounded-2xl border border-[#E3E0D8] border-l-[3px] bg-white px-2.5 py-2 text-left shadow-[0_1px_0_rgba(16,17,20,0.03)] transition-colors hover:border-[#CFCBC1] hover:bg-[#FBFAF8]",
           sportAccentClass(sport),
           completed &&
-            "border-[#B9C6FF] bg-[#EAF0FF] shadow-[0_8px_24px_rgba(37,99,255,0.10)] hover:border-[#9DAEFF] hover:bg-[#EAF0FF]",
+            "border-[#D6D3CB] bg-[#F7F6F2] shadow-[0_8px_24px_rgba(16,17,20,0.06)] hover:border-[#CFCBC1] hover:bg-[#F7F6F2]",
           skipped && "opacity-50",
           isRest && "cursor-default border-l-[#E3E0D8] bg-[#F7F6F2]",
         )}
@@ -204,42 +204,32 @@ function SessionCard({
               <span
                 className={clsx(
                   "h-1.5 w-1.5 rounded-full",
-                  completed ? "bg-[#2563FF]" : sportDotClass(sport),
+                  completed ? "bg-[#101114]" : sportDotClass(sport),
                 )}
               />
               <span
                 className={clsx(
                   "text-[10px] font-medium uppercase tracking-[0.12em]",
-                  completed ? "text-[#2563FF]" : "text-[#9CA3AF]",
+                  completed ? "text-[#4B5563]" : "text-[#9CA3AF]",
                 )}
               >
                 {sport}
               </span>
             </div>
-            <div
-              className={clsx(
-                "line-clamp-2 text-[12px] font-semibold leading-snug",
-                completed ? "text-[#1E3A8A]" : "text-[#101114]",
-              )}
-            >
+            <div className="line-clamp-2 text-[12px] font-semibold leading-snug text-[#101114]">
               {isRest
                 ? "Rest day"
                 : `${conciseTitle(title, sport)}${duration ? ` · ${duration}` : ""}`}
             </div>
             {preview && !isRest ? (
-              <div
-                className={clsx(
-                  "mt-1 line-clamp-1 text-[11px] leading-snug",
-                  completed ? "text-[#4B63A8]" : "text-[#6B7280]",
-                )}
-              >
+              <div className="mt-1 line-clamp-1 text-[11px] leading-snug text-[#6B7280]">
                 {preview}
               </div>
             ) : null}
             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[#6B7280]">
               {distance ? <span>{distance}</span> : null}
               {session.stravaActivity ? (
-                <span className="rounded-full bg-white/80 px-2 py-0.5 font-semibold text-[#2563FF]">
+                <span className="rounded-full bg-white/80 px-2 py-0.5 font-semibold text-[#475569]">
                   Strava synced
                 </span>
               ) : null}
@@ -248,7 +238,7 @@ function SessionCard({
 
           <div className="shrink-0 text-[11px] font-semibold text-[#6B7280]">
             {completed ? (
-              <span className="inline-flex items-center rounded-full bg-[#2563FF] px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-white">
+              <span className="inline-flex items-center rounded-full bg-[#101114] px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-white">
                 Done
               </span>
             ) : null}
@@ -319,7 +309,7 @@ export default function DayCell({
       className={clsx(
         "group flex min-h-[158px] flex-col border-r border-b border-[#E3E0D8] bg-white px-2.5 py-2.5 transition-colors",
         isOutside && "bg-[#F7F6F2] text-[#9CA3AF]",
-        today && "bg-[#EAF0FF]/40",
+        today && "bg-[#F7F6F2]",
         isOver && "bg-[#E9ECE8]",
       )}
     >
@@ -329,7 +319,7 @@ export default function DayCell({
             className={clsx(
               "flex h-6 min-w-6 items-center justify-center rounded-full text-[13px] font-semibold",
               today
-                ? "bg-[#2563FF] text-white"
+                ? "bg-[#101114] text-white"
                 : isOutside
                   ? "text-[#9CA3AF]"
                   : "text-[#101114]",
@@ -364,7 +354,7 @@ export default function DayCell({
         <button
           type="button"
           onClick={() => onAddSessionClick?.(date)}
-          className="mt-auto rounded-xl border border-dashed border-[#E3E0D8] bg-white/70 px-2 py-1.5 text-center text-[11px] font-bold text-[#9CA3AF] opacity-0 transition hover:border-[#CFCBC1] hover:text-[#2563FF] group-hover:opacity-100"
+          className="mt-auto rounded-xl border border-dashed border-[#E3E0D8] bg-white/70 px-2 py-1.5 text-center text-[11px] font-bold text-[#9CA3AF] opacity-0 transition hover:border-[#CFCBC1] hover:text-[#101114] group-hover:opacity-100"
         >
           + Add
         </button>
