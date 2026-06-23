@@ -14,31 +14,26 @@ function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-function BrandMark({ inverse = false }: { inverse?: boolean }) {
+function SectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#2563FF]">
+      {children}
+    </p>
+  );
+}
+
+function BrandMark() {
   return (
     <span
-      className={cx(
-        "inline-flex h-9 w-9 items-center justify-center rounded-2xl text-[15px] font-black tracking-[-0.08em]",
-        inverse
-          ? "bg-white text-[#2563FF]"
-          : "bg-[#2563FF] text-white shadow-[0_12px_30px_rgba(37,99,255,0.24)]",
-      )}
       aria-hidden="true"
+      className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-[#2563FF] text-[15px] font-black tracking-[-0.08em] text-white shadow-[0_12px_30px_rgba(37,99,255,0.24)]"
     >
       TG
     </span>
   );
 }
 
-function SectionLabel({ children }: { children: ReactNode }) {
-  return (
-    <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#2563FF]">
-      {children}
-    </p>
-  );
-}
-
-function MomentumButton({
+function CTAButton({
   children,
   onClick,
   variant = "primary",
@@ -52,7 +47,7 @@ function MomentumButton({
       type="button"
       onClick={onClick}
       className={cx(
-        "inline-flex min-h-12 items-center justify-center rounded-full px-6 text-sm font-bold transition duration-200",
+        "inline-flex min-h-12 items-center justify-center rounded-full px-6 text-sm font-black transition duration-200",
         variant === "primary"
           ? "bg-[#2563FF] text-white shadow-[0_18px_40px_rgba(37,99,255,0.24)] hover:-translate-y-0.5 hover:bg-[#184FE0]"
           : "border border-[#E2E0D8] bg-white text-[#101114] hover:border-[#CFCBC1] hover:bg-[#F7F6F2]",
@@ -83,18 +78,20 @@ function MarketingHeader({
   }, []);
 
   const navItems = [
-    { href: "#product-loop", label: "Product" },
-    { href: "#schedule", label: "Schedule" },
-    { href: "#readiness", label: "Readiness" },
-    { href: "#coaching", label: "Coaching" },
+    { href: "#how-it-works", label: "How it works" },
+    { href: "#plan-preview", label: "Plan preview" },
+    { href: "#strava", label: "Strava" },
+    { href: "#coaching", label: "Weekly adjustments" },
   ];
+
+  const handlePrimary = authed ? onSchedule : onStart;
 
   return (
     <header
       className={cx(
         "fixed inset-x-0 top-0 z-50 transition-all duration-300",
         scrolled
-          ? "border-b border-[#E3E0D8] bg-[#F7F6F2]/88 shadow-[0_12px_40px_rgba(16,17,20,0.05)] backdrop-blur-xl"
+          ? "border-b border-[#E3E0D8] bg-[#F7F6F2]/90 shadow-[0_12px_40px_rgba(16,17,20,0.05)] backdrop-blur-xl"
           : "bg-[#F7F6F2]/70 backdrop-blur-xl",
       )}
     >
@@ -134,10 +131,10 @@ function MarketingHeader({
           </button>
           <button
             type="button"
-            onClick={authed ? onSchedule : onStart}
+            onClick={handlePrimary}
             className="hidden rounded-full bg-[#101114] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#25272D] sm:inline-flex"
           >
-            {authed ? "Open app" : "Start free"}
+            {authed ? "Open app" : "Generate plan"}
           </button>
         </div>
       </div>
@@ -157,10 +154,10 @@ function MarketingHeader({
             ))}
             <button
               type="button"
-              onClick={authed ? onSchedule : onStart}
+              onClick={handlePrimary}
               className="mt-2 rounded-full bg-[#2563FF] px-4 py-3 text-sm font-bold text-white"
             >
-              {authed ? "Open app" : "Start free"}
+              {authed ? "Open app" : "Generate plan"}
             </button>
           </div>
         </div>
@@ -169,53 +166,12 @@ function MarketingHeader({
   );
 }
 
-function ReadinessOrb() {
-  return (
-    <div className="relative h-32 w-32 rounded-full bg-[conic-gradient(#C6F33C_0_78%,#E9ECE8_78%_100%)] p-2 shadow-[0_18px_50px_rgba(198,243,60,0.18)]">
-      <div className="grid h-full w-full place-items-center rounded-full bg-white">
-        <div className="text-center">
-          <div className="text-4xl font-black tracking-[-0.08em] text-[#101114]">
-            78
-          </div>
-          <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#6B7280]">
-            Ready
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ProductPreviewCard() {
-  const week = [
-    {
-      day: "Tue",
-      sport: "Swim",
-      title: "Technique",
-      meta: "50m · 2,100m",
-      color: "#0E8FA0",
-    },
-    {
-      day: "Wed",
-      sport: "Run",
-      title: "Easy run",
-      meta: "45m · Z2",
-      color: "#101114",
-    },
-    {
-      day: "Thu",
-      sport: "Bike",
-      title: "Endurance",
-      meta: "1h 15m · 135–155W",
-      color: "#FF6A00",
-    },
-    {
-      day: "Sat",
-      sport: "Bike",
-      title: "Long ride",
-      meta: "2h 30m · key",
-      color: "#FF6A00",
-    },
+function HeroProductCard() {
+  const sessions = [
+    ["Tue", "Swim technique", "50 min · 2,100m", "#0E8FA0", "Done"],
+    ["Wed", "Easy run", "45 min · Z2", "#101114", "Synced"],
+    ["Thu", "Bike endurance", "75 min · 135–155W", "#FF6A00", "Today"],
+    ["Sat", "Long ride", "2h 30m · fueling practice", "#FF6A00", "Key"],
   ];
 
   return (
@@ -223,65 +179,59 @@ function ProductPreviewCard() {
       <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-[#C6F33C]/70 blur-3xl" />
       <div className="absolute -bottom-10 -left-10 h-40 w-40 rounded-full bg-[#2563FF]/15 blur-3xl" />
       <div className="relative overflow-hidden rounded-[2.25rem] border border-white/70 bg-white p-5 shadow-[0_36px_90px_rgba(16,17,20,0.16)]">
-        <div className="flex items-start justify-between gap-4 rounded-[1.75rem] bg-[#101114] p-5 text-white">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/45">
-              This week
-            </p>
-            <h3 className="mt-2 text-2xl font-black tracking-[-0.05em]">
-              Santa Cruz build
-            </h3>
-            <p className="mt-2 max-w-[18rem] text-sm leading-6 text-white/65">
-              Your plan adjusted after last week. Long ride repeats before
-              building again.
-            </p>
-          </div>
-          <ReadinessOrb />
-        </div>
+        <div className="rounded-[1.75rem] bg-[#101114] p-5 text-white">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/45">
+            Generated plan
+          </p>
+          <h3 className="mt-2 text-2xl font-black tracking-[-0.05em]">
+            Santa Cruz 70.3 build
+          </h3>
+          <p className="mt-2 max-w-[22rem] text-sm leading-6 text-white/65">
+            Free custom plan generated for your race. Track the work, then
+            adjust the next week.
+          </p>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          {[
-            ["7h 20m", "planned"],
-            ["4 / 7", "complete"],
-            ["+5", "readiness"],
-          ].map(([value, label]) => (
-            <div
-              key={label}
-              className="rounded-3xl border border-[#E3E0D8] bg-[#F7F6F2] p-4"
-            >
-              <div className="text-2xl font-black tracking-[-0.06em] text-[#101114]">
-                {value}
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            {[
+              ["7h 20m", "planned"],
+              ["4 / 7", "complete"],
+              ["3", "Strava synced"],
+            ].map(([value, label]) => (
+              <div key={label} className="rounded-3xl bg-white/10 p-4">
+                <div className="text-2xl font-black tracking-[-0.06em]">
+                  {value}
+                </div>
+                <div className="mt-1 text-[10px] font-black uppercase tracking-[0.16em] text-white/45">
+                  {label}
+                </div>
               </div>
-              <div className="mt-1 text-[11px] font-bold uppercase tracking-[0.16em] text-[#8A8F98]">
-                {label}
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
         <div className="mt-4 space-y-2">
-          {week.map((item) => (
+          {sessions.map(([day, title, meta, color, status]) => (
             <div
-              key={`${item.day}-${item.title}`}
+              key={`${day}-${title}`}
               className="flex items-center gap-3 rounded-3xl border border-[#E3E0D8] bg-white px-4 py-3"
             >
               <div className="w-10 text-xs font-bold uppercase tracking-[0.12em] text-[#9CA3AF]">
-                {item.day}
+                {day}
               </div>
               <span
                 className="h-2.5 w-2.5 rounded-full"
-                style={{ backgroundColor: item.color }}
+                style={{ backgroundColor: color }}
               />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-black tracking-[-0.02em] text-[#101114]">
-                  {item.title}
+                  {title}
                 </div>
                 <div className="mt-0.5 text-xs font-medium text-[#6B7280]">
-                  {item.meta}
+                  {meta}
                 </div>
               </div>
               <div className="rounded-full bg-[#EAF0FF] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#2563FF]">
-                {item.sport}
+                {status}
               </div>
             </div>
           ))}
@@ -292,11 +242,11 @@ function ProductPreviewCard() {
             <span className="mt-1 h-2.5 w-2.5 rounded-full bg-[#2563FF]" />
             <div>
               <p className="text-sm font-black tracking-[-0.02em] text-[#101114]">
-                Coach update
+                Weekly adjustment
               </p>
               <p className="mt-1 text-sm leading-6 text-[#46506A]">
-                Volume held steady because you missed the long ride. Nail
-                Saturday and next week progresses.
+                3 Strava activities matched this week. Missed the long ride? We
+                adjust the next week around it.
               </p>
             </div>
           </div>
@@ -329,10 +279,11 @@ function PlanGeneratorCard({
             Plan generator
           </p>
           <h2 className="mt-2 text-2xl font-black tracking-[-0.05em] text-[#101114]">
-            Start with the race.
+            Build your free plan.
           </h2>
           <p className="mt-2 text-sm leading-6 text-[#6B7280]">
-            Generate the plan, then let the app adapt the week.
+            Tell TrainGPT your race, schedule, and training time. Get a custom
+            plan in seconds.
           </p>
         </div>
         <span className="rounded-full bg-[#C6F33C] px-3 py-1 text-xs font-black text-[#101114]">
@@ -385,7 +336,7 @@ function PlanGeneratorCard({
         <div className="flex items-center justify-between text-sm">
           <span className="font-bold text-[#101114]">Preview</span>
           <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-[#2563FF]">
-            Adaptive
+            Trackable
           </span>
         </div>
         <div className="mt-4 grid gap-2 text-sm text-[#6B7280]">
@@ -398,8 +349,8 @@ function PlanGeneratorCard({
             <b className="text-[#101114]">Swim · Bike · Run</b>
           </div>
           <div className="flex justify-between">
-            <span>First focus</span>
-            <b className="text-[#101114]">Consistency</b>
+            <span>Training data</span>
+            <b className="text-[#101114]">Strava sync</b>
           </div>
         </div>
       </div>
@@ -408,10 +359,10 @@ function PlanGeneratorCard({
         type="submit"
         className="mt-5 w-full rounded-full bg-[#2563FF] px-6 py-4 text-sm font-black text-white shadow-[0_18px_40px_rgba(37,99,255,0.24)] transition hover:bg-[#184FE0]"
       >
-        {authed ? "Open plan builder" : "Sign in to generate plan"}
+        {authed ? "Open plan builder" : "Generate my free plan"}
       </button>
       <p className="mt-4 text-center text-xs font-medium text-[#6B7280]">
-        Free to generate. No credit card required.
+        Create your plan, save it, then track training through race day.
       </p>
     </form>
   );
@@ -452,10 +403,10 @@ function ValueCard({
 
 function SchedulePreview() {
   const sessions = [
-    ["Today", "Swim technique", "50:00 · 8×100m", "#0E8FA0", "Open session"],
-    ["Wed", "Run easy", "45:00 · Z2", "#101114", "Planned"],
-    ["Thu", "Bike endurance", "1:15 · 135–155W", "#FF6A00", "Key"],
-    ["Sat", "Long ride", "2:30 · fueling practice", "#FF6A00", "Adapted"],
+    ["Today", "Bike endurance", "1:15 · 135–155W", "#FF6A00", "Open"],
+    ["Fri", "Recovery swim", "35:00 · easy", "#0E8FA0", "Planned"],
+    ["Sat", "Long ride", "2:30 · fueling", "#FF6A00", "Key"],
+    ["Sun", "Brick run", "25:00 · controlled", "#101114", "Adapted"],
   ];
 
   return (
@@ -463,14 +414,14 @@ function SchedulePreview() {
       <div className="flex items-center justify-between border-b border-[#E3E0D8] pb-4">
         <div>
           <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#2563FF]">
-            Schedule
+            Training calendar
           </p>
           <h3 className="mt-1 text-xl font-black tracking-[-0.04em] text-[#101114]">
-            Today is the home base
+            Week 3 of 16
           </h3>
         </div>
         <span className="rounded-full bg-[#EAF0FF] px-3 py-1 text-xs font-black text-[#2563FF]">
-          Week 3 / 16
+          Strava ready
         </span>
       </div>
       <div className="mt-4 space-y-2">
@@ -510,9 +461,9 @@ function MetricStrip() {
   return (
     <div className="grid gap-3 sm:grid-cols-3">
       {[
-        ["Race readiness", "78", "+5 this week"],
-        ["Plan adherence", "92%", "On track"],
-        ["This week", "7h 20m", "4 key sessions"],
+        ["Strava synced", "3", "workouts this week"],
+        ["Plan adherence", "92%", "on track"],
+        ["This week", "7h 20m", "planned volume"],
       ].map(([label, value, detail]) => (
         <div
           key={label}
@@ -584,82 +535,83 @@ export default function Home() {
         <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-14 pb-20 lg:grid-cols-12 lg:pb-28">
           <div className="lg:col-span-6">
             <div className="inline-flex items-center gap-2 rounded-full border border-[#D7DDFF] bg-white px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-[#2563FF] shadow-sm">
-              <span className="h-2 w-2 rounded-full bg-[#C6F33C]" /> Adaptive
-              endurance coaching
+              <span className="h-2 w-2 rounded-full bg-[#C6F33C]" /> Free AI
+              triathlon plan generator
             </div>
             <h1 className="mt-6 max-w-4xl text-6xl font-black leading-[0.9] tracking-[-0.08em] text-[#101114] sm:text-7xl lg:text-[5.6rem]">
-              Training that adapts{" "}
-              <span className="text-[#2563FF]">to the week you had.</span>
+              Free custom triathlon plans, {" "}
+              <span className="text-[#2563FF]">instantly.</span>
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-8 text-[#4B5563]">
-              TrainGPT builds your plan around your race, schedule, and real
-              training data — then adjusts every week based on what actually
-              happened.
+              Generate a swim, bike, and run plan for your race. Connect Strava,
+              track your training, adjust week by week, and get ready to crush
+              race day.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <MomentumButton onClick={startPlan}>
-                {authed ? "Open plan builder" : "Start your plan"}
-              </MomentumButton>
+              <CTAButton onClick={startPlan}>
+                {authed ? "Open plan builder" : "Generate my free plan"}
+              </CTAButton>
               <a
-                href="#product-loop"
+                href="#how-it-works"
                 className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#E2E0D8] bg-white px-6 text-sm font-bold text-[#101114] transition hover:bg-[#F7F6F2]"
               >
                 See how it works
               </a>
             </div>
             <div className="mt-10 flex flex-wrap items-center gap-x-5 gap-y-3 text-[11px] font-black uppercase tracking-[0.16em] text-[#9CA3AF]">
-              <span>Strava connected</span>
-              <span>70.3 / 140.6 / Olympic / Sprint</span>
-              <span>No card to generate</span>
+              <span>Instant plan generation</span>
+              <span>Track with Strava</span>
+              <span>Sprint / Olympic / 70.3 / Ironman</span>
             </div>
           </div>
           <div className="lg:col-span-6">
-            <ProductPreviewCard />
+            <HeroProductCard />
           </div>
         </div>
       </section>
 
-      <section id="product-loop" className="px-4 py-16 sm:px-6 lg:px-8">
+      <section id="how-it-works" className="px-4 py-16 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <div className="max-w-3xl">
-            <SectionLabel>The product loop</SectionLabel>
+            <SectionLabel>How it works</SectionLabel>
             <h2 className="mt-4 text-4xl font-black tracking-[-0.07em] text-[#101114] md:text-6xl">
-              Plan the week. Execute anywhere. Know what changed.
+              Generate your plan. Track with Strava. Adjust every week.
             </h2>
           </div>
           <div className="mt-10 grid gap-4 md:grid-cols-3">
             <ValueCard
-              eyebrow="01 · Build it"
-              title="Generate the plan"
-              copy="Start with the race, current fitness, and real availability. The plan should feel like it was written for your actual week."
+              eyebrow="01 · Generate"
+              title="Get a custom plan instantly"
+              copy="Choose your race, race date, experience level, weekly hours, and schedule. TrainGPT creates a swim, bike, and run plan in seconds."
               accent="#2563FF"
             />
             <ValueCard
-              eyebrow="02 · Do it"
-              title="Follow the session"
-              copy="Every workout has a clear purpose, target, and next action. No paper schedule, no guessing, no random dashboard noise."
+              eyebrow="02 · Track"
+              title="Connect Strava"
+              copy="Sync your real workouts so completed sessions, missed training, and weekly volume live next to your generated plan."
               accent="#FF6A00"
             />
             <ValueCard
-              eyebrow="03 · Prove it"
-              title="Adapt from reality"
-              copy="Strava-confirmed work, missed sessions, fatigue, and consistency all feed the next coaching decision."
+              eyebrow="03 · Adjust"
+              title="Update week by week"
+              copy="As training changes, your plan should change too. TrainGPT helps you see what to do next and stay pointed at race day."
               accent="#C6F33C"
             />
           </div>
         </div>
       </section>
 
-      <section className="px-4 py-16 sm:px-6 lg:px-8">
+      <section id="plan-preview" className="px-4 py-16 sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-12 lg:items-start">
           <div className="lg:col-span-5">
-            <SectionLabel>Start your build</SectionLabel>
+            <SectionLabel>Plan preview</SectionLabel>
             <h2 className="mt-4 text-4xl font-black tracking-[-0.07em] text-[#101114] md:text-5xl">
-              Your race plan should feel alive from day one.
+              Start with a plan you can actually follow.
             </h2>
             <p className="mt-5 text-base leading-8 text-[#4B5563]">
-              Momentum gives the brand energy. The product stays calm: one clear
-              plan, one clear workout, one clear coaching decision at a time.
+              Most AI tools give you a wall of text. TrainGPT gives you a real
+              training schedule you can save, track, and adjust as your workouts
+              come in.
             </p>
           </div>
           <div className="lg:col-span-7">
@@ -671,14 +623,13 @@ export default function Home() {
       <section id="schedule" className="bg-white px-4 py-20 sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-12">
           <div className="lg:col-span-5">
-            <SectionLabel>Daily execution</SectionLabel>
+            <SectionLabel>Training calendar</SectionLabel>
             <h2 className="mt-4 text-4xl font-black tracking-[-0.07em] text-[#101114] md:text-6xl">
-              Today is the hero.
+              Know exactly what to do today.
             </h2>
             <p className="mt-5 text-base leading-8 text-[#4B5563]">
-              The schedule is not just a calendar. It is the daily command
-              center: what to do, why it matters, and what changed after the
-              last week.
+              Follow your generated plan from one simple calendar. Open today’s
+              workout, track what you completed, and keep your week organized.
             </p>
           </div>
           <div className="lg:col-span-7">
@@ -688,19 +639,19 @@ export default function Home() {
       </section>
 
       <section
-        id="readiness"
+        id="strava"
         className="border-y border-[#E3E0D8] bg-[#F7F6F2] px-4 py-20 sm:px-6 lg:px-8"
       >
         <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-12 lg:items-center">
           <div className="lg:col-span-5">
-            <SectionLabel>Verified fitness</SectionLabel>
+            <SectionLabel>Strava tracking</SectionLabel>
             <h2 className="mt-4 text-4xl font-black tracking-[-0.07em] text-[#101114] md:text-6xl">
-              Race Readiness, not random metrics.
+              Your workouts sync back to the plan.
             </h2>
             <p className="mt-5 text-base leading-8 text-[#4B5563]">
-              Athletes should understand whether the work is building toward the
-              race. Readiness rolls up consistency, load, fatigue, sport
-              balance, and key session completion.
+              Connect Strava so your rides, runs, and swims are tracked
+              automatically. See what you completed, what you missed, and how
+              your training is trending.
             </p>
           </div>
           <div className="lg:col-span-7">
@@ -717,15 +668,15 @@ export default function Home() {
                 Coach insight
               </p>
               <h3 className="mt-4 text-3xl font-black tracking-[-0.06em]">
-                Great week — your consistency is paying off.
+                Good week. Keep the next one realistic.
               </h3>
               <p className="mt-4 text-base leading-7 text-white/65">
-                You completed your key endurance sessions and handled the load
-                well. This week we nudge the long ride up and keep the run
-                controlled.
+                You completed the key run and two steady rides. This week we
+                keep the long ride controlled, then rebuild run volume without
+                forcing intensity.
               </p>
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                {["View adapted week", "Ask coach", "Open Saturday"].map(
+                {["View adjusted week", "Ask coach", "Open Saturday"].map(
                   (item) => (
                     <div
                       key={item}
@@ -739,13 +690,14 @@ export default function Home() {
             </div>
           </div>
           <div className="lg:col-span-5 lg:col-start-8">
-            <SectionLabel>Coaching guidance</SectionLabel>
+            <SectionLabel>Weekly adjustments</SectionLabel>
             <h2 className="mt-4 text-4xl font-black tracking-[-0.07em] text-[#101114] md:text-6xl">
-              Less dashboard. More decision.
+              Adjust your plan as training changes.
             </h2>
             <p className="mt-5 text-base leading-8 text-[#4B5563]">
-              TrainGPT should tell the athlete what to do next, what changed,
-              and why. Metrics support the decision — they do not lead the page.
+              Miss a long ride, crush a key run, or have a lighter week than
+              planned. TrainGPT helps you understand what changed and what to do
+              next.
             </p>
           </div>
         </div>
@@ -758,7 +710,7 @@ export default function Home() {
               Start training
             </p>
             <h2 className="mt-4 max-w-3xl text-4xl font-black tracking-[-0.07em] md:text-6xl">
-              Build your next race plan in seconds.
+              Generate your free triathlon plan today.
             </h2>
           </div>
           <button
@@ -766,7 +718,7 @@ export default function Home() {
             onClick={startPlan}
             className="rounded-full bg-white px-6 py-3 text-sm font-black text-[#101114] transition hover:bg-white/90"
           >
-            {authed ? "Open plan builder" : "Start your plan"}
+            {authed ? "Open plan builder" : "Generate my free plan"}
           </button>
         </div>
       </section>
