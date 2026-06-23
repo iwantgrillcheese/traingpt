@@ -492,6 +492,7 @@ export default function MobileCalendarView({
                                   session,
                                   localCompleted,
                                 );
+                                const isDone = status === "done";
                                 const actualMinutes = session.stravaActivity
                                   ?.moving_time
                                   ? Math.round(
@@ -513,12 +514,22 @@ export default function MobileCalendarView({
                                     key={session.id}
                                     type="button"
                                     onClick={() => setSelectedSession(session)}
-                                    className="block w-full rounded-[1.35rem] border border-[#E3E0D8] bg-white p-3.5 text-left shadow-[0_6px_20px_rgba(16,17,20,0.04)] active:scale-[0.997] sm:rounded-2xl sm:p-4"
+                                    className={clsx(
+                                      "block w-full rounded-[1.35rem] border p-3.5 text-left shadow-[0_6px_20px_rgba(16,17,20,0.04)] active:scale-[0.997] sm:rounded-2xl sm:p-4",
+                                      isDone
+                                        ? "border-[#BBD1FF] bg-[#F7FAFF] shadow-[0_12px_30px_rgba(37,99,255,0.10)]"
+                                        : "border-[#E3E0D8] bg-white",
+                                    )}
                                   >
                                     <div className="flex items-start justify-between gap-3">
                                       <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-2 text-[12px] font-medium text-[#6B7280]">
-                                          <span className="h-1.5 w-1.5 rounded-full bg-[#2563FF]" />
+                                          <span
+                                            className={clsx(
+                                              "h-2 w-2 rounded-full",
+                                              isDone ? "bg-[#2563FF]" : "bg-[#2563FF]",
+                                            )}
+                                          />
                                           <span>{sport}</span>
                                           {duration ? (
                                             <span className="text-[#CFCBC1]">
@@ -538,11 +549,19 @@ export default function MobileCalendarView({
                                           </div>
                                         ) : null}
 
-                                        {session.stravaActivity ? (
-                                          <div className="mt-2 inline-flex rounded-full bg-[#EAF0FF] px-2.5 py-1 text-[11px] font-medium text-[#4B5563]">
-                                            From Strava
-                                          </div>
-                                        ) : null}
+                                        <div className="mt-2 flex flex-wrap gap-2">
+                                          {isDone ? (
+                                            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#2563FF] px-2.5 py-1 text-[11px] font-black text-white">
+                                              <span aria-hidden="true">✓</span>
+                                              Complete
+                                            </span>
+                                          ) : null}
+                                          {session.stravaActivity ? (
+                                            <span className="inline-flex rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-[#2563FF] ring-1 ring-inset ring-[#BBD1FF]">
+                                              Strava synced
+                                            </span>
+                                          ) : null}
+                                        </div>
                                       </div>
 
                                       <span
