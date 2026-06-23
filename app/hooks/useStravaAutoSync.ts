@@ -15,6 +15,7 @@ type UseStravaAutoSyncOptions = {
   enabled?: boolean;
   authReady?: boolean;
   isAuthenticated?: boolean;
+  autoSyncOnMount?: boolean;
   onSyncComplete?: (result: StravaSyncResult) => void;
 };
 
@@ -49,6 +50,7 @@ export function useStravaAutoSync(options: UseStravaAutoSyncOptions = {}) {
     enabled = true,
     authReady = true,
     isAuthenticated = true,
+    autoSyncOnMount = false,
     onSyncComplete,
   } = options;
 
@@ -57,68 +59,83 @@ export function useStravaAutoSync(options: UseStravaAutoSyncOptions = {}) {
   const [message, setMessage] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<StravaSyncResult | null>(null);
 
-  const syncNow = useCallback(async () => {
-    if (!enabled || !authReady) return null;
+  const syncNow = useCallback(
+    async (options: { silent?: boolean } = {}) => {
+      const silent = Boolean(options.silent);
 
-    if (!isAuthenticated) {
-      const result = {
-        error: 'Strava is connected, but your TrainGPT session is not ready. Refresh and try syncing again.',
-      };
+      if (!enabled || !authReady) return null;
 
-      setStatus('error');
-      setMessage(result.error);
-      setLastResult(result);
-      return result;
-    }
+      if (!isAuthenticated) {
+        const result = {
+          error: 'Strava is connected, but your TrainGPT session is not ready. Refresh and try syncing again.',
+        };
 
-    setStatus('syncing');
-    setMessage('Importing your latest Strava activities…');
-
-    try {
-      const res = await fetch('/api/strava_sync', { method: 'POST' });
-      const json = (await res.json().catch(() => ({}))) as StravaSyncResult;
-
-      if (!res.ok) {
-        const errorMessage =
-          res.status === 401
-            ? 'Strava connected, but your TrainGPT session was not ready to sync. Refresh and try Sync latest.'
-            : json?.error || 'Strava sync failed.';
-
-        const result = { ...json, error: errorMessage };
         setStatus('error');
-        setMessage(errorMessage);
+        if (!silent) setMessage(result.error);
         setLastResult(result);
         return result;
       }
 
-      setStatus('success');
-      setMessage(getSyncSuccessMessage(json));
-      setLastResult(json);
-      onSyncComplete?.(json);
+      setStatus('syncing');
+      if (!silent) setMessage('Importing your latest Strava activities…');
 
-      return json;
-    } catch (error) {
-      console.error('[useStravaAutoSync] sync failed:', error);
-      const result = { error: 'Unexpected Strava sync error. Try again.' };
-      setStatus('error');
-      setMessage(result.error);
-      setLastResult(result);
-      return result;
-    }
-  }, [authReady, enabled, isAuthenticated, onSyncComplete]);
+      try {
+        const res = await fetch('/api/strava_sync', { method: 'POST' });
+        const json = (await res.json().catch(() => ({}))) as StravaSyncResult;
+
+        if (!res.ok) {
+          if (res.status === 400 && json?.error === 'Strava not connected.') {
+            setStatus('idle');
+            setMessage(null);
+            setLastResult(json);
+            return json;
+          }
+
+          const errorMessage =
+            res.status === 401
+              ? 'Strava connected, but your TrainGPT session was not ready to sync. Refresh and try Sync latest.'
+              : json?.error || 'Strava sync failed.';
+
+          const result = { ...json, error: errorMessage };
+          setStatus('error');
+          if (!silent) setMessage(errorMessage);
+          setLastResult(result);
+          return result;
+        }
+
+        setStatus('success');
+        if (!silent || Number(json?.inserted ?? 0) > 0) {
+          setMessage(getSyncSuccessMessage(json));
+        }
+        setLastResult(json);
+        onSyncComplete?.(json);
+
+        return json;
+      } catch (error) {
+        console.error('[useStravaAutoSync] sync failed:', error);
+        const result = { error: 'Unexpected Strava sync error. Try again.' };
+        setStatus('error');
+        if (!silent) setMessage(result.error);
+        setLastResult(result);
+        return result;
+      }
+    },
+    [authReady, enabled, isAuthenticated, onSyncComplete],
+  );
 
   useEffect(() => {
     if (!enabled || !authReady || !isAuthenticated || hasAutoSyncedRef.current) return;
 
     const url = new URL(window.location.href);
-    if (!shouldAutoSyncFromUrl(url)) return;
+    const hasUrlSyncIntent = shouldAutoSyncFromUrl(url);
+    if (!hasUrlSyncIntent && !autoSyncOnMount) return;
 
     hasAutoSyncedRef.current = true;
 
-    syncNow().finally(() => {
-      cleanStravaSyncParams();
+    syncNow({ silent: autoSyncOnMount && !hasUrlSyncIntent }).finally(() => {
+      if (hasUrlSyncIntent) cleanStravaSyncParams();
     });
-  }, [authReady, enabled, isAuthenticated, syncNow]);
+  }, [authReady, autoSyncOnMount, enabled, isAuthenticated, syncNow]);
 
   return {
     status,
