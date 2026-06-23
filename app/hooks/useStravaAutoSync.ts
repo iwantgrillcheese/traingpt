@@ -128,11 +128,13 @@ export function useStravaAutoSync(options: UseStravaAutoSyncOptions = {}) {
 
     const url = new URL(window.location.href);
     const hasUrlSyncIntent = shouldAutoSyncFromUrl(url);
-    if (!hasUrlSyncIntent && !autoSyncOnMount) return;
+    const shouldSyncForSchedule = url.pathname === '/schedule';
+    const shouldSyncOnMount = autoSyncOnMount || shouldSyncForSchedule;
+    if (!hasUrlSyncIntent && !shouldSyncOnMount) return;
 
     hasAutoSyncedRef.current = true;
 
-    syncNow({ silent: autoSyncOnMount && !hasUrlSyncIntent }).finally(() => {
+    syncNow({ silent: shouldSyncOnMount && !hasUrlSyncIntent }).finally(() => {
       if (hasUrlSyncIntent) cleanStravaSyncParams();
     });
   }, [authReady, autoSyncOnMount, enabled, isAuthenticated, syncNow]);
