@@ -191,6 +191,8 @@ function SessionCard({
         className={clsx(
           "group w-full rounded-2xl border border-[#E3E0D8] border-l-[3px] bg-white px-2.5 py-2 text-left shadow-[0_1px_0_rgba(16,17,20,0.03)] transition-colors hover:border-[#CFCBC1] hover:bg-[#FBFAF8]",
           sportAccentClass(sport),
+          completed &&
+            "border-[#B9C6FF] bg-[#EAF0FF] shadow-[0_8px_24px_rgba(37,99,255,0.10)] hover:border-[#9DAEFF] hover:bg-[#EAF0FF]",
           skipped && "opacity-50",
           isRest && "cursor-default border-l-[#E3E0D8] bg-[#F7F6F2]",
         )}
@@ -202,33 +204,54 @@ function SessionCard({
               <span
                 className={clsx(
                   "h-1.5 w-1.5 rounded-full",
-                  sportDotClass(sport),
+                  completed ? "bg-[#2563FF]" : sportDotClass(sport),
                 )}
               />
-              <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-[#9CA3AF]">
+              <span
+                className={clsx(
+                  "text-[10px] font-medium uppercase tracking-[0.12em]",
+                  completed ? "text-[#2563FF]" : "text-[#9CA3AF]",
+                )}
+              >
                 {sport}
               </span>
             </div>
-            <div className="line-clamp-2 text-[12px] font-semibold leading-snug text-[#101114]">
+            <div
+              className={clsx(
+                "line-clamp-2 text-[12px] font-semibold leading-snug",
+                completed ? "text-[#1E3A8A]" : "text-[#101114]",
+              )}
+            >
               {isRest
                 ? "Rest day"
                 : `${conciseTitle(title, sport)}${duration ? ` · ${duration}` : ""}`}
             </div>
             {preview && !isRest ? (
-              <div className="mt-1 line-clamp-1 text-[11px] leading-snug text-[#6B7280]">
+              <div
+                className={clsx(
+                  "mt-1 line-clamp-1 text-[11px] leading-snug",
+                  completed ? "text-[#4B63A8]" : "text-[#6B7280]",
+                )}
+              >
                 {preview}
               </div>
             ) : null}
             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[#6B7280]">
               {distance ? <span>{distance}</span> : null}
               {session.stravaActivity ? (
-                <span className="text-[#4B5563]">Strava</span>
+                <span className="rounded-full bg-white/80 px-2 py-0.5 font-semibold text-[#2563FF]">
+                  Strava synced
+                </span>
               ) : null}
             </div>
           </div>
 
           <div className="shrink-0 text-[11px] font-semibold text-[#6B7280]">
-            {completed ? <span>✓</span> : null}
+            {completed ? (
+              <span className="inline-flex items-center rounded-full bg-[#2563FF] px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-white">
+                Done
+              </span>
+            ) : null}
             {skipped ? <span>Skip</span> : null}
           </div>
         </div>
