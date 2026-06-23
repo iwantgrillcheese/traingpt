@@ -1,455 +1,165 @@
-"use client";
+'use client';
 
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
-import type {
-  AuthChangeEvent,
-  Session as SupabaseSession,
-} from "@supabase/supabase-js";
-import { supabase } from "@/lib/supabase/client";
-import Footer from "./components/footer";
-import BlogPreview from "./components/blog/BlogPreview";
+import { useEffect, useState, type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
+import type { AuthChangeEvent, Session as SupabaseSession } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase/client';
+import Footer from './components/footer';
+import BlogPreview from './components/blog/BlogPreview';
 
-function cx(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ");
-}
+const compatibleStrava = '/strava/api_logo_cptblWith_strava_horiz_orange.svg';
+const connectStrava = '/strava/btn_strava_connect_with_orange.svg';
+const races = ['Sprint', 'Olympic', '70.3', 'Ironman'];
+const nav = [
+  ['#calendar', 'Calendar'],
+  ['#strava', 'Strava'],
+  ['#adjustments', 'Adjustments'],
+  ['#resources', 'Resources'],
+];
 
-function SectionLabel({ children }: { children: ReactNode }) {
+function Mark() {
   return (
-    <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#2563FF]">
-      {children}
-    </p>
-  );
-}
-
-function BrandMark() {
-  return (
-    <span
-      aria-hidden="true"
-      className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-[#2563FF] text-[15px] font-black tracking-[-0.08em] text-white shadow-[0_12px_30px_rgba(37,99,255,0.24)]"
-    >
-      TG
+    <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-[#7182FF] via-[#7C5CF0] to-[#A855F7] shadow-[0_12px_28px_rgba(124,92,240,0.28)]">
+      <span className="h-3.5 w-3.5 rounded-md bg-white" />
     </span>
   );
 }
 
-function CTAButton({
-  children,
-  onClick,
-  variant = "primary",
-}: {
-  children: ReactNode;
-  onClick?: () => void;
-  variant?: "primary" | "secondary";
-}) {
+function Label({ children }: { children: ReactNode }) {
+  return <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#635BFF]">{children}</p>;
+}
+
+function PillButton({ children, onClick, variant = 'dark' }: { children: ReactNode; onClick?: () => void; variant?: 'dark' | 'light' }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={cx(
-        "inline-flex min-h-12 items-center justify-center rounded-full px-6 text-sm font-black transition duration-200",
-        variant === "primary"
-          ? "bg-[#2563FF] text-white shadow-[0_18px_40px_rgba(37,99,255,0.24)] hover:-translate-y-0.5 hover:bg-[#184FE0]"
-          : "border border-[#E2E0D8] bg-white text-[#101114] hover:border-[#CFCBC1] hover:bg-[#F7F6F2]",
-      )}
+      className={
+        variant === 'dark'
+          ? 'inline-flex min-h-12 items-center justify-center rounded-full bg-[#101114] px-6 text-sm font-black text-white shadow-[0_18px_40px_rgba(16,17,20,0.18)] transition hover:-translate-y-0.5 hover:bg-[#25272D]'
+          : 'inline-flex min-h-12 items-center justify-center rounded-full border border-[#E2E0D8] bg-white px-6 text-sm font-black text-[#101114] transition hover:-translate-y-0.5 hover:bg-[#F7F6F2]'
+      }
     >
       {children}
     </button>
   );
 }
 
-function MarketingHeader({
-  authed,
-  onStart,
-  onSchedule,
-}: {
-  authed: boolean;
-  onStart: () => void;
-  onSchedule: () => void;
-}) {
-  const [scrolled, setScrolled] = useState(false);
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 10);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  const navItems = [
-    { href: "#how-it-works", label: "How it works" },
-    { href: "#plan-preview", label: "Plan preview" },
-    { href: "#strava", label: "Strava" },
-    { href: "#coaching", label: "Weekly adjustments" },
-  ];
-
-  const handlePrimary = authed ? onSchedule : onStart;
-
+function HeroPreview() {
   return (
-    <header
-      className={cx(
-        "fixed inset-x-0 top-0 z-50 transition-all duration-300",
-        scrolled
-          ? "border-b border-[#E3E0D8] bg-[#F7F6F2]/90 shadow-[0_12px_40px_rgba(16,17,20,0.05)] backdrop-blur-xl"
-          : "bg-[#F7F6F2]/70 backdrop-blur-xl",
-      )}
-    >
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <button
-          type="button"
-          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          className="flex items-center gap-3"
-          aria-label="Go to top"
-        >
-          <BrandMark />
-          <span className="text-sm font-black tracking-[-0.03em] text-[#101114]">
-            TrainGPT
-          </span>
-        </button>
-
-        <nav className="hidden items-center gap-1 md:flex">
-          {navItems.map((item) => (
-            <a
-              key={item.href}
-              href={item.href}
-              className="rounded-full px-3 py-2 text-sm font-semibold text-[#6B7280] transition hover:bg-white hover:text-[#101114]"
-            >
-              {item.label}
-            </a>
-          ))}
-        </nav>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setOpen((value) => !value)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#E3E0D8] bg-white text-lg font-semibold text-[#101114] md:hidden"
-            aria-label="Open navigation"
-          >
-            {open ? "×" : "≡"}
-          </button>
-          <button
-            type="button"
-            onClick={handlePrimary}
-            className="hidden rounded-full bg-[#101114] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#25272D] sm:inline-flex"
-          >
-            {authed ? "Open app" : "Generate plan"}
-          </button>
-        </div>
-      </div>
-
-      {open ? (
-        <div className="border-t border-[#E3E0D8] bg-[#F7F6F2] px-4 py-3 md:hidden">
-          <div className="mx-auto flex max-w-7xl flex-col gap-1">
-            {navItems.map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                onClick={() => setOpen(false)}
-                className="rounded-2xl px-4 py-3 text-sm font-bold text-[#4B5563] hover:bg-white"
-              >
-                {item.label}
-              </a>
-            ))}
-            <button
-              type="button"
-              onClick={handlePrimary}
-              className="mt-2 rounded-full bg-[#2563FF] px-4 py-3 text-sm font-bold text-white"
-            >
-              {authed ? "Open app" : "Generate plan"}
-            </button>
-          </div>
-        </div>
-      ) : null}
-    </header>
-  );
-}
-
-function HeroProductCard() {
-  const sessions = [
-    ["Tue", "Swim technique", "50 min · 2,100m", "#0E8FA0", "Done"],
-    ["Wed", "Easy run", "45 min · Z2", "#101114", "Synced"],
-    ["Thu", "Bike endurance", "75 min · 135–155W", "#FF6A00", "Today"],
-    ["Sat", "Long ride", "2h 30m · fueling practice", "#FF6A00", "Key"],
-  ];
-
-  return (
-    <div className="relative mx-auto w-full max-w-xl">
-      <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-[#C6F33C]/70 blur-3xl" />
-      <div className="absolute -bottom-10 -left-10 h-40 w-40 rounded-full bg-[#2563FF]/15 blur-3xl" />
-      <div className="relative overflow-hidden rounded-[2.25rem] border border-white/70 bg-white p-5 shadow-[0_36px_90px_rgba(16,17,20,0.16)]">
-        <div className="rounded-[1.75rem] bg-[#101114] p-5 text-white">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/45">
-            Generated plan
-          </p>
-          <h3 className="mt-2 text-2xl font-black tracking-[-0.05em]">
-            Santa Cruz 70.3 build
-          </h3>
-          <p className="mt-2 max-w-[22rem] text-sm leading-6 text-white/65">
-            Free custom plan generated for your race. Track the work, then
-            adjust the next week.
-          </p>
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            {[
-              ["7h 20m", "planned"],
-              ["4 / 7", "complete"],
-              ["3", "Strava synced"],
-            ].map(([value, label]) => (
-              <div key={label} className="rounded-3xl bg-white/10 p-4">
-                <div className="text-2xl font-black tracking-[-0.06em]">
-                  {value}
-                </div>
-                <div className="mt-1 text-[10px] font-black uppercase tracking-[0.16em] text-white/45">
-                  {label}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-4 space-y-2">
-          {sessions.map(([day, title, meta, color, status]) => (
-            <div
-              key={`${day}-${title}`}
-              className="flex items-center gap-3 rounded-3xl border border-[#E3E0D8] bg-white px-4 py-3"
-            >
-              <div className="w-10 text-xs font-bold uppercase tracking-[0.12em] text-[#9CA3AF]">
-                {day}
-              </div>
-              <span
-                className="h-2.5 w-2.5 rounded-full"
-                style={{ backgroundColor: color }}
-              />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-black tracking-[-0.02em] text-[#101114]">
-                  {title}
-                </div>
-                <div className="mt-0.5 text-xs font-medium text-[#6B7280]">
-                  {meta}
-                </div>
-              </div>
-              <div className="rounded-full bg-[#EAF0FF] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#2563FF]">
-                {status}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-4 rounded-[1.5rem] border border-[#C9D6FF] bg-[#EAF0FF] p-4">
-          <div className="flex items-start gap-3">
-            <span className="mt-1 h-2.5 w-2.5 rounded-full bg-[#2563FF]" />
-            <div>
-              <p className="text-sm font-black tracking-[-0.02em] text-[#101114]">
-                Weekly adjustment
-              </p>
-              <p className="mt-1 text-sm leading-6 text-[#46506A]">
-                3 Strava activities matched this week. Missed the long ride? We
-                adjust the next week around it.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PlanGeneratorCard({
-  authed,
-  onStart,
-}: {
-  authed: boolean;
-  onStart: () => void;
-}) {
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    onStart();
-  };
-
-  return (
-    <form
-      onSubmit={handleSubmit}
-      className="rounded-[2rem] border border-white bg-white p-5 shadow-[0_24px_80px_rgba(16,17,20,0.10)] sm:p-6"
-    >
-      <div className="flex items-start justify-between gap-4 border-b border-[#E3E0D8] pb-5">
-        <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#2563FF]">
-            Plan generator
-          </p>
-          <h2 className="mt-2 text-2xl font-black tracking-[-0.05em] text-[#101114]">
-            Build your free plan.
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-[#6B7280]">
-            Tell TrainGPT your race, schedule, and training time. Get a custom
-            plan in seconds.
-          </p>
-        </div>
-        <span className="rounded-full bg-[#C6F33C] px-3 py-1 text-xs font-black text-[#101114]">
-          ~60 sec
-        </span>
-      </div>
-
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        <label className="block">
-          <span className="text-xs font-bold text-[#6B7280]">Race</span>
-          <select
-            defaultValue="70.3"
-            className="mt-2 h-12 w-full rounded-2xl border border-[#E3E0D8] bg-white px-4 text-sm font-semibold text-[#101114] outline-none transition focus:border-[#2563FF] focus:ring-4 focus:ring-[#EAF0FF]"
-          >
-            <option value="Sprint">Sprint</option>
-            <option value="Olympic">Olympic</option>
-            <option value="70.3">70.3</option>
-            <option value="Ironman">Ironman</option>
-          </select>
-        </label>
-        <label className="block">
-          <span className="text-xs font-bold text-[#6B7280]">Race date</span>
-          <input
-            type="date"
-            className="mt-2 h-12 w-full rounded-2xl border border-[#E3E0D8] bg-white px-4 text-sm font-semibold text-[#101114] outline-none transition focus:border-[#2563FF] focus:ring-4 focus:ring-[#EAF0FF]"
-          />
-        </label>
-        <label className="block">
-          <span className="text-xs font-bold text-[#6B7280]">Experience</span>
-          <select
-            defaultValue="Intermediate"
-            className="mt-2 h-12 w-full rounded-2xl border border-[#E3E0D8] bg-white px-4 text-sm font-semibold text-[#101114] outline-none transition focus:border-[#2563FF] focus:ring-4 focus:ring-[#EAF0FF]"
-          >
-            <option>Beginner</option>
-            <option>Intermediate</option>
-            <option>Advanced</option>
-          </select>
-        </label>
-        <label className="block">
-          <span className="text-xs font-bold text-[#6B7280]">Weekly hours</span>
-          <input
-            defaultValue="8"
-            inputMode="numeric"
-            className="mt-2 h-12 w-full rounded-2xl border border-[#E3E0D8] bg-white px-4 text-sm font-semibold text-[#101114] outline-none transition focus:border-[#2563FF] focus:ring-4 focus:ring-[#EAF0FF]"
-          />
-        </label>
-      </div>
-
-      <div className="mt-5 rounded-[1.5rem] bg-[#F7F6F2] p-4">
-        <div className="flex items-center justify-between text-sm">
-          <span className="font-bold text-[#101114]">Preview</span>
-          <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-[#2563FF]">
-            Trackable
+    <div className="relative mx-auto mt-16 max-w-5xl">
+      <div className="absolute inset-x-0 top-12 -z-10 mx-auto h-[360px] max-w-5xl rounded-[3rem] bg-gradient-to-r from-[#DAD4FF] via-[#EDEBFF] to-[#FFE5D9] opacity-70 blur-3xl" />
+      <div className="overflow-hidden rounded-[2.15rem] border border-[#E3E0D8] bg-white/85 p-4 text-left shadow-[0_32px_100px_rgba(16,17,20,0.14)] backdrop-blur-xl">
+        <div className="flex flex-col gap-3 px-3 pb-3 pt-1 text-xs font-bold text-[#7C7E86] sm:flex-row sm:items-center sm:justify-between">
+          <span>TrainGPT · This week</span>
+          <span className="inline-flex w-fit items-center gap-2 rounded-xl border border-[#CDEFD9] bg-[#F0FBF4] px-3 py-1.5 text-xs font-black text-[#0C7A55]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#22C55E]" />
+            Strava synced
           </span>
         </div>
-        <div className="mt-4 grid gap-2 text-sm text-[#6B7280]">
-          <div className="flex justify-between">
-            <span>Plan length</span>
-            <b className="text-[#101114]">16 weeks</b>
-          </div>
-          <div className="flex justify-between">
-            <span>Weekly rhythm</span>
-            <b className="text-[#101114]">Swim · Bike · Run</b>
-          </div>
-          <div className="flex justify-between">
-            <span>Training data</span>
-            <b className="text-[#101114]">Strava sync</b>
-          </div>
-        </div>
-      </div>
 
-      <button
-        type="submit"
-        className="mt-5 w-full rounded-full bg-[#2563FF] px-6 py-4 text-sm font-black text-white shadow-[0_18px_40px_rgba(37,99,255,0.24)] transition hover:bg-[#184FE0]"
-      >
-        {authed ? "Open plan builder" : "Generate my free plan"}
-      </button>
-      <p className="mt-4 text-center text-xs font-medium text-[#6B7280]">
-        Create your plan, save it, then track training through race day.
-      </p>
-    </form>
-  );
-}
-
-function ValueCard({
-  eyebrow,
-  title,
-  copy,
-  accent,
-}: {
-  eyebrow: string;
-  title: string;
-  copy: string;
-  accent: string;
-}) {
-  return (
-    <div className="group relative overflow-hidden rounded-[2rem] border border-[#E3E0D8] bg-white p-6 shadow-[0_16px_50px_rgba(16,17,20,0.05)] transition hover:-translate-y-1 hover:shadow-[0_24px_70px_rgba(16,17,20,0.10)]">
-      <div
-        className="absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full opacity-30 blur-2xl"
-        style={{ backgroundColor: accent }}
-      />
-      <div className="relative">
-        <p
-          className="text-[11px] font-black uppercase tracking-[0.18em]"
-          style={{ color: accent }}
-        >
-          {eyebrow}
-        </p>
-        <h3 className="mt-8 text-2xl font-black tracking-[-0.05em] text-[#101114]">
-          {title}
-        </h3>
-        <p className="mt-3 text-sm leading-6 text-[#6B7280]">{copy}</p>
-      </div>
-    </div>
-  );
-}
-
-function SchedulePreview() {
-  const sessions = [
-    ["Today", "Bike endurance", "1:15 · 135–155W", "#FF6A00", "Open"],
-    ["Fri", "Recovery swim", "35:00 · easy", "#0E8FA0", "Planned"],
-    ["Sat", "Long ride", "2:30 · fueling", "#FF6A00", "Key"],
-    ["Sun", "Brick run", "25:00 · controlled", "#101114", "Adapted"],
-  ];
-
-  return (
-    <div className="rounded-[2rem] border border-[#E3E0D8] bg-white p-4 shadow-[0_24px_80px_rgba(16,17,20,0.08)] md:p-5">
-      <div className="flex items-center justify-between border-b border-[#E3E0D8] pb-4">
-        <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#2563FF]">
-            Training calendar
-          </p>
-          <h3 className="mt-1 text-xl font-black tracking-[-0.04em] text-[#101114]">
-            Week 3 of 16
-          </h3>
-        </div>
-        <span className="rounded-full bg-[#EAF0FF] px-3 py-1 text-xs font-black text-[#2563FF]">
-          Strava ready
-        </span>
-      </div>
-      <div className="mt-4 space-y-2">
-        {sessions.map(([day, title, meta, color, status]) => (
-          <div
-            key={`${day}-${title}`}
-            className="flex items-center justify-between rounded-3xl border border-[#E3E0D8] bg-[#F7F6F2]/70 px-3 py-3"
-          >
-            <div className="flex items-center gap-3">
-              <span className="w-12 text-xs font-black uppercase tracking-[0.12em] text-[#9CA3AF]">
-                {day}
-              </span>
-              <span
-                className="h-2.5 w-2.5 rounded-full"
-                style={{ backgroundColor: color }}
-              />
+        <div className="grid gap-4 rounded-[1.6rem] border border-[#EEECE6] bg-[#F7F7F5] p-3 lg:grid-cols-[1fr_1.03fr]">
+          <div className="rounded-[1.4rem] border border-[#E8E5DD] bg-white p-5 shadow-[0_10px_35px_rgba(16,17,20,0.05)]">
+            <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-sm font-black tracking-[-0.02em] text-[#101114]">
-                  {title}
-                </p>
-                <p className="mt-0.5 text-xs font-medium text-[#6B7280]">
-                  {meta}
-                </p>
+                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#9CA3AF]">Santa Cruz 70.3</p>
+                <h3 className="mt-1 text-2xl font-black tracking-[-0.055em] text-[#101114]">Race in 91 days</h3>
+              </div>
+              <span className="rounded-full bg-[#F0FBF4] px-3 py-1.5 text-xs font-black text-[#0C7A55]">On track</span>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              {[
+                ['86%', 'adherence'],
+                ['7.8h', 'this week'],
+                ['42', 'readiness'],
+              ].map(([value, label]) => (
+                <div key={label} className="rounded-2xl bg-[#F7F7F5] p-4">
+                  <p className="text-2xl font-black tracking-[-0.06em] text-[#101114]">{value}</p>
+                  <p className="mt-1 text-xs font-bold text-[#7D7E86]">{label}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 flex h-32 items-end gap-2 rounded-3xl border border-[#EEECE6] bg-gradient-to-b from-white to-[#F3F3F1] px-4 pb-4 pt-6">
+              {[
+                ['46%', '#22C55E'],
+                ['58%', '#22C55E'],
+                ['72%', '#7C5CF0'],
+                ['34%', '#D9D9DF'],
+                ['50%', '#F59E0B'],
+                ['88%', '#7C5CF0'],
+                ['64%', '#7C5CF0'],
+              ].map(([height, color], index) => (
+                <div key={`${height}-${index}`} className="min-w-0 flex-1 rounded-t-full rounded-b-lg" style={{ height, backgroundColor: color }} />
+              ))}
+            </div>
+
+            <div className="mt-4 flex gap-3 rounded-3xl border border-[#DAD4FF] bg-[#F1EFFF] p-4">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#4F63F5] to-[#7C5CF0] text-base font-black text-white">↻</span>
+              <div>
+                <p className="text-sm font-black text-[#4047BD]">Weekly adjustment ready</p>
+                <p className="mt-1 text-sm leading-6 text-[#666872]">You missed Saturday's long ride. TrainGPT moved it to Sunday and eased Monday so the week still works.</p>
               </div>
             </div>
-            <span className="rounded-full bg-white px-3 py-1 text-[11px] font-black text-[#6B7280]">
-              {status}
-            </span>
+          </div>
+
+          <div className="rounded-[1.4rem] border border-[#E8E5DD] bg-white p-5 shadow-[0_10px_35px_rgba(16,17,20,0.05)]">
+            <div className="relative min-h-56 overflow-hidden rounded-[1.4rem] bg-[#101114] p-5 text-white">
+              <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full bg-[#7C5CF0]/50 blur-3xl" />
+              <div className="relative">
+                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-white/45">Today's workout</p>
+                <h3 className="mt-12 text-3xl font-black leading-none tracking-[-0.06em]">Bike threshold intervals</h3>
+                <p className="mt-3 max-w-sm text-sm leading-6 text-white/70">75 minutes with 4 x 8 minutes at threshold. Build power while keeping tomorrow's run intact.</p>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {['75 min', '4 x 8 min', 'Z4 power', 'Key session'].map((item) => (
+                    <span key={item} className="rounded-full border border-white/10 bg-white/10 px-3 py-2 text-xs font-bold text-white/80">{item}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {[
+                ['Swim', 'Technique swim', '1,800 yd. Drills and easy aerobic work.', 'Done'],
+                ['Run', 'Easy brick run', '25 min. Relaxed off the bike.', 'Tomorrow'],
+              ].map(([sport, title, meta, tag]) => (
+                <div key={title} className="grid grid-cols-[44px_1fr_auto] items-center gap-3 rounded-3xl border border-[#E3E0D8] bg-white p-4">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#F5F4F0] text-[10px] font-black uppercase tracking-[0.1em] text-[#6B7280]">{sport}</span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-black tracking-[-0.02em] text-[#101114]">{title}</p>
+                    <p className="mt-1 truncate text-sm text-[#6B7280]">{meta}</p>
+                  </div>
+                  <span className="rounded-full bg-[#F1EFFF] px-3 py-1 text-[11px] font-black text-[#635BFF]">{tag}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CalendarCard() {
+  const rows = [
+    ['Swim', 'Monday', 'Recovery swim', '1,500 yd · smooth technique', 'Easy'],
+    ['Bike', 'Tuesday', 'Tempo bike', '70 min · 3 x 12 min sweet spot', 'Key'],
+    ['Run', 'Wednesday', 'Aerobic run', '45 min · conversational pace', 'Z2'],
+    ['Brick', 'Friday', 'Brick session', 'Bike + short run · race rhythm', 'Race prep'],
+  ];
+
+  return (
+    <div className="rounded-[2rem] border border-[#E3E0D8] bg-white p-5 shadow-[0_28px_90px_rgba(16,17,20,0.10)]">
+      <div className="space-y-3">
+        {rows.map(([sport, day, title, meta, tag]) => (
+          <div key={`${day}-${title}`} className="flex items-center gap-4 rounded-3xl border border-[#E3E0D8] bg-white px-4 py-4">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#F5F4F0] text-[10px] font-black uppercase tracking-[0.12em] text-[#8A8F98]">{sport}</span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-black tracking-[-0.02em] text-[#101114]">{day}. {title}</p>
+              <p className="mt-1 text-sm text-[#6B7280]">{meta}</p>
+            </div>
+            <span className="rounded-full bg-[#F1EFFF] px-3 py-1 text-[11px] font-black text-[#635BFF]">{tag}</span>
           </div>
         ))}
       </div>
@@ -457,27 +167,79 @@ function SchedulePreview() {
   );
 }
 
-function MetricStrip() {
+function StravaCard() {
+  const rows = [
+    ['Ride', 'Morning Ride', '1:12:44 · 20.8 mi · 147w avg'],
+    ['Run', 'Lunch Run', '39:18 · 4.7 mi · 8:21/mi'],
+    ['Swim', 'Pool Swim', '34:10 · 1,900 yd · drills'],
+  ];
+
   return (
-    <div className="grid gap-3 sm:grid-cols-3">
-      {[
-        ["Strava synced", "3", "workouts this week"],
-        ["Plan adherence", "92%", "on track"],
-        ["This week", "7h 20m", "planned volume"],
-      ].map(([label, value, detail]) => (
-        <div
-          key={label}
-          className="rounded-[1.5rem] border border-[#E3E0D8] bg-white p-5"
-        >
-          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#9CA3AF]">
-            {label}
-          </p>
-          <p className="mt-3 text-4xl font-black tracking-[-0.08em] text-[#101114]">
-            {value}
-          </p>
-          <p className="mt-1 text-sm font-semibold text-[#6B7280]">{detail}</p>
+    <div className="rounded-[2rem] border border-[#E3E0D8] bg-white p-5 shadow-[0_28px_90px_rgba(16,17,20,0.10)]">
+      <img src={compatibleStrava} alt="Compatible with Strava" className="mb-4 h-auto w-[210px] max-w-full" />
+      <div className="space-y-3">
+        {rows.map(([sport, title, meta]) => (
+          <div key={title} className="flex items-center gap-4 rounded-3xl border border-[#E3E0D8] bg-white px-4 py-4">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#FC5200] text-[10px] font-black uppercase tracking-[0.12em] text-white">{sport}</span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-black tracking-[-0.02em] text-[#101114]">{title}</p>
+              <p className="mt-1 text-sm text-[#6B7280]">{meta}</p>
+            </div>
+            <span className="text-sm font-black text-[#0A7A3D]">Matched</span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 rounded-[1.5rem] border border-[#DAD4FF] bg-[#F1EFFF] p-4">
+        <p className="text-sm font-black text-[#101114]">3 activities matched this week</p>
+        <p className="mt-1 text-sm leading-6 text-[#4F4A70]">Completed sessions match automatically and keep weekly load current.</p>
+      </div>
+    </div>
+  );
+}
+
+function AdjustmentCard() {
+  return (
+    <div className="rounded-[2rem] border border-[#E3E0D8] bg-white p-6 shadow-[0_28px_90px_rgba(16,17,20,0.10)]">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[#9CA3AF]">16 week plan</p>
+          <h3 className="mt-2 text-3xl font-black tracking-[-0.06em] text-[#101114]">Base, Build, Peak, Taper, Race</h3>
         </div>
-      ))}
+        <span className="w-fit rounded-full bg-[#F0FBF4] px-3 py-1.5 text-xs font-black text-[#0C7A55]">Adjusted weekly</span>
+      </div>
+
+      <div className="mt-8 flex items-center gap-2">
+        {[0, 1, 2, 3, 4, 5, 6].map((item) => (
+          <span
+            key={item}
+            className="h-3 flex-1 rounded-full"
+            style={{
+              backgroundColor: item < 2 ? '#B7C0FF' : item < 5 ? '#7C5CF0' : item === 5 ? '#F59E0B' : '#22C55E',
+              flexGrow: item === 6 ? 0.35 : 1,
+            }}
+          />
+        ))}
+      </div>
+      <div className="mt-3 flex justify-between text-xs font-bold text-[#85868E]">
+        <span>Base</span>
+        <span>Build</span>
+        <span>Peak</span>
+        <span>Taper</span>
+        <span>Race</span>
+      </div>
+
+      <div className="mt-6 grid gap-3">
+        {[
+          'Protects long rides, long runs, and race-specific brick sessions.',
+          'Lightens the next day when training load comes in high.',
+          'Moves missed sessions when useful. Skips them when it is smarter.',
+        ].map((item) => (
+          <div key={item} className="flex items-center gap-3 rounded-2xl bg-[#F8F8F6] p-4 text-sm leading-6 text-[#666872]">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#E9F8EF] text-xs font-black text-[#0C7A55]">✓</span>
+            <span>{item}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -488,23 +250,17 @@ export default function Home() {
 
   useEffect(() => {
     let alive = true;
-
     const syncSession = async () => {
       const { data, error } = await supabase.auth.getSession();
       if (!alive) return;
-      if (error) console.warn("[home] getSession error", error);
+      if (error) console.warn('[home] getSession error', error);
       setSession(data.session ?? null);
     };
-
     syncSession();
-
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event: AuthChangeEvent, nextSession: SupabaseSession | null) => {
-        if (!alive) return;
-        setSession(nextSession ?? null);
-      },
-    );
-
+    const { data: listener } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, nextSession: SupabaseSession | null) => {
+      if (!alive) return;
+      setSession(nextSession ?? null);
+    });
     return () => {
       alive = false;
       listener.subscription.unsubscribe();
@@ -512,221 +268,135 @@ export default function Home() {
   }, []);
 
   const authed = Boolean(session?.user);
-
-  const startPlan = () => {
-    if (authed) {
-      router.push("/plan");
-      return;
-    }
-    router.push(`/login?next=${encodeURIComponent("/plan")}`);
-  };
+  const goPlan = () => router.push(authed ? '/plan' : `/login?next=${encodeURIComponent('/plan')}`);
+  const goLogin = () => router.push(`/login?next=${encodeURIComponent('/schedule')}`);
+  const goSchedule = () => router.push('/schedule');
+  const goStrava = () => router.push(authed ? '/settings' : `/login?next=${encodeURIComponent('/settings')}`);
 
   return (
-    <main className="min-h-screen bg-[#F7F6F2] text-[#101114]">
-      <MarketingHeader
-        authed={authed}
-        onStart={startPlan}
-        onSchedule={() => router.push("/schedule")}
-      />
-
-      <section className="relative isolate overflow-hidden px-4 pt-28 sm:px-6 lg:px-8">
-        <div className="absolute left-1/2 top-16 -z-10 h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-[#2563FF]/10 blur-3xl" />
-        <div className="absolute right-0 top-24 -z-10 h-[320px] w-[320px] rounded-full bg-[#C6F33C]/35 blur-3xl" />
-        <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-14 pb-20 lg:grid-cols-12 lg:pb-28">
-          <div className="lg:col-span-6">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#D7DDFF] bg-white px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-[#2563FF] shadow-sm">
-              <span className="h-2 w-2 rounded-full bg-[#C6F33C]" /> Free AI
-              triathlon plan generator
-            </div>
-            <h1 className="mt-6 max-w-4xl text-6xl font-black leading-[0.9] tracking-[-0.08em] text-[#101114] sm:text-7xl lg:text-[5.6rem]">
-              Free custom triathlon plans, {" "}
-              <span className="text-[#2563FF]">instantly.</span>
-            </h1>
-            <p className="mt-6 max-w-xl text-lg leading-8 text-[#4B5563]">
-              Generate a swim, bike, and run plan for your race. Connect Strava,
-              track your training, adjust week by week, and get ready to crush
-              race day.
-            </p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <CTAButton onClick={startPlan}>
-                {authed ? "Open plan builder" : "Generate my free plan"}
-              </CTAButton>
-              <a
-                href="#how-it-works"
-                className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#E2E0D8] bg-white px-6 text-sm font-bold text-[#101114] transition hover:bg-[#F7F6F2]"
-              >
-                See how it works
+    <main className="min-h-screen overflow-hidden bg-[#FBFBFA] text-[#101114]">
+      <header className="fixed inset-x-0 top-0 z-50 border-b border-[#E3E0D8]/70 bg-[#FBFBFA]/85 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-3" aria-label="Go to top">
+            <Mark />
+            <span className="text-sm font-black tracking-[-0.03em]">TrainGPT</span>
+          </button>
+          <nav className="hidden items-center gap-1 md:flex">
+            {nav.map(([href, label]) => (
+              <a key={href} href={href} className="rounded-full px-3 py-2 text-sm font-semibold text-[#6B7280] transition hover:bg-white hover:text-[#101114]">
+                {label}
               </a>
+            ))}
+          </nav>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={authed ? goSchedule : goLogin} className="rounded-full border border-[#E2E0D8] bg-white px-4 py-2 text-sm font-bold text-[#101114] transition hover:bg-[#F7F6F2]">
+              {authed ? 'Open app' : 'Log in'}
+            </button>
+            <button type="button" onClick={authed ? goSchedule : goPlan} className="rounded-full bg-[#101114] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#25272D]">
+              {authed ? 'Open schedule' : 'Build my plan'}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <section className="relative isolate px-4 pb-16 pt-32 text-center sm:px-6 lg:px-8">
+        <div className="absolute left-1/2 top-16 -z-10 h-[620px] w-[920px] -translate-x-1/2 rounded-full bg-[#E8E3FF] opacity-75 blur-3xl" />
+        <div className="absolute right-0 top-40 -z-10 h-[380px] w-[380px] rounded-full bg-[#FFE7DD] opacity-70 blur-3xl" />
+        <div className="mx-auto max-w-6xl">
+          <Label>Free AI triathlon coaching</Label>
+          <h1 className="mx-auto mt-7 max-w-5xl text-[4.2rem] font-black leading-[0.92] tracking-[-0.085em] sm:text-[6.2rem] lg:text-[7.3rem]">
+            Triathlon training,
+            <br />
+            <span className="bg-gradient-to-r from-[#4F63F5] via-[#7C5CF0] to-[#9B5CE8] bg-clip-text text-transparent">on autopilot.</span>
+          </h1>
+          <p className="mx-auto mt-7 max-w-2xl text-lg leading-8 text-[#4B5563] sm:text-xl">
+            TrainGPT builds your race plan, reads your Strava training, and adjusts the week ahead when life gets in the way.
+          </p>
+          <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
+            <PillButton onClick={goPlan}>{authed ? 'Open plan builder' : 'Build my plan'}</PillButton>
+            <a href="#strava" className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#E2E0D8] bg-white px-6 text-sm font-black text-[#101114] transition hover:-translate-y-0.5 hover:bg-[#F7F6F2]">
+              See how it works
+            </a>
+          </div>
+          <p className="mt-4 text-sm font-semibold text-[#6B7280]">Sprint, Olympic, 70.3, and Ironman plans. Built in about 60 seconds.</p>
+          <div className="mt-7 flex justify-center">
+            <img src={compatibleStrava} alt="Compatible with Strava" className="h-auto w-[220px] max-w-full" />
+          </div>
+
+          <HeroPreview />
+        </div>
+      </section>
+
+      <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-center gap-2 px-4 pb-14 text-sm sm:px-6 lg:px-8">
+        <span className="mr-1 font-bold text-[#8A8F98]">Built for</span>
+        {races.map((race) => (
+          <span key={race} className="rounded-full border border-[#E3E0D8] bg-white px-4 py-2 font-black text-[#8A8F98] shadow-[0_8px_30px_rgba(16,17,20,0.03)]">
+            {race}
+          </span>
+        ))}
+      </div>
+
+      <section className="px-4 pb-20 sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-7xl gap-4 sm:grid-cols-3">
+          {[
+            ['Free', 'To generate'],
+            ['60s', 'To a custom plan'],
+            ['Weekly', 'Adjusted with Strava'],
+          ].map(([value, label]) => (
+            <div key={value} className="rounded-[1.75rem] border border-[#E3E0D8] bg-white/70 p-8 text-center shadow-[0_18px_60px_rgba(16,17,20,0.05)]">
+              <p className="text-5xl font-black tracking-[-0.08em] text-[#635BFF]">{value}</p>
+              <p className="mt-3 text-sm font-black text-[#6B7280]">{label}</p>
             </div>
-            <div className="mt-10 flex flex-wrap items-center gap-x-5 gap-y-3 text-[11px] font-black uppercase tracking-[0.16em] text-[#9CA3AF]">
-              <span>Instant plan generation</span>
-              <span>Track with Strava</span>
-              <span>Sprint / Olympic / 70.3 / Ironman</span>
-            </div>
-          </div>
-          <div className="lg:col-span-6">
-            <HeroProductCard />
-          </div>
+          ))}
         </div>
       </section>
 
-      <section id="how-it-works" className="px-4 py-16 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl">
-          <div className="max-w-3xl">
-            <SectionLabel>How it works</SectionLabel>
-            <h2 className="mt-4 text-4xl font-black tracking-[-0.07em] text-[#101114] md:text-6xl">
-              Generate your plan. Track with Strava. Adjust every week.
-            </h2>
-          </div>
-          <div className="mt-10 grid gap-4 md:grid-cols-3">
-            <ValueCard
-              eyebrow="01 · Generate"
-              title="Get a custom plan instantly"
-              copy="Choose your race, race date, experience level, weekly hours, and schedule. TrainGPT creates a swim, bike, and run plan in seconds."
-              accent="#2563FF"
-            />
-            <ValueCard
-              eyebrow="02 · Track"
-              title="Connect Strava"
-              copy="Sync your real workouts so completed sessions, missed training, and weekly volume live next to your generated plan."
-              accent="#FF6A00"
-            />
-            <ValueCard
-              eyebrow="03 · Adjust"
-              title="Update week by week"
-              copy="As training changes, your plan should change too. TrainGPT helps you see what to do next and stay pointed at race day."
-              accent="#C6F33C"
-            />
-          </div>
-        </div>
-      </section>
-
-      <section id="plan-preview" className="px-4 py-16 sm:px-6 lg:px-8">
-        <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-12 lg:items-start">
-          <div className="lg:col-span-5">
-            <SectionLabel>Plan preview</SectionLabel>
-            <h2 className="mt-4 text-4xl font-black tracking-[-0.07em] text-[#101114] md:text-5xl">
-              Start with a plan you can actually follow.
-            </h2>
-            <p className="mt-5 text-base leading-8 text-[#4B5563]">
-              Most AI tools give you a wall of text. TrainGPT gives you a real
-              training schedule you can save, track, and adjust as your workouts
-              come in.
-            </p>
-          </div>
-          <div className="lg:col-span-7">
-            <PlanGeneratorCard authed={authed} onStart={startPlan} />
-          </div>
-        </div>
-      </section>
-
-      <section id="schedule" className="bg-white px-4 py-20 sm:px-6 lg:px-8">
+      <section id="calendar" className="px-4 py-20 sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-12">
           <div className="lg:col-span-5">
-            <SectionLabel>Training calendar</SectionLabel>
-            <h2 className="mt-4 text-4xl font-black tracking-[-0.07em] text-[#101114] md:text-6xl">
-              Know exactly what to do today.
-            </h2>
-            <p className="mt-5 text-base leading-8 text-[#4B5563]">
-              Follow your generated plan from one simple calendar. Open today’s
-              workout, track what you completed, and keep your week organized.
-            </p>
+            <Label>Calendar-first coaching</Label>
+            <h2 className="mt-4 text-4xl font-black tracking-[-0.07em] md:text-6xl">Your plan, laid out like real life.</h2>
+            <p className="mt-5 text-base leading-8 text-[#4B5563]">Open TrainGPT and the day is clear. Distance, zones, and intent are already there. No spreadsheets. No guessing. Just the next session.</p>
           </div>
-          <div className="lg:col-span-7">
-            <SchedulePreview />
-          </div>
+          <div className="lg:col-span-7"><CalendarCard /></div>
         </div>
       </section>
 
-      <section
-        id="strava"
-        className="border-y border-[#E3E0D8] bg-[#F7F6F2] px-4 py-20 sm:px-6 lg:px-8"
-      >
+      <section id="strava" className="border-y border-[#E3E0D8] bg-white px-4 py-20 sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-12 lg:items-center">
-          <div className="lg:col-span-5">
-            <SectionLabel>Strava tracking</SectionLabel>
-            <h2 className="mt-4 text-4xl font-black tracking-[-0.07em] text-[#101114] md:text-6xl">
-              Your workouts sync back to the plan.
-            </h2>
-            <p className="mt-5 text-base leading-8 text-[#4B5563]">
-              Connect Strava so your rides, runs, and swims are tracked
-              automatically. See what you completed, what you missed, and how
-              your training is trending.
-            </p>
+          <div className="lg:col-span-6 lg:order-2">
+            <Label>Strava sync</Label>
+            <h2 className="mt-4 text-4xl font-black tracking-[-0.07em] md:text-6xl">Finish a workout. Your plan already knows.</h2>
+            <p className="mt-5 text-base leading-8 text-[#4B5563]">Connect Strava once. Every ride, run, and swim flows back into your plan. Completed sessions check themselves off and weekly volume updates in real time.</p>
+            <button type="button" onClick={goStrava} className="mt-7 inline-flex rounded-md transition hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-[#FFE7DD]" aria-label="Connect with Strava">
+              <img src={connectStrava} alt="Connect with Strava" className="h-12 w-auto" />
+            </button>
           </div>
-          <div className="lg:col-span-7">
-            <MetricStrip />
+          <div className="lg:col-span-6 lg:order-1"><StravaCard /></div>
+        </div>
+      </section>
+
+      <section id="adjustments" className="px-4 py-20 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-3xl text-center">
+          <Label>Adaptive training</Label>
+          <h2 className="mt-4 text-4xl font-black tracking-[-0.07em] md:text-6xl">Miss a session. Keep the plan moving.</h2>
+          <p className="mt-5 text-base leading-8 text-[#4B5563]">TrainGPT adjusts the days ahead around what you actually did. Key sessions stay protected. Recovery stays respected.</p>
+        </div>
+        <div className="mx-auto mt-12 max-w-5xl"><AdjustmentCard /></div>
+      </section>
+
+      <section className="mx-auto mb-20 mt-6 max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="rounded-[2.5rem] border border-[#E3E0D8] bg-white p-10 text-center shadow-[0_28px_90px_rgba(16,17,20,0.08)] md:p-16">
+          <Label>Start training</Label>
+          <h2 className="mx-auto mt-4 max-w-3xl text-4xl font-black leading-none tracking-[-0.07em] md:text-6xl">Build your race plan before your next workout.</h2>
+          <p className="mx-auto mt-5 max-w-2xl text-base leading-8 text-[#4B5563]">Set your race, schedule, experience, and available hours. TrainGPT builds the plan, tracks your work, and adjusts the week ahead.</p>
+          <div className="mt-8">
+            <PillButton onClick={goPlan}>{authed ? 'Open plan builder' : 'Build my plan'}</PillButton>
           </div>
         </div>
       </section>
 
-      <section id="coaching" className="bg-white px-4 py-20 sm:px-6 lg:px-8">
-        <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-12 lg:items-center">
-          <div className="lg:col-span-6">
-            <div className="rounded-[2rem] border border-[#E3E0D8] bg-[#101114] p-6 text-white shadow-[0_24px_80px_rgba(16,17,20,0.16)]">
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-white/40">
-                Coach insight
-              </p>
-              <h3 className="mt-4 text-3xl font-black tracking-[-0.06em]">
-                Good week. Keep the next one realistic.
-              </h3>
-              <p className="mt-4 text-base leading-7 text-white/65">
-                You completed the key run and two steady rides. This week we
-                keep the long ride controlled, then rebuild run volume without
-                forcing intensity.
-              </p>
-              <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                {["View adjusted week", "Ask coach", "Open Saturday"].map(
-                  (item) => (
-                    <div
-                      key={item}
-                      className="rounded-2xl bg-white/10 px-4 py-3 text-sm font-bold text-white/85"
-                    >
-                      {item}
-                    </div>
-                  ),
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="lg:col-span-5 lg:col-start-8">
-            <SectionLabel>Weekly adjustments</SectionLabel>
-            <h2 className="mt-4 text-4xl font-black tracking-[-0.07em] text-[#101114] md:text-6xl">
-              Adjust your plan as training changes.
-            </h2>
-            <p className="mt-5 text-base leading-8 text-[#4B5563]">
-              Miss a long ride, crush a key run, or have a lighter week than
-              planned. TrainGPT helps you understand what changed and what to do
-              next.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-[#101114] px-4 py-20 text-white sm:px-6 lg:px-8">
-        <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-8 md:flex-row md:items-end">
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#C6F33C]">
-              Start training
-            </p>
-            <h2 className="mt-4 max-w-3xl text-4xl font-black tracking-[-0.07em] md:text-6xl">
-              Generate your free triathlon plan today.
-            </h2>
-          </div>
-          <button
-            type="button"
-            onClick={startPlan}
-            className="rounded-full bg-white px-6 py-3 text-sm font-black text-[#101114] transition hover:bg-white/90"
-          >
-            {authed ? "Open plan builder" : "Generate my free plan"}
-          </button>
-        </div>
-      </section>
-
-      <section id="resources" className="bg-white">
-        <BlogPreview />
-      </section>
-
+      <section id="resources" className="bg-white"><BlogPreview /></section>
       <Footer />
     </main>
   );
