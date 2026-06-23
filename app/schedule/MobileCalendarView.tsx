@@ -13,7 +13,7 @@ import {
 } from "date-fns";
 import clsx from "clsx";
 import AddSessionModalTP from "./AddSessionModalTP";
-import MobileSessionModal from "./MobileSessionModal";
+import MobileSessionModal from "./MobileSessionModalV2";
 import { exportCalendarClient } from "@/utils/exportCalendarClient";
 import type { CompletedSession } from "@/types/session";
 import type { StravaActivity } from "@/types/strava";
