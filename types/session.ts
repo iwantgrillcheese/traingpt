@@ -1,5 +1,7 @@
 export type SportType = 'Swim' | 'Bike' | 'Run' | 'Rest' | 'Strength' | 'Other';
 
+export type CoachResponseStatus = 'pending' | 'generated' | 'failed' | null;
+
 export type Session = {
   id: string;
   user_id: string;
@@ -14,6 +16,10 @@ export type Session = {
   coach_note?: string | null;
   structured_workout: string | null;
   athlete_notes?: string | null;
+  coach_response?: string | null;
+  coach_response_status?: CoachResponseStatus;
+  coach_response_generated_at?: string | null;
+  coach_response_note_snapshot?: string | null;
   strava_id: number | null;
 };
 
