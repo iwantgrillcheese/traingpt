@@ -30,6 +30,9 @@ type Props = {
 type NotesStatus = "idle" | "dirty" | "saving" | "saved" | "error";
 type Range = { min: number; max: number };
 type Segment = { label: string; minutes: number; target: string; watts?: number; color: string };
+type IntensityKind = "recovery" | "endurance" | "tempo" | "threshold" | "vo2" | "race" | "strength" | "unknown";
+type SideCardTone = "blue" | "green" | "amber" | "red" | "neutral";
+type SideCard = { label: string; value: string | number; caption: string; tone?: SideCardTone };
 
 function XIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -69,8 +72,6 @@ function isSwim(value?: string | null) {
   const sport = String(value ?? "").toLowerCase();
   return sport.includes("swim");
 }
-
-type IntensityKind = "recovery" | "endurance" | "tempo" | "threshold" | "vo2" | "race" | "strength" | "unknown";
 
 function inferIntensityKind(text: string): IntensityKind {
   const value = text.toLowerCase();
@@ -258,6 +259,19 @@ function workoutSegments(target: Range | null, duration?: number | null, text = 
   ];
 }
 
+function loadCheckForSession(session: Session, recentMissed = 0): SideCard {
+  const context = `${session.title ?? ""} ${prescriptionText(session)}`;
+  const intensity = inferIntensityKind(context);
+
+  if (intensity === "vo2") return { label: "Load check", value: "Hard day", caption: "Planned high-intensity work", tone: "red" };
+  if (intensity === "threshold") return { label: "Load check", value: "Hard day", caption: "Threshold session", tone: "red" };
+  if (intensity === "tempo" || intensity === "race") return { label: "Load check", value: "Controlled", caption: "Moderate quality work", tone: "amber" };
+  if (intensity === "recovery") return { label: "Load check", value: "Recovery", caption: "Keep this truly easy", tone: "green" };
+  if (intensity === "strength") return { label: "Load check", value: "Support", caption: "Strength maintenance", tone: "neutral" };
+  if (recentMissed >= 2) return { label: "Load check", value: "Keep easy", caption: "Rebuilding consistency", tone: "green" };
+  return { label: "Load check", value: "Normal", caption: "Aerobic training day", tone: "blue" };
+}
+
 function getWorkoutFocus(session: Session, segments: Segment[], powerTarget: Range | null) {
   const context = `${session.title ?? ""} ${prescriptionText(session)}`;
   const intensity = inferIntensityKind(context);
@@ -265,12 +279,12 @@ function getWorkoutFocus(session: Session, segments: Segment[], powerTarget: Ran
   const workMinutes = segments.filter((segment) => segment.color === "#FF6A3D" || segment.label.includes("Main")).reduce((sum, segment) => sum + segment.minutes, 0);
   const targetLabel = powerTarget ? `${powerTarget.min}–${powerTarget.max} W` : null;
 
-  if (isBike(`${session.sport} ${session.title}`) && intensity === "threshold") return { title: "Hit the work blocks, then actually recover.", body: targetLabel ? `The quality is ${workMinutes} minutes of controlled work around ${targetLabel}. Do not turn the recoveries into tempo riding — the next interval should feel repeatable, not desperate.` : "The quality is in the work blocks. Keep the recoveries honest so the final rep looks like the first.", label: "Ready" };
-  if (isRun(`${session.sport} ${session.title}`) && intensity === "threshold") return { title: "Controlled hard. Not a time trial.", body: "Threshold work should feel sustainable and repeatable. Let heart rate climb through the early work, then settle near upper Z3 / Z4 without sprinting the last rep.", label: "Ready" };
-  if (intensity === "tempo" || intensity === "race") return { title: `Lock into ${intensity === "race" ? "race rhythm" : "tempo"} and stay smooth.`, body: `${sport} quality today is about even pressure. Start slightly conservative, settle into the prescribed effort, and avoid turning the finish into a test.`, label: "Ready" };
-  if (intensity === "vo2") return { title: "Make the hard parts hard and the easy parts easy.", body: "The recoveries are part of the workout, not dead time. Keep the first rep controlled enough that the last rep is still useful.", label: "Ready" };
-  if (isSwim(`${session.sport} ${session.title}`)) return { title: "Stay long, relaxed, and technically clean.", body: "Hold form, keep the effort controlled, and make the last repeat look as clean as the first.", label: "Ready" };
-  return { title: "Keep this aerobic and repeatable.", body: targetLabel ? `Today is about controlled aerobic work around ${targetLabel}. Respect the cap and finish fresher than you started.` : "Today is about controlled aerobic work. Stay smooth, avoid chasing extra intensity, and let the plan build from consistency.", label: "Ready" };
+  if (isBike(`${session.sport} ${session.title}`) && intensity === "threshold") return { title: "Hit the work blocks, then actually recover.", body: targetLabel ? `The quality is ${workMinutes} minutes of controlled work around ${targetLabel}. Do not turn the recoveries into tempo riding — the next interval should feel repeatable, not desperate.` : "The quality is in the work blocks. Keep the recoveries honest so the final rep looks like the first." };
+  if (isRun(`${session.sport} ${session.title}`) && intensity === "threshold") return { title: "Controlled hard. Not a time trial.", body: "Threshold work should feel sustainable and repeatable. Let heart rate climb through the early work, then settle near upper Z3 / Z4 without sprinting the last rep." };
+  if (intensity === "tempo" || intensity === "race") return { title: `Lock into ${intensity === "race" ? "race rhythm" : "tempo"} and stay smooth.`, body: `${sport} quality today is about even pressure. Start slightly conservative, settle into the prescribed effort, and avoid turning the finish into a test.` };
+  if (intensity === "vo2") return { title: "Make the hard parts hard and the easy parts easy.", body: "The recoveries are part of the workout, not dead time. Keep the first rep controlled enough that the last rep is still useful." };
+  if (isSwim(`${session.sport} ${session.title}`)) return { title: "Stay long, relaxed, and technically clean.", body: "Hold form, keep the effort controlled, and make the last repeat look as clean as the first." };
+  return { title: "Keep this aerobic and repeatable.", body: targetLabel ? `Today is about controlled aerobic work around ${targetLabel}. Respect the cap and finish fresher than you started.` : "Today is about controlled aerobic work. Stay smooth, avoid chasing extra intensity, and let the plan build from consistency." };
 }
 
 function LabelPill({ children, tone = "default" }: { children: React.ReactNode; tone?: "default" | "complete" | "hot" | "ready" }) {
@@ -281,12 +295,34 @@ function LabelPill({ children, tone = "default" }: { children: React.ReactNode; 
   );
 }
 
-function CoachRead({ eyebrow, title, body, score, label }: { eyebrow: string; title: string; body: string; score?: number; label?: string }) {
+function SideMetric({ card }: { card: SideCard }) {
+  const toneClass = {
+    blue: "border-[#DCE1FF] bg-white text-[#2563FF]",
+    green: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    amber: "border-amber-200 bg-amber-50 text-amber-700",
+    red: "border-[#FFD7B8] bg-[#FFF3E9] text-[#A34500]",
+    neutral: "border-[#E7E9F1] bg-white text-[#101114]",
+  }[card.tone ?? "neutral"];
+
+  return (
+    <div className={clsx("rounded-[18px] border p-3 text-center sm:min-w-[116px]", toneClass)}>
+      <span className="block text-[10px] font-black uppercase tracking-[0.12em] opacity-75">{card.label}</span>
+      <strong className="mt-1 block text-[23px] leading-none tracking-[-0.06em] text-[#101114]">{card.value}</strong>
+      <span className="mt-1 block text-[11px] font-bold leading-4 text-[#7B8092]">{card.caption}</span>
+    </div>
+  );
+}
+
+function CoachRead({ eyebrow, title, body, sideCard }: { eyebrow: string; title: string; body: string; sideCard?: SideCard }) {
   return (
     <section className="mb-5 grid grid-cols-[42px_1fr] gap-3 rounded-[22px] border border-[#D7D9FF] bg-gradient-to-br from-[#F7F8FF] to-white p-4 shadow-[0_12px_30px_rgba(118,103,255,0.08)] sm:grid-cols-[42px_1fr_auto]">
       <div className="grid h-[42px] w-[42px] place-items-center rounded-[14px] bg-gradient-to-br from-[#7667FF] to-[#A699FF] text-white shadow-[0_12px_28px_rgba(118,103,255,0.24)]">✣</div>
-      <div><div className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#4054FF]">{eyebrow}</div><h2 className="text-[22px] font-black leading-tight tracking-[-0.05em] text-[#101114]">{title}</h2><p className="mt-2 max-w-2xl text-[14px] leading-6 text-[#40485B]">{body}</p></div>
-      {score || label ? <div className="rounded-[18px] border border-[#DCE1FF] bg-white p-3 text-center sm:min-w-[102px]"><strong className="block text-[30px] leading-none tracking-[-0.06em] text-[#101114]">{score ?? label}</strong><span className="text-[11px] font-black uppercase tracking-[0.09em] text-[#7B8092]">{score ? "Score" : "Ready"}</span></div> : null}
+      <div>
+        <div className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#4054FF]">{eyebrow}</div>
+        <h2 className="text-[22px] font-black leading-tight tracking-[-0.05em] text-[#101114]">{title}</h2>
+        <p className="mt-2 max-w-2xl text-[14px] leading-6 text-[#40485B]">{body}</p>
+      </div>
+      {sideCard ? <SideMetric card={sideCard} /> : null}
     </section>
   );
 }
@@ -311,7 +347,22 @@ function PowerBlocks({ segments }: { segments: Segment[] }) {
   return (
     <section className="rounded-[22px] border border-[#E7E9F1] bg-white shadow-[0_12px_30px_rgba(19,21,39,0.045)]">
       <div className="flex items-start justify-between gap-3 border-b border-[#E7E9F1] bg-[#FCFCFF] px-4 py-4"><div><h3 className="text-[16px] font-black tracking-[-0.035em] text-[#101114]">Power targets</h3><p className="mt-1 text-[12px] font-bold text-[#7A8093]">Each block is a prescribed interval. Watts are shown inside the chart.</p></div><span className="text-[12px] font-bold text-[#7A8093]">{total} min total</span></div>
-      <div className="p-4"><div className="relative h-[220px] overflow-hidden rounded-2xl bg-[#FCFCFF] pb-10 pl-[58px] pr-4 pt-4">{ticks.map((value) => { const top = 16 + ((axisMax - value) / range) * 154; return <div key={value} className="absolute left-4 right-4 border-t border-[#E7E8F1]" style={{ top }}><span className="absolute -top-2.5 left-0 rounded-md bg-[#FCFCFF] pr-1 text-[11px] font-bold text-[#7D8396]">{value}w</span></div>; })}<div className="absolute bottom-10 left-[58px] right-4 top-4 flex items-end overflow-hidden rounded-xl border border-[#E7E9F1] bg-white/40">{segments.map((segment, index) => { const height = clampPercent((((segment.watts ?? axisMin) - axisMin) / range) * 100); const width = `${Math.max(5, (segment.minutes / total) * 100)}%`; return <div key={`${segment.label}-${index}`} className="flex h-full flex-col justify-end border-r border-white/70 last:border-r-0" style={{ width }} title={`${segment.label}: ${segment.target}`}><div className="min-h-[8px] w-full" style={{ height: `${height}%`, backgroundColor: segment.color }} /></div>; })}</div><div className="absolute bottom-3 left-[58px] right-4 flex justify-between text-[11px] font-bold text-[#7D8396]"><span>0:00</span><span>{Math.max(1, total - Math.min(10, total))}m</span><span>{total}m</span></div></div></div>
+      <div className="p-4">
+        <div className="relative h-[220px] overflow-hidden rounded-2xl bg-[#FCFCFF] pb-10 pl-[58px] pr-4 pt-4">
+          {ticks.map((value) => {
+            const top = 16 + ((axisMax - value) / range) * 154;
+            return <div key={value} className="absolute left-4 right-4 border-t border-[#E7E8F1]" style={{ top }}><span className="absolute -top-2.5 left-0 rounded-md bg-[#FCFCFF] pr-1 text-[11px] font-bold text-[#7D8396]">{value}w</span></div>;
+          })}
+          <div className="absolute bottom-10 left-[58px] right-4 top-4 flex items-end overflow-hidden rounded-xl border border-[#E7E9F1] bg-white/40">
+            {segments.map((segment, index) => {
+              const height = clampPercent((((segment.watts ?? axisMin) - axisMin) / range) * 100);
+              const width = `${Math.max(5, (segment.minutes / total) * 100)}%`;
+              return <div key={`${segment.label}-${index}`} className="flex h-full flex-col justify-end border-r border-white/70 last:border-r-0" style={{ width }} title={`${segment.label}: ${segment.target}`}><div className="min-h-[8px] w-full" style={{ height: `${height}%`, backgroundColor: segment.color }} /></div>;
+            })}
+          </div>
+          <div className="absolute bottom-3 left-[58px] right-4 flex justify-between text-[11px] font-bold text-[#7D8396]"><span>0:00</span><span>{Math.max(1, total - Math.min(10, total))}m</span><span>{total}m</span></div>
+        </div>
+      </div>
     </section>
   );
 }
@@ -377,7 +428,7 @@ function Checklist({ session, powerTarget }: { session: Session; powerTarget: Ra
   return <section className="rounded-[22px] border border-[#E7E9F1] bg-white shadow-[0_12px_30px_rgba(19,21,39,0.045)]"><div className="flex items-center justify-between gap-3 border-b border-[#E7E9F1] bg-[#FCFCFF] px-4 py-4"><h3 className="text-[16px] font-black tracking-[-0.035em] text-[#101114]">Before you start</h3><span className="text-[12px] font-bold text-[#7A8093]">Session-specific</span></div><div className="grid gap-3 p-4">{items.map(([title, body]) => <div key={title} className="grid grid-cols-[26px_1fr] gap-2.5"><span className="grid h-6 w-6 place-items-center rounded-full border border-emerald-200 bg-emerald-50 text-[13px] font-black text-emerald-700">✓</span><div><strong className="block text-[14px] tracking-[-0.02em]">{title}</strong><span className="text-[13px] leading-5 text-[#687085]">{body}</span></div></div>)}</div></section>;
 }
 
-export default function SessionModal({ session, stravaActivity, open, onClose, completedSessions, onCompletedUpdate, onSessionDeleted, onSessionUpdated, raceGoal }: Props) {
+export default function SessionModal({ session, stravaActivity, open, onClose, completedSessions, onCompletedUpdate, onSessionDeleted, onSessionUpdated, recentMissed = 0, raceGoal }: Props) {
   const [marking, setMarking] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [notesDraft, setNotesDraft] = useState("");
@@ -421,6 +472,7 @@ export default function SessionModal({ session, stravaActivity, open, onClose, c
   const powerTarget = isBike(session.sport || session.title) ? parsePowerTarget(fullPrescription) : null;
   const segments = workoutSegments(powerTarget, session.duration, fullPrescription);
   const preWorkoutFocus = getWorkoutFocus(session, segments, powerTarget);
+  const loadCheck = loadCheckForSession(session, recentMissed);
   const isCompleted = Boolean(stravaActivity) || manualStatus === "done";
   const isSkipped = !stravaActivity && manualStatus === "skipped";
   const coachReplyVisible = Boolean(notesDraft.trim());
@@ -502,7 +554,7 @@ export default function SessionModal({ session, stravaActivity, open, onClose, c
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto bg-white px-6 py-5">
             {errorMessage ? <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-[13px] font-medium text-rose-700">{errorMessage}</div> : null}
-            {stravaActivity ? <CoachRead eyebrow="Coach read" title={summary?.title ?? "Workout synced."} body={summary?.body ?? "Your completed activity is synced from Strava."} score={summary?.score ?? 80} /> : <CoachRead eyebrow="Today’s focus" title={preWorkoutFocus.title} body={preWorkoutFocus.body} label={preWorkoutFocus.label} />}
+            {stravaActivity ? <CoachRead eyebrow="Coach read" title={summary?.title ?? "Workout synced."} body={summary?.body ?? "Your completed activity is synced from Strava."} sideCard={{ label: "Execution score", value: summary?.score ?? 80, caption: "Actual vs planned", tone: summary?.tone === "hot" ? "amber" : "green" }} /> : <CoachRead eyebrow="Today’s focus" title={preWorkoutFocus.title} body={preWorkoutFocus.body} sideCard={loadCheck} />}
             {stravaActivity ? <PostWorkoutAnalysis session={session} activity={stravaActivity} target={powerTarget} /> : <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]"><div className="grid gap-5"><WorkoutStructure segments={segments} />{isBike(session.sport || session.title) ? <PowerBlocks segments={segments} /> : null}<HeartRateGuardrail session={session} /></div><div className="grid content-start gap-5"><Checklist session={session} powerTarget={powerTarget} /><section className="rounded-[22px] border border-[#E7E9F1] bg-white shadow-[0_12px_30px_rgba(19,21,39,0.045)]"><div className="flex items-center justify-between gap-3 border-b border-[#E7E9F1] bg-[#FCFCFF] px-4 py-4"><h3 className="text-[16px] font-black tracking-[-0.035em] text-[#101114]">Why this workout</h3><span className="text-[12px] font-bold text-[#7A8093]">Coach rationale</span></div><div className="grid gap-3 p-4 text-[14px] leading-6 text-[#3F4658]">{details ? details.split("\n").slice(0, 4).map((line) => <p key={line}>{line}</p>) : <p>No detailed prescription was saved for this session.</p>}</div></section></div></div>}
             {stravaActivity ? <section className="mt-5 rounded-[22px] border border-[#E7E9F1] bg-white shadow-[0_12px_30px_rgba(19,21,39,0.045)]"><div className="flex items-center justify-between gap-3 border-b border-[#E7E9F1] bg-[#FCFCFF] px-4 py-4"><h3 className="text-[16px] font-black tracking-[-0.035em] text-[#101114]">Workout info</h3><span className="text-[12px] font-bold text-[#7A8093]">Original prescription</span></div><div className="grid gap-3 p-4 text-[14px] leading-6 text-[#3F4658]">{details ? details.split("\n").map((line) => <p key={line}>{line}</p>) : <p>No detailed prescription was saved for this session.</p>}</div></section> : null}
             <section className="mt-5 rounded-[22px] border border-[#E7E9F1] bg-[#FFFDF9] p-4"><div className="flex items-center justify-between gap-3"><div className="text-[11px] font-black uppercase tracking-[0.16em] text-[#9CA3AF]">Athlete notes</div><div className={clsx("text-[12px] font-semibold", notesStatus === "error" ? "text-rose-600" : "text-zinc-400")}>{statusText(notesStatus)}</div></div><textarea value={notesDraft} onChange={(event) => scheduleNotesSave(event.target.value)} onBlur={() => saveNotes(notesDraft)} placeholder="How did this feel? Add anything your coach should know." rows={4} className="mt-3 w-full resize-none rounded-2xl border border-[#E3E0D8] bg-white px-4 py-3 text-[14px] leading-6 text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-[#CFCBC1]" /></section>
