@@ -1,6 +1,6 @@
 export type SportType = 'Swim' | 'Bike' | 'Run' | 'Rest' | 'Strength' | 'Other';
 
-export type CoachResponseStatus = 'pending' | 'generated' | 'failed' | null;
+export type CoachResponseStatus = string | null;
 
 export type Session = {
   id: string;
