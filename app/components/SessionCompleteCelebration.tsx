@@ -7,24 +7,24 @@ type CelebrationState = {
   label: string;
 };
 
-function isMarkDoneRequest(input: RequestInfo | URL, init?: RequestInit) {
+function isMarkDoneRequest(input: RequestInfo | URL, init?: RequestInit): boolean {
   const method = String(init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
   if (method !== 'POST') return false;
   const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
   return url.includes('/api/schedule/mark-done');
 }
 
-function isUndoRequest(init?: RequestInit) {
+function isUndoRequest(init?: RequestInit): boolean {
   if (!init?.body || typeof init.body !== 'string') return false;
   try {
-    const parsed = JSON.parse(init.body);
+    const parsed = JSON.parse(init.body) as { undo?: boolean };
     return parsed?.undo === true;
   } catch {
     return false;
   }
 }
 
-export default function SessionCompleteCelebration() {
+export default function SessionCompleteCelebration(): React.ReactElement | null {
   const [celebration, setCelebration] = useState<CelebrationState | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -32,7 +32,7 @@ export default function SessionCompleteCelebration() {
     if (typeof window === 'undefined') return undefined;
     const originalFetch = window.fetch.bind(window);
 
-    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const shouldWatch = isMarkDoneRequest(input, init) && !isUndoRequest(init);
       const response = await originalFetch(input, init);
 
@@ -40,14 +40,14 @@ export default function SessionCompleteCelebration() {
         response
           .clone()
           .json()
-          .then((payload) => {
+          .then((payload: { completed?: boolean }): void => {
             if (payload?.completed === true) {
               if (timeoutRef.current) clearTimeout(timeoutRef.current);
               setCelebration({ id: Date.now(), label: 'Session banked' });
-              timeoutRef.current = setTimeout(() => setCelebration(null), 1700);
+              timeoutRef.current = setTimeout((): void => setCelebration(null), 1700);
             }
           })
-          .catch(() => undefined);
+          .catch((): void => {});
       }
 
       return response;
