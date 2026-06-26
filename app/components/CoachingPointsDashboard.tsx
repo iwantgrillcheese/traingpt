@@ -19,6 +19,7 @@ import type { Session } from "@/types/session";
 import type { StravaActivity } from "@/types/strava";
 import FitnessPanel from "@/app/coaching/FitnessPanel";
 import StravaConnectBanner from "@/app/components/StravaConnectBanner";
+import { calculateReadiness } from "@/lib/readiness";
 import type { CoachingContextPayload } from "@/types/coaching-context";
 
 type CompletedRow = {
@@ -145,10 +146,6 @@ function calculateSessionPoints(input: {
   if (title.includes("recovery") || title.includes("easy")) points -= 4;
   if (input.sport === "Rest") return 0;
   return Math.max(10, Math.min(points, 110));
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
 }
 
 function raceCountdown(raceDate?: string | null) {
@@ -369,35 +366,28 @@ export default function CoachingPointsDashboard({
     plannedThisWeek.length > 0
       ? Math.round((completedThisWeek.length / plannedThisWeek.length) * 100)
       : 0;
-  const volumeScore =
-    plannedMinutes > 0
-      ? clamp((actualMinutes / plannedMinutes) * 100, 0, 110)
-      : actualMinutes > 0
-        ? 55
-        : 0;
-  const readiness = Math.round(
-    clamp(
-      completionPct * 0.42 +
-        clamp(pointsPct, 0, 115) * 0.32 +
-        volumeScore * 0.18 +
-        (stravaConnected ? 8 : 0),
-      0,
-      95,
-    ),
-  );
-  const readinessLabel =
-    readiness >= 80
-      ? "On track"
-      : readiness >= 60
-        ? "Building"
-        : readiness >= 35
-          ? "Needs consistency"
-          : "Foundation";
 
-  // Day-one honesty: with zero completed work and zero points, a numeric
-  // readiness grade is noise that reads as a punishment. Show a baseline
-  // state until there is real signal to grade.
-  const hasReadinessSignal = completionPct > 0 || pointsPct > 0;
+  const completedPlanSessions = completedSessions.filter((row) => row.status !== "skipped");
+  const readinessResult = calculateReadiness({
+    sessions,
+    completedSessions: completedPlanSessions,
+    raceDate,
+  });
+  const readiness = readinessResult.score;
+  const readinessLabel = readinessResult.label;
+
+  // Keep the day-one state humane, but once the plan has missed/past-due work,
+  // show the actual plan-to-date score instead of hiding a bad number.
+  const hasPastPlannedSessions = sessions.some((session) => {
+    const date = safeParseDate(session.date);
+    return date ? isBefore(startOfDay(date), today) : false;
+  });
+  const hasCompletedPlanSessions = completedPlanSessions.some((row) => {
+    const date = safeParseDate(getCompletedDate(row));
+    return date ? !isAfter(startOfDay(date), today) : false;
+  });
+  const hasReadinessSignal = hasPastPlannedSessions || hasCompletedPlanSessions;
+
   const deltaText =
     Math.abs(deltaMinutes) < 5
       ? "flat vs last week"
@@ -535,8 +525,8 @@ export default function CoachingPointsDashboard({
                 </h2>
                 <p className="mt-3 max-w-xl text-base leading-7 text-[#4B5563]">
                   {hasReadinessSignal
-                    ? "Target 80+ by race week. This reflects consistency, plan adherence, key sessions, fatigue control, and Strava-confirmed work."
-                    : "Readiness starts measuring once there is real work to grade — complete your first sessions and sync Strava."}
+                    ? "Target 80+ by race week. This reflects your current plan from day one through today, with extra weight on recent consistency. Weekly Training Value resets; Race Readiness does not."
+                    : "Readiness starts measuring once there is real plan history to grade — complete your first sessions and sync Strava."}
                 </p>
               </div>
             </div>
