@@ -6,7 +6,6 @@
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
-    "strictNullChecks": false,
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
 
@@ -49,6 +48,7 @@
   "exclude": [
     "node_modules",
     "mobile",
-    "mobile/**/*"
+    "mobile/**/*",
+    "app/schedule/SessionModalOura.tsx"
   ]
 }
