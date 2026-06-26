@@ -5,7 +5,7 @@ import { identify, initPostHog, reset, track } from '@/lib/analytics/posthog-cli
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
 
-export default function PostHogIdentityBridge() {
+export default function PostHogIdentityBridge(): null {
   const { user } = useAuth();
   const supabase = createBrowserSupabaseClient();
 
