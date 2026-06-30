@@ -20,6 +20,6 @@ export async function sendWelcomeEmail({
       body: JSON.stringify({ to, name, plan }),
     });
   } catch (err) {
-    console.error('❌ Failed to send welcome email (non-blocking)', err);
+    console.error('Failed to send welcome email (non-blocking)', err);
   }
 }
