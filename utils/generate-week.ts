@@ -12,6 +12,18 @@ import type { WeekMeta, UserParams, WeekJson, PlanType, DayOfWeek } from "@/type
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
+// Max correction rerolls per running week. Each reroll is a full LLM call, and
+// running weeks are generated sequentially, so a high cap on a long marathon
+// build (16-20 weeks) can blow the request time budget. 2 keeps quality high
+// while bounding worst-case time. Override with RUNNING_MAX_REROLLS if needed.
+const MAX_RUN_REROLLS = Math.max(
+  0,
+  Math.min(5, Number(process.env.RUNNING_MAX_REROLLS ?? 2) || 2),
+);
+// Stop starting new rerolls once we're within this margin of the deadline, so a
+// good-enough week is returned instead of losing the whole plan to a timeout.
+const REROLL_DEADLINE_MARGIN_MS = 15_000;
+
 export async function generateWeek({
   weekMeta,
   userParams,
@@ -19,6 +31,7 @@ export async function generateWeek({
   index,
   prevWeek,
   totalWeeks,
+  deadlineMs,
 }: {
   weekMeta: WeekMeta;
   userParams: UserParams;
@@ -26,6 +39,8 @@ export async function generateWeek({
   index?: number;
   prevWeek?: WeekJson;
   totalWeeks?: number;
+  /** Absolute epoch ms after which reroll attempts should stop. */
+  deadlineMs?: number;
 }): Promise<WeekJson> {
   const isRunPlan = planType === "running" || planType === "run";
   const runModel = process.env.RUNNING_PLAN_MODEL ?? process.env.PLAN_MODEL ?? "gpt-5-mini";
@@ -133,8 +148,23 @@ export async function generateWeek({
 
     if (bestValidation.ok) return bestWeek;
 
-    // Give the model multiple correction attempts and keep the best candidate by error count.
-    for (let attempt = 0; attempt < 5; attempt++) {
+    // Give the model a bounded number of correction attempts and keep the best
+    // candidate by error count. The loop is deadline-aware: on a long marathon
+    // build we stop rerolling before the request budget is exhausted and return
+    // the best week seen so far rather than failing the whole plan.
+    for (let attempt = 0; attempt < MAX_RUN_REROLLS; attempt++) {
+      if (
+        typeof deadlineMs === "number" &&
+        Date.now() > deadlineMs - REROLL_DEADLINE_MARGIN_MS
+      ) {
+        console.warn("[generateWeek] reroll budget exhausted; returning best candidate", {
+          weekLabel: weekMeta.label,
+          attempt,
+          remainingErrors: bestValidation.errors.length,
+        });
+        break;
+      }
+
       const v = validateRunWeek({
         week: currentWeek,
         userParams,

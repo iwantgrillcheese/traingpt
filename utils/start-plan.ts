@@ -13,9 +13,20 @@ type StartPlanArgs = {
   deadlineMs?: number;
 };
 
-const SAFE_PLAN_BUDGET_MS = Math.max(
+// Triathlon plans generate weeks in parallel batches, so an ~85s ceiling is
+// plenty and keeps the request snappy.
+const TRIATHLON_PLAN_BUDGET_MS = Math.max(
   30_000,
   Math.min(85_000, Number(process.env.PLAN_GENERATION_TIME_BUDGET_MS ?? 80_000) || 80_000),
+);
+// Running plans generate SEQUENTIALLY (each week depends on the previous for
+// continuity), so a long marathon build needs far more wall-clock time. The old
+// shared 85s ceiling caused marathon/half-marathon plans to blow the time
+// budget mid-generation and fail. Let running plans use most of the route's
+// function budget instead. Override with RUNNING_PLAN_TIME_BUDGET_MS if needed.
+const RUNNING_PLAN_BUDGET_MS = Math.max(
+  TRIATHLON_PLAN_BUDGET_MS,
+  Math.min(270_000, Number(process.env.RUNNING_PLAN_TIME_BUDGET_MS ?? 260_000) || 260_000),
 );
 const MIN_REMAINING_MS_TO_START_WEEK = 12_000;
 
@@ -29,17 +40,18 @@ export async function startPlan({
 }: StartPlanArgs) {
   const startedAt = Date.now();
   const resolvedPlanMeta = planMeta ?? weekMeta ?? [];
+  const isRunPlan = planType === 'running' || planType === 'run';
+  const planBudgetCeilingMs = isRunPlan ? RUNNING_PLAN_BUDGET_MS : TRIATHLON_PLAN_BUDGET_MS;
   const callerBudgetMs = timeBudgetMs ?? (deadlineMs ? Math.max(1, deadlineMs - startedAt) : undefined);
   const resolvedTimeBudgetMs = callerBudgetMs
-    ? Math.min(callerBudgetMs, SAFE_PLAN_BUDGET_MS)
-    : SAFE_PLAN_BUDGET_MS;
+    ? Math.min(callerBudgetMs, planBudgetCeilingMs)
+    : planBudgetCeilingMs;
 
   if (!resolvedPlanMeta.length) {
     throw new Error('startPlan requires planMeta or weekMeta.');
   }
 
   const weeks: WeekJson[] = new Array(resolvedPlanMeta.length);
-  const isRunPlan = planType === 'running' || planType === 'run';
   const concurrency = isRunPlan
     ? 1
     : Math.max(1, Math.min(4, Number(process.env.PLAN_GENERATION_CONCURRENCY ?? 3) || 3));
@@ -80,6 +92,7 @@ export async function startPlan({
       index: i,
       prevWeek,
       totalWeeks: resolvedPlanMeta.length,
+      deadlineMs: startedAt + resolvedTimeBudgetMs,
     });
 
     const safe: WeekJson = isRunPlan ? guardWeek(raw, userParams.trainingPrefs) : raw;
