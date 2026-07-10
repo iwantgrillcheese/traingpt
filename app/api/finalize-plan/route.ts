@@ -14,7 +14,6 @@ import { convertPlanToSessions } from "@/utils/convertPlanToSessions";
 import { validateGeneratedPlan } from "@/utils/validateGeneratedPlan";
 import { repairGeneratedPlan } from "@/utils/repairGeneratedPlan";
 import { AuthError, assertSameUser, createRouteSupabaseClient, requireUser } from "@/lib/supabase/server";
-import { sendWelcomeEmail } from "@/lib/emails/send-welcome-email";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -565,19 +564,11 @@ export async function POST(req: Request) {
       }
     }
 
-    // Plan-ready email — this pipeline existed, fully built, with zero
-    // callers. The helper swallows its own errors, so it can never fail the
-    // plan creation it celebrates.
-    if (user.email) {
-      await sendWelcomeEmail({
-        to: user.email,
-        name: "Athlete",
-        plan:
-          raceType && raceDate
-            ? `${String(raceType)} plan for ${String(raceDate)}`
-            : "your custom training plan",
-      });
-    }
+    // Batch 16: the plan-ready email used to fire here, but new users who signed
+    // up and immediately built a plan got it seconds after the "coach is ready"
+    // signup email (app/components/Layout.tsx -> /api/send-email/signup) — two
+    // near-identical welcomes back to back. The signup email is now the single
+    // welcome, so no email fires on plan creation.
 
     return NextResponse.json({
       ok: true,
