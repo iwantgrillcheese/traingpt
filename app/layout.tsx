@@ -1,11 +1,10 @@
-import type { Metadata } from 'next';
 import './globals.css';
 import Providers from './providers';
 import { Analytics } from '@vercel/analytics/react';
 import SessionCompleteCelebration from './components/SessionCompleteCelebration';
 import FunnelTelemetry from './components/FunnelTelemetry';
 
-export const metadata: Metadata = {
+export const metadata = {
   title: {
     default: 'Brick | Adaptive Triathlon Training',
     template: '%s | Brick',
