@@ -12,11 +12,13 @@ type CompletedLike = {
   title?: string | null;
 };
 
-export type ReadinessLabel = 'On track' | 'Mostly on track' | 'Needs consistency' | 'At risk';
+export type ReadinessLabel = 'On track' | 'Mostly on track' | 'Needs consistency' | 'At risk' | 'Trust the work';
 
 export type ReadinessResult = {
   score: number;
   label: ReadinessLabel;
+  raceWeek: boolean;
+  explanation: string;
   parts: {
     compliance: number;
     trend: number;
@@ -45,7 +47,8 @@ function keyDateTitle(date: Date, title?: string | null) {
   return `${date.toISOString().slice(0, 10)}::${(title ?? '').trim().toLowerCase()}`;
 }
 
-function scoreLabel(score: number): ReadinessLabel {
+function scoreLabel(score: number, raceWeek: boolean): ReadinessLabel {
+  if (raceWeek) return 'Trust the work';
   if (score >= 85) return 'On track';
   if (score >= 65) return 'Mostly on track';
   if (score >= 45) return 'Needs consistency';
@@ -106,16 +109,23 @@ export function calculateReadiness(params: {
 
   const race = safeDate(params.raceDate ?? null);
   const daysToRace = race ? differenceInCalendarDays(race, now) : null;
-  const pressure = daysToRace == null ? 0 : clamp01((42 - Math.max(daysToRace, 0)) / 42);
+  const raceWeek = daysToRace !== null && daysToRace >= 0 && daysToRace <= 7;
+  const pressure = daysToRace == null || raceWeek ? 0 : clamp01((42 - Math.max(daysToRace, 0)) / 42);
   const missedWork = 1 - compliance;
   const proximityMultiplier = 1 - pressure * missedWork * 0.35;
 
   const base = 0.5 * compliance + 0.25 * trend + 0.25 * recency;
   const score = Math.max(0, Math.min(100, Math.round(base * 100 * proximityMultiplier)));
 
+  const explanation = raceWeek
+    ? 'Race week is not a fitness-building window. Follow the taper and execute the race; do not add work to chase this number.'
+    : 'Readiness is 50% plan-to-date completion, 25% recent four-week consistency, and 25% the last seven days. It rises by completing the work that was prescribed, not by adding extra sessions.';
+
   return {
     score,
-    label: scoreLabel(score),
+    label: scoreLabel(score, raceWeek),
+    raceWeek,
+    explanation,
     parts: {
       compliance,
       trend,
