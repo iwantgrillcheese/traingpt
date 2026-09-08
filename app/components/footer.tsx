@@ -1,16 +1,16 @@
 import Link from 'next/link';
 
 const productLinks = [
-  { href: '/plan', label: 'Generate plan' },
+  { href: '/preview', label: 'Plan preview' },
+  { href: '/plan', label: 'Plan builder' },
   { href: '/schedule', label: 'Schedule' },
-  { href: '/coaching', label: 'Coaching' },
-  { href: '/settings', label: 'Settings' },
+  { href: '/coaching', label: 'Training review' },
 ];
 
 const resourceLinks = [
-  { href: '/blog/ai-triathlon-coach', label: 'Triathlon coaching guide' },
-  { href: '/blog/70-3-training-plan', label: '70.3 training plan' },
-  { href: '/blog/best-triathlon-training-plan', label: 'Training plan guide' },
+  { href: '/free-triathlon-training-plan', label: 'Free triathlon plan' },
+  { href: '/free-70-3-training-plan', label: 'Free 70.3 plan' },
+  { href: '/free-ironman-training-plan', label: 'Free Ironman plan' },
   { href: '/blog', label: 'All articles' },
 ];
 
@@ -20,41 +20,21 @@ export default function Footer() {
       <div className="mx-auto grid max-w-7xl gap-10 md:grid-cols-12">
         <div className="md:col-span-5">
           <div className="flex items-center gap-3">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-950 text-xs font-semibold text-white">
-              T
-            </span>
-            <span className="text-sm font-semibold tracking-tight text-zinc-950">TrainGPT</span>
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-zinc-950 text-xs font-semibold text-white">B</span>
+            <span className="text-sm font-semibold tracking-tight text-zinc-950">Brick</span>
           </div>
-          <p className="mt-5 max-w-sm text-sm leading-6 text-zinc-600">
-            Personalized triathlon training plans, Strava-connected tracking, and coaching guidance for race day.
-          </p>
-          <p className="mt-6 text-xs text-zinc-400">© {new Date().getFullYear()} TrainGPT.</p>
+          <p className="mt-5 max-w-sm text-sm leading-6 text-zinc-600">Adaptive triathlon training built around your race, your schedule, and the work you actually complete.</p>
+          <p className="mt-6 text-xs text-zinc-400">© {new Date().getFullYear()} Brick.</p>
         </div>
 
         <div className="md:col-span-2 md:col-start-7">
           <h3 className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-400">Product</h3>
-          <ul className="mt-4 space-y-3">
-            {productLinks.map((link) => (
-              <li key={link.href}>
-                <Link href={link.href} className="text-sm text-zinc-600 transition hover:text-zinc-950">
-                  {link.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <ul className="mt-4 space-y-3">{productLinks.map((link) => <li key={link.href}><Link href={link.href} className="text-sm text-zinc-600 transition hover:text-zinc-950">{link.label}</Link></li>)}</ul>
         </div>
 
         <div className="md:col-span-2">
           <h3 className="text-xs font-medium uppercase tracking-[0.16em] text-zinc-400">Resources</h3>
-          <ul className="mt-4 space-y-3">
-            {resourceLinks.map((link) => (
-              <li key={link.href}>
-                <Link href={link.href} className="text-sm text-zinc-600 transition hover:text-zinc-950">
-                  {link.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <ul className="mt-4 space-y-3">{resourceLinks.map((link) => <li key={link.href}><Link href={link.href} className="text-sm text-zinc-600 transition hover:text-zinc-950">{link.label}</Link></li>)}</ul>
         </div>
 
         <div className="md:col-span-2">
