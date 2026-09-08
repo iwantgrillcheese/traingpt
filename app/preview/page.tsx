@@ -1,7 +1,6 @@
-import type { Metadata } from 'next';
 import FreePlanLanding from '@/app/components/FreePlanLanding';
 
-export const metadata: Metadata = {
+export const metadata = {
   title: 'Free Triathlon Training Plan Preview',
   description: 'Preview a personalized triathlon training week before creating an account. Adjust race distance, date, weekly hours, and long-session day.',
 };
