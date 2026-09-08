@@ -4,9 +4,9 @@ import { useEffect } from 'react';
 
 const PLAN_GENERATION_PATH = '/api/finalize-plan';
 const DEFAULT_FAILURE_MESSAGE =
-  'We could not generate your plan. Your current plan was not replaced. Please try again.';
+  'We could not finish generating your plan. Please try again.';
 const TIMEOUT_MESSAGE =
-  'Plan generation took too long. Your current plan was not replaced. Please try again.';
+  'Plan generation took too long to confirm. Check your schedule before trying again.';
 const INSTALL_MARKER = '__traingptPlanGenerationFetchGuardInstalled';
 
 declare global {
