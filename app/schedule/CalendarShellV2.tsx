@@ -91,10 +91,32 @@ function getNextSession(sessions: MergedSession[]) {
   return sessions.filter((session) => session.date && parseISO(session.date) >= today).sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime())[0] ?? null;
 }
 
+function firstUsefulSentence(value?: string | null) {
+  const text = String(value ?? "")
+    .replace(/Purpose:\s*/gi, "")
+    .replace(/Workout:\s*/gi, "")
+    .replace(/Intensity:\s*/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text) return null;
+  const sentence = text.split(/(?<=[.!?])\s+/)[0]?.trim() || text;
+  if (/open for coach read|open for targets/i.test(sentence)) return null;
+  return sentence.length > 110 ? `${sentence.slice(0, 107).trim()}…` : sentence;
+}
+
 function previewDetails(details?: string | null) {
-  const text = String(details ?? "").replace(/Purpose:\s*/gi, "").replace(/Workout:\s*/gi, "").replace(/Intensity:\s*/gi, "").split(/\n|\./).map((part) => part.trim()).find((part) => part.length > 16);
-  if (!text) return "Open for targets, coach notes, and completion actions.";
+  const text = firstUsefulSentence(details);
+  if (!text) return "Open the session for the full workout structure and targets.";
   return text.length > 140 ? `${text.slice(0, 137).trim()}…` : text;
+}
+
+function sessionWhy(session: MergedSession) {
+  return (
+    firstUsefulSentence(session.purpose) ??
+    firstUsefulSentence(session.coach_note) ??
+    firstUsefulSentence(session.details) ??
+    "Open the session for the training intent and targets."
+  );
 }
 
 function raceDisplayTitle(raceGoal?: string | null) {
@@ -274,7 +296,7 @@ export default function CalendarShellV2({ sessions, completedSessions, extraStra
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.12]"><div className="h-full rounded-full bg-[#9E92FF]" style={{ width: `${Math.max(weekly.adherence, 12)}%` }} /></div>
           </div>
           <div className="rounded-[24px] bg-[#090A12] p-5 text-white shadow-[0_18px_40px_rgba(8,10,18,0.16)]">
-            <div className="flex items-start justify-between gap-4"><div><h3 className="text-[14px] font-black tracking-[-0.02em] text-[#D8DBEF]">Weekly load</h3><p className="mt-1 text-[12px] font-semibold text-[#8C90AA]">planned by sport · {weekLabel}</p></div><div className="text-[15px] font-black">{formatMinutes(weekly.minutes)}</div></div>
+            <div className="flex items-start justify-between gap-4"><div><h3 className="text-[14px] font-black tracking-[-0.02em] text-[#D8DBEF]">Weekly load</h3><p className="mt-1 text-[12px] font-semibold text-[#8C90AA]">planned by sport · {weekLabel}</p></div><div className="text-[15px] font-black">{formatMinutes(weekly.minutes)} planned</div></div>
             <div className="mt-5 grid grid-cols-4 gap-3"><LoadPill label="Swim" minutes={load.swim} color="#34B7F1" /><LoadPill label="Bike" minutes={load.bike} color="#9B7CF6" /><LoadPill label="Run" minutes={load.run} color="#2FCB90" /><LoadPill label="Strength" minutes={load.strength} color="#C084FC" /></div>
           </div>
         </section>
@@ -288,7 +310,7 @@ export default function CalendarShellV2({ sessions, completedSessions, extraStra
           <div className="text-[13px] font-bold text-[#666D81]">{formatMinutes(weekly.minutes)} planned · {weekly.done}/{weekly.planned || 0} done</div>
         </div>
 
-        {commandSession ? <section className="mb-4 grid gap-4 rounded-[22px] border border-[#D8D6FF] bg-gradient-to-br from-[#F8F7FF] to-white p-4 shadow-[0_16px_38px_rgba(118,103,255,0.10)] xl:grid-cols-[1.1fr_1.2fr_auto]"><button type="button" onClick={() => setSelectedSession(commandSession)} className="rounded-[18px] border-l-[6px] border-l-[#9B7CF6] bg-white p-4 text-left"><div className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#5146F0]">{todaySession ? `Today · ${sportLabel(commandSession.sport)}` : `Next · ${sportLabel(commandSession.sport)}`}</div><h2 className="text-[30px] font-black leading-none tracking-[-0.065em]">{cleanTitle(commandSession.title)}</h2><p className="mt-3 text-[14px] leading-6 text-[#687085]">{previewDetails(commandSession.details)}</p></button><div className="grid gap-2 sm:grid-cols-3"><div className="rounded-2xl border border-[#E7E9F1] bg-white/80 p-3"><strong className="block text-[22px] tracking-[-0.05em]">{formatMinutes(commandSession.duration)}</strong><span className="text-[12px] font-semibold text-[#70778B]">Planned duration</span></div><div className="rounded-2xl border border-[#E7E9F1] bg-white/80 p-3"><strong className="block text-[22px] tracking-[-0.05em]">{commandSession.date ? format(parseISO(commandSession.date), "EEE, MMM d") : "—"}</strong><span className="text-[12px] font-semibold text-[#70778B]">Scheduled date</span></div><div className="rounded-2xl border border-[#E7E9F1] bg-white/80 p-3"><strong className="block text-[22px] tracking-[-0.05em]">Why</strong><span className="text-[12px] font-semibold text-[#70778B]">Open for coach read and targets.</span></div></div><div className="flex min-w-[150px] flex-col justify-center gap-2"><button type="button" onClick={() => setSelectedSession(commandSession)} className="rounded-xl bg-[#2F64FF] px-4 py-3 text-[13px] font-black text-white">Open session</button><button type="button" onClick={() => setAddSessionDate(commandSession.date ? parseISO(commandSession.date) : new Date())} className="rounded-xl border border-[#E7E9F1] bg-white px-4 py-3 text-[13px] font-bold text-[#4B5563]">Add nearby</button></div></section> : null}
+        {commandSession ? <section className="mb-4 grid gap-4 rounded-[22px] border border-[#D8D6FF] bg-gradient-to-br from-[#F8F7FF] to-white p-4 shadow-[0_16px_38px_rgba(118,103,255,0.10)] xl:grid-cols-[1.1fr_1.2fr_auto]"><button type="button" onClick={() => setSelectedSession(commandSession)} className="rounded-[18px] border-l-[6px] border-l-[#9B7CF6] bg-white p-4 text-left"><div className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-[#5146F0]">{todaySession ? `Today · ${sportLabel(commandSession.sport)}` : `Next · ${sportLabel(commandSession.sport)}`}</div><h2 className="text-[30px] font-black leading-none tracking-[-0.065em]">{cleanTitle(commandSession.title)}</h2><p className="mt-3 text-[14px] leading-6 text-[#687085]">{previewDetails(commandSession.details)}</p></button><div className="grid gap-2 sm:grid-cols-3"><div className="rounded-2xl border border-[#E7E9F1] bg-white/80 p-3"><strong className="block text-[22px] tracking-[-0.05em]">{commandSession.duration ? formatMinutes(commandSession.duration) : "See workout"}</strong><span className="text-[12px] font-semibold text-[#70778B]">Planned duration</span></div><div className="rounded-2xl border border-[#E7E9F1] bg-white/80 p-3"><strong className="block text-[22px] tracking-[-0.05em]">{commandSession.date ? format(parseISO(commandSession.date), "EEE, MMM d") : "Not scheduled"}</strong><span className="text-[12px] font-semibold text-[#70778B]">Scheduled date</span></div><div className="rounded-2xl border border-[#E7E9F1] bg-white/80 p-3"><strong className="block text-[22px] tracking-[-0.05em]">Why</strong><span className="text-[12px] font-semibold leading-5 text-[#70778B]">{sessionWhy(commandSession)}</span></div></div><div className="flex min-w-[150px] flex-col justify-center gap-2"><button type="button" onClick={() => setSelectedSession(commandSession)} className="rounded-xl bg-[#2F64FF] px-4 py-3 text-[13px] font-black text-white">Open session</button><button type="button" onClick={() => setAddSessionDate(commandSession.date ? parseISO(commandSession.date) : new Date())} className="rounded-xl border border-[#E7E9F1] bg-white px-4 py-3 text-[13px] font-bold text-[#4B5563]">Add nearby</button></div></section> : null}
 
         {saveState !== "idle" ? <div className={`mb-4 rounded-xl border px-4 py-3 text-[13px] font-medium ${saveState === "error" ? "border-rose-200 bg-rose-50 text-rose-700" : saveState === "saving" ? "border-zinc-200 bg-white text-zinc-600" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>{saveMessage}</div> : null}
 

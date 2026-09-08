@@ -3,8 +3,10 @@
 import { useEffect } from 'react';
 
 const PLAN_GENERATION_PATH = '/api/finalize-plan';
-const USER_FACING_TIMEOUT_MESSAGE =
-  'Plan generation timed out. Please try again in a minute.';
+const DEFAULT_FAILURE_MESSAGE =
+  'We could not finish generating your plan. Please try again.';
+const TIMEOUT_MESSAGE =
+  'Plan generation took too long to confirm. Check your schedule before trying again.';
 const INSTALL_MARKER = '__traingptPlanGenerationFetchGuardInstalled';
 
 declare global {
@@ -28,15 +30,38 @@ function isPlanGenerationRequest(input: RequestInfo | URL): boolean {
   }
 }
 
-function planGenerationErrorResponse(status = 500, statusText = 'Plan generation failed') {
+function planGenerationErrorResponse(
+  message: string,
+  status = 500,
+  statusText = 'Plan generation failed',
+) {
   return new Response(
-    JSON.stringify({ ok: false, error: USER_FACING_TIMEOUT_MESSAGE }),
+    JSON.stringify({ ok: false, error: message }),
     {
       status,
       statusText,
       headers: { 'content-type': 'application/json' },
     },
   );
+}
+
+async function upstreamErrorMessage(response: Response) {
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.toLowerCase().includes('application/json')) return null;
+
+  try {
+    const json = await response.clone().json();
+    if (typeof json?.error === 'string' && json.error.trim()) return json.error.trim();
+    if (typeof json?.message === 'string' && json.message.trim()) return json.message.trim();
+  } catch {
+    // Fall through to the safe user-facing message.
+  }
+
+  return null;
+}
+
+function timeoutLikeStatus(status: number) {
+  return status === 408 || status === 504 || status === 524;
 }
 
 export default function PlanGenerationFetchGuard() {
@@ -64,6 +89,10 @@ export default function PlanGenerationFetchGuard() {
             .text()
             .then((text) => text.slice(0, 500))
             .catch(() => '');
+          const upstreamMessage = await upstreamErrorMessage(response);
+          const message =
+            upstreamMessage ??
+            (timeoutLikeStatus(response.status) ? TIMEOUT_MESSAGE : DEFAULT_FAILURE_MESSAGE);
 
           console.error('[plan] generation API returned a failed response', {
             status: response.status,
@@ -74,6 +103,7 @@ export default function PlanGenerationFetchGuard() {
           });
 
           return planGenerationErrorResponse(
+            message,
             response.status || 500,
             response.statusText || 'Plan generation failed',
           );
@@ -93,7 +123,11 @@ export default function PlanGenerationFetchGuard() {
             upstreamPreview,
           });
 
-          return planGenerationErrorResponse(502, 'Unexpected plan response');
+          return planGenerationErrorResponse(
+            DEFAULT_FAILURE_MESSAGE,
+            502,
+            'Unexpected plan response',
+          );
         }
 
         return response;
@@ -103,7 +137,11 @@ export default function PlanGenerationFetchGuard() {
           error,
         });
 
-        return planGenerationErrorResponse(504, 'Plan generation request failed');
+        return planGenerationErrorResponse(
+          TIMEOUT_MESSAGE,
+          504,
+          'Plan generation request failed',
+        );
       }
     };
   }, []);

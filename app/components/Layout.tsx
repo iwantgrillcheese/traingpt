@@ -171,10 +171,10 @@ function AppSidebar({
               Race readiness
             </p>
             <p className="mt-2 text-2xl font-black tracking-[-0.06em] text-[#101114]">
-              Build to 80+
+              Track the build
             </p>
             <p className="mt-1 text-xs leading-5 text-[#46506A]">
-              Do the work, bank the proof, adapt the week.
+              Readiness reflects the work you have banked. Race week is for executing the taper, not chasing a score.
             </p>
           </div>
         ) : null}

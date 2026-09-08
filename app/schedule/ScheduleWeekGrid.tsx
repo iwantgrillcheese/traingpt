@@ -79,7 +79,7 @@ function rowStats(sessions: MergedSession[]) {
   }, 0);
   const count = sessions.length;
   const duration = formatMinutes(minutes) ?? "—";
-  return `${duration} · ${count} ${count === 1 ? "session" : "sessions"}`;
+  return `${duration} planned · ${count} ${count === 1 ? "session" : "sessions"}`;
 }
 
 function SessionBlock({
@@ -96,9 +96,17 @@ function SessionBlock({
   const sport = sportKey(session.sport || session.title);
   const row = SPORT_ROWS.find((item) => item.key === sport);
   const status = getCompletionStatus(session, completedSessions);
-  const duration = session.stravaActivity
+  const plannedDuration = formatMinutes(session.duration ?? null);
+  const actualDuration = session.stravaActivity
     ? formatMinutes(session.stravaActivity.moving_time / 60)
-    : formatMinutes(session.duration ?? null);
+    : null;
+  const duration = actualDuration
+    ? plannedDuration && plannedDuration !== actualDuration
+      ? `${actualDuration} actual · ${plannedDuration} planned`
+      : `${actualDuration} actual`
+    : plannedDuration
+      ? `${plannedDuration} planned`
+      : null;
   const isDone = status === "done";
   const isSkipped = status === "skipped";
 
