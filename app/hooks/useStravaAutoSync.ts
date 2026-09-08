@@ -71,7 +71,9 @@ export function useStravaAutoSync(options: UseStravaAutoSyncOptions = {}) {
         };
 
         setStatus('error');
-        if (!silent) setMessage(result.error);
+        // Silent mode only suppresses successful background noise. Sync failures
+        // must always be visible or the athlete can unknowingly train on stale data.
+        setMessage(result.error);
         setLastResult(result);
         return result;
       }
@@ -98,7 +100,7 @@ export function useStravaAutoSync(options: UseStravaAutoSyncOptions = {}) {
 
           const result = { ...json, error: errorMessage };
           setStatus('error');
-          if (!silent) setMessage(errorMessage);
+          setMessage(errorMessage);
           setLastResult(result);
           return result;
         }
@@ -115,7 +117,7 @@ export function useStravaAutoSync(options: UseStravaAutoSyncOptions = {}) {
         console.error('[useStravaAutoSync] sync failed:', error);
         const result = { error: 'Unexpected Strava sync error. Try again.' };
         setStatus('error');
-        if (!silent) setMessage(result.error);
+        setMessage(result.error);
         setLastResult(result);
         return result;
       }
