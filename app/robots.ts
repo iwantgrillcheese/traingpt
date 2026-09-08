@@ -1,9 +1,10 @@
 export default function robots() {
+  const base = String(process.env.NEXT_PUBLIC_SITE_URL || 'https://traingpt.co').replace(/\/$/, '');
   return {
     rules: {
       userAgent: '*',
       allow: '/',
     },
-    sitemap: 'https://traingpt.co/sitemap.xml',
+    sitemap: `${base}/sitemap.xml`,
   };
 }

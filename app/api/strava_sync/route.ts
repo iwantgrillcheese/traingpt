@@ -32,6 +32,16 @@ async function refreshStravaToken({ refreshToken, userId, supabase }: { refreshT
   return String(refreshData.access_token);
 }
 
+async function markSynced({ userId, supabase }: { userId: string; supabase: Awaited<ReturnType<typeof createRouteSupabaseClient>>; }) {
+  const syncedAt = new Date().toISOString();
+  const { error } = await supabase.from('profiles').update({ strava_last_synced_at: syncedAt }).eq('id', userId);
+  if (error) {
+    console.error('[strava_sync] failed to persist last synced timestamp:', error);
+    throw new Error('Activities synced, but freshness state could not be saved.');
+  }
+  return syncedAt;
+}
+
 async function fetchStravaActivities({ accessToken, after }: { accessToken: string; after: number }) {
   const summaryList: StravaSummaryActivity[] = [];
   for (let page = 1; page <= MAX_STRAVA_PAGES; page += 1) {
@@ -74,19 +84,28 @@ export async function POST(req: Request) {
     const after = shouldBackfillHistory ? lookbackUnix(INITIAL_LOOKBACK_DAYS) : Math.max(0, latestStoredUnix - 60 * 60);
     const summaryList = await fetchStravaActivities({ accessToken, after });
 
-    if (summaryList.length === 0) return NextResponse.json({ inserted: 0, totalFetched: 0, skippedExisting: 0, mode: shouldBackfillHistory ? 'backfill' : 'incremental' });
+    if (summaryList.length === 0) {
+      const syncedAt = await markSynced({ userId: user.id, supabase });
+      return NextResponse.json({ inserted: 0, totalFetched: 0, skippedExisting: 0, mode: shouldBackfillHistory ? 'backfill' : 'incremental', syncedAt });
+    }
+
     const summaryIds = summaryList.map((activity) => activity.id).filter(Boolean);
     const { data: existingRows, error: existingError } = await supabase.from('strava_activities').select('strava_id').eq('user_id', user.id).in('strava_id', summaryIds);
     if (existingError) { console.error('[strava_sync] existing activity lookup failed:', existingError); return NextResponse.json({ error: 'Failed to check existing Strava activities.' }, { status: 500 }); }
     const existingIds = new Set(((existingRows ?? []) as ExistingActivityRow[]).map((row) => Number(row.strava_id)));
     const newSummaries = summaryList.filter((activity) => !existingIds.has(Number(activity.id)));
     const rowsToUpsert = newSummaries.map((activity) => ({ user_id: user.id, strava_id: activity.id, name: activity.name ?? 'Strava activity', sport_type: normalizeSportType(activity.sport_type ?? activity.type), distance: activity.distance ?? null, moving_time: activity.moving_time ?? null, start_date: activity.start_date ?? null, start_date_local: activity.start_date_local ?? activity.start_date ?? null, average_speed: activity.average_speed ?? null, average_heartrate: activity.average_heartrate ?? null, max_heartrate: activity.max_heartrate ?? null, average_watts: activity.average_watts ?? null, weighted_average_watts: activity.weighted_average_watts ?? null, kilojoules: activity.kilojoules ?? null, device_watts: activity.device_watts ?? null, trainer: activity.trainer ?? null, total_elevation_gain: activity.total_elevation_gain ?? null }));
-    if (rowsToUpsert.length === 0) return NextResponse.json({ inserted: 0, totalFetched: summaryList.length, skippedExisting: summaryList.length, mode: shouldBackfillHistory ? 'backfill' : 'incremental' });
+
+    if (rowsToUpsert.length === 0) {
+      const syncedAt = await markSynced({ userId: user.id, supabase });
+      return NextResponse.json({ inserted: 0, totalFetched: summaryList.length, skippedExisting: summaryList.length, mode: shouldBackfillHistory ? 'backfill' : 'incremental', syncedAt });
+    }
 
     const { data: upsertedRows, error: upsertError } = await supabase.from('strava_activities').upsert(rowsToUpsert, { onConflict: 'strava_id', ignoreDuplicates: true }).select('strava_id');
     if (upsertError) { console.error('[strava_sync] upsert failed:', upsertError); return NextResponse.json({ error: upsertError.message }, { status: 500 }); }
     const inserted = Array.isArray(upsertedRows) ? upsertedRows.length : 0;
-    return NextResponse.json({ inserted, totalFetched: summaryList.length, skippedExisting: summaryList.length - inserted, mode: shouldBackfillHistory ? 'backfill' : 'incremental' });
+    const syncedAt = await markSynced({ userId: user.id, supabase });
+    return NextResponse.json({ inserted, totalFetched: summaryList.length, skippedExisting: summaryList.length - inserted, mode: shouldBackfillHistory ? 'backfill' : 'incremental', syncedAt });
   } catch (error) {
     console.error('[strava_sync] failed:', error);
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });

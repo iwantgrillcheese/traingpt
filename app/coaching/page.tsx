@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 function CoachingFallback() {
   return (
     <div className="p-6 text-sm text-zinc-500">
-      Loading coaching dashboard…
+      Loading training review…
     </div>
   );
 }
