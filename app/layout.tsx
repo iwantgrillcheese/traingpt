@@ -3,6 +3,7 @@ import './globals.css';
 import Providers from './providers';
 import { Analytics } from '@vercel/analytics/react';
 import SessionCompleteCelebration from './components/SessionCompleteCelebration';
+import FunnelTelemetry from './components/FunnelTelemetry';
 
 export const metadata: Metadata = {
   title: {
@@ -26,7 +27,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
       </head>
       <body className="font-sans">
-        <Providers>{children}</Providers>
+        <Providers>
+          <FunnelTelemetry />
+          {children}
+        </Providers>
         <SessionCompleteCelebration />
         <Analytics />
       </body>
