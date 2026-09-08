@@ -282,7 +282,6 @@ export default function CoachingPointsDashboard({
       : "Nothing left on the board this week.";
   const fallbackBody = `Bank what you can — your coach review lands ${reviewDateLabel} and rewrites next week from what actually happened.`;
 
-
   const currentWeekActivities = stravaActivities.filter((activity) => {
     const date = getActivityDate(activity);
     return date ? isWithinRange(date, weekStart, weekEnd) : false;
@@ -415,7 +414,6 @@ export default function CoachingPointsDashboard({
     });
   }
 
-
   return (
     <main className="min-h-screen bg-[#F7F6F2] text-[#101114]">
       <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
@@ -525,7 +523,7 @@ export default function CoachingPointsDashboard({
                 </h2>
                 <p className="mt-3 max-w-xl text-base leading-7 text-[#4B5563]">
                   {hasReadinessSignal
-                    ? "Target 80+ by race week. This reflects your current plan from day one through today, with extra weight on recent consistency. Weekly Training Value resets; Race Readiness does not."
+                    ? readinessResult.explanation
                     : "Readiness starts measuring once there is real plan history to grade — complete your first sessions and sync Strava."}
                 </p>
               </div>
@@ -609,11 +607,7 @@ export default function CoachingPointsDashboard({
                 })}
             </div>
           </div>
-
-          
         </section>
-
-        
 
         <section className="rounded-[28px] border border-[#E3E0D8] bg-white p-5 sm:p-6">
           <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
