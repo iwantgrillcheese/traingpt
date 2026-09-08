@@ -20,8 +20,9 @@ begin
   if saved_race_name is not null then
     new.plan := jsonb_set(
       coalesce(new.plan, '{}'::jsonb),
-      '{params,raceName}',
-      to_jsonb(saved_race_name),
+      '{params}',
+      coalesce(new.plan -> 'params', '{}'::jsonb)
+        || jsonb_build_object('raceName', saved_race_name),
       true
     );
   end if;
@@ -47,11 +48,17 @@ begin
   end if;
 
   update public.plans
-  set plan = case
-    when nullif(trim(new.race_name), '') is null
-      then plan #- '{params,raceName}'
-    else jsonb_set(coalesce(plan, '{}'::jsonb), '{params,raceName}', to_jsonb(trim(new.race_name)), true)
-  end
+  set plan = jsonb_set(
+    coalesce(plan, '{}'::jsonb),
+    '{params}',
+    case
+      when nullif(trim(new.race_name), '') is null
+        then coalesce(plan -> 'params', '{}'::jsonb) - 'raceName'
+      else coalesce(plan -> 'params', '{}'::jsonb)
+        || jsonb_build_object('raceName', trim(new.race_name))
+    end,
+    true
+  )
   where user_id = new.id;
 
   return new;
