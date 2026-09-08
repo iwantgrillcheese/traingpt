@@ -1,10 +1,10 @@
--- One-time repair for existing users whose active plan params drifted from the
--- canonical training metrics already stored in profiles. Legacy plans without
--- a params object are upgraded in place rather than silently skipped.
+-- One-time repair for existing users whose active object-shaped plan params
+-- drifted from the canonical training metrics already stored in profiles.
+-- Legacy array-shaped plans remain untouched; profile fields are canonical for them.
 
 update public.plans p
 set plan = jsonb_set(
-  coalesce(p.plan, '{}'::jsonb),
+  p.plan,
   '{params}',
   coalesce(p.plan -> 'params', '{}'::jsonb)
     || jsonb_strip_nulls(
@@ -34,12 +34,13 @@ set plan = jsonb_set(
   true
 )
 from public.profiles pr
-where p.user_id = pr.id;
+where p.user_id = pr.id
+  and jsonb_typeof(p.plan) = 'object';
 
 -- Apply any race names that were already populated before or during the launch.
 update public.plans p
 set plan = jsonb_set(
-  coalesce(p.plan, '{}'::jsonb),
+  p.plan,
   '{params}',
   coalesce(p.plan -> 'params', '{}'::jsonb)
     || jsonb_build_object('raceName', trim(pr.race_name)),
@@ -47,4 +48,5 @@ set plan = jsonb_set(
 )
 from public.profiles pr
 where p.user_id = pr.id
+  and jsonb_typeof(p.plan) = 'object'
   and nullif(trim(pr.race_name), '') is not null;
