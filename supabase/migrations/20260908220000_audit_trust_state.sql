@@ -4,6 +4,13 @@
 alter table public.profiles
   add column if not exists strava_last_synced_at timestamptz;
 
+alter table public.profiles
+  add column if not exists run_pace_unit text default 'mile';
+
+update public.profiles
+set run_pace_unit = 'mile'
+where run_pace_unit is null or run_pace_unit not in ('mile', 'km');
+
 create table if not exists public.plan_history (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null,
@@ -79,7 +86,7 @@ begin
       coalesce(
         (select jsonb_agg(to_jsonb(c) order by c.date)
          from public.completed_sessions c
-         where c.user_id = old.user_id),
+         where c.user_id = old.user_id and c.plan_id = old.id),
         '[]'::jsonb
       ),
       now()
@@ -95,14 +102,17 @@ create trigger archive_plan_before_replace_trigger
 before update on public.plans
 for each row execute function public.archive_plan_before_replace();
 
-create or replace function public.seconds_to_pace_text(total_seconds integer, suffix text)
+create or replace function public.seconds_to_pace_text(total_seconds double precision, suffix text)
 returns text
 language sql
 immutable
 as $$
   select case
     when total_seconds is null or total_seconds <= 0 then null
-    else floor(total_seconds / 60)::int::text || ':' || lpad((total_seconds % 60)::text, 2, '0') || suffix
+    else floor(round(total_seconds)::numeric / 60)::int::text
+      || ':'
+      || lpad((round(total_seconds)::int % 60)::text, 2, '0')
+      || suffix
   end;
 $$;
 
@@ -114,6 +124,7 @@ set search_path = public
 as $$
 declare
   run_suffix text;
+  merged_params jsonb;
 begin
   if new.bike_ftp is not distinct from old.bike_ftp
      and new.run_threshold_per_mile is not distinct from old.run_threshold_per_mile
@@ -126,23 +137,16 @@ begin
 
   update public.plans
   set plan = jsonb_set(
-    jsonb_set(
-      jsonb_set(
-        jsonb_set(
-          jsonb_set(
-            coalesce(plan, '{}'::jsonb),
-            '{params,bikeFTP}', coalesce(to_jsonb(new.bike_ftp), 'null'::jsonb), true
-          ),
-          '{params,bikeFtp}', coalesce(to_jsonb(new.bike_ftp), 'null'::jsonb), true
-        ),
-        '{params,runPace}',
-        coalesce(to_jsonb(public.seconds_to_pace_text(new.run_threshold_per_mile, run_suffix)), 'null'::jsonb),
-        true
+    coalesce(plan, '{}'::jsonb),
+    '{params}',
+    coalesce(plan -> 'params', '{}'::jsonb)
+      || jsonb_build_object(
+        'bikeFTP', new.bike_ftp,
+        'bikeFtp', new.bike_ftp,
+        'runPace', public.seconds_to_pace_text(new.run_threshold_per_mile, run_suffix),
+        'paceUnit', case when new.run_pace_unit = 'km' then 'km' else 'mi' end,
+        'swimPace', public.seconds_to_pace_text(new.swim_threshold_per_100m, ' / 100m')
       ),
-      '{params,paceUnit}', to_jsonb(case when new.run_pace_unit = 'km' then 'km' else 'mi' end), true
-    ),
-    '{params,swimPace}',
-    coalesce(to_jsonb(public.seconds_to_pace_text(new.swim_threshold_per_100m, ' / 100m')), 'null'::jsonb),
     true
   )
   where user_id = new.id;
