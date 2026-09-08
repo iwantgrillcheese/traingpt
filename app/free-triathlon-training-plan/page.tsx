@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import FreePlanLanding from '@/app/components/FreePlanLanding';
 
 export const metadata: Metadata = {
-  title: 'Free Triathlon Training Plan | Brick',
+  title: 'Free Triathlon Training Plan',
   description: 'Build a free triathlon training plan around your race, weekly availability, and training history. Preview a week before signing up.',
 };
 
