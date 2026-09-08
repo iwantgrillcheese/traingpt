@@ -77,7 +77,7 @@ begin
         '[]'::jsonb
       ),
       coalesce(
-        (select jsonb_agg(to_jsonb(c) order by coalesce(c.date, c.session_date))
+        (select jsonb_agg(to_jsonb(c) order by c.date)
          from public.completed_sessions c
          where c.user_id = old.user_id),
         '[]'::jsonb
@@ -131,9 +131,9 @@ begin
         jsonb_set(
           jsonb_set(
             coalesce(plan, '{}'::jsonb),
-            '{params,bikeFTP}', to_jsonb(new.bike_ftp), true
+            '{params,bikeFTP}', coalesce(to_jsonb(new.bike_ftp), 'null'::jsonb), true
           ),
-          '{params,bikeFtp}', to_jsonb(new.bike_ftp), true
+          '{params,bikeFtp}', coalesce(to_jsonb(new.bike_ftp), 'null'::jsonb), true
         ),
         '{params,runPace}',
         coalesce(to_jsonb(public.seconds_to_pace_text(new.run_threshold_per_mile, run_suffix)), 'null'::jsonb),
@@ -174,7 +174,12 @@ begin
   params := new.plan -> 'params';
   if params is null then return new; end if;
 
-  parsed_bike := nullif(coalesce(params ->> 'bikeFTP', params ->> 'bikeFtp'), '')::integer;
+  begin
+    parsed_bike := nullif(coalesce(params ->> 'bikeFTP', params ->> 'bikeFtp'), '')::integer;
+  exception when invalid_text_representation then
+    parsed_bike := null;
+  end;
+
   run_text := params ->> 'runPace';
   swim_text := params ->> 'swimPace';
   parsed_unit := case when coalesce(params ->> 'paceUnit', '') = 'km' or lower(coalesce(run_text, '')) like '%/ km%' then 'km' else 'mile' end;
