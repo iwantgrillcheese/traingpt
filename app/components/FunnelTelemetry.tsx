@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
-import { track } from '@/lib/analytics/posthog-client';
+import { initPostHog, track } from '@/lib/analytics/posthog-client';
 
 function once(key: string, event: string, properties: Record<string, unknown>) {
   try {
@@ -19,6 +19,7 @@ export default function FunnelTelemetry() {
   const pathname = usePathname();
 
   useEffect(() => {
+    initPostHog();
     track('page_viewed', { path: pathname || '/' });
     if (pathname === '/') track('landing_viewed', { path: '/' });
     if (pathname === '/plan') track('onboarding_started', { path: '/plan' });
@@ -27,19 +28,20 @@ export default function FunnelTelemetry() {
   useEffect(() => {
     let active = true;
     (async () => {
+      initPostHog();
       const { data: auth } = await supabase.auth.getUser();
       const user = auth.user;
       if (!user?.id || !active) return;
 
       const [{ data: profile }, { data: plan }, { count: sessionCount }, { count: completedCount }] = await Promise.all([
-        supabase.from('profiles').select('created_at,strava_access_token,strava_last_synced_at').eq('id', user.id).maybeSingle(),
+        supabase.from('profiles').select('strava_access_token,strava_last_synced_at').eq('id', user.id).maybeSingle(),
         supabase.from('plans').select('id,race_type,race_date').eq('user_id', user.id).limit(1).maybeSingle(),
         supabase.from('sessions').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
         supabase.from('completed_sessions').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
       ]);
 
       if (!active) return;
-      const createdAt = (profile as any)?.created_at || user.created_at || null;
+      const createdAt = user.created_at || null;
       const ageDays = createdAt ? Math.max(0, Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000)) : null;
       const hasPlan = Boolean((plan as any)?.id);
       const hasStrava = Boolean((profile as any)?.strava_access_token);
