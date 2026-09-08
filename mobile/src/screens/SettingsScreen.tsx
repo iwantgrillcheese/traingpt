@@ -7,7 +7,7 @@ import { apiFetch } from '../lib/api';
 import { supabase } from '../lib/supabase';
 
 type StravaStatus = { connected: boolean; activityCount: number; totalHours: number; loading: boolean; };
-const rows = [{ label: 'Subscription', value: 'Plus status coming soon' }, { label: 'Training zones', value: 'Managed on web' }, { label: 'Notifications', value: 'Native reminders next' }];
+const rows = [{ label: 'Access', value: 'Free during early access' }, { label: 'Training zones', value: 'Managed on web' }, { label: 'Notifications', value: 'Native reminders next' }];
 
 export function SettingsScreen() {
   const { user, signOut } = useAuth();
@@ -39,9 +39,7 @@ export function SettingsScreen() {
       const { data } = await supabase.from('profiles').select('daily_email_opt_in').eq('id', user.id).maybeSingle();
       if (active) setDailyEmail(Boolean(data?.daily_email_opt_in));
     })();
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [user?.id]);
 
   const toggleDailyEmail = async (next: boolean) => {
@@ -56,7 +54,7 @@ export function SettingsScreen() {
 
   const disconnectStrava = async () => {
     if (disconnecting) return;
-    Alert.alert('Disconnect Strava?', 'This removes your Strava connection and clears imported Strava activities from TrainGPT. You can reconnect anytime.', [
+    Alert.alert('Disconnect Strava?', 'This removes your Strava connection and clears imported Strava activities from Brick. You can reconnect anytime.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Disconnect', style: 'destructive', onPress: async () => {
         setDisconnecting(true);
@@ -78,28 +76,18 @@ export function SettingsScreen() {
       <Text style={styles.kicker}>Settings</Text>
       <Text style={styles.title}>Account</Text>
       <Text style={styles.subtitle} numberOfLines={1} ellipsizeMode="middle">{user?.email ?? 'Signed in'}</Text>
-      <View style={styles.accountCard}><Text style={styles.accountKicker}>TrainGPT mobile</Text><Text style={styles.accountTitle}>Early native preview</Text><Text style={styles.accountText}>Core schedule viewing is live. Plan generation, Strava sync, and readiness tracking are improving quickly during TestFlight.</Text></View>
+      <View style={styles.accountCard}><Text style={styles.accountKicker}>Brick mobile</Text><Text style={styles.accountTitle}>Early native preview</Text><Text style={styles.accountText}>Core schedule viewing is live. Plan generation, Strava sync, and readiness tracking are improving quickly during TestFlight.</Text></View>
       <View style={styles.stravaCard}>
         <View style={styles.stravaHeader}><View><Text style={styles.rowLabel}>Strava</Text><Text style={styles.rowValue}>{strava.loading ? 'Checking connection...' : strava.connected ? `${strava.activityCount} activities · ${strava.totalHours}h imported` : 'Not connected'}</Text></View>{strava.loading ? <ActivityIndicator /> : null}</View>
         {strava.connected ? <Pressable onPress={disconnectStrava} disabled={disconnecting} style={({ pressed }) => [styles.secondaryButton, disconnecting && styles.disabled, pressed && styles.pressed]}><Text style={styles.secondaryButtonText}>{disconnecting ? 'Disconnecting...' : 'Disconnect Strava'}</Text></Pressable> : <Text style={styles.helperText}>Connect Strava during plan generation to import recent swim, bike, and run history.</Text>}
       </View>
       <View style={styles.listCard}>
         <View style={[styles.row, styles.rowBorder, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }]}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.rowLabel}>Daily session email</Text>
-            <Text style={styles.rowValue}>Each morning you have a session — the workout and targets.</Text>
-          </View>
-          {dailyEmail === null ? (
-            <ActivityIndicator />
-          ) : (
-            <Switch
-              value={dailyEmail}
-              onValueChange={toggleDailyEmail}
-              trackColor={{ false: colors.border, true: colors.ink }}
-              thumbColor={colors.surface}
-            />
-          )}
-        </View>{rows.map((row, index) => <View key={row.label} style={[styles.row, index !== rows.length - 1 && styles.rowBorder]}><Text style={styles.rowLabel}>{row.label}</Text><Text style={styles.rowValue}>{row.value}</Text></View>)}</View>
+          <View style={{ flex: 1 }}><Text style={styles.rowLabel}>Daily session email</Text><Text style={styles.rowValue}>Each morning you have a session — the workout and targets.</Text></View>
+          {dailyEmail === null ? <ActivityIndicator /> : <Switch value={dailyEmail} onValueChange={toggleDailyEmail} trackColor={{ false: colors.border, true: colors.ink }} thumbColor={colors.surface} />}
+        </View>
+        {rows.map((row, index) => <View key={row.label} style={[styles.row, index !== rows.length - 1 && styles.rowBorder]}><Text style={styles.rowLabel}>{row.label}</Text><Text style={styles.rowValue}>{row.value}</Text></View>)}
+      </View>
       <Pressable onPress={signOut} style={({ pressed }) => [styles.button, pressed && styles.pressed]}><Text style={styles.buttonText}>Sign out</Text></Pressable>
     </ScrollView>
   );
