@@ -1,8 +1,8 @@
 import { addDays, addWeeks, formatISO } from 'date-fns';
-import { buildTriathlonWeekScaffold } from '../utils/buildTriathlonScaffold.ts';
-import { enforceTriathlonTimeBudget } from '../utils/enforceTriathlonTimeBudget.ts';
-import { validateGeneratedPlan } from '../utils/validateGeneratedPlan.ts';
-import type { GeneratedPlan, UserParams, WeekJson, WeekMeta } from '../types/plan.ts';
+import { buildTriathlonWeekScaffold } from '../utils/buildTriathlonScaffold';
+import { enforceTriathlonTimeBudget } from '../utils/enforceTriathlonTimeBudget';
+import { validateGeneratedPlan } from '../utils/validateGeneratedPlan';
+import type { GeneratedPlan, UserParams, WeekJson, WeekMeta } from '../types/plan';
 
 const START = new Date('2026-09-21T12:00:00Z');
 
