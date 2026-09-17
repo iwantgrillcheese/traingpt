@@ -42,7 +42,7 @@
     "@types/node": "^18.14.6",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.3",
-    "autoprefixer": "^10.4.13",
+    "autoprefixer": "^10.0.13",
     "eslint": "^8.0.0",
     "eslint-config-next": "15.5.9",
     "postcss": "^8.4.18",
@@ -57,7 +57,8 @@
     "postbuild": "next-sitemap",
     "lint": "next lint",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "verify": "yarn lint && yarn typecheck && yarn build",
+    "plan:quality": "node --experimental-strip-types scripts/plan-quality-matrix.ts",
+    "verify": "yarn lint && yarn typecheck && yarn plan:quality && yarn build",
     "seo:daily": "node scripts/seo/daily-engine.mjs",
     "seo:init": "node scripts/seo/init-keywords.mjs"
   },
