@@ -24,6 +24,7 @@ import {
   requireUser,
 } from "@/lib/supabase/server";
 import { convertPlanToSessions } from "@/utils/convertPlanToSessions";
+import { enforceTriathlonScheduleConstraints } from "@/utils/enforceTriathlonScheduleConstraints";
 import { enforceTriathlonTimeBudget } from "@/utils/enforceTriathlonTimeBudget";
 import { repairGeneratedPlan } from "@/utils/repairGeneratedPlan";
 import { validateGeneratedPlan } from "@/utils/validateGeneratedPlan";
@@ -279,6 +280,29 @@ function flattenWeekDays(weeks: WeekJson[]): Record<string, any[]> {
   }, {});
 }
 
+function applyTriathlonGuards(weeks: WeekJson[], userParams: UserParams) {
+  const scheduled = enforceTriathlonScheduleConstraints({
+    weeks,
+    raceDate: userParams.raceDate,
+    restDay: userParams.restDay,
+    unavailableDays: userParams.unavailableDays,
+    preferredLongRideDay: userParams.preferredLongRideDay,
+    preferredLongRunDay: userParams.preferredLongRunDay,
+    twoADaysAllowed: userParams.twoADaysAllowed ?? false,
+  });
+  const budgeted = enforceTriathlonTimeBudget({
+    weeks: scheduled.weeks,
+    maxHours: Number(userParams.maxHours),
+    raceDate: userParams.raceDate,
+  });
+  return {
+    weeks: budgeted.weeks,
+    movedSessions: scheduled.movedSessions,
+    droppedSessions: scheduled.droppedSessions,
+    adjustedWeeks: budgeted.adjustedWeeks,
+  };
+}
+
 export async function POST(req: Request) {
   const startedAt = Date.now();
   const HARD_BUDGET_MS = 285_000;
@@ -378,7 +402,7 @@ export async function POST(req: Request) {
       raceDate: String(raceDate),
       experience: finalExperience,
       maxHours: weeklyHours,
-      restDay: typeof restDay === "string" ? restDay : undefined,
+      restDay: normalizeDayName(restDay),
       bikeFTP: finalBikeFtp,
       bikeFtp: finalBikeFtp,
       runPace: finalRunPace,
@@ -417,10 +441,15 @@ export async function POST(req: Request) {
 
     let generatedWeeks = generatedWeeksRaw.map((week, index) => normalizeGeneratedWeek(week, weekMeta[index]));
     let adjustedWeeks = 0;
+    let movedSessions = 0;
+    let droppedSessions = 0;
+
     if (normalizedPlanType === "triathlon") {
-      const budgeted = enforceTriathlonTimeBudget({ weeks: generatedWeeks, maxHours: weeklyHours, raceDate: String(raceDate) });
-      generatedWeeks = budgeted.weeks;
-      adjustedWeeks = budgeted.adjustedWeeks;
+      const guarded = applyTriathlonGuards(generatedWeeks, userParams);
+      generatedWeeks = guarded.weeks;
+      adjustedWeeks = guarded.adjustedWeeks;
+      movedSessions = guarded.movedSessions;
+      droppedSessions = guarded.droppedSessions;
     }
 
     const generatedPlan: GeneratedPlan = {
@@ -434,6 +463,8 @@ export async function POST(req: Request) {
         source: scaffoldFirst ? "finalize-plan-scaffold" : "finalize-plan",
         stravaCalibrated: stravaHistoryRows.length > 0,
         timeBudgetAdjustedWeeks: adjustedWeeks,
+        scheduleMovedSessions: movedSessions,
+        scheduleDroppedSessions: droppedSessions,
         ...(scaffoldFirst ? { enrichment: { pending: true, enrichedWeeks: [] as number[] } } : {}),
       },
     };
@@ -444,7 +475,25 @@ export async function POST(req: Request) {
     if (!validation.ok) {
       console.warn("[finalize-plan] generated plan failed validation; repairing", { errors: validation.errors, warnings: validation.warnings });
       const repaired = repairGeneratedPlan({ plan: generatedPlan, userParams });
-      planForStorage = { ...repaired.plan, days: flattenWeekDays(repaired.plan.weeks) };
+      let repairedWeeks = repaired.plan.weeks;
+      if (normalizedPlanType === "triathlon") {
+        const guarded = applyTriathlonGuards(repairedWeeks, userParams);
+        repairedWeeks = guarded.weeks;
+        adjustedWeeks += guarded.adjustedWeeks;
+        movedSessions += guarded.movedSessions;
+        droppedSessions += guarded.droppedSessions;
+      }
+      planForStorage = {
+        ...repaired.plan,
+        weeks: repairedWeeks,
+        days: flattenWeekDays(repairedWeeks),
+        metadata: {
+          ...(repaired.plan.metadata ?? {}),
+          timeBudgetAdjustedWeeks: adjustedWeeks,
+          scheduleMovedSessions: movedSessions,
+          scheduleDroppedSessions: droppedSessions,
+        },
+      };
       validation = validateGeneratedPlan({ plan: planForStorage, expectedWeeks: totalWeeks, userParams });
       if (!validation.ok) {
         console.error("[finalize-plan] repaired plan still failed quality gate", { errors: validation.errors, warnings: validation.warnings });
@@ -489,6 +538,8 @@ export async function POST(req: Request) {
       validationScore: validation.score,
       validationWarnings: validation.warnings.length,
       timeBudgetAdjustedWeeks: adjustedWeeks,
+      scheduleMovedSessions: movedSessions,
+      scheduleDroppedSessions: droppedSessions,
       durationMs: Date.now() - startedAt,
     });
   } catch (error) {
