@@ -53,6 +53,7 @@ export async function GET() {
     const weeksMeta = meta(c.weeks);
     const raceDate = iso(addDays(addWeeks(START, c.weeks - 1), 6));
     const params: UserParams = { ...c.params, raceDate };
+    const ftp = params.bikeFTP;
     const raw = weeksMeta.map((m, i) => buildTriathlonWeekScaffold({ userParams: params, weekMeta: m, index: i, totalWeeks: c.weeks })).filter((w): w is WeekJson => !!w);
     const budgeted = enforceTriathlonTimeBudget({ weeks: raw, maxHours: params.maxHours, raceDate });
     const plan: GeneratedPlan = { planType: 'triathlon', params, weeks: budgeted.weeks };
@@ -62,13 +63,14 @@ export async function GET() {
     let ftpTargetMissing = false;
     for (const week of budgeted.weeks) {
       const raceWeek = Object.prototype.hasOwnProperty.call(week.days, raceDate);
-      const total = Object.values(week.days).flatMap(v => Array.isArray(v) ? v : []).reduce((sum, item) => sum + duration(item), 0);
+      const allItems = Object.values(week.days).flatMap(v => Array.isArray(v) ? v : []);
+      const total = allItems.reduce((sum, item) => sum + duration(item), 0);
       if (!raceWeek && total > params.maxHours * 60 + 1) budgetViolations.push(`${week.label}:${total}`);
       for (const [date, items] of Object.entries(week.days)) {
         const d = new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
         if ((d === params.restDay || (params.unavailableDays ?? []).includes(d)) && Array.isArray(items) && items.length) blockedViolations.push(`${week.label}:${d}`);
       }
-      if (params.bikeFTP && Object.values(week.days).flat().some(item => /bike|ride/i.test(text(item))) && !Object.values(week.days).flat().some(item => text(item).includes(`${Math.round(params.bikeFTP * .65)}`) || text(item).includes('% FTP'))) ftpTargetMissing = true;
+      if (ftp != null && allItems.some(item => /bike|ride/i.test(text(item))) && !allItems.some(item => text(item).includes(`${Math.round(ftp * .65)}`) || text(item).includes('% FTP'))) ftpTargetMissing = true;
     }
     const pass = validation.ok && budgetViolations.length === 0 && blockedViolations.length === 0 && !ftpTargetMissing;
     return { name: c.name, pass, validationScore: validation.score, errors: validation.errors, warnings: validation.warnings, budgetViolations, blockedViolations, ftpTargetMissing, adjustedWeeks: budgeted.adjustedWeeks };
