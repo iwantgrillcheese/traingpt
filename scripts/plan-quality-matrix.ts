@@ -1,5 +1,6 @@
 import { addDays, addWeeks, formatISO } from 'date-fns';
 import { buildTriathlonWeekScaffold } from '../utils/buildTriathlonScaffold.ts';
+import { enforceTriathlonScheduleConstraints } from '../utils/enforceTriathlonScheduleConstraints.ts';
 import { enforceTriathlonTimeBudget } from '../utils/enforceTriathlonTimeBudget.ts';
 import { validateGeneratedPlan } from '../utils/validateGeneratedPlan.ts';
 import type { GeneratedPlan, UserParams, WeekJson, WeekMeta } from '../types/plan.ts';
@@ -58,7 +59,16 @@ const results = cases.map((c) => {
   const raw = weeksMeta
     .map((m, i) => buildTriathlonWeekScaffold({ userParams: params, weekMeta: m, index: i, totalWeeks: c.weeks }))
     .filter((w): w is WeekJson => !!w);
-  const budgeted = enforceTriathlonTimeBudget({ weeks: raw, maxHours: params.maxHours, raceDate });
+  const scheduled = enforceTriathlonScheduleConstraints({
+    weeks: raw,
+    raceDate,
+    restDay: params.restDay,
+    unavailableDays: params.unavailableDays,
+    preferredLongRideDay: params.preferredLongRideDay,
+    preferredLongRunDay: params.preferredLongRunDay,
+    twoADaysAllowed: params.twoADaysAllowed ?? false,
+  });
+  const budgeted = enforceTriathlonTimeBudget({ weeks: scheduled.weeks, maxHours: params.maxHours, raceDate });
   const plan: GeneratedPlan = { planType: 'triathlon', params, weeks: budgeted.weeks };
   const validation = validateGeneratedPlan({ plan, expectedWeeks: c.weeks, userParams: params });
   const budgetViolations: string[] = [];
@@ -72,17 +82,29 @@ const results = cases.map((c) => {
     if (!raceWeek && total > params.maxHours * 60 + 1) budgetViolations.push(`${week.label}:${total}`);
     for (const [date, items] of Object.entries(week.days)) {
       const d = new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
-      if ((d === params.restDay || (params.unavailableDays ?? []).includes(d)) && Array.isArray(items) && items.length) blockedViolations.push(`${week.label}:${d}`);
+      if (date !== raceDate && (d === params.restDay || (params.unavailableDays ?? []).includes(d)) && Array.isArray(items) && items.length) blockedViolations.push(`${week.label}:${d}`);
     }
     if (ftp != null && allItems.some(item => /bike|ride/i.test(text(item))) && !allItems.some(item => text(item).includes(`${Math.round(ftp * .65)}`) || text(item).includes('% FTP'))) ftpTargetMissing = true;
   }
 
   const pass = validation.ok && budgetViolations.length === 0 && blockedViolations.length === 0 && !ftpTargetMissing;
-  return { name: c.name, pass, validationScore: validation.score, errors: validation.errors, warnings: validation.warnings, budgetViolations, blockedViolations, ftpTargetMissing, adjustedWeeks: budgeted.adjustedWeeks };
+  return {
+    name: c.name,
+    pass,
+    validationScore: validation.score,
+    errors: validation.errors,
+    warnings: validation.warnings,
+    budgetViolations,
+    blockedViolations,
+    ftpTargetMissing,
+    adjustedWeeks: budgeted.adjustedWeeks,
+    movedSessions: scheduled.movedSessions,
+    droppedSessions: scheduled.droppedSessions,
+  };
 });
 
 for (const result of results) {
-  console.log(`${result.pass ? 'PASS' : 'FAIL'} ${result.name} score=${result.validationScore} adjusted=${result.adjustedWeeks}`);
+  console.log(`${result.pass ? 'PASS' : 'FAIL'} ${result.name} score=${result.validationScore} adjusted=${result.adjustedWeeks} moved=${result.movedSessions} dropped=${result.droppedSessions}`);
   if (!result.pass) console.log(JSON.stringify(result, null, 2));
 }
 
