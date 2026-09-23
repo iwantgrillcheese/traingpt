@@ -23,7 +23,7 @@ export default function Footer() {
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-zinc-950 text-xs font-semibold text-white">B</span>
             <span className="text-sm font-semibold tracking-tight text-zinc-950">Brick</span>
           </div>
-          <p className="mt-5 max-w-sm text-sm leading-6 text-zinc-600">Adaptive triathlon training built around your race, your schedule, and the work you actually complete.</p>
+          <p className="mt-5 max-w-sm text-sm leading-6 text-zinc-600">Personalized, adaptive training for runners and triathletes. Built around your event, your schedule, and the work you actually complete.</p>
           <p className="mt-6 text-xs text-zinc-400">© {new Date().getFullYear()} Brick.</p>
         </div>
 

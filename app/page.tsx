@@ -7,7 +7,11 @@ import { supabase } from '@/lib/supabase/client';
 import { track } from '@/lib/analytics/posthog-client';
 import Footer from './components/footer';
 import BlogPreview from './components/blog/BlogPreview';
-import PublicPlanPreview from './components/PublicPlanPreview';
+import Image from 'next/image';
+import Link from 'next/link';
+import workoutScreenshot from '@/public/landing/mobile-workout.png';
+import dashboardScreenshot from '@/public/landing/dashboard.png';
+import styles from './landing.module.css';
 
 const compatibleStrava = '/strava/api_logo_cptblWith_strava_horiz_orange.svg';
 
@@ -60,103 +64,93 @@ export default function Home() {
   const authed = Boolean(session?.user);
   const goPrimary = () => {
     track('homepage_primary_cta_clicked', { authenticated: authed });
-    router.push(authed ? '/plan' : '/preview');
+    router.push(authed ? '/plan' : `/login?next=${encodeURIComponent('/plan')}`);
   };
   const goLogin = () => router.push(`/login?next=${encodeURIComponent('/schedule')}`);
   const goSchedule = () => router.push('/schedule');
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#FBFBFA] text-[#101114]">
-      <header className="fixed inset-x-0 top-0 z-50 border-b border-[#E3E0D8]/70 bg-[#FBFBFA]/90 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-3" aria-label="Go to top">
-            <Mark />
-            <span className="text-sm font-black tracking-[-0.03em]">Brick</span>
-          </button>
-          <nav className="hidden items-center gap-1 md:flex">
-            <a href="#how" className="rounded-full px-3 py-2 text-sm font-semibold text-[#6B7280] hover:bg-white hover:text-[#101114]">How it works</a>
-            <a href="#preview" className="rounded-full px-3 py-2 text-sm font-semibold text-[#6B7280] hover:bg-white hover:text-[#101114]">Plan preview</a>
-            <a href="#resources" className="rounded-full px-3 py-2 text-sm font-semibold text-[#6B7280] hover:bg-white hover:text-[#101114]">Resources</a>
+    <main className={`${styles.landing} min-h-screen bg-[#FBFBFA] text-[#101114]`}>
+      <header className="border-b border-[#E3E0D8]">
+        <div className="mx-auto flex min-h-20 max-w-6xl items-center justify-between gap-3 px-5 sm:px-8">
+          <Link href="/" aria-label="Brick home" className="flex items-center gap-3"><Mark /><span className="text-lg font-black tracking-tight">Brick</span></Link>
+          <nav aria-label="Main navigation" className="hidden items-center gap-7 text-sm font-semibold text-[#4B5563] md:flex">
+            <a href="#distances">Your distance</a><a href="#how">How it works</a><a href="#product">Inside Brick</a>
           </nav>
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={authed ? goSchedule : goLogin} className="rounded-full border border-[#E2E0D8] bg-white px-4 py-2 text-sm font-bold text-[#101114] hover:bg-[#F7F6F2]">
-              {authed ? 'Open app' : 'Log in'}
-            </button>
-            <button type="button" onClick={goPrimary} className="rounded-full bg-[#101114] px-4 py-2 text-sm font-bold text-white hover:bg-[#25272D]">
-              {authed ? 'Build plan' : 'Preview my plan'}
-            </button>
-          </div>
+          <button type="button" onClick={authed ? goSchedule : goLogin} className="rounded-full border border-[#E3E0D8] bg-white px-5 py-3 text-sm font-bold">{authed ? 'Open app' : 'Log in'}</button>
         </div>
       </header>
 
-      <section className="relative isolate px-4 pb-20 pt-36 sm:px-6 lg:px-8">
-        <div className="absolute left-1/2 top-16 -z-10 h-[620px] w-[920px] -translate-x-1/2 rounded-full bg-[#ECEAE5] opacity-80 blur-3xl" />
-        <div className="mx-auto max-w-7xl">
-          <div className="mx-auto max-w-5xl text-center">
-            <Label>Adaptive triathlon training</Label>
-            <h1 className="mx-auto mt-7 text-[4rem] font-black leading-[0.92] tracking-[-0.085em] sm:text-[6rem] lg:text-[7.2rem]">
-              Triathlon training that adapts to your life.
-            </h1>
-            <p className="mx-auto mt-7 max-w-2xl text-lg leading-8 text-[#4B5563] sm:text-xl">
-              Build a custom race plan, connect Strava, and let Brick keep the week aligned with the training you actually do.
-            </p>
-            <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
-              <button type="button" onClick={goPrimary} className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#101114] px-6 text-sm font-black text-white shadow-[0_18px_40px_rgba(16,17,20,0.16)]">
-                {authed ? 'Open plan builder' : 'Preview my plan'}
-              </button>
-              <a href="#how" className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#E2E0D8] bg-white px-6 text-sm font-black text-[#101114]">
-                See how it works
-              </a>
-            </div>
-            <p className="mt-4 text-sm font-semibold text-[#6B7280]">Sprint, Olympic, 70.3, and Ironman. Free today. No credit card.</p>
-            <div className="mt-7 flex justify-center"><img src={compatibleStrava} alt="Compatible with Strava" className="h-auto w-[220px] max-w-full" /></div>
-          </div>
-
-          <div className="mx-auto mt-16 grid max-w-5xl gap-3 sm:grid-cols-3">
-            <div className="rounded-3xl border border-[#E3E0D8] bg-white p-6"><p className="text-4xl font-black tracking-[-0.07em]">01</p><p className="mt-2 text-sm font-black">Build around your race and real availability.</p></div>
-            <div className="rounded-3xl border border-[#E3E0D8] bg-white p-6"><p className="text-4xl font-black tracking-[-0.07em]">02</p><p className="mt-2 text-sm font-black">Strava matches what actually happened.</p></div>
-            <div className="rounded-3xl border border-[#E3E0D8] bg-white p-6"><p className="text-4xl font-black tracking-[-0.07em]">03</p><p className="mt-2 text-sm font-black">The next week adapts instead of pretending life went perfectly.</p></div>
-          </div>
-        </div>
-      </section>
-
-      <section id="how" className="border-y border-[#E3E0D8] bg-white px-4 py-20 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl">
-          <div className="max-w-3xl"><Label>How it works</Label><h2 className="mt-4 text-4xl font-black tracking-[-0.07em] sm:text-6xl">The plan is only useful if it knows what you did.</h2></div>
-          <div className="mt-10 grid gap-4 lg:grid-cols-3">
-            <ProductCard eyebrow="Plan" title="A real race build" body="Your race date, current fitness, available hours, rest day, long-session preferences, and training constraints shape the plan." />
-            <ProductCard eyebrow="Track" title="Strava closes the loop" body="Rides, runs, and swims match back to planned sessions. Planned time stays planned; actual time stays actual." />
-            <ProductCard eyebrow="Adapt" title="Missed work is not debt" body="Brick uses completed training to adjust the week ahead. Important sessions stay protected, but missed volume is not blindly stacked." />
-          </div>
-        </div>
-      </section>
-
-      <section id="preview" className="px-4 py-20 sm:px-6 lg:px-8">
+      <section className="px-5 pb-14 pt-14 sm:px-8 sm:pb-20 sm:pt-24">
         <div className="mx-auto max-w-6xl">
-          <div className="mb-8 max-w-3xl"><Label>Try it before login</Label><h2 className="mt-4 text-4xl font-black tracking-[-0.07em] sm:text-6xl">Preview a week with four inputs.</h2><p className="mt-4 text-base leading-7 text-[#6B7280]">High-intent athletes should not have to create an account just to discover whether the product is useful.</p></div>
-          <PublicPlanPreview />
+          <div className="grid items-center gap-12 lg:grid-cols-[1.25fr_0.75fr] lg:gap-20">
+            <div>
+              <Label>Adaptive endurance training</Label>
+              <h1 className="mt-6 max-w-3xl text-[3.7rem] font-black leading-[0.96] tracking-[-0.075em] sm:text-[5.5rem] lg:text-[6.4rem]">Train for<br />what’s next.</h1>
+              <p className="mt-7 max-w-xl text-lg leading-8 text-[#4B5563] sm:text-xl">Personalized training for runners and triathletes. Build your plan, connect Strava, and let your training adapt as you go.</p>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <button type="button" onClick={goPrimary} className="rounded-full bg-[#101114] px-7 py-4 text-sm font-bold text-white hover:bg-[#25272D]">Build my plan <span aria-hidden="true">↗</span></button>
+                <a href="#product" className="inline-flex items-center justify-center rounded-full border border-[#E3E0D8] bg-white px-7 py-4 text-sm font-bold">Explore Brick</a>
+              </div>
+              <p className="mt-4 text-sm text-[#6B7280]">Free today. No credit card required.</p>
+              <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 border-t border-[#E3E0D8] pt-6 text-sm font-semibold"><span>Running · 5K to marathon</span><span>Triathlon · Sprint to full distance</span></div>
+            </div>
+            <figure className="relative mx-auto w-full max-w-[360px] rounded-[2rem] border border-[#E3E0D8] bg-[#F1F3F5] p-5 sm:p-7">
+              <div className="mb-5 flex items-center justify-between"><Label>A closer look</Label><span className="rounded-full bg-[#C6F33C] px-3 py-1 text-xs font-bold">Session detail</span></div>
+              <Image src={workoutScreenshot} alt="Brick session detail showing a swim workout, warmup, main set, and completion button" priority sizes="(max-width: 640px) 280px, 304px" className="h-auto w-full rounded-2xl border border-[#E3E0D8]" />
+              <figcaption className="mt-4 text-xs leading-5 text-[#6B7280]">From the plan to the session. Every workout in one place.</figcaption>
+            </figure>
+          </div>
+          <div id="distances" className="mt-14 grid scroll-mt-8 gap-4 sm:mt-20 md:grid-cols-2">
+            {[
+              { name: 'Running', detail: 'Find your rhythm. Go the distance.', distances: ['5K', '10K', 'Half marathon', 'Marathon'] },
+              { name: 'Triathlon', detail: 'Bring swim, bike, and run together.', distances: ['Sprint triathlon', 'Olympic triathlon', '70.3', 'Full-distance triathlon'] },
+            ].map((sport) => (
+              <article key={sport.name} className="rounded-[2rem] border border-[#E3E0D8] bg-white p-6 sm:p-8">
+                <h2 className="text-3xl font-black tracking-[-0.05em]">{sport.name}</h2>
+                <p className="mt-2 text-sm text-[#6B7280]">{sport.detail}</p>
+                <ul className="mt-5 flex flex-wrap gap-2">{sport.distances.map((distance) => <li key={distance} className="rounded-full bg-[#F1F3F5] px-3 py-2 text-sm font-semibold">{distance}</li>)}</ul>
+              </article>
+            ))}
+          </div>
         </div>
       </section>
 
-      <section className="border-y border-[#E3E0D8] bg-[#101114] px-4 py-20 text-white sm:px-6 lg:px-8">
-        <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
-          <div><p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/45">Why Brick exists</p><h2 className="mt-4 max-w-3xl text-4xl font-black tracking-[-0.07em] sm:text-6xl">More useful than copy-pasting a plan into ChatGPT.</h2><p className="mt-5 max-w-2xl text-base leading-8 text-white/65">The intelligence can sit in the engine room. What matters to the athlete is that the plan remembers the race, sees completed training, keeps the schedule in one place, and explains what changed.</p></div>
-          <div className="rounded-3xl border border-white/15 bg-white/5 p-6"><p className="text-sm font-black">Built by a triathlete who got tired of rebuilding context every time.</p><p className="mt-3 text-sm leading-6 text-white/60">Brick does not pretend to replace a great human coach. It is meant to make structured, adaptive training accessible when a coach is not the right option.</p><a href="/about" className="mt-5 inline-flex text-sm font-black underline underline-offset-4">Read the story</a></div>
+      <section id="how" className="scroll-mt-8 border-y border-[#E3E0D8] bg-white px-5 py-16 sm:px-8 sm:py-24">
+        <div className="mx-auto max-w-6xl">
+          <Label>Built around you</Label>
+          <h2 className="mt-4 max-w-2xl text-4xl font-black leading-tight tracking-[-0.055em] sm:text-5xl">Your goal. Your starting point.<br />A plan that keeps up.</h2>
+          <div className="mt-10 grid gap-4 md:grid-cols-3">
+            <ProductCard eyebrow="01 / Plan" title="Start where you are." body="Your event, current fitness, and available training time shape your plan. Build toward your next start line with a week that fits your life." />
+            <ProductCard eyebrow="02 / Connect" title="Let training count." body="Connect Strava to bring your activities into Brick automatically and match completed training to your planned sessions." />
+            <ProductCard eyebrow="03 / Adapt" title="Keep moving forward." body="Brick uses completed training to adapt the week ahead, so your plan stays connected to the work you actually do." />
+          </div>
+          <Image src={compatibleStrava} alt="Compatible with Strava" width={220} height={48} className="mt-8 h-auto max-w-full" />
         </div>
       </section>
 
-      <section className="px-4 py-20 sm:px-6 lg:px-8">
-        <div className="mx-auto grid max-w-7xl gap-4 md:grid-cols-3">
-          <ProductCard eyebrow="Useful entry point" title="Free 70.3 plan" body="Preview a 70.3 week, then build the full race plan when it looks right."><a href="/free-70-3-training-plan" className="mt-5 inline-flex text-sm font-black underline underline-offset-4">Open 70.3 planner</a></ProductCard>
-          <ProductCard eyebrow="Useful entry point" title="Free Ironman plan" body="See how long-course work fits your weekly hours before committing to the full build."><a href="/free-ironman-training-plan" className="mt-5 inline-flex text-sm font-black underline underline-offset-4">Open Ironman planner</a></ProductCard>
-          <ProductCard eyebrow="Useful entry point" title="Any triathlon" body="Start with distance, date, available hours, and long-session day. No account required."><a href="/free-triathlon-training-plan" className="mt-5 inline-flex text-sm font-black underline underline-offset-4">Open triathlon planner</a></ProductCard>
+      <section id="product" className="scroll-mt-8 px-5 py-16 sm:px-8 sm:py-24">
+        <div className="mx-auto max-w-6xl">
+          <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
+            <div><Label>Your training, together</Label><h2 className="mt-4 max-w-xl text-4xl font-black leading-tight tracking-[-0.055em] sm:text-5xl">The whole plan.<br />Not just today’s workout.</h2></div>
+            <p className="max-w-sm text-base leading-7 text-[#6B7280]">Follow your sessions, track completed training, and see how your week is taking shape. One place to return to, all the way to race day.</p>
+          </div>
+          <figure className="mt-10 rounded-[2rem] border border-[#E3E0D8] bg-[#F1F3F5] p-3 sm:p-6">
+            <Image src={dashboardScreenshot} alt="Brick coaching dashboard showing planned training, completed time, key sessions, and a weekly summary" sizes="(max-width: 1152px) 100vw, 1100px" className="h-auto w-full rounded-xl border border-[#E3E0D8]" />
+            <figcaption className="px-2 pb-1 pt-4 text-xs leading-5 text-[#6B7280]">Inside Brick: a training overview. Example shown is a triathlon plan.</figcaption>
+          </figure>
         </div>
       </section>
 
-      <section className="border-y border-[#E3E0D8] bg-white px-4 py-16 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-4xl text-center"><Label>Free today</Label><h2 className="mt-4 text-4xl font-black tracking-[-0.07em] sm:text-5xl">No credit card. No hidden activation wall.</h2><p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-[#6B7280]">Brick is free while we build it with athletes. You can preview the product before signing up, and the saved product is designed for the full race build rather than a disposable PDF.</p><button type="button" onClick={goPrimary} className="mt-7 rounded-full bg-[#101114] px-6 py-3 text-sm font-black text-white">{authed ? 'Open Brick' : 'Preview my plan'}</button></div>
+      <section className="bg-[#101114] px-5 py-16 text-white sm:px-8 sm:py-24">
+        <div className="mx-auto max-w-6xl">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#C6F33C]">One session at a time</p>
+          <h2 className="mt-5 max-w-3xl text-4xl font-black leading-tight tracking-[-0.055em] sm:text-6xl">Your next start line<br />starts here.</h2>
+          <p className="mt-5 max-w-xl text-lg leading-8 text-white/70">From your first 5K to a full-distance triathlon. Build a plan around the athlete you are and the event ahead.</p>
+          <button type="button" onClick={goPrimary} className="mt-8 rounded-full bg-[#C6F33C] px-7 py-4 text-sm font-bold text-[#101114]">Build my plan <span aria-hidden="true">↗</span></button>
+          <p className="mt-4 text-sm text-white/70">Free today. No credit card required.</p>
+        </div>
       </section>
-
       <section id="resources" className="bg-white"><BlogPreview /></section>
       <Footer />
     </main>
