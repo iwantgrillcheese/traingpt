@@ -1,5 +1,0 @@
-.landing :is(a, button):focus-visible {
-  outline: 3px solid var(--tg-blue);
-  outline-offset: 5px;
-}
-.landing :is(a, button) { touch-action: manipulation; }
