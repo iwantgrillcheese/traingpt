@@ -4,7 +4,6 @@ import {
   createRouteSupabaseClient,
   requireUser,
 } from '@/lib/supabase/server';
-import { getBillingAccess } from '@/lib/billing';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -122,15 +121,11 @@ function redirectToLogin(req: Request) {
 
 export async function GET(req: Request) {
   try {
-    const supabase = await createRouteSupabaseClient();
+    const supabase = await createRouteSupabaseClient(req);
     const user = await requireUser(supabase);
-    const billing = await getBillingAccess(supabase, user.id);
 
-    if (!billing.isPlusActive) {
-      const url = new URL('/plan-preview', req.url);
-      url.searchParams.set('feature', 'calendar-export');
-      return NextResponse.redirect(url);
-    }
+    // Calendar export is available to every signed-in athlete. Keep the
+    // ownership filter below: removing billing must not remove authorization.
 
     const { data, error } = await supabase
       .from('sessions')

@@ -241,8 +241,7 @@ export default function PlanReadyReviewOverlay() {
   const exportCalendar = async () => {
     try {
       setExporting(true);
-      track('calendar_export_clicked', { source: 'plan_ready_review' });
-      await exportCalendarClient();
+      await exportCalendarClient('plan_ready_review');
     } finally {
       setExporting(false);
     }
