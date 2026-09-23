@@ -127,8 +127,8 @@ function clamp(n: number, min: number, max: number) {
 
 function raceFamily(raceType?: string) {
   const s = String(raceType ?? "").toLowerCase();
-  if (s.includes("marathon") || s.includes("26.2")) return "marathon" as const;
   if (s.includes("half") || s.includes("13.1")) return "half" as const;
+  if (s.includes("marathon") || s.includes("26.2")) return "marathon" as const;
   if (s.includes("10k")) return "10k" as const;
   if (s.includes("5k")) return "5k" as const;
   return "other" as const;

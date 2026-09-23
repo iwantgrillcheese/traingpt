@@ -1,6 +1,6 @@
 // /app/api/enrich-week/route.ts
 //
-// Enriches a single week of an already-saved (scaffold-first) triathlon plan.
+// Enriches a single week of an already-saved running or triathlon plan.
 // The scaffold is the source of truth for structure, dates, durations, and
 // zone targets. This route asks the LLM to upgrade ONLY the `details` text of
 // each session — adding concrete prescriptions and week-over-week continuity
@@ -79,7 +79,7 @@ function summarizePrevWeek(prev: WeekJson | undefined): string {
 }
 
 const ENRICH_SYSTEM_PROMPT = `
-You are a world-class triathlon coach refining an already-structured training week.
+You are an endurance coach refining an already-structured running or triathlon training week.
 
 The week's structure is FINAL: dates, sports, titles, session types, and durations must not change.
 Your only job is to rewrite each session's "details" so it reads like a real coach wrote it.
@@ -130,6 +130,7 @@ function buildEnrichUserPrompt({
 
   return `
 ## Athlete
+- Plan type: ${plan.planType}
 - Race: ${p.raceType} on ${p.raceDate}
 - Experience: ${p.experience ?? 'unknown'}
 - Max weekly hours: ${p.maxHours}
@@ -186,8 +187,8 @@ export async function POST(req: Request) {
 
     const plan = planRow.plan as GeneratedPlan;
 
-    if (plan.planType !== 'triathlon') {
-      return NextResponse.json({ ok: true, skipped: true, reason: 'Only triathlon plans use post-generation enrichment.' });
+    if (!['triathlon', 'running', 'run'].includes(plan.planType)) {
+      return NextResponse.json({ ok: true, skipped: true, reason: 'This plan type does not use post-generation enrichment.' });
     }
 
     const weeks = Array.isArray(plan.weeks) ? plan.weeks : [];
@@ -198,10 +199,10 @@ export async function POST(req: Request) {
 
     const prevSummary = summarizePrevWeek(weeks[weekIndex - 1]);
     const model = process.env.ENRICH_MODEL ?? process.env.PLAN_MODEL ?? 'gpt-4o';
-    const openai = getOpenAI();
 
     let enriched: EnrichedSessionOut[] = [];
     try {
+      const openai = getOpenAI();
       const resp = await openai.chat.completions.create(
         stripUnsupportedParams({
           model,
@@ -211,7 +212,8 @@ export async function POST(req: Request) {
             { role: 'system', content: ENRICH_SYSTEM_PROMPT },
             { role: 'user', content: buildEnrichUserPrompt({ plan, week, weekIndex, prevSummary }) },
           ],
-        })
+        }),
+        { timeout: 25_000, maxRetries: 0, signal: AbortSignal.timeout(25_000) }
       );
       const parsed = JSON.parse(resp.choices[0]?.message?.content ?? '{}');
       enriched = Array.isArray(parsed?.sessions) ? parsed.sessions : [];
