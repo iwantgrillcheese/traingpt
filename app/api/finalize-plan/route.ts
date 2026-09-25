@@ -28,6 +28,7 @@ import { enforceTriathlonScheduleConstraints } from "@/utils/enforceTriathlonSch
 import { enforceTriathlonTimeBudget } from "@/utils/enforceTriathlonTimeBudget";
 import { repairGeneratedPlan } from "@/utils/repairGeneratedPlan";
 import { validateGeneratedPlan } from "@/utils/validateGeneratedPlan";
+import { buildRunningPlanScaffold } from "@/utils/buildRunningScaffold";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -305,7 +306,6 @@ function applyTriathlonGuards(weeks: WeekJson[], userParams: UserParams) {
 
 export async function POST(req: Request) {
   const startedAt = Date.now();
-  const HARD_BUDGET_MS = 285_000;
 
   try {
     const body = await req.json();
@@ -365,7 +365,8 @@ export async function POST(req: Request) {
       .eq("user_id", userId)
       .gte("start_date", stravaSinceISO)
       .order("start_date", { ascending: false })
-      .limit(1000);
+      .limit(1000)
+      .abortSignal(AbortSignal.timeout(5_000));
     if (stravaRowsError) console.error("[finalize-plan] Strava history lookup failed; continuing without calibration", stravaRowsError);
 
     const stravaHistoryRows = (Array.isArray(stravaRowsRaw) ? stravaRowsRaw : []) as StravaHistoryRow[];
@@ -391,6 +392,10 @@ export async function POST(req: Request) {
     });
 
     const normalizedPlanType = normalizePlanType(planType);
+    const blockedDays = new Set([normalizeDayName(restDay), ...unavailableDaysResolved].filter(Boolean));
+    if (blockedDays.size === 7) {
+      return NextResponse.json({ ok: false, error: "Choose at least one available training day." }, { status: 400 });
+    }
     const finalBikeFtp = explicitFtp != null && String(explicitFtp).trim() !== ""
       ? Number(explicitFtp)
       : inferredBaselines.estimatedFtp ?? undefined;
@@ -411,7 +416,8 @@ export async function POST(req: Request) {
       preferencesText: typeof preferencesText === "string" && preferencesText.trim() ? preferencesText.trim() : constraintsSummary,
       constraintsSummary,
       preferredLongRideDay: preferredLongRideDayResolved as DayOfWeek | undefined,
-      preferredLongRunDay: preferredLongRunDayResolved as DayOfWeek | undefined,
+      preferredLongRunDay: (normalizedPlanType === "running" && blockedDays.has(preferredLongRunDayResolved)
+        ? undefined : preferredLongRunDayResolved) as DayOfWeek | undefined,
       unavailableDays: unavailableDaysResolved as DayOfWeek[],
       swimComfort: swimComfortResolved,
       twoADaysAllowed: twoADaysAllowedResolved,
@@ -431,12 +437,11 @@ export async function POST(req: Request) {
         generatedWeeksRaw = scaffoldWeeks;
         scaffoldFirst = true;
       } else {
-        const { startPlan } = await import("@/utils/start-plan");
-        generatedWeeksRaw = await startPlan({ totalWeeks, weekMeta, userParams, deadlineMs: startedAt + HARD_BUDGET_MS });
+        return NextResponse.json({ ok: false, error: "Choose a supported triathlon race type." }, { status: 400 });
       }
     } else {
-      const { startPlan } = await import("@/utils/start-plan");
-      generatedWeeksRaw = await startPlan({ totalWeeks, weekMeta, userParams, planType: normalizedPlanType, deadlineMs: startedAt + HARD_BUDGET_MS });
+      generatedWeeksRaw = buildRunningPlanScaffold({ userParams, weekMeta });
+      scaffoldFirst = true;
     }
 
     let generatedWeeks = generatedWeeksRaw.map((week, index) => normalizeGeneratedWeek(week, weekMeta[index]));
@@ -460,7 +465,7 @@ export async function POST(req: Request) {
       metadata: {
         generatedAt: new Date().toISOString(),
         totalWeeks,
-        source: scaffoldFirst ? "finalize-plan-scaffold" : "finalize-plan",
+        source: normalizedPlanType === "running" ? "finalize-plan-running-scaffold" : "finalize-plan-scaffold",
         stravaCalibrated: stravaHistoryRows.length > 0,
         timeBudgetAdjustedWeeks: adjustedWeeks,
         scheduleMovedSessions: movedSessions,

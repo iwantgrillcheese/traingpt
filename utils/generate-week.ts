@@ -10,8 +10,6 @@ import { validateRunWeek } from "@/utils/validateRunWeek";
 import { stripUnsupportedParams } from "@/utils/openaiSafeParams";
 import type { WeekMeta, UserParams, WeekJson, PlanType, DayOfWeek } from "@/types/plan";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
-
 // Max correction rerolls per running week. Each reroll is a full LLM call, and
 // running weeks are generated sequentially, so a high cap on a long marathon
 // build (16-20 weeks) can blow the request time budget. 2 keeps quality high
@@ -84,6 +82,9 @@ export async function generateWeek({
   const systemPrompt = isRunPlan ? RUNNING_SYSTEM_PROMPT : COACH_SYSTEM_PROMPT;
 
   async function callLLM(extraFixText?: string): Promise<WeekJson> {
+    const remaining = Math.min(25_000, (deadlineMs ?? Date.now() + 25_000) - Date.now() - 1_000);
+    if (remaining <= 0) throw new Error('Plan generation AI time budget exhausted');
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
     const resp = await openai.chat.completions.create(
       stripUnsupportedParams({
         model,
@@ -96,7 +97,8 @@ export async function generateWeek({
             content: extraFixText ? `${userMsg}\n\n## Fix Required\n${extraFixText}` : userMsg,
           },
         ],
-      })
+      }),
+      { timeout: remaining, maxRetries: 0, signal: AbortSignal.timeout(remaining) }
     );
 
     const content = resp.choices[0]?.message?.content ?? "{}";
