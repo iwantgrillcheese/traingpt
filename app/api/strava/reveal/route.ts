@@ -6,7 +6,12 @@ export const dynamic = 'force-dynamic';
 
 type Activity = { strava_id: number | null; name: string | null; sport_type: string | null; distance: number | null; moving_time: number | null; start_date: string | null; start_date_local: string | null; total_elevation_gain: number | null; };
 
-const sport = (row: Activity) => String(row.sport_type ?? '').toLowerCase();
+const sport = (row: Activity) => {
+  const type = String(row.sport_type ?? '').toLowerCase();
+  if (['bike', 'ride', 'virtualride', 'ebikeride', 'emountainbikeride', 'mountainbikeride', 'gravelride'].includes(type)) return 'bike';
+  if (['run', 'trailrun', 'virtualrun'].includes(type)) return 'run';
+  return type;
+};
 const valid = (n: unknown) => typeof n === 'number' && Number.isFinite(n) && n > 0;
 const maxBy = (rows: Activity[], value: (row: Activity) => number) => rows.reduce<Activity | null>((best, row) => !best || value(row) > value(best) ? row : best, null);
 const isoWeekMonday = (dateString: string) => { const d = new Date(dateString); const day = (d.getUTCDay() + 6) % 7; d.setUTCDate(d.getUTCDate() - day); d.setUTCHours(0, 0, 0, 0); return d.toISOString().slice(0, 10); };
@@ -15,12 +20,18 @@ export async function GET(req: Request) {
   try {
     const supabase = await createRouteSupabaseClient(req);
     const user = await requireUser(supabase);
-    const [{ data, error }, { data: profile }] = await Promise.all([
-      supabase.from('strava_activities').select('strava_id,name,sport_type,distance,moving_time,start_date,start_date_local,total_elevation_gain').eq('user_id', user.id).order('start_date', { ascending: true }).limit(10000),
-      supabase.from('profiles').select('strava_last_synced_at').eq('id', user.id).maybeSingle(),
-    ]);
-    if (error) throw error;
-    const rows = (data ?? []) as Activity[];
+    const { data: profile, error: profileError } = await supabase.from('profiles').select('strava_last_synced_at,strava_history_imported_at').eq('id', user.id).maybeSingle();
+    if (profileError) throw profileError;
+    if (!profile?.strava_history_imported_at) return NextResponse.json({ error: 'Strava history has not completed importing. Please retry the import.' }, { status: 409 });
+    // Supabase caps each response; limit(10000) does not override that cap.
+    const rows: Activity[] = [];
+    for (let offset = 0; offset < 10000; offset += 500) {
+      const { data, error } = await supabase.from('strava_activities').select('strava_id,name,sport_type,distance,moving_time,start_date,start_date_local,total_elevation_gain').eq('user_id', user.id).order('start_date', { ascending: true }).order('strava_id', { ascending: true }).range(offset, offset + 499);
+      if (error) throw error;
+      rows.push(...((data ?? []) as Activity[]));
+      if (!data || data.length < 500) break;
+    }
+    console.info('[strava/reveal] history read', { userId: user.id, activityCount: rows.length, importedAt: profile.strava_history_imported_at });
     const endurance = rows.filter((r) => ['bike', 'run', 'swim'].includes(sport(r)));
     const bikes = endurance.filter((r) => sport(r) === 'bike' && valid(r.distance));
     const runs = endurance.filter((r) => sport(r) === 'run' && valid(r.distance));
