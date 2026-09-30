@@ -2,9 +2,23 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
+import BrickProfileCard from '@/app/components/BrickProfileCard';
+import type { BrickProfile } from '@/lib/strava/athlete-profile';
+import Link from 'next/link';
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<{ name: string; email: string; avatar: string } | null>(null);
+
+  const [athlete, setAthlete] = useState<BrickProfile | null>(null);
+  const [athleteError, setAthleteError] = useState('');
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/strava/reveal', { signal: controller.signal, cache: 'no-store' }).then(async response => {
+      if (!response.ok) throw new Error('Connect Strava and complete your history import to discover your Brick profile.');
+      return response.json();
+    }).then(data => setAthlete(data.brickProfile)).catch(error => { if (!controller.signal.aborted) setAthleteError(error.message); });
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -39,7 +53,8 @@ export default function ProfilePage() {
 
   return (
     <main className="max-w-7xl mx-auto px-4 py-6">
-      <div className="max-w-lg mx-auto p-6 bg-white rounded-2xl shadow border border-zinc-100">
+      <div className="mx-auto mb-6 max-w-2xl rounded-[2rem] bg-[#101114] p-7 sm:p-10">{athlete ? <BrickProfileCard profile={athlete} shareable /> : <div className="text-sm text-white/65"><p>{athleteError || 'Reading your athlete profile…'}</p>{athleteError ? <Link href="/strava-reveal" className="mt-4 inline-block text-white underline">Discover my profile</Link> : null}</div>}</div>
+      <div className="max-w-2xl mx-auto p-6 bg-white rounded-2xl shadow border border-zinc-100">
         <h1 className="text-2xl font-bold mb-6">My Profile</h1>
         <div className="flex items-center gap-4 mb-6">
           {profile.avatar ? (
