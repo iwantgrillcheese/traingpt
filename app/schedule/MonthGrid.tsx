@@ -56,7 +56,7 @@ export default function MonthGrid({
         {WEEKDAYS.map((weekday) => (
           <div
             key={weekday}
-            className="px-3 py-3 text-center text-[11px] font-black uppercase tracking-[0.12em] text-[#9CA3AF]"
+            className="px-3 py-2 text-center text-[11px] font-black uppercase tracking-[0.12em] text-[#9CA3AF]"
           >
             {weekday}
           </div>

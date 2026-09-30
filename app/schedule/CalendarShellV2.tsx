@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { addMonths, endOfWeek, format, isAfter, isBefore, parseISO, startOfDay, startOfMonth, startOfWeek, subDays, subMonths } from 'date-fns';
+import { addMonths, differenceInCalendarDays, endOfWeek, format, isAfter, isBefore, isSameDay, parseISO, startOfDay, startOfMonth, startOfWeek, subDays, subMonths } from 'date-fns';
 import { DndContext, MouseSensor, TouchSensor, useSensor, useSensors, type DragEndEvent, type SensorOptions } from '@dnd-kit/core';
 import Link from 'next/link';
 import AddSessionModalTP from './AddSessionModalTP';
@@ -14,7 +14,7 @@ import CoachUpdateCard from '@/app/components/CoachUpdateCard';
 import { supabase } from '@/lib/supabase/client';
 import { exportCalendarClient } from '@/utils/exportCalendarClient';
 import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
-import { formatTrainingMinutes, monthTrainingSummary, sessionStatus } from './calendar-utils';
+import { calendarSport, formatTrainingMinutes, isRestSession, sessionStatus, workoutTitle } from './calendar-utils';
 import type { CompletedSession, Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
@@ -33,6 +33,22 @@ type Props = {
 };
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 const controlClass = 'h-10 rounded-xl border border-[#E3E0D8] bg-white px-3 text-sm font-medium text-[#4B5563] transition hover:bg-[#F7F6F2] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#101114]';
+
+function raceDisplayTitle(goal?: string | null) {
+  if (!goal) return 'Your race';
+  if (/70\.3|half iron/i.test(goal)) return 'Your 70.3 race';
+  if (/ironman|full/i.test(goal)) return 'Your Ironman race';
+  if (/olympic/i.test(goal)) return 'Your Olympic triathlon';
+  if (/sprint/i.test(goal)) return 'Your Sprint triathlon';
+  return goal;
+}
+
+function sessionPurpose(session: MergedSession) {
+  const copy = String(session.purpose || session.coach_note || session.details || '')
+    .replace(/^(Purpose|Workout|Intensity):\s*/i, '').replace(/\s+/g, ' ').trim();
+  const sentence = copy.split(/(?<=[.!?])\s+/)[0];
+  return sentence || 'Open the session for workout structure and targets.';
+}
 
 export default function CalendarShellV2({ sessions, completedSessions, extraStravaActivities = [], onCompletedUpdateAction, timezone = 'America/Los_Angeles', weekPhaseSummary, raceGoal, raceDate = null, onOpenWalkthroughAction, walkthroughLoading }: Props) {
   const [mounted, setMounted] = useState(false);
@@ -65,7 +81,19 @@ export default function CalendarShellV2({ sessions, completedSessions, extraStra
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } } as SensorOptions),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } } as SensorOptions),
   );
-  const summary = useMemo(() => monthTrainingSummary(localSessions, completed, currentMonth), [localSessions, completed, currentMonth]);
+  const today = startOfDay(new Date());
+  const trainingWeekStart = startOfWeek(today, { weekStartsOn: 1 });
+  const trainingWeekEnd = endOfWeek(today, { weekStartsOn: 1 });
+  const weeklySessions = localSessions.filter(session => session.date && !isRestSession(session) && parseISO(session.date) >= trainingWeekStart && parseISO(session.date) <= trainingWeekEnd);
+  const weeklyMinutes = weeklySessions.reduce((sum, session) => sum + Math.max(0, session.duration ?? 0), 0);
+  const weeklyDone = weeklySessions.filter(session => sessionStatus(session, completed) === 'done').length;
+  const weeklyCompletion = weeklySessions.length ? Math.round(weeklyDone / weeklySessions.length * 100) : 0;
+  const trainingWeekLabel = `${format(trainingWeekStart, 'MMM d')} – ${format(trainingWeekEnd, 'MMM d')}`;
+  const commandSession = localSessions.filter(session => session.date && parseISO(session.date) >= today && !isRestSession(session) && !sessionStatus(session, completed))
+    .sort((a, b) => a.date.localeCompare(b.date))[0] ?? null;
+  const parsedRaceDate = raceDate ? parseISO(raceDate) : null;
+  const validRaceDate = parsedRaceDate && !Number.isNaN(parsedRaceDate.getTime()) ? parsedRaceDate : null;
+  const raceCountdown = validRaceDate ? Math.max(0, differenceInCalendarDays(validRaceDate, today)) : null;
   const stravaByDate = useMemo(() => normalizeStravaActivities(extraStravaActivities, timezone), [extraStravaActivities, timezone]);
   const sessionsByDate = useMemo(() => {
     const grouped: Record<string, MergedSession[]> = {};
@@ -79,7 +107,7 @@ export default function CalendarShellV2({ sessions, completedSessions, extraStra
   // Week context belongs to the opened session, not a separate calendar view.
   const sessionWeekStart = startOfWeek(selectedSession ? parseISO(selectedSession.date) : currentMonth, { weekStartsOn: 1 });
   const weekLabel = format(sessionWeekStart, 'MMM d') + '–' + format(endOfWeek(sessionWeekStart, { weekStartsOn: 1 }), 'MMM d');
-  const raceHasPassed = raceDate ? isBefore(parseISO(raceDate), startOfDay(new Date())) : false;
+  const raceHasPassed = validRaceDate ? isBefore(validRaceDate, today) : false;
 
   const handleCalendarExport = async () => {
     try { setExporting(true); await exportCalendarClient(); } finally { setExporting(false); }
@@ -126,12 +154,13 @@ export default function CalendarShellV2({ sessions, completedSessions, extraStra
   const modalProps = { session: selectedSession, stravaActivity: selectedSession?.stravaActivity, open: !!selectedSession, onClose: () => setSelectedSession(null), completedSessions: completed, onCompletedUpdate: setCompleted, weekPhase: weekPhaseSummary ?? null, raceGoal: raceGoal ?? null, onSessionDeleted: handleSessionDeleted, onSessionUpdated: handleSessionUpdated };
 
   return (
-    <div className="min-h-[100dvh] bg-[#F7F6F2] pb-[env(safe-area-inset-bottom)] text-[#101114]">
-      <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
-        <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
+    <div className="min-h-[100dvh] bg-[#F7F7FB] pb-[env(safe-area-inset-bottom)] text-[#11121A]">
+      <div className="mx-auto max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8">
+        <CoachUpdateCard />
+        <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-semibold tracking-[-0.055em]">Schedule</h1>
-            <p className="mt-1 text-sm text-[#6B7280]">Your training, one month at a time.</p>
+            <h1 className="text-[32px] font-black leading-none tracking-[-0.07em]">Schedule <span className="text-lg font-bold leading-none text-[#9EA4B7]">/ Season {today.getFullYear()}</span></h1>
+            <p className="mt-1 text-sm text-[#6B7280]">{commandSession ? `Next: ${workoutTitle(commandSession.title)}` : 'No upcoming sessions'}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={handleCalendarExport} disabled={exporting} className={controlClass}>{exporting ? 'Sharing…' : 'Export'}</button>
@@ -139,27 +168,50 @@ export default function CalendarShellV2({ sessions, completedSessions, extraStra
             <button type="button" onClick={() => setAddSessionDate(new Date())} className="h-10 rounded-xl bg-[#101114] px-4 text-sm font-semibold text-white hover:bg-[#303136]">+ Add session</button>
           </div>
         </header>
-        <section aria-label="Month navigation" className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 aria-live="polite" className="text-2xl font-semibold tracking-[-0.045em]">{format(currentMonth, 'MMMM yyyy')}</h2>
-            {weekPhaseSummary || raceGoal ? <p className="mt-1 text-xs text-[#6B7280]">{[weekPhaseSummary, raceGoal].filter(Boolean).join(' · ')}</p> : null}
+        <section aria-label="Training overview" className="mb-4 grid gap-4 lg:grid-cols-[1.05fr_1.3fr]">
+          <div className="rounded-[24px] bg-[#090A12] px-5 py-[18px] text-white shadow-[0_18px_40px_rgba(8,10,18,0.16)] lg:min-h-[150px]">
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[#A9ADF3]">◎ Target race</div>
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-[25px] font-black leading-7 tracking-[-0.055em]">{raceDisplayTitle(raceGoal)}</h2>
+              <div className="flex items-center gap-3">
+              <div className="text-[42px] font-black leading-none tracking-[-0.08em]">{raceCountdown ?? '—'}</div>
+              <div className="text-sm font-semibold leading-snug text-[#C7CAE1]">{raceCountdown !== null ? 'days out' : 'plan active'}<br />{validRaceDate ? format(validRaceDate, 'EEE, MMM d') : 'Add race date'}</div>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center justify-between text-xs font-semibold text-[#AEB2C7]"><span>{trainingWeekLabel} · {weekPhaseSummary || 'Active training block'}</span><span>{weeklyCompletion}%</span></div>
+            <div role="progressbar" aria-label="Weekly workout completion" aria-valuemin={0} aria-valuemax={100} aria-valuenow={weeklyCompletion} className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/[0.12]"><div className="h-full rounded-full bg-[#9E92FF]" style={{ width: `${weeklyCompletion}%` }} /></div>
           </div>
-          <div className="flex gap-2">
+          <div className="rounded-[24px] bg-[#090A12] px-5 py-[18px] text-white shadow-[0_18px_40px_rgba(8,10,18,0.16)]">
+            <div className="flex flex-wrap items-start justify-between gap-2"><div><h2 className="text-sm font-black text-[#D8DBEF]">Weekly load</h2><p className="mt-1 text-xs font-semibold text-[#8C90AA]">planned by sport · {trainingWeekLabel}</p></div><span className="text-[15px] font-black">{formatTrainingMinutes(weeklyMinutes) ?? '0m'} planned</span></div>
+            <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {(['Swim', 'Bike', 'Run', 'Strength'] as const).map((sport, index) => {
+                const minutes = weeklySessions.filter(session => calendarSport(session.sport) === sport).reduce((sum, session) => sum + Math.max(0, session.duration ?? 0), 0);
+                return <div key={sport} className="rounded-2xl bg-white/[0.08] px-3 py-2"><dt className="flex items-center gap-1.5 text-xs font-bold text-[#BFC3D8]"><span className="h-2 w-2 shrink-0 rounded-[3px]" style={{ backgroundColor: ['#34B7F1', '#9B7CF6', '#2FCB90', '#C084FC'][index] }} />{sport}</dt><dd className="mt-1 text-[15px] font-black">{formatTrainingMinutes(minutes) ?? '0m'}</dd></div>;
+              })}
+            </dl>
+          </div>
+        </section>
+        <div className="mb-2 grid items-start gap-4 xl:grid-cols-[minmax(0,2.4fr)_minmax(0,1fr)]">
+        <section aria-label="Coach notice" className="flex min-h-[56px] items-center gap-3 rounded-[18px] border border-[#D7D8FF] bg-gradient-to-r from-[#F7F7FF] to-white px-4 py-2 lg:order-2">
+          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-[13px] bg-gradient-to-br from-[#7667FF] to-[#A798FF] text-white">✣</div>
+          <div><div className="text-[11px] font-black uppercase tracking-[0.13em] text-[#4F46E5]">{recentMissed > 0 ? 'Coach adjusted this week' : 'Coach is watching this week'}</div><p className="mt-0.5 text-sm leading-5 text-[#31364A]">{recentMissed > 0 ? 'Missed sessions absorbed, not stacked.' : 'Consistency helps your plan progress.'}</p></div>
+        </section>
+        {commandSession ? <section aria-label="Next session" className="grid items-center gap-3 rounded-[22px] border border-[#D8D6FF] bg-gradient-to-br from-[#F8F7FF] to-white px-4 py-3 lg:order-1 lg:min-h-[108px] xl:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
+          <div className="min-w-0 border-l-4 border-[#9B7CF6] pl-3"><div className="text-[11px] font-black uppercase tracking-[0.14em] text-[#5146F0]">{isSameDay(parseISO(commandSession.date), today) ? 'Today' : 'Next'} · {calendarSport(commandSession.sport)}</div><h2 className="mt-1 text-2xl font-black leading-7 tracking-[-0.055em]">{workoutTitle(commandSession.title)}</h2><p className="mt-1 text-sm leading-5 text-[#687085] xl:truncate" title={sessionPurpose(commandSession)}>{sessionPurpose(commandSession)}</p></div>
+          <dl className="flex gap-4 xl:col-span-2"><div><dt className="text-xs text-[#70778B]">Planned duration</dt><dd className="mt-1 text-lg font-bold">{formatTrainingMinutes(commandSession.duration) ?? 'See workout'}</dd></div><div><dt className="text-xs text-[#70778B]">Scheduled date</dt><dd className="mt-1 text-lg font-bold">{format(parseISO(commandSession.date), 'EEE, MMM d')}</dd></div></dl>
+          <div className="flex items-center gap-3 xl:flex-col xl:gap-1"><button type="button" onClick={() => setSelectedSession(commandSession)} className="h-10 rounded-xl bg-[#2F64FF] px-4 text-sm font-bold text-white">Open session</button><button type="button" onClick={() => setAddSessionDate(parseISO(commandSession.date))} className="px-3 py-1 text-xs font-semibold text-[#4B5563] hover:underline">Add nearby</button></div>
+        </section> : null}
+        </div>
+        <section aria-label="Month navigation" className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button type="button" aria-label="Previous month" onClick={() => setCurrentMonth(month => subMonths(month, 1))} className={controlClass}>‹</button>
-            <button type="button" onClick={() => setCurrentMonth(startOfMonth(new Date()))} className={controlClass}>Today</button>
             <button type="button" aria-label="Next month" onClick={() => setCurrentMonth(month => addMonths(month, 1))} className={controlClass}>›</button>
+            <button type="button" onClick={() => setCurrentMonth(startOfMonth(new Date()))} className={controlClass}>Today</button>
+            <h2 aria-live="polite" className="ml-1 text-xl font-black tracking-[-0.045em]">{format(currentMonth, 'MMMM yyyy')}</h2>
+            <span className="text-sm text-[#6B7280]">{trainingWeekLabel}{weekPhaseSummary ? ` · ${weekPhaseSummary}` : ''}</span>
           </div>
+          <span className="text-xs font-semibold text-[#666D81]">{weeklyDone}/{weeklySessions.length} done this week</span>
         </section>
-        <section aria-label="Monthly training summary" className="mb-5 rounded-2xl border border-[#E3E0D8] bg-white px-5 py-4">
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
-            <div><dt className="text-xs text-[#6B7280]">Planned volume</dt><dd className="mt-1 text-xl font-semibold tracking-tight">{formatTrainingMinutes(summary.plannedMinutes) ?? '0m'}</dd></div>
-            <div><dt className="text-xs text-[#6B7280]">Completed volume</dt><dd className="mt-1 text-xl font-semibold tracking-tight">{formatTrainingMinutes(summary.completedMinutes) ?? '0m'}</dd></div>
-            <div><dt className="text-xs text-[#6B7280]">Workouts completed</dt><dd className="mt-1 text-xl font-semibold tracking-tight">{summary.done}<span className="text-sm font-normal text-[#9CA3AF]"> / {summary.planned}</span></dd></div>
-            <div><dt className="text-xs text-[#6B7280]">Completion</dt><dd className="mt-1 text-xl font-semibold tracking-tight">{summary.completion}%</dd></div>
-          </dl>
-        </section>
-        <CoachUpdateCard />
-        <p className="mb-5 border-l-2 border-[#E3E0D8] pl-3 text-xs leading-5 text-[#6B7280]"><span className="font-semibold text-[#101114]">Coach note</span> · {recentMissed > 0 ? 'Missed sessions are absorbed, not stacked. Consistency beats catching up.' : 'Stay consistent and the Sunday adjustment can safely progress your plan.'}</p>
         {raceHasPassed ? <div className="mb-5 rounded-xl border border-[#E3E0D8] bg-white px-4 py-3 text-sm text-[#6B7280]">Your race date has passed. <Link href="/plan" className="font-semibold text-[#101114] underline underline-offset-4">Plan your next race</Link></div> : null}
         {saveState !== 'idle' ? <div role="status" className={`mb-4 rounded-xl border px-4 py-3 text-sm ${saveState === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-[#E3E0D8] bg-white text-[#6B7280]'}`}>{saveMessage}</div> : null}
         {mobile ? <MonthAgenda {...calendarProps} /> : <DndContext sensors={sensors} onDragEnd={handleDragEnd}><MonthGrid {...calendarProps} /></DndContext>}

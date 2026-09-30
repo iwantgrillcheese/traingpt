@@ -106,7 +106,7 @@ export default function CoachUpdateCard() {
   if (!enriching && !adaptation?.summary) return null;
 
   return (
-    <section className="mb-4 rounded-[1.5rem] border border-zinc-200 bg-white p-4 sm:p-5">
+    <section aria-label="Plan status" role="status" className="mb-4 min-h-[42px] border-b border-zinc-200 px-1 py-2.5">
       {enriching ? (
         <div className="flex items-center gap-3">
           <span className="relative flex h-2.5 w-2.5 shrink-0">
@@ -116,7 +116,7 @@ export default function CoachUpdateCard() {
           <p className="text-sm text-zinc-700">
             <span className="font-semibold text-zinc-950">Detailing your plan</span>
             {' — week '}
-            {enriching.weekIndex} of {enriching.totalWeeks}. Your schedule is ready to use now; sessions get sharper as the coach works through each week.
+            {enriching.weekIndex} of {enriching.totalWeeks}. Your schedule is ready to use.
           </p>
         </div>
       ) : null}
