@@ -159,3 +159,27 @@ test('soft swim request cannot become exclusivity; Advanced Monday rest plan kee
   assert.equal(extraction.guardSportPreferences(hard, 'I can only swim Monday and Friday.'), hard);
   assert.throws(() => tri.buildTriathlonWeekScaffold({ userParams: { ...p, athleteContext: confirmed(hard) }, weekMeta: metas[0] }), /2 swim sessions.*1 swim day.*Friday/);
 });
+
+test('Wednesday/Thursday swims displace movable sessions onto Friday even when doubles are allowed', () => {
+  for (const rules of [{ sportAvailability: { swim: ['Wednesday', 'Thursday'] } }, { preferredSportDays: { swim: ['Wednesday', 'Thursday'] } }]) {
+    const p = { ...params, experience: 'Advanced', twoADaysAllowed: true, athleteContext: confirmed(rules) };
+    for (const [index, meta] of metas.entries()) {
+      const week = tri.buildTriathlonWeekScaffold({ userParams: p, weekMeta: meta, index, totalWeeks: 20 });
+      const baseline = tri.buildTriathlonWeekScaffold({ userParams: { ...p, athleteContext: undefined }, weekMeta: meta, index, totalWeeks: 20 });
+      assert.equal(totals(week), totals(baseline));
+      scheduler.assertAthleteContextHonored([week], p);
+      const byDay = Object.fromEntries(Object.entries(week.days).map(([date, sessions]) => [weekday(date), sessions]));
+      assert.equal(byDay.Monday.length, 0);
+      assert.ok(byDay.Wednesday.some(s => s.sport === 'swim'));
+      if (Object.values(week.days).flat().filter(s => s.sport === 'swim').length === 2) {
+        assert.ok(byDay.Friday.length, `${meta.label}: Friday should absorb a movable session`);
+        assert.ok(byDay.Thursday.some(s => s.sport === 'swim'));
+        assert.ok([byDay.Wednesday, byDay.Thursday].some(sessions => sessions.length === 1));
+      }
+      if (!Object.keys(week.days).includes(p.raceDate)) {
+        assert.ok(byDay.Saturday.some(s => s.type === 'long_ride'));
+        assert.ok(byDay.Saturday.some(s => s.type === 'brick_run'));
+      }
+    }
+  }
+});
