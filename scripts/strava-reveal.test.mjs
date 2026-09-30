@@ -53,6 +53,7 @@ function database({ legacy = false, dropWrites = false, dbError = false } = {}) 
         }
         let rows = state.rows.filter(r=>q.filters.every(([k,v])=>r[k]===v));
         if (q.ids) rows=rows.filter(r=>q.ids[1].includes(r[q.ids[0]]));
+        if (q.action === 'update' && !dropWrites) rows.forEach(row => Object.assign(row, q.values));
         const count=rows.length; rows=rows.slice(q.lo,q.hi+1);
         return { data:q.singleRow ? rows[0]??null:rows,error:null,count };
       }).then(resolve,reject); }
@@ -172,4 +173,16 @@ test('reveal component renders true-zero and recoverable query failure states',a
     assert.match(JSON.stringify(render()),failure?/Retry highlights/:/Your history import completed/);
     assert.doesNotMatch(JSON.stringify(render()),/0 endurance activities analyzed|0% consistency/);
   }
+});
+
+test('run evidence persists and backfill refreshes existing runs without changing manual threshold',async()=>{
+  const db=database(); db.state.profile.run_threshold_per_mile=480;
+  const recent={...activity(1),start_date:new Date(Date.now()-86400000).toISOString(),elapsed_time:3700,workout_type:1};
+  const r=await routes(db,[recent]); assert.equal((await (await r.sync()).json()).inserted,1);
+  assert.equal(db.state.rows[0].workout_type,1); assert.equal(db.state.rows[0].elapsed_time,3700);
+  delete db.state.rows[0].workout_type; delete db.state.rows[0].elapsed_time;
+  assert.equal((await (await r.sync()).json()).inserted,0);
+  assert.equal(db.state.rows[0].workout_type,1); assert.equal(db.state.rows[0].elapsed_time,3700);
+  assert.equal(db.state.profile.run_threshold_per_mile,480);
+  assert.ok(db.state.calls.filter(q=>q.table==='strava_activities'&&q.action==='update').every(q=>q.filters.some(([k,v])=>k==='user_id'&&v==='new-user')));
 });
