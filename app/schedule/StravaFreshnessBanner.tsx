@@ -71,24 +71,24 @@ export default function StravaFreshnessBanner() {
   };
 
   return (
-    <div className="px-5 pt-4 lg:px-8">
+    <div className="px-4 sm:px-6 lg:px-8">
       <div
-        className={`mx-auto flex max-w-[1500px] flex-col gap-2 rounded-2xl border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between ${
+        className={`mx-auto flex min-h-[46px] max-w-[1536px] items-center justify-between gap-3 border-b py-2 text-sm ${
           stale || error
             ? 'border-amber-200 bg-amber-50 text-amber-950'
-            : 'border-[#E3E0D8] bg-white text-[#4B5563]'
+            : 'border-[#E3E0D8] text-[#4B5563]'
         }`}
       >
         <div>
           <span className="font-black">Strava {error ? 'needs attention' : stale ? 'is stale' : 'synced'}</span>
-          <span className="ml-2">Last successful sync: {ageLabel(freshness.syncedAt)}.</span>
+          <span className="ml-2">· Last successful sync: {ageLabel(freshness.syncedAt)}</span>
           {error ? <span className="ml-2">{error}</span> : null}
         </div>
         <button
           type="button"
           onClick={syncNow}
           disabled={syncing}
-          className="w-fit rounded-full border border-current/20 bg-white px-3 py-1.5 text-xs font-black disabled:opacity-50"
+          className="shrink-0 rounded-full border border-current/20 bg-white px-3 py-1.5 text-xs font-black disabled:opacity-50"
         >
           {syncing ? 'Syncing…' : 'Sync now'}
         </button>
