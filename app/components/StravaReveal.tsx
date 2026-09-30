@@ -15,8 +15,9 @@ const date = (iso: string | null | undefined) => iso ? new Intl.DateTimeFormat('
 export default function StravaReveal({ onContinue }: { onContinue: () => void }) {
   const [data, setData] = useState<Reveal | null>(null);
   const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
   const [index, setIndex] = useState(0);
-  useEffect(() => { fetch('/api/strava/reveal', { cache: 'no-store' }).then(async r => { if (!r.ok) throw new Error('reveal'); return r.json(); }).then(setData).catch(() => setError('We synced Strava, but could not build your highlights. You can keep going.')); }, []);
+  useEffect(() => { let active = true; setError(''); fetch('/api/strava/reveal', { cache: 'no-store' }).then(async r => { if (!r.ok) throw new Error('reveal'); return r.json(); }).then(value => { if (active) setData(value); }).catch(() => { if (active) setError('We could not build your highlights. Please retry.'); }); return () => { active = false; }; }, [attempt]);
 
   const cards = useMemo(() => data ? [
     data.highlights.longestRide && { eyebrow: 'BIGGEST RIDE', value: miles(data.highlights.longestRide.distance), title: data.highlights.longestRide.name || 'Your longest ride', detail: `${duration(data.highlights.longestRide.moving_time)} · ${date(data.highlights.longestRide.start_date_local || data.highlights.longestRide.start_date)}` },
@@ -27,9 +28,9 @@ export default function StravaReveal({ onContinue }: { onContinue: () => void })
     { eyebrow: 'BRICK SEES YOU', value: data.athlete.strongestDiscipline ? data.athlete.strongestDiscipline.toUpperCase() : 'ENDURANCE', title: `${data.enduranceActivityCount.toLocaleString()} endurance activities analyzed`, detail: `${data.athlete.activeWeeks} active weeks · ${Math.round((data.athlete.consistency ?? 0) * 100)}% consistency across your imported history` },
   ].filter(Boolean) as Array<{ eyebrow: string; value: string; title: string; detail: string }> : [], [data]);
 
-  if (error) return <div className="rounded-[2rem] border border-[#E3E0D8] bg-[#F7F6F2] p-7"><p className="text-sm text-[#4B5563]">{error}</p><button onClick={onContinue} className="mt-5 rounded-full bg-[#101114] px-5 py-3 text-sm font-bold text-white">Continue</button></div>;
+  if (error) return <div className="rounded-[2rem] border border-[#E3E0D8] bg-[#F7F6F2] p-7"><p className="text-sm text-[#4B5563]">{error}</p><button onClick={() => setAttempt(a => a + 1)} className="mt-5 rounded-full bg-[#101114] px-5 py-3 text-sm font-bold text-white">Retry highlights</button></div>;
   if (!data) return <div className="flex min-h-[360px] flex-col items-center justify-center text-center"><div className="h-9 w-9 animate-spin rounded-full border-2 border-[#E3E0D8] border-t-[#FC4C02]"/><h3 className="mt-6 text-2xl font-black tracking-[-0.04em]">Reading your training history…</h3><p className="mt-2 text-sm text-[#6B7280]">Finding the days worth remembering.</p></div>;
-  if (!cards.length) return <div className="rounded-[2rem] bg-[#F7F6F2] p-7"><h3 className="text-2xl font-black">Strava is connected.</h3><p className="mt-2 text-sm text-[#6B7280]">We did not find enough swim, bike, or run history for a reveal yet.</p><button onClick={onContinue} className="mt-5 rounded-full bg-[#101114] px-5 py-3 text-sm font-bold text-white">Build my plan</button></div>;
+  if (data.enduranceActivityCount === 0) return <div className="rounded-[2rem] bg-[#F7F6F2] p-7"><h3 className="text-2xl font-black">Strava is connected.</h3><p className="mt-2 text-sm text-[#6B7280]">Your history import completed. We found no supported swim, bike, or run activities.</p><button onClick={onContinue} className="mt-5 rounded-full bg-[#101114] px-5 py-3 text-sm font-bold text-white">Build my plan</button></div>;
 
   const card = cards[Math.min(index, cards.length - 1)];
   const last = index >= cards.length - 1;
