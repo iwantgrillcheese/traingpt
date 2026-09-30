@@ -14,13 +14,13 @@ export function validateAthleteContext(input: unknown): InterpretedAthleteContex
   if (!record(input)) return {};
   const out: InterpretedAthleteContext = {};
   const days = (v: unknown) => Array.isArray(v) && v.length <= 7 && v.every(day) ? [...new Set(v)] as DayName[] : undefined;
-  if (record(input.sportAvailability)) {
+  for (const key of ['sportAvailability', 'preferredSportDays'] as const) if (record(input[key])) {
     const availability: NonNullable<InterpretedAthleteContext['sportAvailability']> = {};
     for (const sport of SPORTS) {
-      const value = days(input.sportAvailability[sport]);
+      const value = days((input[key] as Record<string, unknown>)[sport]);
       if (value?.length) availability[sport] = value;
     }
-    if (Object.keys(availability).length) out.sportAvailability = availability;
+    if (Object.keys(availability).length) out[key] = availability;
   }
   for (const key of ['unavailableDays', 'avoidHardTrainingDays'] as const) {
     const value = days(input[key]);
@@ -84,6 +84,7 @@ export function hasSchedulingContext(params: UserParams): boolean {
   const running = params.planType === 'running' || params.planType === 'run';
   return !!(c.unavailableDays?.length || c.restDay || c.preferredLongRunDay || c.avoidHardTrainingDays?.length
     || c.recurringCommitments?.length || c.twoADaysAllowed !== undefined
+    || c.preferredSportDays?.run?.length || (!running && Object.keys(c.preferredSportDays ?? {}).length > 0)
     || c.sportAvailability?.run?.length || (!running && (c.preferredLongRideDay
       || c.sportAvailability?.swim?.length || c.sportAvailability?.bike?.length || c.sportAvailability?.strength?.length)));
 }
@@ -91,6 +92,7 @@ export function hasSchedulingContext(params: UserParams): boolean {
 export function contextSummary(c: InterpretedAthleteContext): string[] {
   const lines: string[] = [];
   for (const sport of SPORTS) if (c.sportAvailability?.[sport]) lines.push(`${sport[0].toUpperCase() + sport.slice(1)} only ${c.sportAvailability[sport]!.join(' & ')}`);
+  for (const sport of SPORTS) if (c.preferredSportDays?.[sport]) lines.push(`Prefer ${sport} on ${c.preferredSportDays[sport]!.join(' & ')} (other days allowed)`);
   if (c.unavailableDays?.length) lines.push(`No training ${c.unavailableDays.join(' & ')}`);
   if (c.restDay) lines.push(`Rest day ${c.restDay}`);
   for (const r of c.recurringCommitments ?? []) {

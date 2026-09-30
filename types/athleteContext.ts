@@ -6,6 +6,7 @@ export const CONTEXT_RACES = ['Sprint', 'Olympic', 'Half Ironman (70.3)', 'Ironm
 export type ConstraintStrength = 'hard' | 'preference' | 'context';
 export type RecurringCommitment = { day: DayName; activity: string; intensity?: 'easy' | 'moderate' | 'hard' };
 export type InterpretedAthleteContext = {
+  preferredSportDays?: Partial<Record<ContextSport, DayName[]>>;
   sportAvailability?: Partial<Record<ContextSport, DayName[]>>;
   unavailableDays?: DayName[];
   restDay?: DayName;

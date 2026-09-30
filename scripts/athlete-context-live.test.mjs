@@ -5,8 +5,9 @@ import OpenAI from 'openai';
 import { ATHLETE_CONTEXT_PROMPT, ATHLETE_CONTEXT_SCHEMA } from '../utils/athleteContextExtraction.ts';
 import { validateAthleteContext } from '../utils/athleteContext.ts';
 const cases = [
+  ['I want to swim on Monday and Fri, and do strength sessions 3x a week', c => { assert.equal(c.sportAvailability?.swim, undefined); assert.deepEqual(c.preferredSportDays?.swim?.sort(), ['Friday', 'Monday']); assert.ok(c.unsupportedRequests?.length); }],
   ['I can only swim Wednesday and Thursday.', c => assert.deepEqual(c.sportAvailability?.swim?.sort(), ['Thursday', 'Wednesday'])],
-  ['I prefer swimming Wednesday.', c => { assert.equal(c.sportAvailability?.swim, undefined); assert.ok(c.preferences?.length); }],
+  ['I prefer swimming Wednesday.', c => { assert.equal(c.sportAvailability?.swim, undefined); assert.ok(c.preferredSportDays?.swim?.length || c.preferences?.length); }],
   ['I cannot train Friday.', c => assert.deepEqual(c.unavailableDays, ['Friday'])],
   ['I play hard soccer every Tuesday.', c => { assert.equal(c.recurringCommitments?.[0]?.day, 'Tuesday'); assert.equal(c.recurringCommitments?.[0]?.intensity, 'hard'); }],
   ['I sometimes play soccer Tuesday.', c => { assert.equal(c.recurringCommitments, undefined); assert.ok(c.preferences?.length); }],
