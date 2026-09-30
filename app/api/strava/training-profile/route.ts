@@ -1,3 +1,4 @@
+import { estimateRunThreshold } from '@/lib/strava/run-threshold';
 import { NextResponse } from 'next/server';
 import {
   AuthError,
@@ -10,6 +11,8 @@ export const dynamic = 'force-dynamic';
 
 type StravaActivityRow = {
   id?: string;
+  elapsed_time?: number | null;
+  workout_type?: number | null;
   name: string | null;
   sport_type: string | null;
   distance: number | null;
@@ -111,70 +114,6 @@ function recentRows(rows: StravaActivityRow[], days: number) {
   return rows.filter((row) => dateMs(row) >= cutoff);
 }
 
-function estimateRunThreshold(runs: StravaActivityRow[]): ThresholdEstimate {
-  const tenK = bestRunNearDistance(runs, 6.21, 0.22);
-  const half = bestRunNearDistance(runs, 13.1, 0.12);
-  const marathon = bestRunNearDistance(runs, 26.2, 0.08);
-  const qualityRuns = runs
-    .filter((row) => {
-      const distance = miles(row.distance);
-      return distance >= 3 && distance <= 14 && validDuration(row);
-    })
-    .sort((a, b) => (activityPaceSecondsPerMile(a) ?? 99999) - (activityPaceSecondsPerMile(b) ?? 99999));
-
-  if (tenK) {
-    const pace = activityPaceSecondsPerMile(tenK)!;
-    return {
-      discipline: 'run',
-      label: 'Run threshold pace',
-      value: pacePerMile(pace * 1.055),
-      confidence: 'high',
-      rationale: `Based on a ${pacePerMile(pace)} 10K-type effort. For this camp, starting threshold slightly slower is the safer training target.`,
-    };
-  }
-
-  if (half) {
-    const pace = activityPaceSecondsPerMile(half)!;
-    return {
-      discipline: 'run',
-      label: 'Run threshold pace',
-      value: pacePerMile(pace * 0.985),
-      confidence: 'medium',
-      rationale: `Based on a half-marathon-type effort at ${pacePerMile(pace)}. Threshold estimate is nudged slightly faster than HM pace.`,
-    };
-  }
-
-  if (marathon) {
-    const pace = activityPaceSecondsPerMile(marathon)!;
-    return {
-      discipline: 'run',
-      label: 'Run threshold pace',
-      value: pacePerMile(pace * 0.94),
-      confidence: 'medium',
-      rationale: `Based on a marathon-distance effort at ${pacePerMile(pace)}. Threshold is estimated faster than marathon pace.`,
-    };
-  }
-
-  if (qualityRuns[0]) {
-    const pace = activityPaceSecondsPerMile(qualityRuns[0])!;
-    return {
-      discipline: 'run',
-      label: 'Run threshold pace',
-      value: pacePerMile(pace * 1.08),
-      confidence: 'low',
-      rationale: `Based on your quickest recent run signal. Treat this as a starting point, not a lab-tested threshold.`,
-    };
-  }
-
-  return {
-    discipline: 'run',
-    label: 'Run threshold pace',
-    value: 'Not enough run data',
-    confidence: 'low',
-    rationale: 'Connect more run data or enter this manually if you know your current threshold pace.',
-  };
-}
-
 function estimateBikeThreshold(rides: StravaActivityRow[]): ThresholdEstimate {
   const candidates = rides
     .filter((row) => validDuration(row) && Number(row.moving_time) >= 20 * 60 && (row.weighted_average_watts || row.average_watts))
@@ -267,7 +206,7 @@ function buildCallouts(rows: StravaActivityRow[]): Callout[] {
     const pace = activityPaceSecondsPerMile(tenK)!;
     callouts.push({
       title: `Run speed signal: ${pacePerMile(pace)} 10K-type effort`,
-      body: `That points to a useful threshold starting point. We’ll still avoid overcooking early run volume if recent consistency is light.`,
+      body: `Distance and pace alone do not establish threshold fitness. Review the recent sustained-run estimate below.`,
       tone: 'signal',
     });
   }
@@ -308,7 +247,7 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from('strava_activities')
-      .select('name,sport_type,distance,moving_time,start_date,average_speed,average_heartrate,average_watts,weighted_average_watts,total_elevation_gain')
+      .select('name,sport_type,distance,moving_time,elapsed_time,workout_type,start_date,average_speed,average_heartrate,average_watts,weighted_average_watts,total_elevation_gain')
       .eq('user_id', user.id)
       .gte('start_date', sinceISO)
       .order('start_date', { ascending: false })
@@ -319,6 +258,14 @@ export async function GET() {
       return NextResponse.json({ error: 'Could not read Strava activities.' }, { status: 500 });
     }
 
+    const { data: profile, error: profileError } = await supabase.from('profiles')
+      .select('run_threshold_per_mile,run_pace_unit').eq('id', user.id).maybeSingle();
+    if (profileError) throw new Error('Could not read stored threshold.');
+
+    // Legacy column stores seconds in the selected pace unit, despite its name.
+    const storedRunPace = typeof profile?.run_threshold_per_mile === 'number'
+      ? profile.run_threshold_per_mile * (profile.run_pace_unit === 'km' ? 1.609344 : 1)
+      : null;
     const rows = (Array.isArray(data) ? data : []) as StravaActivityRow[];
     const runs = rows.filter((row) => sport(row) === 'run');
     const rides = rows.filter((row) => sport(row) === 'bike' || sport(row) === 'ride');
@@ -332,7 +279,7 @@ export async function GET() {
         swim: swims.length,
       },
       callouts: buildCallouts(rows),
-      estimates: [estimateSwimThreshold(swims), estimateBikeThreshold(rides), estimateRunThreshold(runs)],
+      estimates: [estimateSwimThreshold(swims), estimateBikeThreshold(rides), estimateRunThreshold(runs, storedRunPace)],
     });
   } catch (error) {
     if (error instanceof AuthError) {

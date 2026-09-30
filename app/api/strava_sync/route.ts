@@ -11,7 +11,7 @@ const MAX_HISTORY_PAGES = 50; // 10k activities: effectively complete for the pr
 const MAX_INCREMENTAL_PAGES = 5;
 
 type ProfileRow = { strava_access_token: string | null; strava_refresh_token: string | null; strava_expires_at: number | null; };
-type StravaSummaryActivity = { id: number; name?: string | null; sport_type?: string | null; type?: string | null; start_date?: string | null; start_date_local?: string | null; distance?: number | null; moving_time?: number | null; average_speed?: number | null; average_heartrate?: number | null; max_heartrate?: number | null; average_watts?: number | null; weighted_average_watts?: number | null; kilojoules?: number | null; device_watts?: boolean | null; trainer?: boolean | null; total_elevation_gain?: number | null; };
+type StravaSummaryActivity = { elapsed_time?: number | null; workout_type?: number | null; id: number; name?: string | null; sport_type?: string | null; type?: string | null; start_date?: string | null; start_date_local?: string | null; distance?: number | null; moving_time?: number | null; average_speed?: number | null; average_heartrate?: number | null; max_heartrate?: number | null; average_watts?: number | null; weighted_average_watts?: number | null; kilojoules?: number | null; device_watts?: boolean | null; trainer?: boolean | null; total_elevation_gain?: number | null; };
 type ExistingActivityRow = { strava_id: number; };
 
 function normalizeSportType(input: string | null | undefined): string {
@@ -105,8 +105,14 @@ export async function POST(req: Request) {
         if (error) throw new Error('Failed to check existing Strava activities.');
         ((data ?? []) as ExistingActivityRow[]).forEach((row) => existingIds.add(Number(row.strava_id)));
       }
+      for (const activity of summaryList.filter(a => existingIds.has(Number(a.id)) && normalizeSportType(a.sport_type ?? a.type) === 'Run' && Date.parse(a.start_date ?? '') >= Date.now() - 56 * 86400000)) {
+        const { error } = await supabase.from('strava_activities')
+          .update({ elapsed_time: activity.elapsed_time ?? null, workout_type: activity.workout_type ?? null })
+          .eq('user_id', user.id).eq('strava_id', activity.id);
+        if (error) throw new Error('Failed to refresh run evidence.');
+      }
       const newSummaries = summaryList.filter((activity) => !existingIds.has(Number(activity.id)));
-      const rows = newSummaries.map((activity) => ({ user_id: user.id, strava_id: activity.id, name: activity.name ?? 'Strava activity', sport_type: normalizeSportType(activity.sport_type ?? activity.type), distance: activity.distance ?? null, moving_time: activity.moving_time ?? null, start_date: activity.start_date ?? null, start_date_local: activity.start_date_local ?? activity.start_date ?? null, average_speed: activity.average_speed ?? null, average_heartrate: activity.average_heartrate ?? null, max_heartrate: activity.max_heartrate ?? null, average_watts: activity.average_watts ?? null, weighted_average_watts: activity.weighted_average_watts ?? null, kilojoules: activity.kilojoules ?? null, device_watts: activity.device_watts ?? null, trainer: activity.trainer ?? null, total_elevation_gain: activity.total_elevation_gain ?? null }));
+      const rows = newSummaries.map((activity) => ({ user_id: user.id, strava_id: activity.id, name: activity.name ?? 'Strava activity', sport_type: normalizeSportType(activity.sport_type ?? activity.type), distance: activity.distance ?? null, moving_time: activity.moving_time ?? null, elapsed_time: activity.elapsed_time ?? null, workout_type: activity.workout_type ?? null, start_date: activity.start_date ?? null, start_date_local: activity.start_date_local ?? activity.start_date ?? null, average_speed: activity.average_speed ?? null, average_heartrate: activity.average_heartrate ?? null, max_heartrate: activity.max_heartrate ?? null, average_watts: activity.average_watts ?? null, weighted_average_watts: activity.weighted_average_watts ?? null, kilojoules: activity.kilojoules ?? null, device_watts: activity.device_watts ?? null, trainer: activity.trainer ?? null, total_elevation_gain: activity.total_elevation_gain ?? null }));
       for (let i = 0; i < rows.length; i += 500) {
         const { error, count } = await supabase.from('strava_activities').upsert(rows.slice(i, i + 500), { onConflict: 'user_id,strava_id', ignoreDuplicates: true, count: 'exact' });
         if (error) throw new Error(error.message);
