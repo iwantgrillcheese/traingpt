@@ -8,10 +8,11 @@ export default function BrickProfileCard({ profile, shareable = false }: { profi
   const [message, setMessage] = useState('');
   const total = Object.values(profile.hoursBySport).reduce((sum, hours) => sum + hours, 0);
   const share = async () => {
-    const text = `My Brick profile: ${profile.name}. ${profile.tagline}\n${profile.evidence.join(' · ')}\nBased on my last 8 weeks of imported Strava training.`;
+    const url = 'https://traingpt.co/login?next=/plan';
+    const text = `My Brick profile: ${profile.name}. ${profile.tagline}\n${profile.evidence.join(' · ')}\nBased on my last 8 weeks of imported Strava training.\n\nFind your athlete profile and build a personalized training plan:`;
     try {
-      if (navigator.share) await navigator.share({ title: 'My Brick profile', text });
-      else { await navigator.clipboard.writeText(text); setMessage('Profile copied'); }
+      if (navigator.share) await navigator.share({ title: 'My Brick profile', text, url });
+      else { await navigator.clipboard.writeText(`${text}\n${url}`); setMessage('Profile copied'); }
       track('brick_profile_shared', { archetype: profile.id });
     } catch (error) { if (!(error instanceof DOMException && error.name === 'AbortError')) setMessage('Sharing unavailable. Try again.'); }
   };
