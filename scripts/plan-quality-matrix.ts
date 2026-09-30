@@ -3,6 +3,7 @@ import { buildTriathlonWeekScaffold } from '../utils/buildTriathlonScaffold.ts';
 import { enforceTriathlonScheduleConstraints } from '../utils/enforceTriathlonScheduleConstraints.ts';
 import { enforceTriathlonTimeBudget } from '../utils/enforceTriathlonTimeBudget.ts';
 import { validateGeneratedPlan } from '../utils/validateGeneratedPlan.ts';
+import { assertAthleteContextHonored } from '../utils/scheduleAthleteContext.ts';
 import type { GeneratedPlan, UserParams, WeekJson, WeekMeta } from '../types/plan.ts';
 
 const START = new Date('2026-09-21T12:00:00Z');
@@ -51,6 +52,14 @@ const cases: Array<{ name: string; weeks: number; params: Omit<UserParams, 'race
   { name: 'no precision metrics', weeks: 16, params: { raceType: 'Half Ironman (70.3)', experience: 'Beginner', maxHours: 7, restDay: 'Monday', preferredLongRideDay: 'Saturday', preferredLongRunDay: 'Sunday', swimComfort: 'developing', twoADaysAllowed: false, paceUnit: 'mi' } },
 ];
 
+for (const maxHours of [8, 12]) cases.push({
+  name: `confirmed swim/soccer/Sunday 70.3 ${maxHours}h`, weeks: 20,
+  params: { raceType: 'Half Ironman (70.3)', experience: 'Intermediate', maxHours, restDay: 'Monday',
+    preferredLongRideDay: 'Saturday', preferredLongRunDay: 'Sunday', twoADaysAllowed: false,
+    athleteContext: { version: 1, sourceNotes: 'Swim only Wed/Thu; soccer Tuesday; long run Sunday.', confirmedAt: '2026-09-30T12:00:00Z',
+      context: { sportAvailability: { swim: ['Wednesday', 'Thursday'] }, recurringCommitments: [{ day: 'Tuesday', activity: 'Soccer in the evening' }], preferredLongRunDay: 'Sunday' } } },
+});
+
 const results = cases.map((c) => {
   const weeksMeta = meta(c.weeks);
   const raceDate = iso(addDays(addWeeks(START, c.weeks - 1), 6));
@@ -67,8 +76,10 @@ const results = cases.map((c) => {
     preferredLongRideDay: params.preferredLongRideDay,
     preferredLongRunDay: params.preferredLongRunDay,
     twoADaysAllowed: params.twoADaysAllowed ?? false,
+    athleteContext: params.athleteContext,
   });
   const budgeted = enforceTriathlonTimeBudget({ weeks: scheduled.weeks, maxHours: params.maxHours, raceDate });
+  assertAthleteContextHonored(budgeted.weeks, params);
   const plan: GeneratedPlan = { planType: 'triathlon', params, weeks: budgeted.weeks };
   const validation = validateGeneratedPlan({ plan, expectedWeeks: c.weeks, userParams: params });
   const budgetViolations: string[] = [];

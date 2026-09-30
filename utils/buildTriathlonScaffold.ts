@@ -1,4 +1,6 @@
 import { addDays, formatISO, isValid, parseISO } from 'date-fns';
+import { resolveAthleteContext } from './athleteContext.ts';
+import { scheduleAthleteContext } from './scheduleAthleteContext.ts';
 import type { UserParams, WeekJson, WeekMeta } from '@/types/plan';
 
 type ScaffoldSport = 'swim' | 'bike' | 'run' | 'strength' | 'other';
@@ -619,6 +621,7 @@ export function buildTriathlonWeekScaffold({
 }): WeekJson | null {
   if (!isTriathlonRace(userParams.raceType)) return null;
 
+  userParams = resolveAthleteContext(userParams);
   const weekDates = canonicalWeekDates(weekMeta.startDate);
   const days: Record<string, ScaffoldSession[]> = Object.fromEntries(weekDates.map((date) => [date, []]));
 
@@ -654,7 +657,7 @@ export function buildTriathlonWeekScaffold({
       addSession(days, weekMeta.startDate, new Date(`${raceDate}T00:00:00`).getUTCDay(), makeSession('race_day', 'other', 'Race Day', `Race day for ${userParams.raceType}. Execute the plan: calm swim, controlled bike pacing, steady fueling, and patient run execution.`, userParams, weekMeta, index, totalWeeks, 'anchor'));
     }
 
-    return { label: weekMeta.label, phase: weekMeta.phase, startDate: weekMeta.startDate, deload: weekMeta.deload, days } as WeekJson;
+    return scheduleAthleteContext({ label: weekMeta.label, phase: weekMeta.phase, startDate: weekMeta.startDate, deload: weekMeta.deload, days } as WeekJson, userParams);
   }
 
   const safeLongRideDay = findAvailableDay(longRideDay, blocked, used, true);
@@ -695,7 +698,7 @@ export function buildTriathlonWeekScaffold({
     addSession(days, weekMeta.startDate, strengthDay, makeSession('strength', 'strength', 'Strength', 'Controlled general strength. Keep it smooth and avoid heavy lower-body fatigue before key bike/run sessions.', userParams, weekMeta, index, totalWeeks, 'optional'));
   }
 
-  return { label: weekMeta.label, phase: weekMeta.phase, startDate: weekMeta.startDate, deload: weekMeta.deload, days } as WeekJson;
+  return scheduleAthleteContext({ label: weekMeta.label, phase: weekMeta.phase, startDate: weekMeta.startDate, deload: weekMeta.deload, days } as WeekJson, userParams);
 }
 
 export function scaffoldSummary(scaffold: WeekJson | null): string {

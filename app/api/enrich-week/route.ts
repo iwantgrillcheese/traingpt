@@ -12,6 +12,7 @@
 // - Idempotent: re-running a week simply re-enriches it.
 // - Fail-safe: if the model output is invalid, the scaffold details stay.
 
+import { assertAthleteContextHonored } from '@/utils/scheduleAthleteContext';
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
@@ -145,6 +146,8 @@ function buildEnrichUserPrompt({
 
 ## ${prevSummary}
 
+Confirmed structured constraints are authoritative; notes are context only. Do not override dates, sport, duration, priority, or hard availability.
+
 ## Session slots (structure is final — rewrite "details" only)
 ${JSON.stringify(slots, null, 2)}
 `.trim();
@@ -197,6 +200,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: `Week ${weekIndex} not found` }, { status: 404 });
     }
 
+    assertAthleteContextHonored([week], plan.params);
     const prevSummary = summarizePrevWeek(weeks[weekIndex - 1]);
     const model = process.env.ENRICH_MODEL ?? process.env.PLAN_MODEL ?? 'gpt-4o';
 

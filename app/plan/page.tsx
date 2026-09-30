@@ -1,6 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { AthleteContextReview } from "@/components/AthleteContextReview";
+import type { ConfirmedAthleteContext, InterpretedAthleteContext } from "@/types/athleteContext";
+import { validateAthleteContext, contextAnalytics } from "@/utils/athleteContext";
+import { assertContextFeasible } from "@/utils/scheduleAthleteContext";
 
 import React, {
   Suspense,
@@ -46,6 +50,7 @@ type FormState = {
   swimComfort: string;
   twoADaysAllowed: boolean;
   athleteNotes: string;
+  athleteContext?: ConfirmedAthleteContext;
   coachingPriorities: string[];
   bikeFTP: string;
   runPace: string;
@@ -69,6 +74,7 @@ type LatestPlanParams = Partial<{
   swimComfort: string;
   twoADaysAllowed: boolean;
   athleteNotes: string;
+  athleteContext?: ConfirmedAthleteContext;
   coachingPriorities: string[];
 }>;
 
@@ -235,6 +241,7 @@ function sanitizeFormDraft(value: unknown): FormState | null {
         : false,
     athleteNotes:
       typeof source.athleteNotes === "string" ? source.athleteNotes : "",
+    athleteContext: undefined, // Draft notes are reinterpreted after reload.
     coachingPriorities: normalizeStringArray(source.coachingPriorities),
     bikeFTP: typeof source.bikeFTP === "string" ? source.bikeFTP : "",
     runPace: typeof source.runPace === "string" ? source.runPace : "",
@@ -376,6 +383,11 @@ function PlanPageContent() {
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [proposal, setProposal] = useState<InterpretedAthleteContext | null>(null);
+  const [interpreting, setInterpreting] = useState(false);
+  const [interpretationEdited, setInterpretationEdited] = useState(false);
+  const notesRef = useRef(form.athleteNotes);
+  notesRef.current = form.athleteNotes;
   const [statusLine, setStatusLine] = useState("");
 
   const currentStep = STEPS[activeStep];
@@ -556,6 +568,7 @@ function PlanPageContent() {
               ? params.twoADaysAllowed
               : prev.twoADaysAllowed,
           athleteNotes: params.athleteNotes ?? prev.athleteNotes,
+          athleteContext: params.athleteContext ?? prev.athleteContext,
           coachingPriorities: Array.isArray(params.coachingPriorities)
             ? params.coachingPriorities
             : prev.coachingPriorities,
@@ -602,7 +615,8 @@ function PlanPageContent() {
   }, [refreshStravaSummary, router, searchParams]);
 
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
+    if (key === "athleteNotes") { setProposal(null); setInterpretationEdited(false); }
+    setForm((prev) => ({ ...prev, [key]: value, ...(key === "athleteNotes" ? { athleteContext: undefined } : {}) }));
   };
 
   const toggleUnavailableDay = (day: DayName) => {
@@ -635,8 +649,48 @@ function PlanPageContent() {
     return true;
   }, [currentStep.key, form, isRunPlan]);
 
+  const interpretNotes = async () => {
+    const notes = form.athleteNotes.trim();
+    setError(""); setInterpreting(true);
+    try {
+      const response = await fetch("/api/athlete-context/interpret", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ notes }) });
+      const result = await response.json();
+      if (notesRef.current.trim() !== notes) return;
+      if (!response.ok) throw new Error(result.error || "Could not interpret comments. Please retry.");
+      const context = validateAthleteContext(result.context);
+      track("athlete_context_interpreted", contextAnalytics(context));
+      if (!Object.keys(context).length) {
+        setForm(prev => ({ ...prev, athleteContext: { version: 1, sourceNotes: notes, confirmedAt: new Date().toISOString(), context } }));
+        setActiveStep(prev => Math.min(prev + 1, STEPS.length - 1));
+      } else setProposal(context);
+    } catch (error) { setError(error instanceof Error ? error.message : "Could not interpret comments."); }
+    finally { setInterpreting(false); }
+  };
+  const changeContext = (context: InterpretedAthleteContext) => {
+    setProposal(context);
+    setForm(prev => ({ ...prev, athleteContext: undefined }));
+    setInterpretationEdited(true);
+  };
+  const editContext = (context: InterpretedAthleteContext) => {
+    changeContext(context);
+    setActiveStep(STEPS.findIndex(step => step.key === "notes"));
+    track("athlete_context_edited", contextAnalytics(context));
+  };
+  const confirmContext = () => {
+    if (!proposal) return;
+    const context = validateAthleteContext(proposal);
+    setProposal(context);
+    const athleteContext: ConfirmedAthleteContext = { version: 1, sourceNotes: form.athleteNotes.trim(), confirmedAt: new Date().toISOString(), context };
+    setForm(prev => ({ ...prev, athleteContext }));
+    track("athlete_context_confirmed", { ...contextAnalytics(context), edited: interpretationEdited });
+    setError("");
+  };
   const nextStep = () => {
-    if (!canContinue) return;
+    if (!canContinue || interpreting) return;
+    if (currentStep.key === "notes" && form.athleteNotes.trim() && form.athleteContext?.sourceNotes !== form.athleteNotes.trim()) {
+      if (proposal) { setError("Confirm what Brick understood before continuing."); return; }
+      void interpretNotes(); return;
+    }
     setActiveStep((prev) => Math.min(prev + 1, STEPS.length - 1));
   };
 
@@ -644,6 +698,11 @@ function PlanPageContent() {
 
   const submitPlan = async () => {
     setError("");
+    if (form.athleteNotes.trim() && form.athleteContext?.sourceNotes !== form.athleteNotes.trim()) {
+      setActiveStep(STEPS.findIndex(s => s.key === "notes")); setError("Review and confirm your comments before generating."); return;
+    }
+    try { assertContextFeasible({ raceType: form.raceType, raceDate: form.raceDate, maxHours: Number(form.maxHours), planType: isRunPlan ? "running" : "triathlon", restDay: form.restDay, unavailableDays: form.unavailableDays, athleteContext: form.athleteContext }); }
+    catch (error) { track("athlete_context_conflict", form.athleteContext ? contextAnalytics(form.athleteContext.context) : {}); setError(error instanceof Error ? error.message : "Please revise your availability."); return; }
     setLoading(true);
     setStatusLine(
       "Building your plan around your race, schedule, and constraints…",
@@ -709,6 +768,7 @@ function PlanPageContent() {
           swimComfort: form.swimComfort || undefined,
           twoADaysAllowed: form.twoADaysAllowed,
           athleteNotes: form.athleteNotes.trim() || undefined,
+          athleteContext: form.athleteContext,
           coachingPriorities: form.coachingPriorities,
           clientUserId: session.user.id,
         }),
@@ -723,6 +783,7 @@ function PlanPageContent() {
       }
 
       if (!res.ok) {
+        if (json?.code === "ATHLETE_CONTEXT_CONFLICT") track("athlete_context_conflict", form.athleteContext ? contextAnalytics(form.athleteContext.context) : {});
         const backendMessage =
           typeof json?.error === "string"
             ? json.error
@@ -1274,10 +1335,16 @@ function PlanPageContent() {
                     value={form.athleteNotes}
                     onChange={(e) => setField("athleteNotes", e.target.value)}
                     rows={7}
+                    maxLength={6000}
                     placeholder="Examples: I work shifts and need long rides on Wednesdays. I’m new at swimming and want technique early. I hate running two days in a row."
                     className="mt-3 w-full rounded-3xl border border-[#E3E0D8] bg-white px-4 py-4 text-base text-[#101114] outline-none transition placeholder:text-[#9CA3AF] focus:border-[#2563FF] focus:ring-4 focus:ring-[#EAF0FF]"
                   />
                 </div>
+                {interpreting ? <p role="status" className="text-sm text-zinc-600">Reading your comments…</p> : null}
+                {proposal ? <AthleteContextReview context={proposal} confirmed={!!form.athleteContext && form.athleteContext.sourceNotes === form.athleteNotes.trim()}
+                  onChange={changeContext}
+                  onConfirm={confirmContext}
+                  onEdit={() => editContext(proposal)} /> : null}
                 <div>
                   <FieldLabel
                     label="Training priorities"
@@ -1324,6 +1391,15 @@ function PlanPageContent() {
                     ))}
                   </div>
                 </div>
+                {form.athleteContext ? (
+                  <AthleteContextReview
+                    context={form.athleteContext.context}
+                    confirmed={true}
+                    onChange={changeContext}
+                    onConfirm={() => {}}
+                    onEdit={() => editContext(form.athleteContext!.context)}
+                  />
+                ) : null}
                 {form.athleteNotes.trim() ? (
                   <div className="rounded-3xl border border-[#E3E0D8] bg-white p-5">
                     <h3 className="text-sm font-semibold text-[#101114]">
@@ -1359,10 +1435,10 @@ function PlanPageContent() {
                 <button
                   type="button"
                   onClick={nextStep}
-                  disabled={!canContinue}
+                  disabled={!canContinue || interpreting}
                   className="rounded-full bg-[#2563FF] px-6 py-3 text-sm font-black text-white shadow-[0_14px_35px_rgba(37,99,255,0.24)] transition hover:bg-[#184FE0] disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  {currentStep.key === "strava" ? "Continue" : "Continue"}
+                  {interpreting ? "Reading comments…" : currentStep.key === "notes" && form.athleteNotes.trim() && !form.athleteContext ? "Review comments" : "Continue"}
                 </button>
               )}
             </div>

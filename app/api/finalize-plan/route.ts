@@ -1,3 +1,5 @@
+import { validateConfirmedContext, resolveAthleteContext } from "@/utils/athleteContext";
+import { AthleteContextConflict, assertAthleteContextHonored } from "@/utils/scheduleAthleteContext";
 import { NextResponse } from "next/server";
 import {
   addWeeks,
@@ -290,6 +292,7 @@ function applyTriathlonGuards(weeks: WeekJson[], userParams: UserParams) {
     preferredLongRideDay: userParams.preferredLongRideDay,
     preferredLongRunDay: userParams.preferredLongRunDay,
     twoADaysAllowed: userParams.twoADaysAllowed ?? false,
+    athleteContext: userParams.athleteContext,
   });
   const budgeted = enforceTriathlonTimeBudget({
     weeks: scheduled.weeks,
@@ -312,7 +315,7 @@ export async function POST(req: Request) {
     const {
       raceType, raceDate, experience, maxHours, restDay, bikeFtp, bikeFTP, runPace, swimPace,
       planType, preferencesText, preferredLongRideDay, preferredLongRunDay, unavailableDays,
-      swimComfort, twoADaysAllowed, athleteNotes, coachingPriorities, paceUnit, clientUserId,
+      swimComfort, twoADaysAllowed, athleteNotes, athleteContext, coachingPriorities, paceUnit, clientUserId,
     } = body ?? {};
 
     const supabase = await createRouteSupabaseClient(req);
@@ -402,7 +405,10 @@ export async function POST(req: Request) {
     const { runPace: finalRunPace, paceUnit: finalPaceUnit } = normalizeRunMetric(runPace, paceUnit, inferredBaselines.estimatedThresholdPacePerKm ?? undefined);
     const finalExperience = typeof experience === "string" && experience.trim() ? experience.trim() : inferredAbility ?? "Intermediate";
 
-    const userParams: UserParams = {
+    let confirmedContext;
+    try { confirmedContext = validateConfirmedContext(athleteContext, athleteNotesResolved); }
+    catch { return NextResponse.json({ ok: false, error: "Review and confirm valid rules for your current comments." }, { status: 400 }); }
+    const userParams: UserParams = resolveAthleteContext({
       raceType: raceType.trim(),
       raceDate: String(raceDate),
       experience: finalExperience,
@@ -425,7 +431,8 @@ export async function POST(req: Request) {
       coachingPriorities: coachingPrioritiesResolved,
       paceUnit: finalPaceUnit,
       stravaHistorySummary,
-    };
+      athleteContext: confirmedContext,
+    });
 
     let generatedWeeksRaw: WeekJson[];
     let scaffoldFirst = false;
@@ -511,6 +518,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, code: "NO_SESSIONS", error: "The generated plan did not produce a usable schedule. Your existing plan was not changed." }, { status: 422 });
     }
 
+    assertAthleteContextHonored(planForStorage.weeks, userParams);
     const { data: persisted, error: persistError } = await supabase.rpc("replace_plan_and_sessions", {
       p_user_id: userId,
       p_race_date: String(raceDate),
@@ -548,6 +556,7 @@ export async function POST(req: Request) {
       durationMs: Date.now() - startedAt,
     });
   } catch (error) {
+    if (error instanceof AthleteContextConflict) return NextResponse.json({ ok: false, code: error.code, error: error.message }, { status: 422 });
     if (error instanceof AuthError) {
       console.error("FINALIZE_PLAN_ERROR Unauthorized", error);
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: error.status });
