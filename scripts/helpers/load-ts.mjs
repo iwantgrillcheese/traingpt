@@ -6,6 +6,7 @@ const root = new URL('../../', import.meta.url);
 export async function load(path, mocks = {}, env = {}) {
   const context = vm.createContext({ Response, Request, URL, AbortSignal, console, process: { env } });
   const cache = new Map();
+  const pending = new Map();
   async function resolve(specifier, parent = root.href) {
     if (cache.has(specifier) && mocks[specifier]) return cache.get(specifier);
     if (mocks[specifier] || !specifier.startsWith('.') && !specifier.startsWith('@/') && !specifier.startsWith('file:')) {
@@ -21,6 +22,8 @@ export async function load(path, mocks = {}, env = {}) {
     const url = specifier.startsWith('@/') ? new URL(specifier.slice(2), root) : new URL(specifier, parent);
     if (!url.pathname.endsWith('.ts')) url.pathname += '.ts';
     if (cache.has(url.href)) return cache.get(url.href);
+    if (pending.has(url.href)) return pending.get(url.href);
+    const creation = (async () => {
     const source = stripTypeScriptTypes(await readFile(url, 'utf8'));
     const mod = new vm.SourceTextModule(source, { context, identifier: url.href,
       importModuleDynamically: async (specifier, parent) => {
@@ -32,6 +35,9 @@ export async function load(path, mocks = {}, env = {}) {
     });
     cache.set(url.href, mod);
     return mod;
+    })();
+    pending.set(url.href, creation);
+    return creation;
   }
   const mod = await resolve(new URL(path, root).href);
   await mod.link((s, p) => resolve(s, p.identifier));

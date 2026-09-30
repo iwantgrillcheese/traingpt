@@ -65,7 +65,8 @@ export function buildRunningPlanScaffold({ userParams, weekMeta }: {
         const candidates = available.filter(date => !selected.includes(date));
         candidates.sort((a, b) => {
           const gap = (offset: number) => Math.min(...selected.map(date => Math.min(Math.abs(offset - date.offset), 7 - Math.abs(offset - date.offset))));
-          return gap(b.offset) - gap(a.offset) || a.offset - b.offset;
+          const preference = (d: typeof a) => context?.preferredSportDays?.run?.includes(DAY_NAMES[d.dow] as any) ? 0 : 1;
+          return preference(a) - preference(b) || gap(b.offset) - gap(a.offset) || a.offset - b.offset;
         });
         selected.push(candidates[0]);
       }

@@ -72,6 +72,12 @@ export function scheduleAthleteContext(week: WeekJson, input: UserParams): WeekJ
       groups.push({ original, items: bundle, candidates });
     }
   }
+  for (const sport of ['swim', 'bike', 'run', 'strength'] as const) {
+    const sportGroups = groups.filter(g => g.items.some(s => s.sport === sport));
+    const available = [...new Set(sportGroups.flatMap(g => g.candidates))];
+    if (sportGroups.length > available.length) throw new AthleteContextConflict(
+      `${week.label} needs ${sportGroups.length} ${sport} sessions on separate days, but your confirmed rules leave ${available.length} ${sport} day${available.length === 1 ? '' : 's'} (${available.map(d => WEEKDAYS[dow(d)]).join(' & ') || 'none'}). Review ${sport} availability and your rest/unavailable days.`);
+  }
   // Most restricted slots first, then anchors. Search retains all slots, including two swims.
   groups.sort((a, b) => a.candidates.length - b.candidates.length || Number(b.items.some(s => s.priority === 'anchor')) - Number(a.items.some(s => s.priority === 'anchor')));
   let bestScore = Infinity;
@@ -83,6 +89,10 @@ export function scheduleAthleteContext(week: WeekJson, input: UserParams): WeekJ
     let score = hard && group.items.some(lowerBody) ? commitmentPenalty(params, dow(date)) : 0;
     const preference = group.items.some(s => s.type === 'long_run') ? params.preferredLongRunDay ?? params.trainingPrefs?.longRunDay
       : group.items.some(s => s.type === 'long_ride') ? params.preferredLongRideDay ?? params.trainingPrefs?.longRideDay : undefined;
+    for (const item of group.items) {
+      const preferred = c.preferredSportDays?.[item.sport as ContextSport];
+      if (preferred?.length && !preferred.includes(name)) score += 10;
+    }
     if (preference != null && dayName(preference) !== name) score += 50;
     if (hard && group.items.some(lowerBody)) {
       for (const [placedDate, placed] of Object.entries(output)) {

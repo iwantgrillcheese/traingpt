@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { AuthError, createRouteSupabaseClient, requireUser } from '@/lib/supabase/server';
-import { ATHLETE_CONTEXT_PROMPT, ATHLETE_CONTEXT_SCHEMA } from '@/utils/athleteContextExtraction';
+import { ATHLETE_CONTEXT_PROMPT, ATHLETE_CONTEXT_SCHEMA, guardSportPreferences } from '@/utils/athleteContextExtraction';
 import { validateAthleteContext } from '@/utils/athleteContext';
 
 export const runtime = 'nodejs';
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     });
     const choice = result.choices[0];
     if (choice?.finish_reason !== 'stop' || choice.message.refusal || !choice.message.content) return NextResponse.json({ error: 'We could not interpret these comments. Please retry or clarify the wording.' }, { status: 422 });
-    return NextResponse.json({ context: validateAthleteContext(JSON.parse(choice.message.content)) });
+    return NextResponse.json({ context: guardSportPreferences(validateAthleteContext(JSON.parse(choice.message.content)), notes) });
   } catch (error) {
     if (error instanceof AuthError) return NextResponse.json({ error: 'Unauthorized' }, { status: error.status });
     // Do not log provider payloads containing personal athlete notes.

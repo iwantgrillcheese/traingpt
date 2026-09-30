@@ -37,7 +37,12 @@ export function AthleteContextReview({ context, confirmed, onChange, onConfirm, 
           if (values.length) availability[sport] = values; else delete availability[sport];
           update({ sportAvailability: availability });
         })}</div>)}
-        {daysEditor('Unavailable days', context.unavailableDays, values => update({ unavailableDays: values }))}
+        {SPORTS.map(sport => <div key={`preferred-${sport}`}>{daysEditor(`Preferred ${sport} days (other days allowed)`, context.preferredSportDays?.[sport], values => {
+          const preferred = { ...context.preferredSportDays };
+          if (values.length) preferred[sport] = values; else delete preferred[sport];
+          update({ preferredSportDays: preferred });
+        })}</div>)}
+        {daysEditor('Unavailable days' , context.unavailableDays, values => update({ unavailableDays: values }))}
         {daysEditor('Avoid hard training', context.avoidHardTrainingDays, values => update({ avoidHardTrainingDays: values }))}
         {selectDay('Rest day', 'restDay')}{selectDay('Long run day', 'preferredLongRunDay')}{selectDay('Long ride day', 'preferredLongRideDay')}
         <label className="flex items-center justify-between gap-2 text-sm">Two-a-days

@@ -140,3 +140,22 @@ test('60-week constrained plans preserve later-week progression and context-only
   const after = guards.enforceTriathlonScheduleConstraints({ weeks: [baseline], ...onlyContext });
   assert.deepEqual(JSON.parse(JSON.stringify(after)), JSON.parse(JSON.stringify(before)));
 });
+
+test('soft swim request cannot become exclusivity; Advanced Monday rest plan keeps both swims', () => {
+  const notes = 'I want to swim on Monday and Fri, and do strength sessions 3x a week';
+  const c = extraction.guardSportPreferences({ sportAvailability: { swim: ['Monday', 'Friday'] }, unsupportedRequests: ['Three strength sessions weekly (context only)'] }, notes);
+  assert.equal(c.sportAvailability, undefined);
+  assert.deepEqual(JSON.parse(JSON.stringify(c.preferredSportDays)), { swim: ['Monday', 'Friday'] });
+  const p = { ...params, experience: 'Advanced', twoADaysAllowed: true, raceDate: '2027-04-10', athleteContext: confirmed(c, notes) };
+  for (const [index, meta] of metas.entries()) {
+    const week = tri.buildTriathlonWeekScaffold({ userParams: p, weekMeta: meta, index, totalWeeks: 27 });
+    scheduler.assertAthleteContextHonored([week], p);
+    assert.equal(totals(week), totals(tri.buildTriathlonWeekScaffold({ userParams: { ...p, athleteContext: undefined }, weekMeta: meta, index, totalWeeks: 27 })));
+    const swims = Object.entries(week.days).filter(([, sessions]) => sessions.some(s => s.sport === 'swim'));
+    assert.ok(swims.some(([date]) => weekday(date) === 'Friday'));
+    assert.ok(Object.entries(week.days).filter(([date]) => weekday(date) === 'Monday').every(([, sessions]) => !sessions.length));
+  }
+  const hard = { sportAvailability: { swim: ['Monday', 'Friday'] } };
+  assert.equal(extraction.guardSportPreferences(hard, 'I can only swim Monday and Friday.'), hard);
+  assert.throws(() => tri.buildTriathlonWeekScaffold({ userParams: { ...p, athleteContext: confirmed(hard) }, weekMeta: metas[0] }), /2 swim sessions.*1 swim day.*Friday/);
+});
