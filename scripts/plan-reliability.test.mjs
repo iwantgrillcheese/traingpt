@@ -34,10 +34,10 @@ async function load(path, mocks = {}) {
       },
     });
     cache.set(url.href, mod);
-    await mod.link((s, p) => resolve(s, p.identifier));
     return mod;
   }
   const mod = await resolve(new URL(path, root).href);
+  await mod.link((s, p) => resolve(s, p.identifier));
   await mod.evaluate();
   return mod.namespace;
 }
@@ -99,7 +99,7 @@ test('half marathon uses half-marathon targets', () => {
 });
 
 class AuthError extends Error {}
-async function finalize({ planType = 'running', persistError = null, unavailableDays = [], restDay = 'Monday', preferredLongRunDay = 'Sunday', raceDate = iso(addDays(addWeeks(start, 59), 6)) } = {}) {
+async function finalize({ athleteContext, athleteNotes, planType = 'running', persistError = null, unavailableDays = [], restDay = 'Monday', preferredLongRunDay = 'Sunday', raceDate = iso(addDays(addWeeks(start, 59), 6)) } = {}) {
   const calls = [];
   const query = {};
   for (const method of ['select', 'eq', 'gte', 'order', 'limit']) query[method] = () => query;
@@ -119,7 +119,7 @@ async function finalize({ planType = 'running', persistError = null, unavailable
   });
   const response = await route.POST(new Request('https://traingpt.co/api/finalize-plan', { method: 'POST', body: JSON.stringify({
     clientUserId: 'athlete', planType, raceType: planType === 'running' ? 'Half Marathon' : 'Olympic', raceDate,
-    maxHours: 8, experience: 'Intermediate', restDay, unavailableDays, preferredLongRunDay,
+    maxHours: 8, experience: 'Intermediate', restDay, unavailableDays, preferredLongRunDay, athleteContext, athleteNotes,
   }) }));
   return { response, payload: await response.json(), calls };
 }
@@ -158,6 +158,29 @@ test('failed atomic save is not reported as success or retried destructively', a
   assert.equal(payload.ok, false);
   assert.equal(calls.length, 1);
   assert.match(payload.error, /previous plan is still intact/i);
+});
+
+test('confirmed comments and interpretation round-trip through atomic persistence', async () => {
+  const athleteNotes = 'I can only swim Wednesday and Thursday. I prefer my long run Sunday.';
+  const athleteContext = { version: 1, sourceNotes: athleteNotes, confirmedAt: '2026-09-30T12:00:00Z', context: { sportAvailability: { swim: ['Wednesday', 'Thursday'] }, preferredLongRunDay: 'Sunday' } };
+  const { response, calls } = await finalize({ planType: 'triathlon', raceDate: iso(addDays(addWeeks(start, 15), 6)), athleteNotes, athleteContext });
+  assert.equal(response.status, 200);
+  const plan = calls[0].args.p_plan;
+  assert.equal(plan.params.athleteNotes, athleteNotes);
+  assert.deepEqual(JSON.parse(JSON.stringify(plan.params.athleteContext)), athleteContext);
+  for (const week of plan.weeks) for (const [date, sessions] of Object.entries(week.days)) for (const session of sessions) {
+    if (session.sport === 'swim') assert.ok(['Wednesday', 'Thursday'].includes(new Date(`${date}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long' })));
+  }
+});
+
+test('context conflict returns 422 before the atomic save and protects the old plan', async () => {
+  const athleteNotes = 'I can only swim Thursday. Thursday is my rest day.';
+  const athleteContext = { version: 1, sourceNotes: athleteNotes, confirmedAt: '2026-09-30T12:00:00Z', context: { sportAvailability: { swim: ['Thursday'] }, restDay: 'Thursday' } };
+  const { response, payload, calls } = await finalize({ planType: 'triathlon', athleteNotes, athleteContext });
+  assert.equal(response.status, 422);
+  assert.equal(payload.code, 'ATHLETE_CONTEXT_CONFLICT');
+  assert.match(payload.error, /Thursday.*rest day/);
+  assert.equal(calls.length, 0);
 });
 
 async function legacyGenerator(create) {

@@ -1,3 +1,4 @@
+import { assertAthleteContextHonored } from '@/utils/scheduleAthleteContext';
 // /app/api/adapt-week/route.ts
 //
 // Adaptive Week v1 cron. Runs Sunday 20:00 UTC — one hour BEFORE the weekly
@@ -239,6 +240,7 @@ export async function GET(req: NextRequest) {
 
       const { week: adaptedWeek, changes, summary } = adaptNextWeek({ nextWeek, inputs });
 
+      assertAthleteContextHonored([adaptedWeek], plan.params);
       results.push({
         planId: planRow.id,
         userId: planRow.user_id,

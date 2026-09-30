@@ -98,7 +98,7 @@ ${userParams.stravaHistorySummary ? userParams.stravaHistorySummary : 'No recent
 - Brick frequency rule: Sprint/Olympic plans need periodic brick runs; 70.3 and Ironman plans need brick runs in most Build/Peak weeks and some Base weeks. The brick run should usually follow the long ride on the preferred long ride day. The bike portion should usually BE the long ride. Do not add a separate endurance bike, threshold bike, and brick bike on the same day.
 - Day loading rule: do not schedule more than two endurance sessions on the same day, except a bike + short brick run. Never schedule three bike sessions on one day.
 - Strength rule: strength is accessory work. Cap it at three short sessions per week, never put two strength sessions on the same day, and avoid heavy lower-body strength before key run/ride sessions.
-- Treat Scheduling Preferences and Constraints as hard constraints unless they are unsafe or impossible.
+- Confirmed structured athlete constraints are authoritative and already reflected in the scaffold. Original athlete notes are context only. Never reinterpret them to override dates, sport, durationMinutes, priority or hard availability. Enrich only workout details, coaching cues and explanations.
 - Place long ride/run/brick according to the preferred days above. The selected rest day overrides any default template. Do not add Tuesday as a habitual second rest day.
 - Never schedule workouts on unavailable days unless the athlete explicitly allows it.
 - If the athlete is new/developing in swim comfort, bias early weeks toward technique, consistency, and confidence before heavy swim intensity.

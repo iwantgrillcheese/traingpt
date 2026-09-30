@@ -1,4 +1,7 @@
 import { format, isValid, parseISO } from 'date-fns';
+import { scheduleAthleteContext } from './scheduleAthleteContext.ts';
+import { hasSchedulingContext } from './athleteContext.ts';
+import type { ConfirmedAthleteContext } from '../types/athleteContext.ts';
 import type { DayOfWeek, WeekJson } from '@/types/plan';
 
 type StructuredSession = Record<string, unknown> & {
@@ -102,6 +105,7 @@ export function enforceTriathlonScheduleConstraints({
   preferredLongRideDay,
   preferredLongRunDay,
   twoADaysAllowed = false,
+  athleteContext,
 }: {
   weeks: WeekJson[];
   raceDate?: string;
@@ -110,7 +114,9 @@ export function enforceTriathlonScheduleConstraints({
   preferredLongRideDay?: DayOfWeek;
   preferredLongRunDay?: DayOfWeek;
   twoADaysAllowed?: boolean;
+  athleteContext?: ConfirmedAthleteContext;
 }): { weeks: WeekJson[]; movedSessions: number; droppedSessions: number } {
+  if (hasSchedulingContext({ raceType: '', raceDate: '', maxHours: 0, athleteContext })) return { weeks: weeks.map(week => scheduleAthleteContext(week, { raceType: 'Half Ironman (70.3)', raceDate: raceDate ?? '', maxHours: 30, restDay: restDay as string, unavailableDays, preferredLongRideDay, preferredLongRunDay, twoADaysAllowed, athleteContext })), movedSessions: 0, droppedSessions: 0 };
   const blockedNames = normalizedDays([...(unavailableDays ?? []), ...(restDay ? [restDay] : [])]);
   let movedSessions = 0;
   let droppedSessions = 0;

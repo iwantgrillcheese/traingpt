@@ -1,4 +1,5 @@
 // /types/plan.ts
+import type { ConfirmedAthleteContext } from './athleteContext';
 
 // ----------------- Plan-related types -----------------
 
@@ -51,6 +52,7 @@ export type UserParams = {
   swimComfort?: 'new' | 'developing' | 'comfortable' | 'strong' | string;
   twoADaysAllowed?: boolean;
   athleteNotes?: string;
+  athleteContext?: ConfirmedAthleteContext;
   coachingPriorities?: string[];
   constraintsSummary?: string;
   preferencesText?: string;

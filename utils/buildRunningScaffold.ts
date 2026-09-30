@@ -1,4 +1,6 @@
 import { addDays, formatISO, parseISO } from 'date-fns';
+import { resolveAthleteContext, hasSchedulingContext } from './athleteContext';
+import { assertContextFeasible, commitmentPenalty, assertAthleteContextHonored } from './scheduleAthleteContext';
 import { computeRunTargets } from './runTargets';
 import type { UserParams, WeekJson, WeekMeta } from '@/types/plan';
 
@@ -26,6 +28,9 @@ export function buildRunningPlanScaffold({ userParams, weekMeta }: {
   userParams: UserParams;
   weekMeta: WeekMeta[];
 }): WeekJson[] {
+  userParams = resolveAthleteContext(userParams);
+  assertContextFeasible(userParams);
+  const context = userParams.athleteContext?.context;
   const blocked = new Set([userParams.restDay, ...(userParams.unavailableDays ?? [])]
     .map(dayIndex).filter((day): day is number => day !== undefined));
   const preferred = dayIndex(userParams.preferredLongRunDay ?? userParams.trainingPrefs?.longRunDay) ?? 0;
@@ -46,9 +51,12 @@ export function buildRunningPlanScaffold({ userParams, weekMeta }: {
     const raceWeek = dates.some(date => date.iso === userParams.raceDate);
     const taper = raceWeek || /taper/i.test(meta.phase);
     // Never train after race day. Race day itself overrides ordinary availability.
-    const available = dates.filter(date => !blocked.has(date.dow) && date.iso < userParams.raceDate);
+    const available = dates.filter(date => !blocked.has(date.dow) && date.iso < userParams.raceDate && (!context?.sportAvailability?.run || context.sportAvailability.run.includes(DAY_NAMES[date.dow] as any)));
     const targets = computeRunTargets({ userParams, weekMeta: meta, weekIndex: index, prevWeek: weeks[index - 1] });
-    const longDate = available.find(date => date.dow === preferred) ?? available[available.length - 1];
+    const longDate = hasSchedulingContext(userParams) ? [...available].sort((a, b) => {
+      const score = (d: typeof a) => commitmentPenalty(userParams, d.dow) + (d.dow === preferred ? 0 : 50);
+      return score(a) - score(b) || b.offset - a.offset;
+    })[0] : available.find(date => date.dow === preferred) ?? available[available.length - 1];
 
     if (longDate) {
       // Spread running days across the week before filling adjacent days.
@@ -84,7 +92,9 @@ export function buildRunningPlanScaffold({ userParams, weekMeta }: {
       for (const { date, minutes, long } of allocations) {
         if (minutes < 10) continue;
         const quality: boolean = !long && !qualityUsed && !beginner && !taper && !meta.deload
-          && /build|peak/i.test(meta.phase) && minutes >= 30 && Math.abs(date.offset - longDate.offset) > 1;
+          && /build|peak/i.test(meta.phase) && minutes >= 30 && Math.abs(date.offset - longDate.offset) > 1
+          && !context?.avoidHardTrainingDays?.includes(DAY_NAMES[date.dow] as any)
+          && (!context || commitmentPenalty(userParams, date.dow) === 0);
         qualityUsed ||= quality;
         const workMinutes = quality ? Math.min(15, minutes - 20) : 0;
         const title = raceWeek ? 'Easy Shakeout' : long ? 'Long Run' : quality ? 'Controlled Tempo Run' : 'Easy Run';
@@ -107,5 +117,6 @@ export function buildRunningPlanScaffold({ userParams, weekMeta }: {
     }
     weeks.push({ ...meta, days });
   }
+  assertAthleteContextHonored(weeks, userParams);
   return weeks;
 }
