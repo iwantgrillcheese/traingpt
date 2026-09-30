@@ -58,7 +58,7 @@
     "lint": "next lint",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "plan:quality": "node --experimental-strip-types scripts/plan-quality-matrix.ts",
-    "test:calendar": "node --experimental-vm-modules --test scripts/calendar-export.test.mjs",
+    "test:calendar": "node --experimental-vm-modules --test scripts/calendar-export.test.mjs scripts/month-calendar.test.mjs",
     "verify": "yarn lint && yarn typecheck && yarn test:calendar && yarn test:plans && yarn plan:quality && yarn build",
     "seo:daily": "node scripts/seo/daily-engine.mjs",
     "seo:init": "node scripts/seo/init-keywords.mjs",

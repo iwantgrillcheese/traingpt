@@ -51,7 +51,7 @@ export default function MonthGrid({
   }, [currentMonth]);
 
   return (
-    <section className="overflow-hidden rounded-[24px] border border-[#E3E0D8] bg-white shadow-[0_18px_60px_rgba(16,17,20,0.05)]">
+    <section aria-label="Monthly training calendar" className="overflow-hidden rounded-2xl border border-[#E3E0D8] bg-white shadow-[0_8px_30px_rgba(16,17,20,0.03)]">
       <div className="grid grid-cols-7 border-b border-[#E3E0D8] bg-[#F7F6F2]">
         {WEEKDAYS.map((weekday) => (
           <div

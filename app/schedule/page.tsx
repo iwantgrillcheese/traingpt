@@ -4,7 +4,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation';
 
 import CalendarShell from './CalendarShell';
-import CoachUpdateCard from '@/app/components/CoachUpdateCard';
 import PostPlanWalkthrough from '../plan/components/PostPlanWalkthrough';
 
 import { supabase } from '@/lib/supabase/client';
@@ -16,14 +15,6 @@ import type { Session, CompletedSession } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 import type { WalkthroughContext } from '@/types/coachGuides';
 import mergeSessionsWithStrava, { type MergedSession } from '@/utils/mergeSessionWithStrava';
-
-import {
-  conciseSessionLabel,
-  formatSessionDateLabel,
-  formatWeekPhaseHeader,
-  getNextUpcomingSession,
-  getTodaysPrimarySession,
-} from './session-utils';
 
 type RaceHubState = {
   planId?: string | null;
@@ -84,26 +75,6 @@ function deriveCurrentPhase(planPayload: any): string | null {
   }
 
   return latestPhase ?? (weeks[0]?.phase ? String(weeks[0].phase) : null);
-}
-
-function getWeekBounds(reference = new Date()) {
-  const start = new Date(reference);
-  const day = start.getDay();
-  const offset = day === 0 ? -6 : 1 - day;
-
-  start.setDate(start.getDate() + offset);
-  start.setHours(0, 0, 0, 0);
-
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  end.setHours(23, 59, 59, 999);
-
-  return { start, end };
-}
-
-function formatWeekRange(start: Date, end: Date) {
-  const fmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
-  return `${fmt.format(start)} – ${fmt.format(end)}`;
 }
 
 function parseDateValue(value?: string | null): Date | null {
@@ -394,23 +365,6 @@ export default function SchedulePage() {
     }
   }, [sessions, stravaActivities, userTimezone]);
 
-  const scheduleSummary = useMemo(() => {
-    const todayPrimary = getTodaysPrimarySession(enrichedSessions as any, new Date());
-    const nextUpcoming = getNextUpcomingSession(enrichedSessions as any, new Date());
-    const { start, end } = getWeekBounds();
-    const weekRange = formatWeekRange(start, end);
-
-    return {
-      weekPhase: formatWeekPhaseHeader(weekRange, raceHub?.currentPhase ?? null),
-      todayLabel: todayPrimary
-        ? `${conciseSessionLabel(todayPrimary.title, todayPrimary.sport)} • ${formatSessionDateLabel(todayPrimary.date)}`
-        : 'No workout scheduled today',
-      nextLabel: nextUpcoming
-        ? `${conciseSessionLabel(nextUpcoming.title, nextUpcoming.sport)} • ${formatSessionDateLabel(nextUpcoming.date)}`
-        : 'No upcoming sessions yet',
-    };
-  }, [enrichedSessions, raceHub?.currentPhase]);
-
   const fetchLatestPlanContext = useCallback(async (): Promise<WalkthroughContext | null> => {
     if (!user?.id) return null;
 
@@ -554,7 +508,6 @@ export default function SchedulePage() {
       ) : null}
 
       <main className="flex-grow">
-        <CoachUpdateCard />
         <CalendarShell
             sessions={enrichedSessions}
             completedSessions={completedSessions}
@@ -563,9 +516,7 @@ export default function SchedulePage() {
             timezone={userTimezone}
             onOpenWalkthroughAction={openWalkthrough}
             walkthroughLoading={walkthroughLoading}
-            todaySummary={scheduleSummary.todayLabel}
-            nextSummary={scheduleSummary.nextLabel}
-            weekPhaseSummary={scheduleSummary.weekPhase}
+            weekPhaseSummary={raceHub?.currentPhase ?? undefined}
             raceGoal={raceHub?.raceType ?? raceHub?.raceName ?? null}
             raceDate={raceHub?.raceDate ?? null}
           />
