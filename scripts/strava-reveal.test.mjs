@@ -143,7 +143,7 @@ async function page(fetch) {
   let states=[],cursor=0,effect; const element=(type,props)=>({type,props});
   const mod=await load('../app/strava-reveal/page.tsx',{
     react:{useState:init=>{const i=cursor++; if (!(i in states)) states[i]=init; return [states[i],v=>states[i]=typeof v==='function'?v(states[i]):v];},useEffect:fn=>{effect??=fn;}},
-    'react/jsx-runtime':{jsx:element,jsxs:element},
+    'react/jsx-runtime':{jsx:element,jsxs:element,Fragment:'Fragment'},
     'next/navigation':{useRouter:()=>({replace(){}})},
     '@/app/components/StravaReveal':{default:'Reveal'},
     '@/lib/analytics/posthog-client':{track(){}},
@@ -166,8 +166,11 @@ test('reveal component renders true-zero and recoverable query failure states',a
     const element=(type,props)=>({type,props});
     const mod=await load('../app/components/StravaReveal.tsx',{
       react:{useState:init=>{const i=cursor++; if (!(i in states)) states[i]=init; return [states[i],v=>states[i]=typeof v==='function'?v(states[i]):v];},useEffect:fn=>{effect??=fn;},useMemo:fn=>fn()},
-      'react/jsx-runtime':{jsx:element,jsxs:element},
+      'react/jsx-runtime':{jsx:element,jsxs:element,Fragment:'Fragment'},
       'framer-motion':{motion:{div:'div'},AnimatePresence:'AnimatePresence'},
+      './ActivityRoute': {default:'ActivityRoute'},
+      './BrickProfileCard': {default:'BrickProfileCard'},
+      '@/lib/analytics/posthog-client': {track(){}},
     },{fetch:async()=>failure?Response.json({error:'read failure'},{status:500}):Response.json({enduranceActivityCount:0,highlights:{},athlete:{activeWeeks:0,consistency:null},language:{}})});
     const render=()=>{cursor=0;return mod.default({onContinue(){}});};
     assert.match(JSON.stringify(render()),/Reading your training history/); effect(); await new Promise(r=>setImmediate(r));

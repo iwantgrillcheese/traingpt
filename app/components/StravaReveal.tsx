@@ -25,7 +25,7 @@ export default function StravaReveal({ onContinue }: { onContinue: () => void })
 
   useEffect(() => { if (data?.brickProfile) track('brick_profile_viewed', { archetype: data.brickProfile.id, confidence: data.brickProfile.confidence }); }, [data]);
 
-  const cards = useMemo(() => data ? [
+  const cards = useMemo(() => data && data.enduranceActivityCount > 0 ? [
     data.highlights.longestRide && { activityId: data.highlights.longestRide.strava_id, eyebrow: 'BIGGEST RIDE', value: miles(data.highlights.longestRide.distance), title: data.highlights.longestRide.name || 'Your longest ride', detail: `${duration(data.highlights.longestRide.moving_time)} · ${date(data.highlights.longestRide.start_date_local || data.highlights.longestRide.start_date)}` },
     data.highlights.longestRun && { activityId: data.highlights.longestRun.strava_id, eyebrow: 'LONGEST RUN', value: miles(data.highlights.longestRun.distance), title: data.highlights.longestRun.name || 'Your longest run', detail: `${duration(data.highlights.longestRun.moving_time)} · ${date(data.highlights.longestRun.start_date_local || data.highlights.longestRun.start_date)}` },
     data.highlights.longestSwim && { activityId: data.highlights.longestSwim.strava_id, eyebrow: 'LONGEST SWIM', value: yards(data.highlights.longestSwim.distance), title: data.highlights.longestSwim.name || 'Your longest swim', detail: `${duration(data.highlights.longestSwim.moving_time)} · ${date(data.highlights.longestSwim.start_date_local || data.highlights.longestSwim.start_date)}` },
