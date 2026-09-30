@@ -100,7 +100,9 @@ export function scheduleAthleteContext(week: WeekJson, input: UserParams): WeekJ
         if ((delta === 0 || delta === 1 || delta === 6) && placed.some(s => lowerBody(s) && (isHard(s) || s.type === 'long_run' || s.type === 'long_ride'))) score += 20;
       }
     }
-    if (!params.twoADaysAllowed && output[date].length) score += 15;
+    // Permission for doubles is not a preference to leave usable days empty.
+    // The ride + brick remains one inseparable group and incurs no internal pairing cost.
+    if (output[date].length) score += params.twoADaysAllowed ? 5 : 15;
     if (date !== group.original) score += 1;
     return score;
   };
