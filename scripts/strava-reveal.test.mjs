@@ -74,6 +74,7 @@ async function routes(db, history, { fetchFailure=false, invalid=false, expired=
     return Response.json(history.slice((page-1)*200,page*200));
   };
   const mocks = { 'next/server':{NextResponse:{json:Response.json,redirect:u=>Response.redirect(u,307)}}, '@/lib/supabase/server':{AuthError,createRouteSupabaseClient:async()=>db.client,requireUser:async()=>({id:'new-user'})} };
+  mocks['@/lib/strava/athlete-profile'] = await load('../lib/strava/athlete-profile.ts', {});
   const sync = await load('../app/api/strava_sync/route.ts',mocks,{fetch});
   const reveal = await load('../app/api/strava/reveal/route.ts',mocks);
   const callback = await load('../app/api/strava/callback/route.ts',{...mocks,crypto,'@supabase/supabase-js':{createClient:()=>db.client}},{fetch});

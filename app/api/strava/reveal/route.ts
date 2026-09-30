@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { buildBrickProfile } from '@/lib/strava/athlete-profile';
 import { AuthError, createRouteSupabaseClient, requireUser } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
@@ -54,6 +55,7 @@ export async function GET(req: Request) {
     const strongest = (Object.entries(hoursBySport) as Array<[keyof typeof hoursBySport, number]>).sort((a,b) => b[1]-a[1])[0];
 
     return NextResponse.json({
+      brickProfile: buildBrickProfile(endurance),
       activityCount: rows.length,
       enduranceActivityCount: endurance.length,
       firstActivityAt: first,
