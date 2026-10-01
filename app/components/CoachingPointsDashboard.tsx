@@ -1,5 +1,7 @@
 "use client";
 
+import { findCompletion, sessionIsComplete } from '@/utils/sessionCompletion';
+import mergeSessionsWithStrava from '@/utils/mergeSessionWithStrava';
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
@@ -23,6 +25,8 @@ import { calculateReadiness } from "@/lib/readiness";
 import type { CoachingContextPayload } from "@/types/coaching-context";
 
 type CompletedRow = {
+  session_id?: string | null;
+  completed_at?: string | null;
   user_id?: string;
   date?: string | null;
   session_date?: string | null;
@@ -183,12 +187,13 @@ function MetricTile({
 }
 
 export default function CoachingPointsDashboard({
-  sessions,
+  sessions: plannedSessions,
   completedSessions,
   stravaActivities,
   stravaConnected,
   raceDate,
 }: Props) {
+  const { merged: sessions } = mergeSessionsWithStrava(plannedSessions, stravaActivities);
   const today = startOfDay(new Date());
   const weekStart = startOfWeek(today, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
@@ -249,11 +254,10 @@ export default function CoachingPointsDashboard({
     })
     .sort((a, b) => String(a.date).localeCompare(String(b.date)));
 
-  const completedThisWeek = completedSessions.filter((row) => {
-    if (row.status === "skipped") return false;
-    const date = safeParseDate(getCompletedDate(row));
-    return date ? isWithinRange(date, weekStart, weekEnd) : false;
-  });
+  const completedThisWeek: CompletedRow[] = plannedThisWeek.filter(session => sessionIsComplete(session, completedSessions)).map(session => ({
+    ...findCompletion(completedSessions, session), date: session.date, session_title: session.title,
+    sport: session.sport, duration: session.stravaActivity ? session.stravaActivity.moving_time / 60 : session.duration, status: 'done',
+  }));
 
   const remainingThisWeek = plannedThisWeek.filter((session) => {
     const date = safeParseDate(session.date);
@@ -366,7 +370,7 @@ export default function CoachingPointsDashboard({
       ? Math.round((completedThisWeek.length / plannedThisWeek.length) * 100)
       : 0;
 
-  const completedPlanSessions = completedSessions.filter((row) => row.status !== "skipped");
+  const completedPlanSessions = completedSessions.filter((row) => (row.status ?? "done") === "done");
   const readinessResult = calculateReadiness({
     sessions,
     completedSessions: completedPlanSessions,

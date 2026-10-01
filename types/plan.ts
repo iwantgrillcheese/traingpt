@@ -24,6 +24,10 @@ export type TrainingPrefs = {
 };
 
 export type PlanType = 'triathlon' | 'running' | 'swim' | 'bike' | 'run';
+export type TrainingSport = 'swim' | 'bike' | 'run' | 'strength';
+export type DayName = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
+export type SportAvailability = Partial<Record<TrainingSport, DayName[]>>;
+export type SecondaryEvent = { raceType: string; raceDate: string; priority?: 'secondary'; primaryPriorityConfirmed?: boolean };
 
 export type UserParams = {
   raceType: string;         // e.g., "Half Ironman (70.3)"
@@ -49,6 +53,8 @@ export type UserParams = {
   preferredLongRideDay?: DayOfWeek;
   preferredLongRunDay?: DayOfWeek;
   unavailableDays?: DayOfWeek[];
+  sportAvailability?: SportAvailability;
+  secondaryEvent?: SecondaryEvent;
   swimComfort?: 'new' | 'developing' | 'comfortable' | 'strong' | string;
   twoADaysAllowed?: boolean;
   athleteNotes?: string;

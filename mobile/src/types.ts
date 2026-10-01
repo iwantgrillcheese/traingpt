@@ -1,4 +1,5 @@
 export type SessionRow = {
+  training_paused?: boolean;
   id: string;
   user_id?: string;
   plan_id?: string | null;
@@ -8,9 +9,12 @@ export type SessionRow = {
   duration: number | null;
   details: string | null;
   structured_workout?: string | null;
+  strava_id?: string | null;
 };
 
 export type CompletedSessionRow = {
+  session_id?: string | null;
+  completed_at?: string | null;
   id?: string;
   user_id?: string;
   date: string;

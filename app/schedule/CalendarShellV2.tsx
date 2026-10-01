@@ -11,7 +11,10 @@ import SessionModal from './SessionModal';
 import MobileSessionModal from './MobileSessionModalV2';
 import StravaActivityModal from './StravaActivityModal';
 import CoachUpdateCard from '@/app/components/CoachUpdateCard';
-import { supabase } from '@/lib/supabase/client';
+import TrainingStateControls from './TrainingStateControls';
+import { dateIsPaused, type TrainingPause } from '@/utils/trainingPause';
+import { findCompletion } from '@/utils/sessionCompletion';
+import { track } from '@/lib/analytics/posthog-client';
 import { exportCalendarClient } from '@/utils/exportCalendarClient';
 import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
 import { calendarSport, formatTrainingMinutes, isRestSession, sessionStatus, workoutTitle } from './calendar-utils';
@@ -30,6 +33,8 @@ type Props = {
   raceDate?: string | null;
   onOpenWalkthroughAction?: () => void;
   walkthroughLoading?: boolean;
+  pauses?: TrainingPause[];
+  planId?: string;
 };
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 const controlClass = 'h-10 rounded-xl border border-[#E3E0D8] bg-white px-3 text-sm font-medium text-[#4B5563] transition hover:bg-[#F7F6F2] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#101114]';
@@ -50,7 +55,7 @@ function sessionPurpose(session: MergedSession) {
   return sentence || 'Open the session for workout structure and targets.';
 }
 
-export default function CalendarShellV2({ sessions, completedSessions, extraStravaActivities = [], onCompletedUpdateAction, timezone = 'America/Los_Angeles', weekPhaseSummary, raceGoal, raceDate = null, onOpenWalkthroughAction, walkthroughLoading }: Props) {
+export default function CalendarShellV2({ sessions, completedSessions, extraStravaActivities = [], onCompletedUpdateAction, timezone = 'America/Los_Angeles', weekPhaseSummary, raceGoal, raceDate = null, onOpenWalkthroughAction, walkthroughLoading, pauses = [], planId }: Props) {
   const [mounted, setMounted] = useState(false);
   const [mobile, setMobile] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(new Date()));
@@ -62,6 +67,7 @@ export default function CalendarShellV2({ sessions, completedSessions, extraStra
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [saveMessage, setSaveMessage] = useState('');
   const [exporting, setExporting] = useState(false);
+  const pendingMoves = useRef(new Set<string>());
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => setMounted(true), []);
@@ -84,7 +90,7 @@ export default function CalendarShellV2({ sessions, completedSessions, extraStra
   const today = startOfDay(new Date());
   const trainingWeekStart = startOfWeek(today, { weekStartsOn: 1 });
   const trainingWeekEnd = endOfWeek(today, { weekStartsOn: 1 });
-  const weeklySessions = localSessions.filter(session => session.date && !isRestSession(session) && parseISO(session.date) >= trainingWeekStart && parseISO(session.date) <= trainingWeekEnd);
+  const weeklySessions = localSessions.filter(session => session.date && !dateIsPaused(session.date, pauses) && !isRestSession(session) && parseISO(session.date) >= trainingWeekStart && parseISO(session.date) <= trainingWeekEnd);
   const weeklyMinutes = weeklySessions.reduce((sum, session) => sum + Math.max(0, session.duration ?? 0), 0);
   const weeklyDone = weeklySessions.filter(session => sessionStatus(session, completed) === 'done').length;
   const weeklyCompletion = weeklySessions.length ? Math.round(weeklyDone / weeklySessions.length * 100) : 0;
@@ -102,8 +108,8 @@ export default function CalendarShellV2({ sessions, completedSessions, extraStra
   }, [localSessions]);
   const recentMissed = useMemo(() => {
     const cutoff = subDays(new Date(), 14);
-    return localSessions.filter(session => session.date && isAfter(parseISO(session.date), cutoff) && isBefore(parseISO(session.date), startOfDay(new Date())) && sessionStatus(session, completed) !== 'done').length;
-  }, [localSessions, completed]);
+    return localSessions.filter(session => session.date && !dateIsPaused(session.date, pauses) && !isRestSession(session) && isAfter(parseISO(session.date), cutoff) && isBefore(parseISO(session.date), startOfDay(new Date())) && sessionStatus(session, completed) !== 'done').length;
+  }, [localSessions, completed, pauses]);
   // Week context belongs to the opened session, not a separate calendar view.
   const sessionWeekStart = startOfWeek(selectedSession ? parseISO(selectedSession.date) : currentMonth, { weekStartsOn: 1 });
   const weekLabel = format(sessionWeekStart, 'MMM d') + '–' + format(endOfWeek(sessionWeekStart, { weekStartsOn: 1 }), 'MMM d');
@@ -125,28 +131,30 @@ export default function CalendarShellV2({ sessions, completedSessions, extraStra
     if (!active || !over) return;
     const draggedId = String(active.id);
     const targetDate = String(over.id);
-    let previousDate: string | null = null;
-    setLocalSessions(prev => prev.map(session => {
-      if (String(session.id) !== draggedId) return session;
-      previousDate = session.date;
-      return { ...session, date: targetDate };
-    }));
+    const original = localSessions.find(session => String(session.id) === draggedId);
+    if (!original || original.date === targetDate || pendingMoves.current.has(draggedId)) return;
+    const previousDate = original.date;
+    const originalCompletion = findCompletion(completed, original);
+    const promoted = originalCompletion && !originalCompletion.session_id;
+    pendingMoves.current.add(draggedId);
+    if (promoted) setCompleted(prev => prev.map(row => row === originalCompletion ? { ...row, session_id: draggedId } : row));
+    setLocalSessions(prev => prev.map(session => String(session.id) === draggedId ? { ...session, date: targetDate } : session));
     setSaveState('saving');
     setSaveMessage('Saving schedule change…');
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(async () => {
-      const { error } = await supabase.from('sessions').update({ date: targetDate }).eq('id', draggedId);
-      if (error) {
-        console.error('[CalendarShell] error persisting session move:', error);
-        if (previousDate) setLocalSessions(prev => prev.map(session => String(session.id) === draggedId ? { ...session, date: previousDate as string } : session));
-        setSaveState('error');
-        setSaveMessage('Could not save that move. Reverted to the original day.');
-        return;
-      }
+    try {
+      const response = await fetch('/api/schedule/update-session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: draggedId, newDate: targetDate }) });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Could not save that move.');
       setSaveState('saved');
       setSaveMessage('Saved');
-      window.setTimeout(() => { setSaveState('idle'); setSaveMessage(''); }, 1200);
-    }, 450);
+      saveTimer.current = setTimeout(() => { setSaveState('idle'); setSaveMessage(''); }, 1200);
+    } catch (error) {
+      if (promoted) setCompleted(prev => prev.map(row => row.session_id === draggedId && row.date === originalCompletion.date && row.session_title === originalCompletion.session_title ? { ...row, session_id: null } : row));
+      setLocalSessions(prev => prev.map(session => String(session.id) === draggedId ? { ...session, date: previousDate } : session));
+      setSaveState('error');
+      setSaveMessage(`${error instanceof Error ? error.message : 'Could not save that move.'} Reverted to the original day.`);
+    } finally { pendingMoves.current.delete(draggedId); }
   };
 
   if (!mounted) return <div className="min-h-[60vh] bg-[#F7F6F2]" />;
@@ -164,6 +172,8 @@ export default function CalendarShellV2({ sessions, completedSessions, extraStra
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={handleCalendarExport} disabled={exporting} className={controlClass}>{exporting ? 'Sharing…' : 'Export'}</button>
+            <Link href="/plan/print" className={`${controlClass} inline-flex items-center`} onClick={() => track('plan_print_clicked', { source: 'schedule' })}>Print plan</Link>
+            {planId ? <TrainingStateControls planId={planId} onChanged={() => window.location.reload()} /> : null}
             {onOpenWalkthroughAction ? <button type="button" onClick={onOpenWalkthroughAction} disabled={walkthroughLoading} className={controlClass}>{walkthroughLoading ? 'Opening…' : 'Walkthrough'}</button> : null}
             <button type="button" onClick={() => setAddSessionDate(new Date())} className="h-10 rounded-xl bg-[#101114] px-4 text-sm font-semibold text-white hover:bg-[#303136]">+ Add session</button>
           </div>

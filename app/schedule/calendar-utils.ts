@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
 import type { CompletedSession } from '@/types/session';
+import { findCompletion } from '@/utils/sessionCompletion';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
 
 export function calendarSport(value?: string | null) {
@@ -30,8 +31,8 @@ export function formatTrainingMinutes(value?: number | null) {
 
 export function sessionStatus(session: MergedSession, completed: CompletedSession[]) {
   if (session.stravaActivity) return 'done';
-  const match = completed.find(item => item.date === session.date && item.session_title === session.title);
-  return match ? match.status ?? 'done' : null;
+  const match = findCompletion(completed, session);
+  return match && match.status !== 'planned' ? match.status ?? 'done' : null;
 }
 
 export function isRestSession(session: MergedSession) {

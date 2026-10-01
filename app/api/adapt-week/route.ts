@@ -1,4 +1,6 @@
 import { assertAthleteContextHonored } from '@/utils/scheduleAthleteContext';
+import { dateIsPaused, trainingIsPaused, type TrainingPause } from '@/utils/trainingPause';
+import { sessionIsComplete } from '@/utils/sessionCompletion';
 // /app/api/adapt-week/route.ts
 //
 // Adaptive Week v1 cron. Runs Sunday 20:00 UTC — one hour BEFORE the weekly
@@ -128,7 +130,7 @@ export async function GET(req: NextRequest) {
   let plansQuery = supabase
     .from('plans')
     .select('id, user_id, race_date, plan')
-    .gte('race_date', todayISO)
+    .or(`race_date.gte.${todayISO},plan->params->secondaryEvent->>raceDate.gte.${todayISO}`)
     .order('created_at', { ascending: false });
 
   if (onlyUser) plansQuery = plansQuery.eq('user_id', onlyUser);
@@ -154,6 +156,10 @@ export async function GET(req: NextRequest) {
 
   for (const planRow of latestByUser.values()) {
     try {
+      const { data: pauseRows, error: pauseError } = await supabase.from('training_pauses').select('*').eq('plan_id', planRow.id).eq('user_id', planRow.user_id);
+      if (pauseError) throw pauseError;
+      const pauses = (pauseRows ?? []) as TrainingPause[];
+      if (trainingIsPaused(pauses)) { skipped += 1; results.push({ planId: planRow.id, summary: 'Training paused; no adaptation.' }); continue; }
       const plan = planRow.plan;
       const weeks = Array.isArray(plan?.weeks) ? (plan!.weeks as WeekJson[]) : [];
 
@@ -171,9 +177,12 @@ export async function GET(req: NextRequest) {
       }
 
       const nextWeek = weeks[nextIndex];
+      const { data: existingAdaptation, error: existingError } = await supabase.from('plan_adaptations').select('plan_id').eq('plan_id', planRow.id).eq('week_index', nextIndex).maybeSingle();
+      if (existingError) throw existingError;
+      if (existingAdaptation) { skipped += 1; continue; }
 
       // ---- Gather what actually happened in the ended week ----
-      const [{ data: sessionRows }, { data: completedRows }, { data: stravaRows }] = await Promise.all([
+      const [{ data: sessionRows, error: sessionError }, { data: completedRows, error: completedError }, { data: stravaRows, error: stravaError }] = await Promise.all([
         supabase
           .from('sessions')
           .select('id, date, sport, title, session_title, duration, status, raw')
@@ -183,10 +192,8 @@ export async function GET(req: NextRequest) {
           .lte('date', endedWeekEnd),
         supabase
           .from('completed_sessions')
-          .select('date, session_title, status')
-          .eq('user_id', planRow.user_id)
-          .gte('date', endedWeekStart)
-          .lte('date', endedWeekEnd),
+          .select('date, session_title, status, session_id, completed_at')
+          .eq('user_id', planRow.user_id),
         supabase
           .from('strava_activities')
           .select('id, strava_id, sport_type, start_date, start_date_local, moving_time, distance, name')
@@ -195,24 +202,18 @@ export async function GET(req: NextRequest) {
           .lte('start_date', `${endedWeekEnd}T23:59:59`),
       ]);
 
-      const planned = ((sessionRows ?? []) as DbSessionRow[]).filter((row) => isCountableSport(row.sport));
+      if (sessionError || completedError || stravaError) throw sessionError ?? completedError ?? stravaError;
+      const planned = ((sessionRows ?? []) as DbSessionRow[]).filter((row) => isCountableSport(row.sport) && !dateIsPaused(row.date, pauses));
 
       // completed_sessions stores both 'done' and 'skipped' rows — a skipped
       // session must never count as completed work.
-      const completedKeys = new Set(
-        ((completedRows ?? []) as Array<{ date: string | null; session_title: string | null; status?: string | null }>)
-          .filter((row) => String(row.status ?? 'done').toLowerCase() !== 'skipped')
-          .map((row) => `${row.date}::${String(row.session_title ?? '').trim().toLowerCase()}`)
-      );
-
-      const { merged } = mergeSessionsWithStrava(planned as any[], (stravaRows ?? []) as any[]);
+      const { merged } = mergeSessionsWithStrava(planned as any[], (stravaRows ?? []) as any[], process.env.DAILY_EMAIL_TIMEZONE || 'America/Los_Angeles', completedRows ?? []);
       const stravaMatchedIds = new Set(
         merged.filter((session: any) => session?.stravaActivity).map((session: any) => String(session.id))
       );
 
       const isCompleted = (row: DbSessionRow) =>
-        String(row.status ?? '').toLowerCase() === 'done' ||
-        completedKeys.has(`${row.date}::${String(row.title ?? row.session_title ?? '').trim().toLowerCase()}`) ||
+        sessionIsComplete(row, completedRows ?? []) ||
         stravaMatchedIds.has(String(row.id));
 
       const completedCount = planned.filter(isCompleted).length;
@@ -227,7 +228,10 @@ export async function GET(req: NextRequest) {
         }));
 
       const raceDate = String(planRow.race_date ?? plan.params?.raceDate ?? '');
-      const nextWeekIsRaceWeek = weekDates(nextWeek).includes(raceDate);
+      const nextWeekIsRaceWeek = weekDates(nextWeek).includes(raceDate) || weekDates(nextWeek).includes(plan.params?.secondaryEvent?.raceDate ?? '');
+      const { data: nextSessions, error: nextSessionsError } = await supabase.from('sessions').select('id,date,title,status,strava_id')
+        .eq('user_id', planRow.user_id).eq('plan_id', planRow.id).in('date', weekDates(nextWeek));
+      if (nextSessionsError) throw nextSessionsError;
 
       const inputs: AdaptationInputs = {
         plannedCount,
@@ -236,6 +240,8 @@ export async function GET(req: NextRequest) {
         missedAnchors,
         nextWeekIsRaceWeek,
         nextWeekDeload: Boolean(nextWeek.deload),
+        completedNextWeekSessions: (nextSessions ?? []).filter(row => row.strava_id || sessionIsComplete(row, completedRows ?? []))
+          .map(row => ({ date: row.date, title: String(row.title ?? '') })),
       };
 
       const { week: adaptedWeek, changes, summary } = adaptNextWeek({ nextWeek, inputs });

@@ -1,3 +1,4 @@
+import { sportAllowed } from './sportAvailability.ts';
 import { addDays, formatISO, isValid, parseISO } from 'date-fns';
 import type { GeneratedPlan, UserParams, WeekJson } from '@/types/plan';
 
@@ -357,7 +358,7 @@ function shouldExpectBrickRun({
   const phase = String(week.phase ?? '').toLowerCase();
   const race = String(userParams.raceType ?? '').toLowerCase();
 
-  if (phase.includes('taper')) return false;
+  if (phase.includes('taper') || phase.includes('recovery')) return false;
 
   if (/70\.3|half ironman|ironman|140\.6/.test(race)) {
     return phase.includes('build') || phase.includes('peak') || weekIndex % 2 === 0;
@@ -429,7 +430,7 @@ export function validateGeneratedPlan({
     }
 
     const allTrainingItems: Array<{ date: string; item: unknown }> = [];
-    const skipLongSessionChecks = isRaceWeek(week, userParams.raceDate) || String(week.phase ?? '').toLowerCase().includes('taper');
+    const skipLongSessionChecks = isRaceWeek(week, userParams.raceDate) || /taper|recovery/i.test(String(week.phase ?? ''));
     const expectBrickRunThisWeek = shouldExpectBrickRun({ week, weekIndex, userParams });
     if (expectBrickRunThisWeek) expectedBrickWeeks += 1;
 
@@ -448,6 +449,10 @@ export function validateGeneratedPlan({
         }
       });
 
+      for (const item of trainingItems) {
+        const sport = objectSportValue(item);
+        if (sport && !sportAllowed(date, sport, userParams.sportAvailability)) errors.push(label + ': ' + sport + ' violates sport availability on ' + date);
+      }
       const dayName = dayNameFromISO(date);
       if (dayName && unavailableDays.has(dayName) && trainingItems.length > 0) {
         warnings.push(`${label}: training scheduled on unavailable day ${dayName}.`);
@@ -534,14 +539,14 @@ export function validateGeneratedPlan({
       const longRides = allTrainingItems.filter(({ item }) => looksLikeLongRide(item));
       const longRuns = allTrainingItems.filter(({ item }) => looksLikeLongRun(item));
 
-      if (preferredLongRideDay && longRides.length) {
+      if (!userParams.sportAvailability && preferredLongRideDay && longRides.length) {
         const badRide = longRides.find(({ date }) => dayNameFromISO(date) !== preferredLongRideDay);
         if (badRide) {
           warnings.push(`${label}: long ride appears on ${dayNameFromISO(badRide.date) ?? badRide.date}, expected ${preferredLongRideDay}.`);
         }
       }
 
-      if (preferredLongRunDay && longRuns.length) {
+      if (!userParams.sportAvailability && preferredLongRunDay && longRuns.length) {
         const badRun = longRuns.find(({ date }) => dayNameFromISO(date) !== preferredLongRunDay);
         if (badRun) {
           warnings.push(`${label}: long run appears on ${dayNameFromISO(badRun.date) ?? badRun.date}, expected ${preferredLongRunDay}.`);
@@ -549,7 +554,7 @@ export function validateGeneratedPlan({
       }
 
       if (expectBrickRunThisWeek) {
-        const longRideDate = preferredLongRideDay
+        const longRideDate = !userParams.sportAvailability && preferredLongRideDay
           ? longRides.find(({ date }) => dayNameFromISO(date) === preferredLongRideDay)?.date
           : longRides[0]?.date;
 

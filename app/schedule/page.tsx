@@ -3,6 +3,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+
+import type { TrainingPause } from '@/utils/trainingPause';
 import CalendarShell from './CalendarShell';
 import PostPlanWalkthrough from '../plan/components/PostPlanWalkthrough';
 
@@ -137,9 +139,11 @@ function buildScheduleDataWindow(sessions: Session[], raceDate?: string | null):
 function normalizeCompletedSessions(rows: any[]): CompletedSession[] {
   return (rows ?? [])
     .map((c: any): CompletedSession => ({
+      session_id: c.session_id ?? null,
+      completed_at: c.completed_at ?? null,
       date: String(c.date || c.session_date || ''),
       session_title: String(c.session_title || c.title || ''),
-      status: c.status === 'skipped' ? 'skipped' : 'done',
+      status: c.status === 'planned' ? 'planned' : c.status === 'skipped' ? 'skipped' : 'done',
     }))
     .filter((row): row is CompletedSession => Boolean(row.date && row.session_title));
 }
@@ -160,6 +164,7 @@ export default function SchedulePage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [stravaActivities, setStravaActivities] = useState<StravaActivity[]>([]);
   const [completedSessions, setCompletedSessions] = useState<CompletedSession[]>([]);
+  const [trainingPauses, setTrainingPauses] = useState<TrainingPause[]>([]);
   const [raceHub, setRaceHub] = useState<RaceHubState | null>(null);
 
   const [loading, setLoading] = useState(true);
@@ -268,7 +273,7 @@ export default function SchedulePage() {
 
           supabase
             .from('completed_sessions')
-            .select('date, session_title, status')
+            .select('date, session_title, status, session_id, completed_at')
             .eq('user_id', user.id)
             .gte('date', dataWindow.startDateKey)
             .lte('date', dataWindow.endDateKey)
@@ -283,6 +288,9 @@ export default function SchedulePage() {
 
         const params = latestPlan?.plan?.params ?? {};
 
+        const { data: pauses, error: pauseError } = latestPlanId ? await supabase.from('training_pauses').select('*').eq('plan_id', latestPlanId).eq('user_id', user.id) : { data: [], error: null };
+        if (pauseError) throw pauseError;
+        setTrainingPauses((pauses ?? []) as TrainingPause[]);
         setSessions(loadedSessions);
         setStravaActivities((stravaRes.data ?? []) as StravaActivity[]);
         setCompletedSessions(normalizeCompletedSessions(completedRes.data ?? []));
@@ -348,7 +356,8 @@ export default function SchedulePage() {
       const { merged, unmatched } = mergeSessionsWithStrava(
         sessions,
         stravaActivities,
-        userTimezone
+        userTimezone,
+        completedSessions,
       );
 
       return {
@@ -363,7 +372,7 @@ export default function SchedulePage() {
         unmatchedActivities: [] as StravaActivity[],
       };
     }
-  }, [sessions, stravaActivities, userTimezone]);
+  }, [sessions, stravaActivities, userTimezone, completedSessions]);
 
   const fetchLatestPlanContext = useCallback(async (): Promise<WalkthroughContext | null> => {
     if (!user?.id) return null;
@@ -509,6 +518,8 @@ export default function SchedulePage() {
 
       <main className="flex-grow">
         <CalendarShell
+            pauses={trainingPauses}
+            planId={raceHub?.planId ?? undefined}
             sessions={enrichedSessions}
             completedSessions={completedSessions}
             extraStravaActivities={unmatchedActivities}

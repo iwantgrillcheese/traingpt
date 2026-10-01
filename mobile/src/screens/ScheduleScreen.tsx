@@ -1,3 +1,5 @@
+import { dateIsPaused, type TrainingPause } from '../utils/trainingPause';
+import { completionMatches, sessionIsComplete } from '../utils/sessionCompletion';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors, radius, shadow, spacing } from '../design/theme';
@@ -6,7 +8,7 @@ import { supabase } from '../lib/supabase';
 import type { CompletedSessionRow, SessionRow, StravaActivityRow } from '../types';
 import { SessionCard } from '../components/SessionCard';
 import { SessionDetailSheet } from '../components/SessionDetailSheet';
-import { formatDay, parseDate } from '../utils/training';
+import { formatDay, parseDate, getCompletionStatus } from '../utils/training';
 import { completedKeySet, getActiveWeekReferenceDate, getTotalAvailablePoints, sessionCompletionKey } from '../utils/sessionPoints';
 
 type WeekGroup = {
@@ -46,7 +48,7 @@ function groupByWeek(sessions: SessionRow[], completed: CompletedSessionRow[]): 
   });
 
   return Array.from(weeks.entries()).map(([key, week], index) => {
-    const weekSessions = Array.from(week.days.values()).flat();
+    const weekSessions = Array.from(week.days.values()).flat().filter(session => !session.training_paused);
     return {
       key,
       index,
@@ -54,7 +56,7 @@ function groupByWeek(sessions: SessionRow[], completed: CompletedSessionRow[]): 
       range: week.range,
       days: Array.from(week.days.entries()).sort(([a], [b]) => parseDate(a).getTime() - parseDate(b).getTime()),
       points: getTotalAvailablePoints(weekSessions),
-      completedCount: weekSessions.filter((session) => done.has(sessionCompletionKey(session.date, session.title))).length,
+      completedCount: weekSessions.filter((session) => sessionIsComplete(session, completed)).length,
       sessionCount: weekSessions.length,
     };
   });
@@ -66,6 +68,7 @@ export function ScheduleScreen() {
   const [completed, setCompleted] = useState<CompletedSessionRow[]>([]);
   const [stravaActivities, setStravaActivities] = useState<StravaActivityRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [paused, setPaused] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedSession, setSelectedSession] = useState<SessionRow | null>(null);
   const [openWeeks, setOpenWeeks] = useState<Record<string, boolean>>({});
@@ -73,11 +76,14 @@ export function ScheduleScreen() {
   const load = useCallback(async () => {
     if (!user?.id) return;
     const [{ data: sessionRows }, { data: completedRows }, { data: stravaRows }] = await Promise.all([
-      supabase.from('sessions').select('id,user_id,plan_id,date,sport,title,duration,details,structured_workout').eq('user_id', user.id).order('date', { ascending: true }).limit(1000),
-      supabase.from('completed_sessions').select('id,user_id,date,session_title,status').eq('user_id', user.id),
+      supabase.from('sessions').select('id,user_id,plan_id,date,sport,title,duration,details,structured_workout,strava_id').eq('user_id', user.id).order('date', { ascending: true }).limit(1000),
+      supabase.from('completed_sessions').select('id,user_id,date,session_title,status,session_id,completed_at').eq('user_id', user.id),
       supabase.from('strava_activities').select('id,user_id,strava_id,name,sport_type,start_date,start_date_local,moving_time,distance').eq('user_id', user.id).order('start_date', { ascending: false }).limit(150),
     ]);
-    setSessions((sessionRows ?? []) as SessionRow[]);
+    const { data: pauses, error: pauseError } = await supabase.from('training_pauses').select('*').eq('user_id', user.id);
+    if (pauseError) { setLoading(false); return; }
+    setPaused((pauses ?? []).some(pause => pause.status === 'paused'));
+    setSessions(((sessionRows ?? []) as SessionRow[]).map(session => ({ ...session, training_paused: dateIsPaused(session.date, ((pauses ?? []) as TrainingPause[]).filter(pause => pause.plan_id === session.plan_id)) })));
     setCompleted((completedRows ?? []) as CompletedSessionRow[]);
     setStravaActivities((stravaRows ?? []) as StravaActivityRow[]);
     setLoading(false);
@@ -98,22 +104,24 @@ export function ScheduleScreen() {
 
   const markDoneFor = async (session: SessionRow) => {
     if (!user?.id || !session.title) return;
-    const existing = completed.filter((row) => row.date !== session.date || row.session_title !== session.title);
-    const next = [...existing, { user_id: user.id, date: session.date, session_title: String(session.title), status: 'done' }];
+    const undo = getCompletionStatus(session, completed) === 'done';
+    const existing = completed.filter((row) => !completionMatches(row, session));
+    const next = [...existing, { user_id: user.id, session_id: session.id, completed_at: undo ? null : new Date().toISOString(), date: session.date, session_title: String(session.title), status: undo ? 'planned' : 'done' }];
     setCompleted(next);
 
-    await supabase.from('completed_sessions').delete().eq('user_id', user.id).eq('date', session.date).eq('session_title', session.title);
-    await supabase.from('completed_sessions').insert({ user_id: user.id, date: session.date, session_title: session.title, status: 'done' });
+    const { data: completedAt, error } = await supabase.rpc('set_session_completion', { p_session_id: session.id, p_status: 'done', p_undo: undo });
+    if (error) { await load(); throw new Error(error.message); }
+    setCompleted(rows => rows.map(row => row.session_id === session.id ? { ...row, completed_at: completedAt } : row));
   };
 
   const skipSession = async (session: SessionRow) => {
     if (!user?.id || !session.title) return;
-    const existing = completed.filter((row) => row.date !== session.date || row.session_title !== session.title);
-    const next = [...existing, { user_id: user.id, date: session.date, session_title: String(session.title), status: 'skipped' }];
+    const existing = completed.filter((row) => !completionMatches(row, session));
+    const next = [...existing, { user_id: user.id, session_id: session.id, completed_at: null, date: session.date, session_title: String(session.title), status: 'skipped' }];
     setCompleted(next);
 
-    await supabase.from('completed_sessions').delete().eq('user_id', user.id).eq('date', session.date).eq('session_title', session.title);
-    await supabase.from('completed_sessions').insert({ user_id: user.id, date: session.date, session_title: session.title, status: 'skipped' });
+    const { error } = await supabase.rpc('set_session_completion', { p_session_id: session.id, p_status: 'skipped', p_undo: false });
+    if (error) { await load(); }
   };
 
   const weeks = useMemo(() => groupByWeek(sessions, completed), [sessions, completed]);
@@ -148,6 +156,7 @@ export function ScheduleScreen() {
         <View style={styles.header}>
           <Text style={styles.kicker}>Training calendar</Text>
           <Text style={styles.title}>Schedule</Text>
+          {paused ? <Text style={styles.subtitle}>Training paused. Paused sessions do not count as missed. Resume from the web calendar when ready.</Text> : null}
           <Text style={styles.subtitle}>Open each training week to see the work. Tap any session to view details or bank points.</Text>
         </View>
 

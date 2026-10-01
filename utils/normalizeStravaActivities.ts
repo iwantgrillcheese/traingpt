@@ -1,6 +1,6 @@
 import { formatISO, isValid, parseISO } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
-import { StravaActivity } from '@/types/strava';
+import type { StravaActivity } from '@/types/strava';
 
 const DEFAULT_TIMEZONE = 'America/Los_Angeles';
 

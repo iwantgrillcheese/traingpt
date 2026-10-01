@@ -1,3 +1,4 @@
+import { SchedulingConflict, sportAllowed } from './sportAvailability';
 import { addDays, formatISO, parseISO } from 'date-fns';
 import { resolveAthleteContext, hasSchedulingContext } from './athleteContext';
 import { assertContextFeasible, commitmentPenalty, assertAthleteContextHonored } from './scheduleAthleteContext';
@@ -51,7 +52,8 @@ export function buildRunningPlanScaffold({ userParams, weekMeta }: {
     const raceWeek = dates.some(date => date.iso === userParams.raceDate);
     const taper = raceWeek || /taper/i.test(meta.phase);
     // Never train after race day. Race day itself overrides ordinary availability.
-    const available = dates.filter(date => !blocked.has(date.dow) && date.iso < userParams.raceDate && (!context?.sportAvailability?.run || context.sportAvailability.run.includes(DAY_NAMES[date.dow] as any)));
+    const available = dates.filter(date => !blocked.has(date.dow) && date.iso < userParams.raceDate && sportAllowed(date.iso, 'run', userParams.sportAvailability));
+    if (!available.length && userParams.sportAvailability?.run && !raceWeek) throw new SchedulingConflict('No available run day. Adjust run availability or blocked days.');
     const targets = computeRunTargets({ userParams, weekMeta: meta, weekIndex: index, prevWeek: weeks[index - 1] });
     const longDate = hasSchedulingContext(userParams) ? [...available].sort((a, b) => {
       const score = (d: typeof a) => commitmentPenalty(userParams, d.dow) + (d.dow === preferred ? 0 : 50);

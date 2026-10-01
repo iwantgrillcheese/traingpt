@@ -1,14 +1,7 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import { stripTypeScriptTypes } from 'node:module';
 import { test } from 'node:test';
-import vm from 'node:vm';
-import { format } from 'date-fns';
-const context = vm.createContext({});
-const mod = new vm.SourceTextModule(stripTypeScriptTypes(await readFile(new URL('../app/schedule/calendar-utils.ts', import.meta.url), 'utf8')), {context});
-await mod.link(() => new vm.SyntheticModule(['format'], function(){this.setExport('format',format);},{context}));
-await mod.evaluate();
-const {monthTrainingSummary,sessionStatus,calendarSport} = mod.namespace;
+import { load } from './helpers/load-ts.mjs';
+const {monthTrainingSummary,sessionStatus,calendarSport} = await load('app/schedule/calendar-utils.ts');
 test('month totals isolate boundaries, exclude rest, and use actual linked duration', () => {
   const sessions = [
     {date:'2026-09-01',title:'Run',sport:'Run',duration:45},

@@ -1,3 +1,4 @@
+import { sessionIsComplete } from './sessionCompletion';
 import type { CompletedSessionRow, SessionRow } from '../types';
 import { normalizeSport, parseDate } from './training';
 
@@ -77,13 +78,13 @@ export function completedKeySet(completed: CompletedSessionRow[]) {
 
 export function getEarnedPoints(sessions: SessionRow[], completed: CompletedSessionRow[]) {
   const done = completedKeySet(completed);
-  return sessions.reduce((sum, session) => {
-    return done.has(sessionCompletionKey(session.date, session.title)) ? sum + getSessionPoints(session) : sum;
+  return sessions.filter(session => !session.training_paused).reduce((sum, session) => {
+    return sessionIsComplete(session, completed) ? sum + getSessionPoints(session) : sum;
   }, 0);
 }
 
 export function getTotalAvailablePoints(sessions: SessionRow[]) {
-  return sessions.reduce((sum, session) => sum + getSessionPoints(session), 0);
+  return sessions.filter(session => !session.training_paused).reduce((sum, session) => sum + getSessionPoints(session), 0);
 }
 
 function resolveReferenceDate(arg?: Date | CompletedSessionRow[] | null, fallback?: Date) {

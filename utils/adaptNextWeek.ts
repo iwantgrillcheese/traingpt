@@ -43,6 +43,10 @@ export type AdaptationInputs = {
   missedAnchors: Array<{ title: string; durationMinutes: number | null }>;
   nextWeekIsRaceWeek: boolean;
   nextWeekDeload: boolean;
+  trainingPaused?: boolean;
+  easeBackIn?: boolean;
+  easeVolumeFactor?: number;
+  completedNextWeekSessions?: Array<{ date: string; title: string }>;
 };
 
 export type AdaptationResult = {
@@ -163,6 +167,33 @@ export function adaptNextWeek({
 }): AdaptationResult {
   const week = cloneWeek(nextWeek);
   const changes: AdaptationChange[] = [];
+  const applyToSessions = (fn: (session: StructuredPlanSession, date: string) => void) => eachSession(week, (session, date) => {
+    if (inputs.completedNextWeekSessions?.some(done => done.date === date && done.title === session.title)) return;
+    fn(session, date);
+  });
+
+  if (inputs.trainingPaused) return { week, changes, summary: 'Training is paused. The plan stays unchanged; paused sessions are not missed training.' };
+
+  if (inputs.easeBackIn) {
+    const reason = 'Conservative return week: reduced aerobic volume, with intensity held back.';
+    applyToSessions((session, date) => {
+      if (isRestOrRace(session)) return;
+      const current = Number(session.durationMinutes ?? 0);
+      const factor = inputs.easeVolumeFactor ?? 0.75;
+      const next = Math.min(current, roundTo5(current * Math.max(0.5, Math.min(1, factor))));
+      if (current > 0 && next < current) {
+        session.durationMinutes = next;
+        changes.push({ date, sport: String(session.sport ?? ''), title: String(session.title ?? ''), change: 'reduced_duration', from: `${current}min`, to: `${next}min`, reason });
+      }
+      if (isQuality(session)) {
+        const swap = downgradeToEndurance(session);
+        if (swap) changes.push({ date, sport: String(session.sport ?? ''), title: swap.to, change: 'downgraded_intensity', ...swap, reason });
+      }
+      // Do not leave the old threshold prescription or old duration in details.
+      session.details = `Purpose: Ease back into consistent training.\nWorkout: ${session.durationMinutes ?? current}min easy aerobic ${session.sport ?? 'training'}, at conversational effort.\nCoach note: ${reason}`;
+    });
+    return { week, changes, summary: reason };
+  }
 
   // Rule 0: race week is sacred. No signal, no adaptation needed either way.
   if (inputs.nextWeekIsRaceWeek || inputs.plannedCount === 0) {
@@ -188,7 +219,7 @@ export function adaptNextWeek({
     const cap = Number(missed.durationMinutes ?? 0);
     if (!Number.isFinite(cap) || cap <= 0) continue;
 
-    eachSession(week, (session, date) => {
+    applyToSessions((session, date) => {
       if (!isAnchor(session)) return;
       if (String(session.title ?? '').trim().toLowerCase() !== missed.title.trim().toLowerCase()) return;
 
@@ -217,7 +248,7 @@ export function adaptNextWeek({
 
   // Rule 2 — reset week: most of last week was missed. Trim volume, strip intensity.
   if (lowCompliance && !inputs.nextWeekDeload) {
-    eachSession(week, (session, date) => {
+    applyToSessions((session, date) => {
       if (isRestOrRace(session)) return;
 
       const current = Number(session.durationMinutes ?? 0);
@@ -262,7 +293,7 @@ export function adaptNextWeek({
   // Rule 3 — trim: a partially-missed week downgrades ONE quality session.
   if (midCompliance && !lowCompliance && !inputs.nextWeekDeload) {
     let done = false;
-    eachSession(week, (session, date) => {
+    applyToSessions((session, date) => {
       if (done || isRestOrRace(session) || !isQuality(session) || isAnchor(session)) return;
       const swap = downgradeToEndurance(session);
       if (swap) {

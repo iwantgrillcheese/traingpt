@@ -1,3 +1,4 @@
+import type { TrainingPause } from '@/utils/trainingPause';
 import { NextResponse } from 'next/server';
 import { AuthError, createRouteSupabaseClient, requireUser } from '@/lib/supabase/server';
 import { getWeeklySummary } from '@/utils/getWeeklySummary';
@@ -10,13 +11,15 @@ export async function GET() {
     const supabase = await createRouteSupabaseClient();
     const user = await requireUser(supabase);
 
-    const [{ data: sessions }, { data: completed }, { data: strava }] = await Promise.all([
+    const [{ data: sessions }, { data: completed }, { data: strava }, { data: pauses, error: pauseError }] = await Promise.all([
       supabase.from('sessions').select('*').eq('user_id', user.id),
       supabase.from('completed_sessions').select('*').eq('user_id', user.id),
       supabase.from('strava_activities').select('*').eq('user_id', user.id),
+      supabase.from('training_pauses').select('*').eq('user_id', user.id),
     ]);
 
-    const summary = getWeeklySummary(sessions || [], completed || [], strava || []);
+    if (pauseError) throw pauseError;
+    const summary = getWeeklySummary(sessions || [], completed || [], strava || [], (pauses ?? []) as TrainingPause[]);
     const volume = getWeeklyVolume(sessions || [], completed || [], strava || []);
 
     return NextResponse.json({ ...summary, weeklyVolume: volume });

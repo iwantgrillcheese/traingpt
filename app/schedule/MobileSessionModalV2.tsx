@@ -1,4 +1,6 @@
 "use client";
+import { track } from "@/lib/analytics/posthog-client";
+import { findCompletion, completionMatches, completedEarly } from "@/utils/sessionCompletion";
 
 import { Dialog } from "@headlessui/react";
 import { format, isAfter, parseISO, startOfDay } from "date-fns";
@@ -117,10 +119,10 @@ export default function MobileSessionModalV2({
   }, []);
 
   const manualStatus = useMemo<"done" | "skipped" | null>(() => {
-    const match = completedSessions.find((item) => item.date === session?.date && item.session_title === session?.title);
-    if (!match) return null;
+    const match = session ? findCompletion(completedSessions, session) : undefined;
+    if (!match || match.status === "planned") return null;
     return match.status === "skipped" ? "skipped" : "done";
-  }, [completedSessions, session?.date, session?.title]);
+  }, [completedSessions, session]);
 
   if (!session) return null;
 
@@ -139,16 +141,13 @@ export default function MobileSessionModalV2({
   const showReply = Boolean(notesDraft.trim());
 
   const applyLocalStatus = (nextStatus: "done" | "skipped" | null) => {
-    const base = completedSessions.filter((item) => item.date !== session.date || item.session_title !== session.title);
+    const base = completedSessions.filter((item) => !completionMatches(item, session));
     if (!nextStatus) return base;
-    return [...base, { date: session.date, session_title: session.title, status: nextStatus }];
+    return [...base, { session_id: session.id, completed_at: nextStatus === "done" ? new Date().toISOString() : null, date: session.date, session_title: session.title, status: nextStatus }];
   };
 
   const updateStatus = async (mode: "done" | "skipped") => {
-    if (mode === "done" && isFutureSession) {
-      setErrorMessage("Future workouts cannot be marked complete yet. Move the session or wait until the workout day.");
-      return;
-    }
+
 
     setMarking(true);
     setErrorMessage(null);
@@ -161,7 +160,7 @@ export default function MobileSessionModalV2({
       const res = await fetch(mode === "done" ? "/api/schedule/mark-done" : "/api/schedule/mark-skip", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_date: session.date, session_title: session.title, undo: shouldUndo, clientUserId: auth.user?.id ?? null }),
+        body: JSON.stringify({ session_id: session.id, session_date: session.date, session_title: session.title, undo: shouldUndo, clientUserId: auth.user?.id ?? null }),
       });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -170,7 +169,8 @@ export default function MobileSessionModalV2({
         return;
       }
       const active = mode === "done" ? payload?.completed === true : payload?.skipped === true;
-      onCompletedUpdate(applyLocalStatus(active ? mode : null));
+      onCompletedUpdate(applyLocalStatus(active ? mode : null).map(row => completionMatches(row, session) ? { ...row, session_id: payload.session_id, completed_at: payload.completed_at } : row));
+      if (active && mode === "done" && !shouldUndo && isFutureSession) track("session_completed_early", { session_id: session.id, planned_date: session.date });
     } catch (error) {
       console.error(error);
       onCompletedUpdate(previous);
@@ -250,7 +250,7 @@ export default function MobileSessionModalV2({
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                   <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-[12px] font-medium text-zinc-600">{sport}</span>
                   <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-[12px] font-medium text-zinc-600">{formattedDate}</span>
-                  {isCompleted ? <span className="rounded-full bg-[#2563FF] px-2.5 py-1 text-[12px] font-black text-white">✓ Complete</span> : null}
+                  {isCompleted ? <span className="rounded-full bg-[#2563FF] px-2.5 py-1 text-[12px] font-black text-white">{completedEarly(session, findCompletion(completedSessions, session)) ? '✓ Completed early' : '✓ Complete'}</span> : null}
                   {isSkipped ? <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[12px] font-semibold text-zinc-600">Skipped</span> : null}
                 </div>
                 <Dialog.Title className="text-[30px] font-semibold leading-[0.98] tracking-[-0.055em] text-zinc-950">{title}</Dialog.Title>
@@ -306,8 +306,8 @@ export default function MobileSessionModalV2({
             ) : null}
 
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <button type="button" disabled={marking || (isFutureSession && manualStatus !== "done")} onClick={() => updateStatus("done")} className={clsx("min-h-12 rounded-2xl border px-3 text-[14px] font-semibold disabled:opacity-45", isCompleted ? "border-[#2563FF] bg-[#2563FF] text-white" : "border-zinc-200 bg-white text-zinc-800")}>
-                {isFutureSession && manualStatus !== "done" ? "Locked" : manualStatus === "done" ? "Undo done" : "Mark done"}
+              <button type="button" disabled={marking} onClick={() => updateStatus("done")} className={clsx("min-h-12 rounded-2xl border px-3 text-[14px] font-semibold disabled:opacity-45", isCompleted ? "border-[#2563FF] bg-[#2563FF] text-white" : "border-zinc-200 bg-white text-zinc-800")}>
+                {manualStatus === "done" ? "Undo done" : "Mark done"}
               </button>
               <button type="button" disabled={marking || Boolean(stravaActivity)} onClick={() => updateStatus("skipped")} className={clsx("min-h-12 rounded-2xl border px-3 text-[14px] font-semibold disabled:opacity-50", isSkipped ? "border-zinc-300 bg-zinc-100 text-zinc-800" : "border-zinc-200 bg-white text-zinc-800")}>
                 {isSkipped ? "Unskip" : "Skip"}

@@ -1,3 +1,5 @@
+import { SchedulingConflict, sportAllowed } from './sportAvailability.ts';
+import type { SportAvailability } from '@/types/plan';
 import { format, isValid, parseISO } from 'date-fns';
 import { scheduleAthleteContext } from './scheduleAthleteContext.ts';
 import { hasSchedulingContext } from './athleteContext.ts';
@@ -100,8 +102,10 @@ function sameDayAllowed(existing: StructuredSession[], incoming: SessionGroup, t
 export function enforceTriathlonScheduleConstraints({
   weeks,
   raceDate,
+  secondaryRaceDate,
   restDay,
   unavailableDays,
+  sportAvailability,
   preferredLongRideDay,
   preferredLongRunDay,
   twoADaysAllowed = false,
@@ -109,8 +113,10 @@ export function enforceTriathlonScheduleConstraints({
 }: {
   weeks: WeekJson[];
   raceDate?: string;
+  secondaryRaceDate?: string;
   restDay?: DayOfWeek;
   unavailableDays?: DayOfWeek[];
+  sportAvailability?: SportAvailability;
   preferredLongRideDay?: DayOfWeek;
   preferredLongRunDay?: DayOfWeek;
   twoADaysAllowed?: boolean;
@@ -124,25 +130,32 @@ export function enforceTriathlonScheduleConstraints({
   const nextWeeks = weeks.map((week) => {
     const dates = Object.keys(week.days ?? {}).sort();
     if (!dates.length) return week;
-    const availableDates = dates.filter((date) => !blockedNames.has(dayName(date).toLowerCase()) || date === raceDate);
+    const eventDates = new Set([raceDate, secondaryRaceDate].filter(Boolean));
+    const lastEvent = secondaryRaceDate && secondaryRaceDate > (raceDate ?? '') ? secondaryRaceDate : raceDate;
+    const availableDates = secondaryRaceDate
+      ? dates.filter(date => !blockedNames.has(dayName(date).toLowerCase()) && !eventDates.has(date) && (!lastEvent || date <= lastEvent))
+      : dates.filter(date => !blockedNames.has(dayName(date).toLowerCase()) || date === raceDate);
     const output: Record<string, StructuredSession[]> = Object.fromEntries(dates.map((date) => [date, []]));
     const groups = groupsForWeek(week);
 
     for (const group of groups) {
       if (containsRace(group)) {
-        const target = raceDate && output[raceDate] ? raceDate : group.originalDate;
+        const target = group.originalDate;
         output[target] = [...output[target], ...group.items];
         continue;
       }
 
-      const originalAllowed = availableDates.includes(group.originalDate) && sameDayAllowed(output[group.originalDate], group, twoADaysAllowed);
-      const preferred = preferredDateFor(group, availableDates, preferredLongRideDay, preferredLongRunDay);
+      const sportDates = availableDates.filter(date => group.items.every(item => sportAllowed(date, sportOf(item), sportAvailability)));
+      if (!sportDates.length && sportAvailability) throw new SchedulingConflict(`No available day for ${group.items.map(sportOf).join(" / ")}. Adjust your scheduling constraints.`);
+      const originalAllowed = sportDates.includes(group.originalDate) && sameDayAllowed(output[group.originalDate], group, twoADaysAllowed);
+      const preferred = preferredDateFor(group, sportDates, preferredLongRideDay, preferredLongRunDay);
       const preferredAllowed = preferred && sameDayAllowed(output[preferred], group, twoADaysAllowed) ? preferred : null;
-      const emptyCandidate = availableDates.find((date) => output[date].length === 0);
-      const pairCandidate = availableDates.find((date) => sameDayAllowed(output[date], group, twoADaysAllowed));
+      const emptyCandidate = sportDates.find((date) => output[date].length === 0);
+      const pairCandidate = sportDates.find((date) => sameDayAllowed(output[date], group, twoADaysAllowed));
       const target = preferredAllowed ?? (originalAllowed ? group.originalDate : null) ?? emptyCandidate ?? pairCandidate ?? null;
 
       if (!target) {
+        if (sportAvailability) throw new SchedulingConflict(`Cannot fit ${group.items.map(item => item.title).join(" / ")} within your availability. Allow two-a-days or add a training day.`);
         droppedSessions += group.items.length;
         continue;
       }

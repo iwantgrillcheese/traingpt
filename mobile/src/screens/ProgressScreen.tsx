@@ -1,3 +1,5 @@
+import { dateIsPaused, type TrainingPause } from '../utils/trainingPause';
+import { completionMatches, sessionIsComplete } from '../utils/sessionCompletion';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -97,9 +99,11 @@ export function ProgressScreen() {
     if (!user?.id) return;
     const [{ data: sessionRows }, { data: completedRows }] = await Promise.all([
       supabase.from('sessions').select('id,user_id,plan_id,date,sport,title,duration,details,structured_workout').eq('user_id', user.id).order('date', { ascending: true }).limit(700),
-      supabase.from('completed_sessions').select('id,user_id,date,session_title,status').eq('user_id', user.id),
+      supabase.from('completed_sessions').select('id,user_id,date,session_title,status,session_id,completed_at').eq('user_id', user.id),
     ]);
-    setSessions((sessionRows ?? []) as SessionRow[]);
+    const { data: pauses, error: pauseError } = await supabase.from('training_pauses').select('*').eq('user_id', user.id);
+    if (pauseError) { setLoading(false); return; }
+    setSessions(((sessionRows ?? []) as SessionRow[]).map(session => ({ ...session, training_paused: dateIsPaused(session.date, ((pauses ?? []) as TrainingPause[]).filter(pause => pause.plan_id === session.plan_id)) })));
     setCompleted((completedRows ?? []) as CompletedSessionRow[]);
     setLoading(false);
   }, [user?.id]);
@@ -119,19 +123,19 @@ export function ProgressScreen() {
   };
 
   const markDoneFor = async (session: SessionRow) => {
-    if (!user?.id || !session.title || isFutureSession(session.date)) return;
-    const existing = completed.filter((row) => row.date !== session.date || row.session_title !== session.title);
-    setCompleted([...existing, { user_id: user.id, date: session.date, session_title: String(session.title), status: 'done' }]);
-    await supabase.from('completed_sessions').delete().eq('user_id', user.id).eq('date', session.date).eq('session_title', session.title);
-    await supabase.from('completed_sessions').insert({ user_id: user.id, date: session.date, session_title: session.title, status: 'done' });
+    if (!user?.id || !session.title) return;
+    const existing = completed.filter((row) => !completionMatches(row, session));
+    setCompleted([...existing, { user_id: user.id, session_id: session.id, completed_at: new Date().toISOString(), date: session.date, session_title: String(session.title), status: 'done' }]);
+    const { error } = await supabase.rpc('set_session_completion', { p_session_id: session.id, p_status: 'done', p_undo: false });
+    if (error) { await load(); throw new Error(error.message); }
   };
 
   const skipSession = async (session: SessionRow) => {
-    if (!user?.id || !session.title || isFutureSession(session.date)) return;
-    const existing = completed.filter((row) => row.date !== session.date || row.session_title !== session.title);
-    setCompleted([...existing, { user_id: user.id, date: session.date, session_title: String(session.title), status: 'skipped' }]);
-    await supabase.from('completed_sessions').delete().eq('user_id', user.id).eq('date', session.date).eq('session_title', session.title);
-    await supabase.from('completed_sessions').insert({ user_id: user.id, date: session.date, session_title: session.title, status: 'skipped' });
+    if (!user?.id || !session.title) return;
+    const existing = completed.filter((row) => !completionMatches(row, session));
+    setCompleted([...existing, { user_id: user.id, session_id: session.id, completed_at: null, date: session.date, session_title: String(session.title), status: 'skipped' }]);
+    const { error } = await supabase.rpc('set_session_completion', { p_session_id: session.id, p_status: 'skipped', p_undo: false });
+    if (error) { await load(); }
   };
 
   const stats = useMemo(() => currentWeekStats(sessions, completed), [sessions, completed]);
@@ -139,8 +143,8 @@ export function ProgressScreen() {
   const readiness = useMemo(() => {
     const today = startOfToday();
     const doneKeys = new Set(completed.filter((row) => row.status === 'done').map((row) => sessionCompletionKey(row.date, row.session_title)));
-    const plannedToDate = sessions.filter((session) => new Date(`${session.date}T00:00:00`) <= today);
-    const doneToDate = plannedToDate.filter((session) => doneKeys.has(sessionCompletionKey(session.date, session.title)));
+    const plannedToDate = sessions.filter((session) => !session.training_paused && new Date(`${session.date}T00:00:00`) <= today);
+    const doneToDate = plannedToDate.filter((session) => sessionIsComplete(session, completed));
     const hasTrainingData = plannedToDate.length > 0 || sessions.length > 0;
     const planAdherence = plannedToDate.length ? Math.round((doneToDate.length / plannedToDate.length) * 100) : 0;
     const weeklyAdherence = stats.planned ? stats.adherence : planAdherence;
@@ -154,7 +158,7 @@ export function ProgressScreen() {
     let currentSessionStreak = 0;
     for (let i = plannedToDate.length - 1; i >= 0; i -= 1) {
       const session = plannedToDate[i];
-      if (doneKeys.has(sessionCompletionKey(session.date, session.title))) currentSessionStreak += 1;
+      if (sessionIsComplete(session, completed)) currentSessionStreak += 1;
       else break;
     }
 
@@ -168,7 +172,7 @@ export function ProgressScreen() {
         return sessionDate >= weekStart && sessionDate <= weekEnd && sessionDate <= today;
       });
       if (!weekSessions.length) break;
-      const weekDone = weekSessions.filter((session) => doneKeys.has(sessionCompletionKey(session.date, session.title))).length;
+      const weekDone = weekSessions.filter((session) => sessionIsComplete(session, completed)).length;
       if (Math.round((weekDone / weekSessions.length) * 100) >= 80) weeklyAdherenceStreak += 1;
       else break;
     }
@@ -177,7 +181,7 @@ export function ProgressScreen() {
     const score = hasTrainingData ? clamp(Math.round(pointsToDateScore * 0.34 + weeklyPointsScore * 0.42 + planAdherence * 0.12 + weeklyAdherence * 0.06 + streakBonus), 1, 99) : 0;
     const weeklyPercent = weeklyPoints.available ? clamp(Math.round((weeklyPoints.earned / weeklyPoints.available) * 100), 0, 100) : 0;
     const nextBest = weeklyPoints.sessions
-      .filter((session) => !doneKeys.has(sessionCompletionKey(session.date, session.title)))
+      .filter((session) => !sessionIsComplete(session, completed))
       .sort((a, b) => getSessionPoints(b) - getSessionPoints(a))[0] ?? null;
 
     return {
@@ -240,7 +244,7 @@ export function ProgressScreen() {
             <Text style={styles.linkText}>Tap a session</Text>
           </View>
           {readiness.weekSessions.length ? readiness.weekSessions.map((session, index) => {
-            const done = readiness.doneKeys.has(sessionCompletionKey(session.date, session.title));
+            const done = sessionIsComplete(session, completed);
             const points = getSessionPoints(session);
             return (
               <Pressable key={session.id} onPress={() => setSelectedSession(session)} style={({ pressed }) => [styles.sessionRow, index !== readiness.weekSessions.length - 1 && styles.sessionDivider, pressed && styles.pressed]}>
