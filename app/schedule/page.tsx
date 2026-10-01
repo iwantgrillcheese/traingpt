@@ -11,7 +11,7 @@ import PostPlanWalkthrough from '../plan/components/PostPlanWalkthrough';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { useStravaAutoSync } from '../hooks/useStravaAutoSync';
-import { track } from '@/lib/analytics/posthog-client';
+import { analyticsAllowed, track } from '@/lib/analytics/posthog-client';
 
 import type { Session, CompletedSession } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
@@ -346,6 +346,15 @@ export default function SchedulePage() {
     track('schedule_viewed', { view });
     scheduleViewTrackedRef.current = true;
   }, [loading, authedUserId]);
+
+  useEffect(() => {
+    // Count successfully loaded saved schedules, not loading/error/empty routes.
+    if (loading || loadError || !authedUserId || !raceHub?.planId || !analyticsAllowed()) return;
+    void fetch('/api/acquisition', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'schedule', analytics_consent: true }),
+    }).catch(() => {});
+  }, [loading, loadError, authedUserId, raceHub?.planId]);
 
   const handleCompletedUpdate = useCallback((updated: CompletedSession[]) => {
     setCompletedSessions(updated);

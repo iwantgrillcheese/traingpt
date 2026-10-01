@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
-import { initPostHog, track } from '@/lib/analytics/posthog-client';
+import { captureFirstTouch, initPostHog, track } from '@/lib/analytics/posthog-client';
 
 function once(key: string, event: string, properties: Record<string, unknown>) {
   try {
@@ -20,6 +20,7 @@ export default function FunnelTelemetry() {
 
   useEffect(() => {
     initPostHog();
+    captureFirstTouch();
     track('page_viewed', { path: pathname || '/' });
     if (pathname === '/') track('landing_viewed', { path: '/' });
     if (pathname === '/plan') track('onboarding_started', { path: '/plan' });

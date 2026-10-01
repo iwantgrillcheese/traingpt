@@ -4,7 +4,7 @@ import { createRouteSupabaseClient } from '@/lib/supabase/server';
 export const dynamic = 'force-dynamic';
 
 function resolveNextPath(raw: string | null) {
-  if (!raw || !raw.startsWith('/')) return '/plan';
+  if (!raw || !raw.startsWith('/') || raw.startsWith('//') || raw.includes('\\')) return '/plan';
   return raw;
 }
 

@@ -1,4 +1,5 @@
 'use client';
+import DiscoveryQuestion from './DiscoveryQuestion';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
@@ -357,6 +358,7 @@ export default function PlanReadyReviewOverlay() {
             </section>
           ) : null}
 
+          <DiscoveryQuestion />
           <div className="mt-4 grid gap-2 sm:grid-cols-3">
             <button type="button" onClick={close} className="min-h-12 rounded-2xl bg-zinc-950 px-4 text-sm font-semibold text-white">
               Go to schedule
