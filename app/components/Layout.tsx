@@ -207,7 +207,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     void fetch("/api/send-email/signup", { method: "POST" }).catch(() => {});
   }, []);
 
-  if (!isAppRoute(pathname)) return <div className="min-h-[100dvh] bg-white text-[#101114]">{children}</div>;
+  if (pathname === '/plan/print' || !isAppRoute(pathname)) return <div className="min-h-[100dvh] bg-white text-[#101114]">{children}</div>;
 
   const isSchedule = pathname === "/schedule" || pathname?.startsWith("/schedule/");
 

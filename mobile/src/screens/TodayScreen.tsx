@@ -1,3 +1,5 @@
+import { dateIsPaused, type TrainingPause } from '../utils/trainingPause';
+import { completionMatches, sessionIsComplete } from '../utils/sessionCompletion';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,7 +10,7 @@ import type { CompletedSessionRow, PlanRow, SessionRow, StravaActivityRow } from
 import { SessionCard } from '../components/SessionCard';
 import { SessionDetailSheet } from '../components/SessionDetailSheet';
 import { CoachUpdateCard } from '../components/CoachUpdateCard';
-import { cleanTitle, formatDay, formatMinutes, getNextSession, getTodaysSessions, normalizeSport } from '../utils/training';
+import { cleanTitle, formatDay, formatMinutes, getNextSession, getTodaysSessions, normalizeSport, getCompletionStatus } from '../utils/training';
 import { getActiveWeekReferenceDate, getSessionPoints, getWeeklyPointStats } from '../utils/sessionPoints';
 import { sessionHasSameDayStravaMatch } from '../utils/stravaMatching';
 
@@ -75,8 +77,8 @@ export function TodayScreen() {
     setError(null);
 
     const [{ data: sessionRows, error: sessionError }, { data: completedRows, error: completedError }, { data: stravaRows }, { data: planRows }] = await Promise.all([
-      supabase.from('sessions').select('id,user_id,plan_id,date,sport,title,duration,details,structured_workout').eq('user_id', user.id).order('date', { ascending: true }).limit(500),
-      supabase.from('completed_sessions').select('id,user_id,date,session_title,status').eq('user_id', user.id),
+      supabase.from('sessions').select('id,user_id,plan_id,date,sport,title,duration,details,structured_workout,strava_id').eq('user_id', user.id).order('date', { ascending: true }).limit(500),
+      supabase.from('completed_sessions').select('id,user_id,date,session_title,status,session_id,completed_at').eq('user_id', user.id),
       supabase.from('strava_activities').select('id,user_id,strava_id,name,sport_type,start_date,start_date_local,moving_time,distance').eq('user_id', user.id).order('start_date', { ascending: false }).limit(120),
       supabase.from('plans').select('id,user_id,race_type,race_date,plan').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1),
     ]);
@@ -85,7 +87,9 @@ export function TodayScreen() {
       setError(sessionError?.message ?? completedError?.message ?? 'Could not load training data.');
     }
 
-    setSessions((sessionRows ?? []) as SessionRow[]);
+    const { data: pauses, error: pauseError } = await supabase.from('training_pauses').select('*').eq('user_id', user.id);
+    if (pauseError) { setLoading(false); return; }
+    setSessions(((sessionRows ?? []) as SessionRow[]).map(session => ({ ...session, training_paused: dateIsPaused(session.date, ((pauses ?? []) as TrainingPause[]).filter(pause => pause.plan_id === session.plan_id)) })));
     setCompleted((completedRows ?? []) as CompletedSessionRow[]);
     setStravaActivities((stravaRows ?? []) as StravaActivityRow[]);
     setPlan(((planRows ?? []) as PlanRow[])[0] ?? null);
@@ -122,23 +126,25 @@ export function TodayScreen() {
   };
 
   const markDoneFor = async (session: SessionRow) => {
-    if (!user?.id || !session.title || isFutureSession(session.date)) return;
-    const existing = completed.filter((row) => row.date !== session.date || row.session_title !== session.title);
-    const next = [...existing, { user_id: user.id, date: session.date, session_title: String(session.title), status: 'done' }];
+    if (!user?.id || !session.title) return;
+    const undo = getCompletionStatus(session, completed) === 'done';
+    const existing = completed.filter((row) => !completionMatches(row, session));
+    const next = [...existing, { user_id: user.id, session_id: session.id, completed_at: undo ? null : new Date().toISOString(), date: session.date, session_title: String(session.title), status: undo ? 'planned' : 'done' }];
     setCompleted(next);
 
-    await supabase.from('completed_sessions').delete().eq('user_id', user.id).eq('date', session.date).eq('session_title', session.title);
-    await supabase.from('completed_sessions').insert({ user_id: user.id, date: session.date, session_title: session.title, status: 'done' });
+    const { data: completedAt, error } = await supabase.rpc('set_session_completion', { p_session_id: session.id, p_status: 'done', p_undo: undo });
+    if (error) { await load(); throw new Error(error.message); }
+    setCompleted(rows => rows.map(row => row.session_id === session.id ? { ...row, completed_at: completedAt } : row));
   };
 
   const skipSession = async (session: SessionRow) => {
-    if (!user?.id || !session.title || isFutureSession(session.date)) return;
-    const existing = completed.filter((row) => row.date !== session.date || row.session_title !== session.title);
-    const next = [...existing, { user_id: user.id, date: session.date, session_title: String(session.title), status: 'skipped' }];
+    if (!user?.id || !session.title) return;
+    const existing = completed.filter((row) => !completionMatches(row, session));
+    const next = [...existing, { user_id: user.id, session_id: session.id, completed_at: null, date: session.date, session_title: String(session.title), status: 'skipped' }];
     setCompleted(next);
 
-    await supabase.from('completed_sessions').delete().eq('user_id', user.id).eq('date', session.date).eq('session_title', session.title);
-    await supabase.from('completed_sessions').insert({ user_id: user.id, date: session.date, session_title: session.title, status: 'skipped' });
+    const { error } = await supabase.rpc('set_session_completion', { p_session_id: session.id, p_status: 'skipped', p_undo: false });
+    if (error) { await load(); }
   };
 
   if (loading) {

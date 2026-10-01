@@ -1,5 +1,7 @@
 import { validateConfirmedContext, resolveAthleteContext } from "@/utils/athleteContext";
 import { AthleteContextConflict, assertAthleteContextHonored } from "@/utils/scheduleAthleteContext";
+import { normalizeSecondaryEvent, integrateSecondaryEvent } from '@/utils/secondaryEvent';
+import { normalizeSportAvailability, SchedulingConflict } from '@/utils/sportAvailability';
 import { NextResponse } from "next/server";
 import {
   addWeeks,
@@ -287,8 +289,10 @@ function applyTriathlonGuards(weeks: WeekJson[], userParams: UserParams) {
   const scheduled = enforceTriathlonScheduleConstraints({
     weeks,
     raceDate: userParams.raceDate,
+    secondaryRaceDate: userParams.secondaryEvent?.raceDate,
     restDay: userParams.restDay,
     unavailableDays: userParams.unavailableDays,
+    sportAvailability: userParams.sportAvailability,
     preferredLongRideDay: userParams.preferredLongRideDay,
     preferredLongRunDay: userParams.preferredLongRunDay,
     twoADaysAllowed: userParams.twoADaysAllowed ?? false,
@@ -353,13 +357,21 @@ export async function POST(req: Request) {
       }
     }
 
+    const secondaryEvent = normalizeSecondaryEvent(body.secondaryEvent, { raceType, raceDate: String(raceDate), maxHours: weeklyHours });
+    if (secondaryEvent && secondaryEvent.raceDate < todayISO) return NextResponse.json({ ok: false, error: 'Secondary race date must be today or later.' }, { status: 400 });
+    const horizonDate = secondaryEvent && secondaryEvent.raceDate > raceDate ? secondaryEvent.raceDate : String(raceDate);
     const startDate = startOfWeek(new Date(), { weekStartsOn: 1 });
-    const totalWeeks = Math.max(1, differenceInCalendarWeeks(raceDateParsed, startDate, { weekStartsOn: 1 }) + 1);
+    const totalWeeks = Math.max(1, differenceInCalendarWeeks(parseISO(horizonDate), startDate, { weekStartsOn: 1 }) + 1);
     if (totalWeeks > MAX_PLAN_WEEKS) {
       return NextResponse.json({ ok: false, error: `That race is more than ${MAX_PLAN_WEEKS} weeks away. Build the race-specific plan when you are closer.` }, { status: 400 });
     }
     const startDateISO = formatISO(startDate, { representation: "date" });
-    const weekMeta = buildPlanMeta(totalWeeks, startDateISO);
+    const primaryWeeks = Math.max(1, differenceInCalendarWeeks(raceDateParsed, startDate, { weekStartsOn: 1 }) + 1);
+    const primaryMeta = buildPlanMeta(primaryWeeks, startDateISO);
+    const weekMeta: WeekMeta[] = totalWeeks === primaryWeeks ? primaryMeta : Array.from({ length: totalWeeks }, (_, index) => primaryMeta[index] ?? {
+      label: 'Week ' + (index + 1), startDate: safeDateISO(addWeeks(startDate, index)),
+      phase: index < primaryWeeks + 2 ? 'Recovery' : 'Build', deload: index < primaryWeeks + 2 || (index + 1) % 4 === 0,
+    });
 
     const stravaSinceISO = new Date(Date.now() - 365 * 86_400_000).toISOString();
     const { data: stravaRowsRaw, error: stravaRowsError } = await supabase
@@ -425,6 +437,8 @@ export async function POST(req: Request) {
       preferredLongRunDay: (normalizedPlanType === "running" && blockedDays.has(preferredLongRunDayResolved)
         ? undefined : preferredLongRunDayResolved) as DayOfWeek | undefined,
       unavailableDays: unavailableDaysResolved as DayOfWeek[],
+      sportAvailability: normalizeSportAvailability(body.sportAvailability),
+      secondaryEvent,
       swimComfort: swimComfortResolved,
       twoADaysAllowed: twoADaysAllowedResolved,
       athleteNotes: athleteNotesResolved,
@@ -439,7 +453,7 @@ export async function POST(req: Request) {
 
     if (normalizedPlanType === "triathlon") {
       const { buildTriathlonWeekScaffold } = await import("@/utils/buildTriathlonScaffold");
-      const scaffoldWeeks = weekMeta.map((meta, index) => buildTriathlonWeekScaffold({ userParams, weekMeta: meta, index, totalWeeks }));
+      const scaffoldWeeks = weekMeta.map((meta, index) => buildTriathlonWeekScaffold({ userParams, weekMeta: meta, index, totalWeeks: primaryWeeks }));
       if (scaffoldWeeks.every((week): week is WeekJson => !!week)) {
         generatedWeeksRaw = scaffoldWeeks;
         scaffoldFirst = true;
@@ -447,10 +461,12 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: false, error: "Choose a supported triathlon race type." }, { status: 400 });
       }
     } else {
-      generatedWeeksRaw = buildRunningPlanScaffold({ userParams, weekMeta });
+      generatedWeeksRaw = buildRunningPlanScaffold({ userParams: secondaryEvent && horizonDate > userParams.raceDate ? { ...userParams, raceDate: horizonDate } : userParams, weekMeta });
+      if (secondaryEvent && horizonDate > userParams.raceDate) { const primaryWeek = generatedWeeksRaw.find(week => Object.keys(week.days).includes(userParams.raceDate)); if (primaryWeek) primaryWeek.days[userParams.raceDate] = [{ sport: "other", title: "Race Day", type: "race_day", priority: "anchor", details: `Primary event: ${userParams.raceType}.` }]; }
       scaffoldFirst = true;
     }
 
+    generatedWeeksRaw = integrateSecondaryEvent(generatedWeeksRaw, userParams);
     let generatedWeeks = generatedWeeksRaw.map((week, index) => normalizeGeneratedWeek(week, weekMeta[index]));
     let adjustedWeeks = 0;
     let movedSessions = 0;

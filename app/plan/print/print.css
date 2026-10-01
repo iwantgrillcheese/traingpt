@@ -1,0 +1,19 @@
+.brick-print th, .brick-print td { padding: 10px 8px; border-bottom: 1px solid #d1d5db; }
+.brick-print th:first-child { width: 20%; }
+.brick-print th:last-child { width: 12%; }
+.brick-print table { table-layout: fixed; }
+.brick-print td, .brick-print th { overflow-wrap: anywhere; }
+@page { size: auto; margin: 15mm; }
+@media print {
+  html, body { background: white !important; color: black !important; }
+  .print-actions { display: none !important; }
+  .brick-print { max-width: none !important; padding: 0 !important; font-size: 10pt; }
+  .brick-print h1 { font-size: 24pt; }
+  .brick-print h2 { break-after: avoid; font-size: 14pt; }
+  .print-week + .print-week { break-before: page; }
+  .brick-print thead { display: table-header-group; }
+  .brick-print tr { break-inside: avoid; }
+  .brick-print p { orphans: 3; widows: 3; }
+  body:has(.brick-print) > :not(:has(.brick-print)):not(.brick-print) { display: none !important; }
+  .brick-print a { color: black; text-decoration: none; }
+}

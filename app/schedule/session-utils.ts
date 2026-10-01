@@ -1,3 +1,4 @@
+import { findCompletion, completionMatches } from "@/utils/sessionCompletion";
 import { format, isSameDay, isAfter, startOfDay } from 'date-fns';
 
 type SessionLike = {
@@ -9,9 +10,11 @@ type SessionLike = {
 };
 
 type CompletionLike = {
+  session_id?: string | null;
+  completed_at?: string | null;
   date: string;
   session_title: string;
-  status?: 'done' | 'skipped';
+  status?: 'done' | 'skipped' | 'planned';
 };
 
 function safeDate(value?: string | null) {
@@ -80,10 +83,8 @@ export function getCompletionStatus(
 ): 'done' | 'skipped' | 'planned' {
   if (session.stravaActivity) return 'done';
 
-  const match = completed.find(
-    (c) => c.date === session.date && c.session_title === String(session.title ?? '')
-  );
+  const match = findCompletion(completed, session);
 
-  if (!match) return 'planned';
+  if (!match || match.status === 'planned') return 'planned';
   return match.status === 'skipped' ? 'skipped' : 'done';
 }

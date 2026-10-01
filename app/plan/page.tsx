@@ -5,6 +5,8 @@ import { AthleteContextReview } from "@/components/AthleteContextReview";
 import type { ConfirmedAthleteContext, InterpretedAthleteContext } from "@/types/athleteContext";
 import { validateAthleteContext, contextAnalytics } from "@/utils/athleteContext";
 import { assertContextFeasible } from "@/utils/scheduleAthleteContext";
+import type { SportAvailability, SecondaryEvent } from "@/types/plan";
+import { normalizeSportAvailability } from "@/utils/sportAvailability";
 
 import React, {
   Suspense,
@@ -47,6 +49,8 @@ type FormState = {
   preferredLongRideDay: DayName | "";
   preferredLongRunDay: DayName | "";
   unavailableDays: DayName[];
+  sportAvailability?: SportAvailability;
+  secondaryEvent?: SecondaryEvent;
   swimComfort: string;
   twoADaysAllowed: boolean;
   athleteNotes: string;
@@ -71,6 +75,8 @@ type LatestPlanParams = Partial<{
   preferredLongRideDay: DayName;
   preferredLongRunDay: DayName;
   unavailableDays: DayName[];
+  sportAvailability?: SportAvailability;
+  secondaryEvent?: SecondaryEvent;
   swimComfort: string;
   twoADaysAllowed: boolean;
   athleteNotes: string;
@@ -559,6 +565,8 @@ function PlanPageContent() {
             params.preferredLongRideDay ?? prev.preferredLongRideDay,
           preferredLongRunDay:
             params.preferredLongRunDay ?? prev.preferredLongRunDay,
+          sportAvailability: params.sportAvailability,
+          secondaryEvent: params.secondaryEvent,
           unavailableDays: Array.isArray(params.unavailableDays)
             ? params.unavailableDays
             : prev.unavailableDays,
@@ -681,7 +689,11 @@ function PlanPageContent() {
     const context = validateAthleteContext(proposal);
     setProposal(context);
     const athleteContext: ConfirmedAthleteContext = { version: 1, sourceNotes: form.athleteNotes.trim(), confirmedAt: new Date().toISOString(), context };
-    setForm(prev => ({ ...prev, athleteContext }));
+    setForm(prev => ({ ...prev, athleteContext,
+      secondaryEvent: prev.secondaryEvent ?? (context.secondaryEvent ? {
+        raceType: context.secondaryEvent.raceType, raceDate: context.secondaryEvent.raceDate ?? '',
+      } : undefined),
+    }));
     track("athlete_context_confirmed", { ...contextAnalytics(context), edited: interpretationEdited });
     setError("");
   };
@@ -765,6 +777,8 @@ function PlanPageContent() {
           preferredLongRideDay: form.preferredLongRideDay || undefined,
           preferredLongRunDay: form.preferredLongRunDay || undefined,
           unavailableDays: form.unavailableDays,
+          sportAvailability: form.sportAvailability,
+          secondaryEvent: form.secondaryEvent,
           swimComfort: form.swimComfort || undefined,
           twoADaysAllowed: form.twoADaysAllowed,
           athleteNotes: form.athleteNotes.trim() || undefined,
@@ -798,6 +812,8 @@ function PlanPageContent() {
         throw new Error(backendMessage);
       }
 
+      if (form.secondaryEvent) track("secondary_goal_added", { race_type: form.secondaryEvent.raceType, race_date: form.secondaryEvent.raceDate });
+      if (form.sportAvailability) track("sport_availability_saved", { sports: Object.keys(form.sportAvailability) });
       track("plan_generation_completed", {
         race_type: form.raceType,
         race_date: form.raceDate,
@@ -846,6 +862,8 @@ function PlanPageContent() {
   };
 
   const reviewRows = [
+    ...(form.secondaryEvent ? [["Secondary event", `${form.secondaryEvent.raceType} · ${form.secondaryEvent.raceDate}`]] : []),
+    ...(form.sportAvailability ? [["Sport availability", Object.entries(form.sportAvailability).map(([sport, days]) => `${sport}: ${days.join(", ")}`).join("; ")]] : []),
     [
       "Strava",
       stravaConnected

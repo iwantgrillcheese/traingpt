@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import CoachingPointsDashboard from '../components/CoachingPointsDashboard';
 import type { Session as TrainSession } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
+import { dateIsPaused, type TrainingPause } from '@/utils/trainingPause';
 import { getWeeklySummary, type WeeklySummary } from '@/utils/getWeeklySummary';
 import { getWeeklyVolume } from '@/utils/getWeeklyVolume';
 import { supabase } from '@/lib/supabase/client';
@@ -76,6 +77,7 @@ export default function CoachingClient() {
   const [stravaActivities, setStravaActivities] = useState<StravaActivity[]>([]);
   const [stravaConnected, setStravaConnected] = useState(false);
   const [raceDate, setRaceDate] = useState<string | null>(null);
+  const [pauses, setPauses] = useState<TrainingPause[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -130,6 +132,9 @@ export default function CoachingClient() {
         if (stravaRes.error) throw stravaRes.error;
         if (cancelled || runId !== loadRunRef.current) return;
 
+        const { data: pauseRows, error: pauseError } = await supabase.from('training_pauses').select('*').eq('user_id', user.id);
+        if (pauseError) throw pauseError;
+        setPauses((pauseRows ?? []) as TrainingPause[]);
         setSessions((sessionsRes.data ?? []) as TrainSession[]);
         setCompletedSessions(normalizeCompletedRows((completedRes.data ?? []) as CompletedSessionRow[]));
         setStravaActivities((stravaRes.data ?? []) as StravaActivity[]);
@@ -149,8 +154,8 @@ export default function CoachingClient() {
 
   const weeklySummary: WeeklySummary | null = useMemo(() => {
     if (!user?.id) return null;
-    return getWeeklySummary(sessions, completedSessions as any, stravaActivities);
-  }, [user?.id, sessions, completedSessions, stravaActivities]);
+    return getWeeklySummary(sessions, completedSessions as any, stravaActivities, pauses);
+  }, [user?.id, sessions, completedSessions, stravaActivities, pauses]);
 
   const weeklyVolume: number[] = useMemo(() => {
     if (!user?.id) return [];
@@ -173,7 +178,7 @@ export default function CoachingClient() {
       ) : null}
       <CoachingPointsDashboard
         userId={user.id}
-        sessions={sessions}
+        sessions={sessions.filter(session => !dateIsPaused(session.date, pauses))}
         completedSessions={completedSessions as any}
         stravaActivities={stravaActivities}
         weeklyVolume={weeklyVolume}

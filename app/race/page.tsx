@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { differenceInCalendarDays, format, parseISO } from 'date-fns';
 import { supabase } from '@/lib/supabase/client';
 import type { Session } from '@/types/session';
+import type { TrainingPause } from '@/utils/trainingPause';
 import { calculateReadiness } from '@/lib/readiness';
 
 type CompletedRow = {
@@ -96,6 +97,7 @@ function countdownLabel(raceDate?: string | null) {
 }
 
 export default function RacePage() {
+  const [pauses, setPauses] = useState<TrainingPause[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -142,6 +144,9 @@ export default function RacePage() {
 
         if (cancelled) return;
 
+        const { data: pauseRows, error: pauseError } = await supabase.from('training_pauses').select('*').eq('user_id', user.id);
+        if (pauseError) throw pauseError;
+        setPauses((pauseRows ?? []) as TrainingPause[]);
         setSessions((sessionsRes.data ?? []) as Session[]);
         setCompletedRows((completedRes.data ?? []) as CompletedRow[]);
 
@@ -176,10 +181,11 @@ export default function RacePage() {
     () =>
       calculateReadiness({
         sessions,
+        pauses,
         completedSessions: completedRows,
         raceDate,
       }),
-    [sessions, completedRows, raceDate]
+    [sessions, completedRows, raceDate, pauses]
   );
 
   const raceDateLabel = useMemo(() => {

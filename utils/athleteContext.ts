@@ -71,6 +71,7 @@ export function resolveAthleteContext(params: UserParams): UserParams {
   const c = params.athleteContext?.context;
   if (!c) return params;
   return { ...params, restDay: c.restDay ?? params.restDay,
+    sportAvailability: { ...params.sportAvailability, ...c.sportAvailability },
     unavailableDays: [...new Set([...(params.unavailableDays ?? []), ...(c.unavailableDays ?? [])])],
     preferredLongRunDay: c.preferredLongRunDay ?? params.preferredLongRunDay,
     preferredLongRideDay: c.preferredLongRideDay ?? params.preferredLongRideDay,
@@ -103,7 +104,7 @@ export function contextSummary(c: InterpretedAthleteContext): string[] {
   if (c.preferredLongRunDay) lines.push(`Long run ${c.preferredLongRunDay}`);
   if (c.preferredLongRideDay) lines.push(`Long ride ${c.preferredLongRideDay}`);
   if (c.twoADaysAllowed !== undefined) lines.push(c.twoADaysAllowed ? 'Two-a-days allowed' : 'Prefer one session per day');
-  if (c.secondaryEvent) lines.push(`Secondary goal: ${c.secondaryEvent.raceType}${c.secondaryEvent.raceDate ? ` on ${c.secondaryEvent.raceDate}` : ' — date needed'}. Saved as context; secondary-event periodization is not available yet.`);
+  if (c.secondaryEvent) lines.push(`Secondary goal: ${c.secondaryEvent.raceType}${c.secondaryEvent.raceDate ? ` on ${c.secondaryEvent.raceDate}` : ' — date needed'}. Confirm its date and priority in the event settings to include it in your integrated plan.`);
   lines.push(...(c.preferences ?? []).map(p => p.text), ...(c.unsupportedRequests ?? []).map(p => `Context only: ${p}`));
   return lines;
 }

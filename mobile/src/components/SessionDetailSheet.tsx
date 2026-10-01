@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Easing, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, Vibration, View } from 'react-native';
 import type { CompletedSessionRow, SessionRow } from '../types';
 import { apiFetch } from '../lib/api';
+import { completedEarly, findCompletion } from '../utils/sessionCompletion';
 import {
   cleanTitle,
   formatDay,
@@ -116,14 +117,10 @@ export function SessionDetailSheet({ session, completed, open, onClose, onMarkDo
   };
 
   const handleMarkDone = async () => {
-    if (futureLocked) {
-      setError('You can preview future workouts, but you can only bank points once the workout day arrives.');
-      return;
-    }
-    if (isDone || markingDone) return;
+    if (markingDone || session.strava_id) return;
     setMarkingDone(true);
-    setBanked(true);
-    playCompletionAnimation();
+    setBanked(!isDone);
+    if (!isDone) playCompletionAnimation();
     try {
       await onMarkDone(session);
     } catch (err) {
@@ -214,10 +211,10 @@ export function SessionDetailSheet({ session, completed, open, onClose, onMarkDo
                 <Text style={styles.sectionLabel}>Training value</Text>
                 <Text style={styles.pointsTitle}>{isDone ? 'Banked' : `${points} points`}</Text>
               </View>
-              <Text style={[styles.priorityBadge, priority === 'key' && styles.keyBadge]}>{isDone ? 'Completed' : priorityLabel(priority)}</Text>
+              <Text style={[styles.priorityBadge, priority === 'key' && styles.keyBadge]}>{isDone ? completedEarly(session, findCompletion(completed, session)) ? 'Completed early' : 'Completed' : priorityLabel(priority)}</Text>
             </View>
 
-            {futureLocked ? <Text style={styles.lockedCopy}>You can view this workout now, but completion unlocks on the scheduled day.</Text> : null}
+            {futureLocked ? <Text style={styles.lockedCopy}>Completed it early? Mark it done now; your planned date stays unchanged.</Text> : null}
 
             <View style={styles.overviewCard}>
               <Text style={styles.sectionLabel}>Why this matters</Text>
@@ -249,11 +246,11 @@ export function SessionDetailSheet({ session, completed, open, onClose, onMarkDo
 
             <View style={styles.actions}>
               <Animated.View style={[styles.animatedAction, { transform: [{ scale: buttonScale }] }]}> 
-                <Pressable onPress={handleMarkDone} disabled={isDone || markingDone || futureLocked} style={[styles.primaryButton, isDone && styles.doneButton, futureLocked && styles.lockedButton]}>
-                  <Text style={styles.primaryText}>{futureLocked ? 'Locked until workout day' : isDone ? '✓ Done' : markingDone ? 'Banking...' : `Mark done · +${points} pts`}</Text>
+                <Pressable onPress={handleMarkDone} disabled={Boolean(session.strava_id) || markingDone} style={[styles.primaryButton, isDone && styles.doneButton]}>
+                  <Text style={styles.primaryText}>{markingDone ? 'Saving...' : session.strava_id ? '✓ Synced' : isDone ? 'Undo done' : `Mark done · +${points} pts`}</Text>
                 </Pressable>
               </Animated.View>
-              <Pressable onPress={() => onSkip?.(session)} disabled={isDone || futureLocked} style={[styles.secondaryButton, (isDone || futureLocked) && styles.disabledButton]}>
+              <Pressable onPress={() => onSkip?.(session)} disabled={isDone} style={[styles.secondaryButton, isDone && styles.disabledButton]}>
                 <Text style={styles.secondaryText}>{status === 'skipped' ? 'Skipped' : 'Skip'}</Text>
               </Pressable>
             </View>

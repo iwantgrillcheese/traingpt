@@ -1,3 +1,4 @@
+import { findCompletion } from './sessionCompletion';
 import type { CompletedSessionRow, SessionRow } from '../types';
 
 export function parseDate(value?: string | null) {
@@ -42,8 +43,8 @@ export function isSameLocalDay(a: Date, b: Date) {
 }
 
 export function getCompletionStatus(session: SessionRow, completed: CompletedSessionRow[]) {
-  const match = completed.find((row) => row.date === session.date && row.session_title === session.title);
-  if (!match) return null;
+  const match = findCompletion(completed, session);
+  if (!match || match.status === 'planned') return null;
   return match.status === 'skipped' ? 'skipped' : 'done';
 }
 
@@ -76,7 +77,7 @@ export function currentWeekStats(sessions: SessionRow[], completed: CompletedSes
 
   const weekSessions = sessions.filter((session) => {
     const date = parseDate(session.date);
-    return date >= start && date <= end;
+    return !session.training_paused && date >= start && date <= end;
   });
 
   const done = weekSessions.filter((session) => getCompletionStatus(session, completed) === 'done').length;

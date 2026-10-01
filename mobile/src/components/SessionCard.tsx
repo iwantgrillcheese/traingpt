@@ -38,7 +38,7 @@ export function SessionCard({ session, completed = [], stravaActivities = [], on
     <Pressable onPress={onPress} style={({ pressed }) => [styles.card, featured && styles.featuredCard, viaStrava && styles.stravaCard, pressed && styles.pressed]}>
       <View style={styles.headerRow}>
         <Text style={styles.meta} numberOfLines={1}>{formatDay(session.date)}{duration ? ` · ${duration}` : ''} · {sport}</Text>
-        <Text style={[styles.status, isCompleted ? styles.done : styles.planned, viaStrava && styles.stravaDone]}>{statusLabel(status, viaStrava)}</Text>
+        <Text style={[styles.status, isCompleted ? styles.done : styles.planned, viaStrava && styles.stravaDone]}>{session.training_paused && !isCompleted ? 'Paused' : statusLabel(status, viaStrava)}</Text>
       </View>
 
       <Text style={styles.title} numberOfLines={2} ellipsizeMode="tail">{cleanTitle(session.title)}</Text>

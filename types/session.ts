@@ -24,7 +24,9 @@ export type Session = {
 };
 
 export type CompletedSession = {
+  session_id?: string | null;
+  completed_at?: string | null;
   date: string;
   session_title: string;
-  status?: 'done' | 'skipped';
+  status?: 'done' | 'skipped' | 'planned';
 };

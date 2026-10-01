@@ -2,6 +2,7 @@ import type { Session } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 import estimateDurationFromTitle from '@/utils/estimateDurationFromTitle';
 import { normalizeStravaActivities } from '@/utils/normalizeStravaActivities';
+import { findCompletion, type CompletionRecord } from '@/utils/sessionCompletion';
 
 export type MergedSession = Omit<Session, 'duration'> & {
   stravaActivity?: StravaActivity;
@@ -79,7 +80,8 @@ function bucketKey(date: string, sport: NormalizedSport) {
 export default function mergeSessionsWithStrava(
   sessions: Session[],
   strava: StravaActivity[],
-  userTimezone: string = 'America/Los_Angeles'
+  userTimezone: string = 'America/Los_Angeles',
+  completions: CompletionRecord[] = [],
 ): MergedResult {
   const matchedIds = new Set<string>();
 
@@ -102,15 +104,24 @@ export default function mergeSessionsWithStrava(
     {}
   );
 
-  const merged: MergedSession[] = sessions.map((session) => {
-    const sessionDate = session.date;
+  // Reserve activities for explicitly completed sessions first. Manual and
+  // Strava completion describe the same planned workout, even on another day.
+  const ordered = [...sessions].sort((a, b) => Number(!!findCompletion(completions, b)?.completed_at) - Number(!!findCompletion(completions, a)?.completed_at));
+  const mergedById = new Map<string, MergedSession>();
+  const merge = (session: Session): MergedSession => {
+    const completion = findCompletion(completions, session);
+    const actual = completion?.status === 'done' && completion.completed_at ? new Date(completion.completed_at) : null;
+    const actualDate = actual && Number.isFinite(actual.getTime()) ? new Intl.DateTimeFormat('en-CA', {
+      timeZone: userTimezone, year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(actual) : null;
+    const sessionDate = actualDate ?? session.date;
     const sessionSport = normalizeSessionSport(session.sport);
 
     if (!sessionDate || !sessionSport) {
       return { ...session };
     }
 
-    const estimatedDuration = estimateDurationFromTitle(session.title);
+    const estimatedDuration = session.duration ?? estimateDurationFromTitle(session.title);
     const candidates = activitiesByDateAndSport[bucketKey(sessionDate, sessionSport)] ?? [];
 
     const bestMatch =
@@ -137,7 +148,9 @@ export default function mergeSessionsWithStrava(
       completedDurationMinutes: durationMinutes ?? null,
       distance_km: Number.isFinite(distanceMeters) && distanceMeters > 0 ? distanceMeters / 1000 : undefined,
     };
-  });
+  };
+  for (const session of ordered) mergedById.set(session.id, merge(session));
+  const merged = sessions.map(session => mergedById.get(session.id)!);
 
   const unmatched = normalizedActivities.filter((activity) => !matchedIds.has(stravaKey(activity)));
 

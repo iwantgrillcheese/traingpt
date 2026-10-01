@@ -1,11 +1,16 @@
+import { sessionIsComplete } from '@/utils/sessionCompletion';
+import { dateIsPaused, type TrainingPause } from '@/utils/trainingPause';
 import { differenceInCalendarDays, parseISO, startOfDay, subDays } from 'date-fns';
 
 type SessionLike = {
+  id?: string | null;
   date?: string | null;
   title?: string | null;
 };
 
 type CompletedLike = {
+  session_id?: string | null;
+  status?: string | null;
   date?: string | null;
   session_date?: string | null;
   session_title?: string | null;
@@ -60,29 +65,22 @@ export function calculateReadiness(params: {
   completedSessions: CompletedLike[];
   raceDate?: string | null;
   now?: Date;
+  pauses?: TrainingPause[];
 }): ReadinessResult {
   const now = startOfDay(params.now ?? new Date());
 
   const planned = (params.sessions ?? [])
-    .map((s) => ({ date: safeDate(s.date), title: s.title ?? null }))
-    .filter((s): s is { date: Date; title: string | null } => Boolean(s.date))
+    .filter(s => !s.date || !dateIsPaused(s.date, params.pauses ?? []))
+    .map((s) => ({ id: s.id, plannedDate: s.date, date: safeDate(s.date), title: s.title ?? null }))
+    .filter((s): s is { id: string | null | undefined; plannedDate: string | null | undefined; date: Date; title: string | null } => Boolean(s.date))
     .sort((a, b) => a.date.getTime() - b.date.getTime());
 
   const planStart = planned[0]?.date ?? subDays(now, 28);
   const plannedToDate = planned.filter((s) => s.date >= planStart && s.date <= now);
 
-  const completedSet = new Set(
-    (params.completedSessions ?? [])
-      .map((c) => {
-        const d = safeDate(c.session_date ?? c.date ?? null);
-        if (!d) return null;
-        const t = c.session_title ?? c.title ?? null;
-        return keyDateTitle(d, t);
-      })
-      .filter((k): k is string => Boolean(k))
-  );
+  const isDone = (s: typeof planned[number]) => sessionIsComplete({ id: s.id, date: s.plannedDate, title: s.title }, params.completedSessions);
 
-  const completedToDate = plannedToDate.filter((s) => completedSet.has(keyDateTitle(s.date, s.title))).length;
+  const completedToDate = plannedToDate.filter((s) => isDone(s)).length;
   const compliance = plannedToDate.length > 0 ? clamp01(completedToDate / plannedToDate.length) : 0.55;
 
   const weekRatios: number[] = [];
@@ -91,7 +89,7 @@ export function calculateReadiness(params: {
     const wStart = subDays(wEnd, 6);
     const plannedWeek = plannedToDate.filter((s) => s.date >= wStart && s.date <= wEnd);
     if (!plannedWeek.length) continue;
-    const completedWeek = plannedWeek.filter((s) => completedSet.has(keyDateTitle(s.date, s.title))).length;
+    const completedWeek = plannedWeek.filter((s) => isDone(s)).length;
     weekRatios.push(clamp01(completedWeek / plannedWeek.length));
   }
   const trendWeights = [0.4, 0.3, 0.2, 0.1];
@@ -104,7 +102,7 @@ export function calculateReadiness(params: {
 
   const last7Start = subDays(now, 6);
   const plannedLast7 = plannedToDate.filter((s) => s.date >= last7Start && s.date <= now);
-  const completedLast7 = plannedLast7.filter((s) => completedSet.has(keyDateTitle(s.date, s.title))).length;
+  const completedLast7 = plannedLast7.filter((s) => isDone(s)).length;
   const recency = plannedLast7.length > 0 ? clamp01(completedLast7 / plannedLast7.length) : compliance;
 
   const race = safeDate(params.raceDate ?? null);

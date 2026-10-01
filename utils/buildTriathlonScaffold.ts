@@ -1,6 +1,8 @@
+import { SchedulingConflict, sportAllowed } from './sportAvailability.ts';
+import { allocateTriathlonWeek } from './triathlonWeekBudget.ts';
 import { addDays, formatISO, isValid, parseISO } from 'date-fns';
 import { resolveAthleteContext } from './athleteContext.ts';
-import { scheduleAthleteContext } from './scheduleAthleteContext.ts';
+import { scheduleAthleteContext, assertContextFeasible } from './scheduleAthleteContext.ts';
 import type { UserParams, WeekJson, WeekMeta } from '@/types/plan';
 
 type ScaffoldSport = 'swim' | 'bike' | 'run' | 'strength' | 'other';
@@ -622,6 +624,7 @@ export function buildTriathlonWeekScaffold({
   if (!isTriathlonRace(userParams.raceType)) return null;
 
   userParams = resolveAthleteContext(userParams);
+  assertContextFeasible(userParams);
   const weekDates = canonicalWeekDates(weekMeta.startDate);
   const days: Record<string, ScaffoldSession[]> = Object.fromEntries(weekDates.map((date) => [date, []]));
 
@@ -634,21 +637,30 @@ export function buildTriathlonWeekScaffold({
     .filter((value): value is number => value !== null);
   const blocked = new Set<number>([restDay, ...unavailableDays]);
 
+  const chooseDay = (sport: string, preferred: number, taken: Set<number>, allowUsed = false, pairedSport?: string): number => {
+    if (!userParams.sportAvailability) return findAvailableDay(preferred, blocked, taken, allowUsed);
+    const candidates = [preferred, ...[2, 3, 4, 5, 1, 6, 0].filter(day => day !== preferred)]
+      .filter(day => !blocked.has(day) && sportAllowed(dateForJsDay(weekMeta.startDate, day)!, sport, userParams.sportAvailability)
+        && (!pairedSport || sportAllowed(dateForJsDay(weekMeta.startDate, day)!, pairedSport, userParams.sportAvailability)));
+    const day = candidates.find(day => allowUsed || !taken.has(day)) ?? candidates[0];
+    if (day === undefined) throw new SchedulingConflict('No available day for ' + sport + (pairedSport ? ' / ' + pairedSport : '') + '. Adjust sport availability, unavailable days, or rest day.');
+    return day;
+  };
   const used = new Set<number>();
   const phase = phaseIntensity(weekMeta.phase, weekMeta.deload);
   const family = raceFamily(userParams.raceType);
   const isRaceWeek = Boolean(userParams.raceDate && weekDates.includes(userParams.raceDate));
 
   if (isRaceWeek) {
-    const easySwimDay = findAvailableDay(2, blocked, used);
+    const easySwimDay = chooseDay('swim', 2, used);
     addSession(days, weekMeta.startDate, easySwimDay, makeSession('swim_race_prep', 'swim', 'Swim Easy', getSwimDetails('Race Prep', userParams), userParams, weekMeta, index, totalWeeks, 'support'));
     used.add(easySwimDay);
 
-    const easyBikeDay = findAvailableDay(3, blocked, used);
+    const easyBikeDay = chooseDay('bike', 3, used);
     addSession(days, weekMeta.startDate, easyBikeDay, makeSession('bike_opener', 'bike', 'Bike Easy', `Short aerobic spin with a few light cadence pickups. Keep the legs fresh and avoid fatigue. ${bikeCue(userParams, 0.55, 0.68, 'Stay very comfortable.')}`, userParams, weekMeta, index, totalWeeks, 'support'));
     used.add(easyBikeDay);
 
-    const easyRunDay = findAvailableDay(4, blocked, used);
+    const easyRunDay = chooseDay('run', 4, used);
     addSession(days, weekMeta.startDate, easyRunDay, makeSession('run_opener', 'run', 'Run Easy', getRunQualityDetails(userParams, weekMeta), userParams, weekMeta, index, totalWeeks, 'support'));
     used.add(easyRunDay);
 
@@ -660,45 +672,45 @@ export function buildTriathlonWeekScaffold({
     return scheduleAthleteContext({ label: weekMeta.label, phase: weekMeta.phase, startDate: weekMeta.startDate, deload: weekMeta.deload, days } as WeekJson, userParams);
   }
 
-  const safeLongRideDay = findAvailableDay(longRideDay, blocked, used, true);
+  const safeLongRideDay = chooseDay('bike', longRideDay, used, true, 'run');
   addSession(days, weekMeta.startDate, safeLongRideDay, makeSession('long_ride', 'bike', 'Long Ride', getLongRideDetails(userParams, weekMeta), userParams, weekMeta, index, totalWeeks, 'anchor'));
   used.add(safeLongRideDay);
 
   // Brick is modeled as the long ride plus a short same-day run. Never add a separate Brick Bike.
   addSession(days, weekMeta.startDate, safeLongRideDay, makeSession('brick_run', 'run', 'Brick Run', getBrickRunDetails(userParams, weekMeta), userParams, weekMeta, index, totalWeeks, 'key'));
 
-  const safeLongRunDay = findAvailableDay(longRunDay, blocked, used, true);
+  const safeLongRunDay = chooseDay('run', longRunDay, used, true);
   addSession(days, weekMeta.startDate, safeLongRunDay, makeSession(isRecoveryOrTaper(phase) ? 'run_easy' : 'long_run', 'run', isRecoveryOrTaper(phase) ? 'Run Easy' : 'Long Run', getLongRunDetails(userParams, weekMeta), userParams, weekMeta, index, totalWeeks, 'anchor'));
   used.add(safeLongRunDay);
 
-  const swimTechniqueDay = findAvailableDay(2, blocked, used);
+  const swimTechniqueDay = chooseDay('swim', 2, used);
   addSession(days, weekMeta.startDate, swimTechniqueDay, makeSession('swim_technique', 'swim', 'Swim Technique', getSwimDetails('Technique', userParams), userParams, weekMeta, index, totalWeeks, 'support'));
   used.add(swimTechniqueDay);
 
   if (shouldIncludeMidweekBike(userParams, phase)) {
-    const bikeDay = findAvailableDay(4, blocked, used);
+    const bikeDay = chooseDay('bike', 4, used);
     addSession(days, weekMeta.startDate, bikeDay, makeSession(phase === 'build' || phase === 'peak' ? 'bike_quality' : 'bike_endurance', 'bike', phase === 'build' || phase === 'peak' ? 'Bike Threshold' : 'Bike Endurance', getBikeMidweekDetails(userParams, weekMeta), userParams, weekMeta, index, totalWeeks, 'key'));
     used.add(bikeDay);
   }
 
   if (shouldIncludeSecondSwim(userParams, phase)) {
-    const swimEnduranceDay = findAvailableDay(5, blocked, used);
+    const swimEnduranceDay = chooseDay('swim', 5, used);
     addSession(days, weekMeta.startDate, swimEnduranceDay, makeSession('swim_endurance', 'swim', 'Swim Endurance', getSwimDetails('Endurance', userParams), userParams, weekMeta, index, totalWeeks, 'support'));
     used.add(swimEnduranceDay);
   }
 
   if (shouldIncludeRunQuality(family, phase)) {
-    const runQualityDay = findAvailableDay(3, blocked, used);
+    const runQualityDay = chooseDay('run', 3, used);
     addSession(days, weekMeta.startDate, runQualityDay, makeSession(phase === 'build' || phase === 'peak' ? 'run_quality' : 'run_easy', 'run', phase === 'build' || phase === 'peak' ? 'Run Threshold' : 'Run Easy', getRunQualityDetails(userParams, weekMeta), userParams, weekMeta, index, totalWeeks, 'key'));
     used.add(runQualityDay);
   }
 
   if (shouldIncludeStrength(userParams, phase)) {
-    const strengthDay = findAvailableDay(3, blocked, new Set([safeLongRideDay, safeLongRunDay]), true);
+    const strengthDay = chooseDay('strength', 3, new Set([safeLongRideDay, safeLongRunDay]), true);
     addSession(days, weekMeta.startDate, strengthDay, makeSession('strength', 'strength', 'Strength', 'Controlled general strength. Keep it smooth and avoid heavy lower-body fatigue before key bike/run sessions.', userParams, weekMeta, index, totalWeeks, 'optional'));
   }
 
-  return scheduleAthleteContext({ label: weekMeta.label, phase: weekMeta.phase, startDate: weekMeta.startDate, deload: weekMeta.deload, days } as WeekJson, userParams);
+  return scheduleAthleteContext(allocateTriathlonWeek({ label: weekMeta.label, phase: weekMeta.phase, startDate: weekMeta.startDate, deload: weekMeta.deload, days } as WeekJson, numericMaxHours(userParams.maxHours) * 60), userParams);
 }
 
 export function scaffoldSummary(scaffold: WeekJson | null): string {

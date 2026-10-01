@@ -100,6 +100,9 @@ export async function GET(req: NextRequest) {
 
   for (const user of targetProfiles) {
     if (!user.email) continue;
+    const { data: activePause, error: pauseError } = await supabase.from('training_pauses').select('id').eq('user_id', user.id).eq('status', 'paused').maybeSingle();
+    if (pauseError) { errors.push({ email: user.email, error: pauseError.message }); continue; }
+    if (activePause) { skipped += 1; continue; }
 
     const { data: sessions, error: sessionsError } = await supabase
       .from('sessions')

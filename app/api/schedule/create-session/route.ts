@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server';
+import { sportAllowed } from '@/utils/sportAvailability';
+import { resolveAthleteContext } from '@/utils/athleteContext';
+import type { GeneratedPlan } from '@/types/plan';
 import {
   AuthError,
   assertSameUser,
@@ -51,6 +54,17 @@ export async function POST(req: Request) {
     }
 
     const planId = payload.plan_id ?? payload.planId ?? null;
+    const planQuery = supabase.from('plans').select('id,plan').eq('user_id', user.id);
+    const { data: planRow, error: planError } = planId
+      ? await planQuery.eq('id', planId).maybeSingle()
+      : await planQuery.order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (planError) throw planError;
+    if (planId && !planRow) return NextResponse.json({ error: 'Plan not found.' }, { status: 404 });
+    const params = (planRow?.plan as GeneratedPlan | null)?.params;
+    const availability = params ? resolveAthleteContext(params).sportAvailability : undefined;
+    if (!sportAllowed(date, sport, availability)) {
+      return NextResponse.json({ error: 'That day is outside your sport availability.' }, { status: 422 });
+    }
 
     const insertPayload: Record<string, unknown> = {
       user_id: user.id,
