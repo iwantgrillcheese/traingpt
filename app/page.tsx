@@ -83,7 +83,7 @@ export default function Home() {
               {authed ? 'Open app' : 'Log in'}
             </button>
             <button type="button" onClick={goPrimary} className="rounded-full bg-[#101114] px-4 py-2 text-sm font-bold text-white hover:bg-[#25272D]">
-              {authed ? 'Build plan' : 'Preview my plan'}
+              {authed ? 'Build plan' : 'Preview triathlon plan'}
             </button>
           </div>
         </div>
@@ -93,29 +93,29 @@ export default function Home() {
         <div className="absolute left-1/2 top-16 -z-10 h-[620px] w-[920px] -translate-x-1/2 rounded-full bg-[#ECEAE5] opacity-80 blur-3xl" />
         <div className="mx-auto max-w-7xl">
           <div className="mx-auto max-w-5xl text-center">
-            <Label>Adaptive triathlon training</Label>
+            <Label>Adaptive endurance training</Label>
             <h1 className="mx-auto mt-7 text-[4rem] font-black leading-[0.92] tracking-[-0.085em] sm:text-[6rem] lg:text-[7.2rem]">
-              Triathlon training that adapts to your life.
+              Train for what’s next.
             </h1>
             <p className="mx-auto mt-7 max-w-2xl text-lg leading-8 text-[#4B5563] sm:text-xl">
-              Build a custom race plan, connect Strava, and let Brick keep the week aligned with the training you actually do.
+              Personalized training for runners and triathletes. Build your plan, connect Strava, and track your training as you go.
             </p>
             <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
               <button type="button" onClick={goPrimary} className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#101114] px-6 text-sm font-black text-white shadow-[0_18px_40px_rgba(16,17,20,0.16)]">
-                {authed ? 'Open plan builder' : 'Preview my plan'}
+                {authed ? 'Open plan builder' : 'Preview triathlon plan'}
               </button>
               <a href="#how" className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#E2E0D8] bg-white px-6 text-sm font-black text-[#101114]">
                 See how it works
               </a>
             </div>
-            <p className="mt-4 text-sm font-semibold text-[#6B7280]">Sprint, Olympic, 70.3, and Ironman. Free today. No credit card.</p>
+            <p className="mt-4 text-sm font-semibold text-[#6B7280]">Running: 5K, 10K, half marathon, marathon. Triathlon: sprint, Olympic, 70.3, full-distance.</p>
             <div className="mt-7 flex justify-center"><img src={compatibleStrava} alt="Compatible with Strava" className="h-auto w-[220px] max-w-full" /></div>
           </div>
 
           <div className="mx-auto mt-16 grid max-w-5xl gap-3 sm:grid-cols-3">
             <div className="rounded-3xl border border-[#E3E0D8] bg-white p-6"><p className="text-4xl font-black tracking-[-0.07em]">01</p><p className="mt-2 text-sm font-black">Build around your race and real availability.</p></div>
             <div className="rounded-3xl border border-[#E3E0D8] bg-white p-6"><p className="text-4xl font-black tracking-[-0.07em]">02</p><p className="mt-2 text-sm font-black">Strava matches what actually happened.</p></div>
-            <div className="rounded-3xl border border-[#E3E0D8] bg-white p-6"><p className="text-4xl font-black tracking-[-0.07em]">03</p><p className="mt-2 text-sm font-black">The next week adapts instead of pretending life went perfectly.</p></div>
+            <div className="rounded-3xl border border-[#E3E0D8] bg-white p-6"><p className="text-4xl font-black tracking-[-0.07em]">03</p><p className="mt-2 text-sm font-black">Triathlon plans adapt the next week to the training you completed.</p></div>
           </div>
         </div>
       </section>
@@ -125,22 +125,22 @@ export default function Home() {
           <div className="max-w-3xl"><Label>How it works</Label><h2 className="mt-4 text-4xl font-black tracking-[-0.07em] sm:text-6xl">The plan is only useful if it knows what you did.</h2></div>
           <div className="mt-10 grid gap-4 lg:grid-cols-3">
             <ProductCard eyebrow="Plan" title="A real race build" body="Your race date, current fitness, available hours, rest day, long-session preferences, and training constraints shape the plan." />
-            <ProductCard eyebrow="Track" title="Strava closes the loop" body="Rides, runs, and swims match back to planned sessions. Planned time stays planned; actual time stays actual." />
-            <ProductCard eyebrow="Adapt" title="Missed work is not debt" body="Brick uses completed training to adjust the week ahead. Important sessions stay protected, but missed volume is not blindly stacked." />
+            <ProductCard eyebrow="Track" title="Strava closes the loop" body="Runs, rides, and swims match back to planned sessions. Planned time stays planned; actual time stays actual." />
+            <ProductCard eyebrow="Adapt" title="Missed work is not debt" body="For triathlon plans, Brick uses completed training to adjust the week ahead. Important sessions stay protected, but missed volume is not blindly stacked." />
           </div>
         </div>
       </section>
 
       <section id="preview" className="px-4 py-20 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-6xl">
-          <div className="mb-8 max-w-3xl"><Label>Try it before login</Label><h2 className="mt-4 text-4xl font-black tracking-[-0.07em] sm:text-6xl">Preview a week with four inputs.</h2><p className="mt-4 text-base leading-7 text-[#6B7280]">High-intent athletes should not have to create an account just to discover whether the product is useful.</p></div>
+          <div className="mb-8 max-w-3xl"><Label>Triathlon plan preview</Label><h2 className="mt-4 text-4xl font-black tracking-[-0.07em] sm:text-6xl">Preview a week with four inputs.</h2><p className="mt-4 text-base leading-7 text-[#6B7280]">Preview a triathlon week without creating an account. Runners can build a full running plan in the plan builder.</p><a href={`/login?next=${encodeURIComponent('/plan?raceType=Marathon')}`} className="mt-3 inline-flex text-sm font-black underline underline-offset-4">Build a running plan (free account)</a></div>
           <PublicPlanPreview />
         </div>
       </section>
 
       <section className="border-y border-[#E3E0D8] bg-[#101114] px-4 py-20 text-white sm:px-6 lg:px-8">
         <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
-          <div><p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/45">Why Brick exists</p><h2 className="mt-4 max-w-3xl text-4xl font-black tracking-[-0.07em] sm:text-6xl">More useful than copy-pasting a plan into ChatGPT.</h2><p className="mt-5 max-w-2xl text-base leading-8 text-white/65">The intelligence can sit in the engine room. What matters to the athlete is that the plan remembers the race, sees completed training, keeps the schedule in one place, and explains what changed.</p></div>
+          <div><p className="text-[11px] font-black uppercase tracking-[0.2em] text-white/45">Why Brick exists</p><h2 className="mt-4 max-w-3xl text-4xl font-black tracking-[-0.07em] sm:text-6xl">More useful than copy-pasting a plan into ChatGPT.</h2><p className="mt-5 max-w-2xl text-base leading-8 text-white/65">The intelligence can sit in the engine room. What matters to the athlete is that the plan remembers the race, sees completed training, and keeps the schedule in one place. For triathletes, it also explains what changed in the adapted week.</p></div>
           <div className="rounded-3xl border border-white/15 bg-white/5 p-6"><p className="text-sm font-black">Built by a triathlete who got tired of rebuilding context every time.</p><p className="mt-3 text-sm leading-6 text-white/60">Brick does not pretend to replace a great human coach. It is meant to make structured, adaptive training accessible when a coach is not the right option.</p><a href="/about" className="mt-5 inline-flex text-sm font-black underline underline-offset-4">Read the story</a></div>
         </div>
       </section>
@@ -154,7 +154,7 @@ export default function Home() {
       </section>
 
       <section className="border-y border-[#E3E0D8] bg-white px-4 py-16 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-4xl text-center"><Label>Free today</Label><h2 className="mt-4 text-4xl font-black tracking-[-0.07em] sm:text-5xl">No credit card. No hidden activation wall.</h2><p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-[#6B7280]">Brick is free while we build it with athletes. You can preview the product before signing up, and the saved product is designed for the full race build rather than a disposable PDF.</p><button type="button" onClick={goPrimary} className="mt-7 rounded-full bg-[#101114] px-6 py-3 text-sm font-black text-white">{authed ? 'Open Brick' : 'Preview my plan'}</button></div>
+        <div className="mx-auto max-w-4xl text-center"><Label>Free today</Label><h2 className="mt-4 text-4xl font-black tracking-[-0.07em] sm:text-5xl">No credit card. No hidden activation wall.</h2><p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-[#6B7280]">Brick is free while we build it with athletes. Preview a triathlon week before signing up, or build a full running or triathlon plan in one place.</p><button type="button" onClick={goPrimary} className="mt-7 rounded-full bg-[#101114] px-6 py-3 text-sm font-black text-white">{authed ? 'Open Brick' : 'Preview triathlon plan'}</button></div>
       </section>
 
       <section id="resources" className="bg-white"><BlogPreview /></section>
