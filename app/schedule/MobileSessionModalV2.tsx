@@ -7,7 +7,8 @@ import { format, isAfter, parseISO, startOfDay } from "date-fns";
 import { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 
-import ActivityStatsPanel from "./ActivityStatsPanel";
+import ActivityStatsPanel, { getActivityHeroStats } from "./ActivityStatsPanel";
+import ActivityRoute from "@/app/components/ActivityRoute";
 import { supabase } from "@/lib/supabase/client";
 import type { CompletedSession, Session } from "@/types/session";
 import type { StravaActivity } from "@/types/strava";
@@ -80,6 +81,154 @@ function cleanDetails(value?: string | null) {
     .trim();
 }
 
+
+type PaceTarget = {
+  display: string;
+  minSeconds: number;
+  maxSeconds: number;
+  unit: "/mi" | "/100m" | "/100yd";
+};
+
+type NumericTarget = {
+  min: number;
+  max: number;
+};
+
+function prescriptionText(session: Session) {
+  return [
+    session.title,
+    session.intensity,
+    session.details,
+    session.structured_workout,
+    session.purpose,
+    session.coach_note,
+  ].filter(Boolean).join("\n");
+}
+
+function timeToSeconds(value: string) {
+  const [minutes, seconds] = value.split(":").map(Number);
+  if (!Number.isFinite(minutes) || !Number.isFinite(seconds)) return null;
+  return minutes * 60 + seconds;
+}
+
+function formatPaceSeconds(seconds: number, unit: PaceTarget["unit"]) {
+  const rounded = Math.max(0, Math.round(seconds));
+  const minutes = Math.floor(rounded / 60);
+  const remainder = String(rounded % 60).padStart(2, "0");
+  return minutes + ":" + remainder + unit;
+}
+
+function parsePaceTarget(text: string): PaceTarget | null {
+  const patterns: Array<{ regex: RegExp; unit: PaceTarget["unit"] }> = [
+    { regex: /(\d{1,2}:\d{2})\s*\/\s*mi\s*(?:-|–|—|to)\s*(\d{1,2}:\d{2})\s*\/\s*mi/i, unit: "/mi" },
+    { regex: /(\d{1,2}:\d{2})\s*(?:-|–|—|to)\s*(\d{1,2}:\d{2})\s*\/\s*mi/i, unit: "/mi" },
+    { regex: /(\d{1,2}:\d{2})\s*\/\s*100m\s*(?:-|–|—|to)\s*(\d{1,2}:\d{2})\s*\/\s*100m/i, unit: "/100m" },
+    { regex: /(\d{1,2}:\d{2})\s*(?:-|–|—|to)\s*(\d{1,2}:\d{2})\s*\/\s*100m/i, unit: "/100m" },
+    { regex: /(\d{1,2}:\d{2})\s*\/\s*100yd\s*(?:-|–|—|to)\s*(\d{1,2}:\d{2})\s*\/\s*100yd/i, unit: "/100yd" },
+    { regex: /(\d{1,2}:\d{2})\s*(?:-|–|—|to)\s*(\d{1,2}:\d{2})\s*\/\s*100yd/i, unit: "/100yd" },
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern.regex);
+    if (!match) continue;
+    const left = timeToSeconds(match[1]);
+    const right = timeToSeconds(match[2]);
+    if (left == null || right == null) continue;
+    return {
+      display: match[1] + "–" + match[2] + pattern.unit,
+      minSeconds: Math.min(left, right),
+      maxSeconds: Math.max(left, right),
+      unit: pattern.unit,
+    };
+  }
+  return null;
+}
+
+function parseNumericTarget(text: string, units: string): NumericTarget | null {
+  const match = text.match(new RegExp("(\\d{2,4})\\s*(?:-|–|—|to)\\s*(\\d{2,4})\\s*(?:" + units + ")", "i"));
+  if (!match) return null;
+  const left = Number(match[1]);
+  const right = Number(match[2]);
+  if (!Number.isFinite(left) || !Number.isFinite(right) || left <= 0 || right <= 0) return null;
+  return { min: Math.min(left, right), max: Math.max(left, right) };
+}
+
+function inferEffortLabel(session: Session) {
+  const text = prescriptionText(session).toLowerCase();
+  if (/recovery|very easy|restorative|z1/.test(text)) return "Recovery · Z1";
+  if (/vo2|v02|max effort|anaerobic|z5/.test(text)) return "Hard · Z5";
+  if (/threshold|cruise interval|z4/.test(text)) return "Threshold · Z3–Z4";
+  if (/tempo|sweet spot|steady hard|race pace|z3/.test(text)) return "Tempo · Z3";
+  if (/endurance|aerobic|easy|steady|z2/.test(text)) return "Easy · Z2";
+  return session.intensity?.trim() || "Controlled";
+}
+
+function heartRateGuide(session: Session, exactTarget: NumericTarget | null) {
+  if (exactTarget) return exactTarget.min + "–" + exactTarget.max + " bpm";
+  const effort = inferEffortLabel(session);
+  if (effort.includes("Z1")) return "Z1";
+  if (effort.includes("Z3–Z4")) return "Z3–Z4";
+  if (effort.includes("Z3")) return "Z3";
+  if (effort.includes("Z5")) return "Z4–Z5";
+  return "Z2";
+}
+
+function extractLabeledText(value: string, label: "Purpose" | "Workout" | "Intensity" | "Coach note") {
+  if (!value) return null;
+  const match = value.match(new RegExp(label + ":\\s*(.*?)(?=\\s+(?:Purpose|Workout|Intensity|Coach note):|$)", "i"));
+  return match?.[1]?.replace(/\s+/g, " ").trim() || null;
+}
+
+function firstSentence(value?: string | null) {
+  const clean = String(value ?? "").replace(/\s+/g, " ").trim();
+  if (!clean) return null;
+  return clean.split(/(?<=[.!?])\s+/)[0] || clean;
+}
+
+function actualPace(activity: StravaActivity | null | undefined, sport: string, target: PaceTarget | null) {
+  const speed = activity?.average_speed;
+  if (!target || typeof speed !== "number" || !Number.isFinite(speed) || speed <= 0) return null;
+  const normalizedSport = sport.toLowerCase();
+  let seconds: number | null = null;
+  if (normalizedSport.includes("run") && target.unit === "/mi") seconds = 1609.34 / speed;
+  if (normalizedSport.includes("swim") && target.unit === "/100m") seconds = 100 / speed;
+  if (normalizedSport.includes("swim") && target.unit === "/100yd") seconds = 91.44 / speed;
+  if (seconds == null || !Number.isFinite(seconds)) return null;
+  return {
+    seconds,
+    display: formatPaceSeconds(seconds, target.unit),
+    matched: seconds >= target.minSeconds && seconds <= target.maxSeconds,
+  };
+}
+
+function withinRange(value: number | null | undefined, range: NumericTarget | null) {
+  if (!range || typeof value !== "number" || !Number.isFinite(value)) return null;
+  return value >= range.min && value <= range.max;
+}
+
+function TargetTile({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className={clsx("rounded-2xl border px-3 py-3", accent ? "border-[#D9D5FF] bg-[#F7F5FF]" : "border-zinc-200 bg-white")}>
+      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-400">{label}</div>
+      <div className={clsx("mt-1 text-[16px] font-bold tracking-[-0.025em]", accent ? "text-[#5B4AE8]" : "text-zinc-950")}>{value}</div>
+    </div>
+  );
+}
+
+function ComparisonRow({ label, target, actual, matched }: { label: string; target: string; actual: string; matched?: boolean | null }) {
+  return (
+    <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 border-t border-zinc-100 py-2.5 first:border-t-0">
+      <span className="text-[13px] font-medium text-zinc-500">{label}</span>
+      <span className="text-right text-[12px] font-medium text-zinc-400">{target}</span>
+      <span className="flex min-w-[78px] items-center justify-end gap-1.5 text-right text-[13px] font-bold text-zinc-950">
+        {actual}
+        {matched === true ? <span className="grid h-5 w-5 place-items-center rounded-full bg-emerald-500 text-[11px] text-white">✓</span> : null}
+        {matched === false ? <span className="grid h-5 w-5 place-items-center rounded-full bg-amber-100 text-[11px] text-amber-700">!</span> : null}
+      </span>
+    </div>
+  );
+}
+
 function notesStatusText(status: NotesStatus) {
   if (status === "dirty") return "Unsaved";
   if (status === "saving") return "Saving…";
@@ -137,6 +286,40 @@ export default function MobileSessionModalV2({
   const isCompleted = Boolean(stravaActivity) || manualStatus === "done";
   const isSkipped = !stravaActivity && manualStatus === "skipped";
   const details = cleanDetails(session.details);
+  const prescription = prescriptionText(session);
+  const effortLabel = inferEffortLabel(session);
+  const paceTarget = parsePaceTarget(prescription);
+  const heartRateTarget = parseNumericTarget(prescription, "bpm|beats(?: per minute)?");
+  const powerTarget = parseNumericTarget(prescription, "w|watts");
+  const hrGuide = heartRateGuide(session, heartRateTarget);
+  const workoutSummary = extractLabeledText(details, "Workout") || firstSentence(session.structured_workout) || firstSentence(details);
+  const purposeSummary = session.purpose?.trim() || extractLabeledText(details, "Purpose");
+  const coachNote = session.coach_note?.trim() || extractLabeledText(details, "Coach note");
+  const heroStats = getActivityHeroStats(stravaActivity, session.sport).slice(0, 4);
+  const actualPaceValue = actualPace(stravaActivity, session.sport, paceTarget);
+  const actualPower = stravaActivity?.weighted_average_watts ?? stravaActivity?.average_watts ?? null;
+  const durationMatched = session.duration && stravaActivity?.moving_time
+    ? Math.abs(stravaActivity.moving_time - session.duration * 60) <= Math.max(90, session.duration * 60 * 0.08)
+    : null;
+  const paceMatched = actualPaceValue?.matched ?? null;
+  const heartRateMatched = withinRange(stravaActivity?.average_heartrate, heartRateTarget);
+  const powerMatched = withinRange(actualPower, powerTarget);
+  const comparisonChecks = [durationMatched, paceMatched, heartRateMatched, powerMatched].filter((value): value is boolean => typeof value === "boolean");
+  const matchedAllComparable = comparisonChecks.length > 0 && comparisonChecks.every(Boolean);
+  const missedComparable = comparisonChecks.filter((value) => !value).length;
+  const executionHeadline = matchedAllComparable
+    ? "Right on target."
+    : missedComparable === 1
+      ? "Good session — one target drifted."
+      : missedComparable > 1
+        ? "Solid work, but execution drifted."
+        : "Workout synced.";
+  const executionBody = matchedAllComparable
+    ? "You stayed inside the measurable targets from the prescription."
+    : missedComparable > 0
+      ? "Brick matched the activity and flagged the targets that landed outside the prescription."
+      : "Your Strava activity is matched to this planned workout.";
+  const stravaActivityId = typeof stravaActivity?.strava_id === "number" && Number.isFinite(stravaActivity.strava_id) ? stravaActivity.strava_id : null;
   const replyReady = session.coach_response_status === "generated" && Boolean(session.coach_response);
   const showReply = Boolean(notesDraft.trim());
 
@@ -241,81 +424,153 @@ export default function MobileSessionModalV2({
   return (
     <Dialog open={open} onClose={onClose} className="relative z-50 md:hidden">
       <div className="fixed inset-0 bg-zinc-950/35 backdrop-blur-[2px]" aria-hidden="true" />
-      <div className="fixed inset-x-0 bottom-0 flex max-h-[92dvh] items-end justify-center px-2 pt-10">
-        <Dialog.Panel className="flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[2rem] border border-zinc-200 bg-white shadow-[0_-24px_80px_rgba(15,23,42,0.24)]">
+      <div className="fixed inset-x-0 bottom-0 flex max-h-[94dvh] items-end justify-center px-2 pt-8">
+        <Dialog.Panel className="flex max-h-[94dvh] w-full flex-col overflow-hidden rounded-t-[28px] border border-zinc-200 bg-white shadow-[0_-24px_80px_rgba(15,23,42,0.22)]">
           <div className="mx-auto mt-2 h-1.5 w-12 rounded-full bg-zinc-200" />
-          <div className="border-b border-zinc-200 px-5 pb-4 pt-4">
+
+          <header className="border-b border-zinc-200 px-4 pb-3 pt-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-[12px] font-medium text-zinc-600">{sport}</span>
-                  <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-[12px] font-medium text-zinc-600">{formattedDate}</span>
-                  {isCompleted ? <span className="rounded-full bg-[#2563FF] px-2.5 py-1 text-[12px] font-black text-white">{completedEarly(session, findCompletion(completedSessions, session)) ? '✓ Completed early' : '✓ Complete'}</span> : null}
-                  {isSkipped ? <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[12px] font-semibold text-zinc-600">Skipped</span> : null}
+                <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                  <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-600">{sport}</span>
+                  <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-600">{formattedDate}</span>
+                  {stravaActivity ? <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">✓ Synced</span> : null}
+                  {!stravaActivity && isCompleted ? <span className="rounded-full bg-[#EEF1FF] px-2.5 py-1 text-[11px] font-bold text-[#4F46E5]">{completedEarly(session, findCompletion(completedSessions, session)) ? "✓ Completed early" : "✓ Complete"}</span> : null}
+                  {isSkipped ? <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-semibold text-zinc-600">Skipped</span> : null}
                 </div>
-                <Dialog.Title className="text-[30px] font-semibold leading-[0.98] tracking-[-0.055em] text-zinc-950">{title}</Dialog.Title>
-                <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[14px] leading-5 text-zinc-500">
-                  {plannedDuration ? <span>Planned {plannedDuration}</span> : null}
-                  {completedDuration ? <span>Completed {completedDuration}</span> : null}
-                  {completedDistance ? <span>{completedDistance}</span> : null}
-                  {raceGoal ? <span>{raceGoal}</span> : null}
-                </div>
+                <Dialog.Title className="text-[30px] font-semibold leading-[1.02] tracking-[-0.055em] text-zinc-950">{title}</Dialog.Title>
+                {raceGoal ? <p className="mt-1.5 text-[13px] text-zinc-500">{raceGoal}</p> : null}
               </div>
-              <button type="button" onClick={onClose} className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-zinc-200 bg-white text-zinc-500 active:scale-[0.98]">
+              <button type="button" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-zinc-200 bg-white text-zinc-500 active:scale-[0.98]">
                 <XIcon className="h-5 w-5" />
               </button>
             </div>
-          </div>
+          </header>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-            {errorMessage ? <div className="mb-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-[13px] font-medium text-rose-700">{errorMessage}</div> : null}
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+            {errorMessage ? <div className="mb-3 rounded-2xl border border-rose-200 bg-rose-50 px-3.5 py-3 text-[13px] font-medium text-rose-700">{errorMessage}</div> : null}
 
-            <section className="rounded-[1.5rem] border border-zinc-200 bg-zinc-50 p-4">
-              {details ? <p className="whitespace-pre-wrap text-[15px] leading-6 text-zinc-800">{details}</p> : <p className="text-[14px] leading-6 text-zinc-500">No detailed prescription was saved for this session.</p>}
-            </section>
+            {!stravaActivity ? (
+              <>
+                <section className="grid grid-cols-2 gap-2">
+                  {plannedDuration ? <TargetTile label="Duration" value={plannedDuration} /> : null}
+                  <TargetTile label="Effort" value={effortLabel} accent />
+                  {paceTarget ? <TargetTile label="Target pace" value={paceTarget.display} /> : powerTarget ? <TargetTile label="Target power" value={powerTarget.min + "–" + powerTarget.max + " W"} /> : null}
+                  <TargetTile label={heartRateTarget ? "Target HR" : "HR guide"} value={hrGuide} />
+                </section>
 
-            {stravaActivity ? <div className="mt-3"><ActivityStatsPanel activity={stravaActivity} sportType={session.sport} plannedSession={session} /></div> : null}
+                <section className="mt-3 rounded-[20px] border border-[#DDD9FF] bg-[#F8F7FF] px-4 py-3.5">
+                  <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#6657E8]">Today’s focus</div>
+                  <p className="mt-1.5 text-[15px] font-semibold leading-6 text-zinc-900">{workoutSummary || "Follow the prescribed session and keep the effort controlled."}</p>
+                  {purposeSummary ? <p className="mt-1.5 text-[13px] leading-5 text-zinc-500">{purposeSummary}</p> : null}
+                </section>
 
-            <section className="mt-3 rounded-[1.5rem] border border-zinc-200 bg-zinc-50 p-4">
+                <details className="mt-3 overflow-hidden rounded-[20px] border border-zinc-200 bg-white">
+                  <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5 text-[14px] font-semibold text-zinc-900">
+                    <span>Workout details</span>
+                    <span className="text-zinc-400">⌄</span>
+                  </summary>
+                  <div className="border-t border-zinc-100 px-4 py-3">
+                    {details ? <p className="whitespace-pre-wrap text-[13px] leading-5.5 text-zinc-600">{details}</p> : <p className="text-[13px] leading-5 text-zinc-500">No detailed prescription was saved for this session.</p>}
+                    {coachNote ? <p className="mt-3 border-t border-zinc-100 pt-3 text-[13px] leading-5 text-zinc-600"><span className="font-semibold text-zinc-900">Coach note: </span>{coachNote}</p> : null}
+                  </div>
+                </details>
+              </>
+            ) : (
+              <>
+                <section className="rounded-[20px] border border-emerald-100 bg-emerald-50/70 px-4 py-3.5">
+                  <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-700">Coach read</div>
+                  <h2 className="mt-1 text-[20px] font-bold tracking-[-0.035em] text-zinc-950">{executionHeadline}</h2>
+                  <p className="mt-1 text-[13px] leading-5 text-zinc-600">{executionBody}</p>
+                </section>
+
+                {heroStats.length ? (
+                  <section className="mt-3 grid grid-cols-2 gap-2">
+                    {heroStats.map((stat) => <TargetTile key={stat.label} label={stat.label} value={stat.value || "—"} />)}
+                  </section>
+                ) : null}
+
+                {stravaActivityId ? (
+                  <section className="mt-3 rounded-[20px] border border-zinc-200 bg-white p-3">
+                    <div className="flex items-center justify-between gap-3 px-1">
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-400">Matched activity</div>
+                        <div className="mt-0.5 text-[13px] font-semibold text-zinc-900">Synced from Strava</div>
+                      </div>
+                      <span className="text-[11px] font-bold text-[#FC4C02]">STRAVA</span>
+                    </div>
+                    <ActivityRoute activityId={stravaActivityId} variant="light" compact />
+                  </section>
+                ) : null}
+
+                <section className="mt-3 rounded-[20px] border border-zinc-200 bg-white px-4 py-2">
+                  <div className="py-2 text-[14px] font-semibold text-zinc-950">Plan vs. actual</div>
+                  {plannedDuration && completedDuration ? <ComparisonRow label="Duration" target={plannedDuration} actual={completedDuration} matched={durationMatched} /> : null}
+                  {paceTarget && actualPaceValue ? <ComparisonRow label="Pace" target={paceTarget.display} actual={actualPaceValue.display} matched={paceMatched} /> : null}
+                  {powerTarget && typeof actualPower === "number" ? <ComparisonRow label="Power" target={powerTarget.min + "–" + powerTarget.max + " W"} actual={Math.round(actualPower) + " W"} matched={powerMatched} /> : null}
+                  {stravaActivity.average_heartrate ? <ComparisonRow label="Heart rate" target={heartRateTarget ? hrGuide : hrGuide + " guide"} actual={Math.round(stravaActivity.average_heartrate) + " bpm"} matched={heartRateMatched} /> : null}
+                </section>
+
+                <details className="mt-3 overflow-hidden rounded-[20px] border border-zinc-200 bg-white">
+                  <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5 text-[14px] font-semibold text-zinc-900">
+                    <span>Detailed execution analysis</span>
+                    <span className="text-zinc-400">⌄</span>
+                  </summary>
+                  <div className="border-t border-zinc-100 p-3">
+                    <ActivityStatsPanel activity={stravaActivity} sportType={session.sport} plannedSession={session} compact />
+                  </div>
+                </details>
+
+                <details className="mt-3 overflow-hidden rounded-[20px] border border-zinc-200 bg-white">
+                  <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5 text-[14px] font-semibold text-zinc-900">
+                    <span>Original workout</span>
+                    <span className="text-zinc-400">⌄</span>
+                  </summary>
+                  <div className="border-t border-zinc-100 px-4 py-3">
+                    {details ? <p className="whitespace-pre-wrap text-[13px] leading-5.5 text-zinc-600">{details}</p> : <p className="text-[13px] leading-5 text-zinc-500">No detailed prescription was saved for this session.</p>}
+                  </div>
+                </details>
+              </>
+            )}
+
+            <section className="mt-3 rounded-[20px] border border-zinc-200 bg-[#FAFAFC] p-3.5">
               <div className="flex items-center justify-between gap-3">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">Athlete notes</div>
-                <div className={clsx("text-[12px] font-semibold", notesStatus === "error" ? "text-rose-600" : "text-zinc-400")}>{notesStatusText(notesStatus)}</div>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Athlete notes</div>
+                <div className={clsx("text-[11px] font-semibold", notesStatus === "error" ? "text-rose-600" : "text-zinc-400")}>{notesStatusText(notesStatus)}</div>
               </div>
               <textarea
                 value={notesDraft}
                 onChange={(event) => scheduleNotesSave(event.target.value)}
                 onBlur={() => saveNotes(notesDraft)}
                 placeholder="How did this feel? Add anything your coach should know."
-                rows={4}
-                className="mt-3 w-full resize-none rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-[14px] leading-6 text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-zinc-400"
+                rows={3}
+                className="mt-2.5 w-full resize-none rounded-2xl border border-zinc-200 bg-white px-3.5 py-3 text-[14px] leading-5.5 text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-zinc-400"
               />
             </section>
 
             {showReply ? (
-              <section className="mt-3 rounded-[1.5rem] border border-[#D7DDFF] bg-[#F7FAFF] p-4">
+              <section className="mt-3 rounded-[20px] border border-[#D7DDFF] bg-[#F7FAFF] p-3.5">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[#2563FF]">Coach reply</div>
-                  <div className="text-[12px] font-semibold text-[#2563FF]">{replyReady ? "Ready" : "Pending"}</div>
+                  <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#2563FF]">Coach reply</div>
+                  <div className="text-[11px] font-semibold text-[#2563FF]">{replyReady ? "Ready" : "Pending"}</div>
                 </div>
-                {replyReady ? (
-                  <p className="mt-3 text-[15px] leading-6 text-zinc-800">{session.coach_response}</p>
-                ) : (
-                  <p className="mt-3 text-[14px] leading-6 text-zinc-600">Your coach will respond after the next training review.</p>
-                )}
+                {replyReady ? <p className="mt-2 text-[14px] leading-5.5 text-zinc-800">{session.coach_response}</p> : <p className="mt-2 text-[13px] leading-5 text-zinc-600">Your coach will respond after the next training review.</p>}
               </section>
             ) : null}
 
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <button type="button" disabled={marking} onClick={() => updateStatus("done")} className={clsx("min-h-12 rounded-2xl border px-3 text-[14px] font-semibold disabled:opacity-45", isCompleted ? "border-[#2563FF] bg-[#2563FF] text-white" : "border-zinc-200 bg-white text-zinc-800")}>
+            <button type="button" onClick={handleDelete} className="mx-auto mt-3 block px-4 py-2 text-[12px] font-medium text-zinc-300">Delete session</button>
+          </div>
+
+          {!stravaActivity ? (
+            <footer className="grid grid-cols-2 gap-2 border-t border-zinc-200 bg-white px-4 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-3">
+              <button type="button" disabled={marking} onClick={() => updateStatus("done")} className={clsx("min-h-12 rounded-2xl border px-3 text-[14px] font-semibold disabled:opacity-45", isCompleted ? "border-[#2563FF] bg-[#2563FF] text-white" : "border-zinc-200 bg-white text-zinc-900")}>
                 {manualStatus === "done" ? "Undo done" : "Mark done"}
               </button>
-              <button type="button" disabled={marking || Boolean(stravaActivity)} onClick={() => updateStatus("skipped")} className={clsx("min-h-12 rounded-2xl border px-3 text-[14px] font-semibold disabled:opacity-50", isSkipped ? "border-zinc-300 bg-zinc-100 text-zinc-800" : "border-zinc-200 bg-white text-zinc-800")}>
+              <button type="button" disabled={marking} onClick={() => updateStatus("skipped")} className={clsx("min-h-12 rounded-2xl border px-3 text-[14px] font-semibold disabled:opacity-50", isSkipped ? "border-zinc-300 bg-zinc-100 text-zinc-900" : "border-zinc-200 bg-white text-zinc-900")}>
                 {isSkipped ? "Unskip" : "Skip"}
               </button>
-            </div>
-
-            <button type="button" onClick={handleDelete} className="mx-auto mt-4 block px-4 py-2 text-[13px] font-medium text-zinc-300">Delete session</button>
-          </div>
+            </footer>
+          ) : null}
         </Dialog.Panel>
       </div>
     </Dialog>
