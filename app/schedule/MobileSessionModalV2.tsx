@@ -154,12 +154,21 @@ function parseNumericTarget(text: string, units: string): NumericTarget | null {
 }
 
 function inferEffortLabel(session: Session) {
-  const text = prescriptionText(session).toLowerCase();
-  if (/recovery|very easy|restorative|z1/.test(text)) return "Recovery · Z1";
-  if (/vo2|v02|max effort|anaerobic|z5/.test(text)) return "Hard · Z5";
-  if (/threshold|cruise interval|z4/.test(text)) return "Threshold · Z3–Z4";
-  if (/tempo|sweet spot|steady hard|race pace|z3/.test(text)) return "Tempo · Z3";
-  if (/endurance|aerobic|easy|steady|z2/.test(text)) return "Easy · Z2";
+  const details = cleanDetails(session.details);
+  const text = [
+    session.title,
+    session.intensity,
+    session.structured_workout,
+    extractLabeledText(details, "Workout"),
+  ].filter(Boolean).join(" ").toLowerCase();
+
+  // Infer effort from the actual prescription, not rationale/coach-note language.
+  // Example: "run within aerobic thresholds" is not a threshold workout.
+  if (/recovery|very easy|restorative|\bz1\b/.test(text)) return "Recovery · Z1";
+  if (/vo2|v02|max effort|anaerobic|\bz5\b/.test(text)) return "Hard · Z5";
+  if (/threshold|cruise interval|\bz4\b/.test(text)) return "Threshold · Z3–Z4";
+  if (/tempo|sweet spot|steady hard|race pace|\bz3\b/.test(text)) return "Tempo · Z3";
+  if (/endurance|aerobic|easy|steady|long run|\bz2\b/.test(text)) return "Easy · Z2";
   return session.intensity?.trim() || "Controlled";
 }
 
@@ -204,6 +213,30 @@ function actualPace(activity: StravaActivity | null | undefined, sport: string, 
 function withinRange(value: number | null | undefined, range: NumericTarget | null) {
   if (!range || typeof value !== "number" || !Number.isFinite(value)) return null;
   return value >= range.min && value <= range.max;
+}
+
+function shouldShowWorkoutStructure(session: Session, details: string) {
+  const sport = normalizeSport(session.sport);
+  const workoutText = [
+    session.structured_workout,
+    extractLabeledText(details, "Workout"),
+  ].filter(Boolean).join(" ").toLowerCase();
+
+  if (sport === "Swim") return Boolean(workoutText || details);
+  if (sport === "Strength") {
+    return Boolean(session.structured_workout?.trim()) || /\bsets?\b|\breps?\b|\brounds?\b|\b\d+\s*[x×]\s*\d+\b/.test(workoutText);
+  }
+
+  return /\bintervals?\b|\brepeats?\b|\breps?\b|\bstrides?\b|\bwarm[ -]?up\b|\bcool[ -]?down\b|\bmain set\b|\brecovery (?:jog|spin|walk)\b|\btempo block\b|\bthreshold block\b|\bbrick\b|\b\d+\s*[x×]\s*\d+\b/.test(workoutText);
+}
+
+function PrescriptionMetric({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className="min-w-0 py-2.5">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.13em] text-zinc-400">{label}</div>
+      <div className={clsx("mt-1 truncate text-[16px] font-semibold tracking-[-0.025em]", accent ? "text-[#5B4AE8]" : "text-zinc-950")}>{value}</div>
+    </div>
+  );
 }
 
 function TargetTile({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
@@ -295,6 +328,8 @@ export default function MobileSessionModalV2({
   const workoutSummary = extractLabeledText(details, "Workout") || firstSentence(session.structured_workout) || firstSentence(details);
   const purposeSummary = session.purpose?.trim() || extractLabeledText(details, "Purpose");
   const coachNote = session.coach_note?.trim() || extractLabeledText(details, "Coach note");
+  const showWorkoutStructure = shouldShowWorkoutStructure(session, details);
+  const workoutStructureText = session.structured_workout?.trim() || extractLabeledText(details, "Workout") || null;
   const heroStats = getActivityHeroStats(stravaActivity, session.sport).slice(0, 4);
   const actualPaceValue = actualPace(stravaActivity, session.sport, paceTarget);
   const actualPower = stravaActivity?.weighted_average_watts ?? stravaActivity?.average_watts ?? null;
@@ -452,29 +487,31 @@ export default function MobileSessionModalV2({
 
             {!stravaActivity ? (
               <>
-                <section className="grid grid-cols-2 gap-2">
-                  {plannedDuration ? <TargetTile label="Duration" value={plannedDuration} /> : null}
-                  <TargetTile label="Effort" value={effortLabel} accent />
-                  {paceTarget ? <TargetTile label="Target pace" value={paceTarget.display} /> : powerTarget ? <TargetTile label="Target power" value={powerTarget.min + "–" + powerTarget.max + " W"} /> : null}
-                  <TargetTile label={heartRateTarget ? "Target HR" : "HR guide"} value={hrGuide} />
+                <section className="grid grid-cols-2 gap-x-6 border-y border-zinc-200 py-1">
+                  {plannedDuration ? <PrescriptionMetric label="Duration" value={plannedDuration} /> : null}
+                  <PrescriptionMetric label="Effort" value={effortLabel} accent />
+                  {paceTarget ? <PrescriptionMetric label="Target pace" value={paceTarget.display} /> : powerTarget ? <PrescriptionMetric label="Target power" value={powerTarget.min + "–" + powerTarget.max + " W"} /> : null}
+                  <PrescriptionMetric label={heartRateTarget ? "Target HR" : "HR guide"} value={hrGuide} />
                 </section>
 
-                <section className="mt-3 rounded-[20px] border border-[#DDD9FF] bg-[#F8F7FF] px-4 py-3.5">
+                <section className="mt-4 border-l-2 border-[#7667FF] pl-3.5 pr-1">
                   <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#6657E8]">Today’s focus</div>
-                  <p className="mt-1.5 text-[15px] font-semibold leading-6 text-zinc-900">{workoutSummary || "Follow the prescribed session and keep the effort controlled."}</p>
+                  <p className="mt-1.5 text-[15px] font-semibold leading-[1.55] text-zinc-900">{workoutSummary || "Follow the prescribed session and keep the effort controlled."}</p>
                   {purposeSummary ? <p className="mt-1.5 text-[13px] leading-5 text-zinc-500">{purposeSummary}</p> : null}
                 </section>
 
-                <details className="mt-3 overflow-hidden rounded-[20px] border border-zinc-200 bg-white">
-                  <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5 text-[14px] font-semibold text-zinc-900">
-                    <span>Workout details</span>
-                    <span className="text-zinc-400">⌄</span>
-                  </summary>
-                  <div className="border-t border-zinc-100 px-4 py-3">
-                    {details ? <p className="whitespace-pre-wrap text-[13px] leading-5.5 text-zinc-600">{details}</p> : <p className="text-[13px] leading-5 text-zinc-500">No detailed prescription was saved for this session.</p>}
-                    {coachNote ? <p className="mt-3 border-t border-zinc-100 pt-3 text-[13px] leading-5 text-zinc-600"><span className="font-semibold text-zinc-900">Coach note: </span>{coachNote}</p> : null}
-                  </div>
-                </details>
+                {showWorkoutStructure ? (
+                  <details className="mt-4 overflow-hidden rounded-[18px] border border-zinc-200 bg-white">
+                    <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-[14px] font-semibold text-zinc-900">
+                      <span>Workout structure</span>
+                      <span className="text-zinc-400">⌄</span>
+                    </summary>
+                    <div className="border-t border-zinc-100 px-4 py-3">
+                      {workoutStructureText ? <p className="whitespace-pre-wrap text-[13px] leading-5.5 text-zinc-600">{workoutStructureText}</p> : null}
+                      {coachNote && !details.toLowerCase().includes("coach note:") ? <p className="mt-3 border-t border-zinc-100 pt-3 text-[13px] leading-5 text-zinc-600"><span className="font-semibold text-zinc-900">Coach note: </span>{coachNote}</p> : null}
+                    </div>
+                  </details>
+                ) : null}
               </>
             ) : (
               <>
@@ -533,7 +570,7 @@ export default function MobileSessionModalV2({
               </>
             )}
 
-            <section className="mt-3 rounded-[20px] border border-zinc-200 bg-[#FAFAFC] p-3.5">
+            <section className="mt-4 border-t border-zinc-200 pt-3.5">
               <div className="flex items-center justify-between gap-3">
                 <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Athlete notes</div>
                 <div className={clsx("text-[11px] font-semibold", notesStatus === "error" ? "text-rose-600" : "text-zinc-400")}>{notesStatusText(notesStatus)}</div>
@@ -563,7 +600,7 @@ export default function MobileSessionModalV2({
 
           {!stravaActivity ? (
             <footer className="grid grid-cols-2 gap-2 border-t border-zinc-200 bg-white px-4 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-3">
-              <button type="button" disabled={marking} onClick={() => updateStatus("done")} className={clsx("min-h-12 rounded-2xl border px-3 text-[14px] font-semibold disabled:opacity-45", isCompleted ? "border-[#2563FF] bg-[#2563FF] text-white" : "border-zinc-200 bg-white text-zinc-900")}>
+              <button type="button" disabled={marking} onClick={() => updateStatus("done")} className={clsx("min-h-12 rounded-2xl border px-3 text-[14px] font-semibold disabled:opacity-45", isCompleted ? "border-[#2563FF] bg-[#2563FF] text-white" : "border-[#101114] bg-[#101114] text-white")}>
                 {manualStatus === "done" ? "Undo done" : "Mark done"}
               </button>
               <button type="button" disabled={marking} onClick={() => updateStatus("skipped")} className={clsx("min-h-12 rounded-2xl border px-3 text-[14px] font-semibold disabled:opacity-50", isSkipped ? "border-zinc-300 bg-zinc-100 text-zinc-900" : "border-zinc-200 bg-white text-zinc-900")}>
