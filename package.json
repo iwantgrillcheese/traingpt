@@ -59,7 +59,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "plan:quality": "node --experimental-strip-types scripts/plan-quality-matrix.ts",
     "test:calendar": "node --experimental-vm-modules --test scripts/calendar-export.test.mjs scripts/month-calendar.test.mjs",
-    "verify": "yarn lint && yarn typecheck && yarn test:calendar && yarn test:strava && yarn test:plans && yarn test:athlete-context && yarn test:duration && yarn test:feedback && yarn plan:quality && yarn build",
+    "verify": "yarn lint && yarn typecheck && yarn test:acquisition && yarn test:calendar && yarn test:strava && yarn test:plans && yarn test:athlete-context && yarn test:duration && yarn test:feedback && yarn plan:quality && yarn build",
     "seo:daily": "node scripts/seo/daily-engine.mjs",
     "seo:init": "node scripts/seo/init-keywords.mjs",
     "test:plans": "node --experimental-vm-modules --test scripts/plan-reliability.test.mjs",
@@ -68,7 +68,8 @@
     "test:athlete-context": "node --experimental-vm-modules --test scripts/athlete-context.test.mjs",
     "test:athlete-context:live": "node --experimental-strip-types --test scripts/athlete-context-live.test.mjs",
     "test:duration": "node --experimental-strip-types --test scripts/triathlon-duration.test.ts",
-    "test:feedback": "node --experimental-vm-modules --test scripts/customer-feedback.test.mjs"
+    "test:feedback": "node --experimental-vm-modules --test scripts/customer-feedback.test.mjs",
+    "test:acquisition": "node --experimental-vm-modules --test scripts/acquisition.test.mjs"
   },
   "eslintConfig": {
     "extends": [

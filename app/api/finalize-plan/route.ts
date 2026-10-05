@@ -33,6 +33,7 @@ import { enforceTriathlonTimeBudget } from "@/utils/enforceTriathlonTimeBudget";
 import { repairGeneratedPlan } from "@/utils/repairGeneratedPlan";
 import { validateGeneratedPlan } from "@/utils/validateGeneratedPlan";
 import { buildRunningPlanScaffold } from "@/utils/buildRunningScaffold";
+import { recordSavedPlan } from '@/lib/analytics/acquisition-server';
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -535,6 +536,11 @@ export async function POST(req: Request) {
     }
 
     assertAthleteContextHonored(planForStorage.weeks, userParams);
+    let hadPlan = true; // An unavailable lookup suppresses the optional question.
+    try {
+      const { data: previousPlan, error: previousPlanError } = await supabase.from('plans').select('id').eq('user_id', userId).limit(1).maybeSingle();
+      hadPlan = Boolean(previousPlan?.id) || Boolean(previousPlanError);
+    } catch { /* Acquisition metadata must not prevent a valid plan save. */ }
     const { data: persisted, error: persistError } = await supabase.rpc("replace_plan_and_sessions", {
       p_user_id: userId,
       p_race_date: String(raceDate),
@@ -555,6 +561,10 @@ export async function POST(req: Request) {
       console.error("[finalize-plan] atomic persistence returned no plan id", persisted);
       return NextResponse.json({ ok: false, error: "Plan could not be confirmed after saving. Please try again." }, { status: 500 });
     }
+
+    try {
+      await recordSavedPlan(user, req, planId, sessionsCreated, hadPlan);
+    } catch { console.warn('[acquisition] saved-plan reporting unavailable'); }
 
     return NextResponse.json({
       ok: true,

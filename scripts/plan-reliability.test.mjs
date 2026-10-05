@@ -203,6 +203,7 @@ async function finalize({ athleteContext, athleteNotes, planType = 'running', ra
   const calls = [];
   const query = {};
   for (const method of ['select', 'eq', 'gte', 'order', 'limit']) query[method] = () => query;
+  query.maybeSingle = async () => ({ data: null, error: null });
   query.abortSignal = async signal => {
     assert.ok(signal instanceof AbortSignal);
     // Optional Strava outage must not prevent plan creation.

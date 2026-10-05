@@ -65,3 +65,7 @@ Retention based on active events above (D1/D7/D30)
 
 ### Strava Conversion
 `strava_connect_clicked` → `strava_oauth_success`
+
+## Acquisition reporting update
+
+Use [acquisition-report.sql](./acquisition-report.sql) and [acquisition-attribution.md](./acquisition-attribution.md) for new-account attribution and conversion reporting. Account creation is authoritative in Supabase; historical `user_signed_up` counts contain repeated restored-session events. New `acquisition_source`/`acquisition_first_touch` properties are separate from legacy PostHog initial-referrer fields, and self-reported `discovery_reported` never replaces measured attribution. New production analytics require `environment = production` and founder/test exclusions.
