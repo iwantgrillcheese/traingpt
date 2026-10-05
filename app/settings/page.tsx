@@ -170,41 +170,28 @@ export default function ProfilePage() {
     });
   };
 
-  const toggleOptIn = async () => {
-    if (!user?.id) return;
-
-    const newOpt = !optIn;
-    setOptIn(newOpt);
-
-    const { error } = await supabase
-      .from("users")
-      .update({ marketing_opt_in: newOpt })
-      .eq("id", user.id);
-
-    if (error) {
-      console.error("Error updating marketing_opt_in:", error);
-      setOptIn(!newOpt);
-    }
-  };
-
-  const [dailyEmail, setDailyEmail] = useState<boolean | null>(null);
-  const dailyEmailChecked = dailyEmail ?? Boolean((profile as any)?.daily_email_opt_in);
-
-  const toggleDailyEmail = async () => {
-    if (!user?.id) return;
-
-    const next = !dailyEmailChecked;
-    setDailyEmail(next);
-
-    const { error: dailyError } = await supabase
-      .from("profiles")
-      .update({ daily_email_opt_in: next })
-      .eq("id", user.id);
-
-    if (dailyError) {
-      console.error("Error updating daily_email_opt_in:", dailyError);
-      setDailyEmail(!next);
-    }
+  const [emailSaving, setEmailSaving] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const dailyEmailChecked = profile?.daily_email_opt_in === true;
+  const weeklyEmailChecked = profile?.weekly_email_opt_in === true;
+  const toggleEmailPreference = async (field: "marketing_opt_in" | "daily_email_opt_in" | "weekly_email_opt_in") => {
+    if (!user?.id || emailSaving) return;
+    const marketing = field === "marketing_opt_in";
+    const previous = marketing ? optIn : profile?.[field] === true;
+    const next = !previous;
+    setEmailSaving(field);
+    setEmailError(null);
+    if (marketing) setOptIn(next);
+    else setProfile((prev: any) => ({ ...prev, [field]: next }));
+    try {
+      const { data, error } = await supabase.from(marketing ? "users" : "profiles")
+        .update({ [field]: next }).eq("id", user.id).select(field).single();
+      if (error || !data || (data as unknown as Record<string, unknown>)[field] !== next) throw new Error("Preference was not saved");
+    } catch {
+      if (marketing) setOptIn(previous);
+      else setProfile((prev: any) => ({ ...prev, [field]: previous }));
+      setEmailError("Could not save your email preference. Please try again.");
+    } finally { setEmailSaving(null); }
   };
 
   const handleProfileUpdate = async (field: string, value: any) => {
@@ -419,7 +406,8 @@ export default function ProfilePage() {
             <input
               type="checkbox"
               checked={optIn}
-              onChange={toggleOptIn}
+              disabled={Boolean(emailSaving)}
+              onChange={() => toggleEmailPreference("marketing_opt_in")}
               className="w-4 h-4"
             />
             I’d like to receive occasional product updates and tips
@@ -428,11 +416,18 @@ export default function ProfilePage() {
             <input
               type="checkbox"
               checked={dailyEmailChecked}
-              onChange={toggleDailyEmail}
+              disabled={Boolean(emailSaving)}
+              onChange={() => toggleEmailPreference("daily_email_opt_in")}
               className="w-4 h-4"
             />
-            Email me each morning I have a session — the workout and targets, before the day gets busy
+            Daily workout email
           </label>
+          <label className="mt-3 flex items-center gap-3 text-sm text-zinc-700">
+            <input type="checkbox" checked={weeklyEmailChecked} disabled={Boolean(emailSaving)}
+              onChange={() => toggleEmailPreference("weekly_email_opt_in")} className="w-4 h-4" />
+            Weekly training brief
+          </label>
+          {emailError && <p role="alert" className="mt-3 text-sm text-red-600">{emailError}</p>}
         </section>
 
         {/* Connected Apps */}

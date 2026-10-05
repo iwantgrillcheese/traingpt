@@ -37,8 +37,10 @@ export function UpcomingWeekEmail({
   groupedSessions,
   summary,
   coachNote,
+  unsubscribeUrl,
 }: {
   weekRange: string;
+  unsubscribeUrl: string;
   groupedSessions: Record<string, GroupedSession[]>;
   summary: WeeklySummary;
   coachNote?: string | null;
@@ -127,10 +129,10 @@ export function UpcomingWeekEmail({
               </div>
               <div style={styles.footerRight}>
                 <Text style={styles.footerText}>
-                  This email was sent because your TrainGPT account has planned training sessions in the coming week.
+                  You enabled weekly training briefs for your TrainGPT plan.
                 </Text>
                 <Text style={styles.footerText}>
-                  <a href="https://traingpt.co/unsubscribe" style={styles.anchor}>Unsubscribe</a>
+                  <a href={unsubscribeUrl} style={styles.anchor}>Unsubscribe</a>
                   {' · '}
                   <a href="https://traingpt.co/settings" style={styles.anchor}>Email settings</a>
                 </Text>

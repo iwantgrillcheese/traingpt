@@ -1,7 +1,8 @@
-import type { NextRequest } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { updateSupabaseSession } from '@/lib/supabase/middleware';
 
 export async function middleware(request: NextRequest) {
+  if (request.nextUrl.pathname === '/unsubscribe') return NextResponse.next();
   return updateSupabaseSession(request);
 }
 

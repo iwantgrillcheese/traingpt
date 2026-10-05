@@ -13,6 +13,7 @@
 
 import { NextResponse, NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { isTrainingEmailEnabled } from '@/lib/emails/unsubscribe';
 
 import { sendDailySessionEmail } from '@/lib/emails/send-daily-session-email';
 import type { DailyEmailSession } from '@/lib/emails/DailySessionEmail';
@@ -196,8 +197,10 @@ export async function GET(req: NextRequest) {
     }
 
     try {
+      if (!await isTrainingEmailEnabled(supabase, user.id, user.email, 'daily')) { skipped += 1; continue; }
       await sendDailySessionEmail({
         email: user.email,
+        userId: user.id,
         dayLabel,
         sessions: todaysSessions,
       });

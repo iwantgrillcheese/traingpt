@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { isTrainingEmailEnabled } from '@/lib/emails/unsubscribe';
 import { startOfWeek, addDays, format } from 'date-fns';
 import { sendUpcomingWeekEmail } from '@/lib/emails/send-upcoming-week-email';
 
@@ -82,6 +83,7 @@ export async function GET(req: NextRequest) {
   const { data: profiles, error: profilesError } = await supabase
     .from('profiles')
     .select('id, email')
+    .eq('weekly_email_opt_in', true)
     .not('email', 'is', null);
 
   if (profilesError) {
@@ -144,10 +146,12 @@ export async function GET(req: NextRequest) {
     }
 
     try {
+      if (!await isTrainingEmailEnabled(supabase, user.id, user.email, 'weekly')) { skipped += 1; continue; }
       console.log(`✅ Sending weekly plan email to ${user.email} with ${sessionsThisWeek.length} sessions`);
 
       await sendUpcomingWeekEmail({
         email: user.email,
+        userId: user.id,
         sessions: sessionsThisWeek,
         coachNote: adaptationSummary ?? `Your week is set. Check the plan, adjust around real life, and use your AI coach whenever you need clarity.`,
         weekRange,
