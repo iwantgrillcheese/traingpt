@@ -68,7 +68,8 @@
     "test:athlete-context": "node --experimental-vm-modules --test scripts/athlete-context.test.mjs",
     "test:athlete-context:live": "node --experimental-strip-types --test scripts/athlete-context-live.test.mjs",
     "test:duration": "node --experimental-strip-types --test scripts/triathlon-duration.test.ts",
-    "test:feedback": "node --experimental-vm-modules --test scripts/customer-feedback.test.mjs"
+    "test:feedback": "node --experimental-vm-modules --test scripts/customer-feedback.test.mjs",
+    "test:email": "node --experimental-vm-modules --test scripts/email-preferences.test.mjs"
   },
   "eslintConfig": {
     "extends": [

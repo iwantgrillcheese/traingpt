@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+const { PGlite } = await import(process.env.PGLITE_TEST_MODULE || '@electric-sql/pglite');
+const db = new PGlite();
+await db.exec(`create table public.profiles(id uuid primary key, daily_email_opt_in boolean, email text);
+insert into public.profiles values ('00000000-0000-0000-0000-000000000001',true,'existing@example.com');`);
+await db.exec(await readFile(new URL('../supabase/migrations/20261005215004_weekly_email_preference.sql', import.meta.url), 'utf8'));
+await db.exec(`insert into public.profiles(id,daily_email_opt_in,email) values ('00000000-0000-0000-0000-000000000002',false,'new@example.com')`);
+assert.equal((await db.query('select count(*)::int n from profiles where weekly_email_opt_in = true')).rows[0].n, 0);
+assert.equal((await db.query('select daily_email_opt_in from profiles order by email')).rows[0].daily_email_opt_in, true);
+await db.exec(`update profiles set weekly_email_opt_in=true where email='existing@example.com'`);
+assert.equal((await db.query('select count(*)::int n from profiles where weekly_email_opt_in = true')).rows[0].n, 1);
+await assert.rejects(() => db.exec(`update profiles set weekly_email_opt_in=null`), /null/);
+await db.close();
+console.log('Migration verified: existing/new users default off, explicit opt-in works, daily preference preserved.');

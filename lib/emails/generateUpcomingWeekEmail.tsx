@@ -65,9 +65,11 @@ export function generateUpcomingWeekEmail({
   sessions,
   weekRange,
   coachNote,
+  unsubscribeUrl,
 }: {
   sessions: EmailSession[];
   weekRange: string;
+  unsubscribeUrl: string;
   coachNote?: string | null;
 }) {
   const groupedByDay = Object.fromEntries(
@@ -88,6 +90,7 @@ export function generateUpcomingWeekEmail({
   return render(
     UpcomingWeekEmail({
       weekRange,
+      unsubscribeUrl,
       groupedSessions: groupedByDay,
       summary: summarizeSessions(sessions),
       coachNote,

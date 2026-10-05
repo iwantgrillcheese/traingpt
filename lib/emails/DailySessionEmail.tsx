@@ -36,9 +36,11 @@ const SPORT_COLORS: Record<string, string> = {
 export function DailySessionEmail({
   dayLabel,
   sessions,
+  unsubscribeUrl,
 }: {
   dayLabel: string; // e.g. "Tuesday, Jun 16"
   sessions: DailyEmailSession[];
+  unsubscribeUrl: string;
 }) {
   const previewText =
     sessions.length === 1
@@ -93,7 +95,7 @@ export function DailySessionEmail({
               You&apos;re getting this because you turned on daily session emails for your TrainGPT plan.
             </Text>
             <Text style={styles.footerText}>
-              <a href="https://traingpt.co/unsubscribe" style={styles.anchor}>
+              <a href={unsubscribeUrl} style={styles.anchor}>
                 Unsubscribe
               </a>
               {' · '}
