@@ -6,10 +6,10 @@ import FunnelTelemetry from './components/FunnelTelemetry';
 
 export const metadata = {
   title: {
-    default: 'Brick | Adaptive Triathlon Training',
+    default: 'Brick | Running and Triathlon Training',
     template: '%s | Brick',
   },
-  description: 'Build a custom triathlon plan, connect Strava, and keep your training aligned with the work you actually complete.',
+  description: 'Personalized training for runners and triathletes. Build a plan for your race, connect Strava, and track your training in one place.',
   applicationName: 'Brick',
 };
 
