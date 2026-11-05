@@ -10,7 +10,7 @@ export default function PreviewPage() {
     <FreePlanLanding
       eyebrow="Free plan preview"
       title="See your triathlon week before you sign up."
-      description="Give Brick four inputs and preview a realistic training week. Create an account only when you want the full race build, Strava matching, and weekly adaptation."
+      description="Give TrainGPT four inputs and preview a realistic training week. Create an account only when you want the full race build, Strava matching, and weekly adaptation."
       raceType="Half Ironman (70.3)"
       bullets={[
         'Sprint through Ironman',

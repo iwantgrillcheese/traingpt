@@ -1,6 +1,6 @@
 {
-  "name": "Brick",
-  "short_name": "Brick",
+  "name": "TrainGPT",
+  "short_name": "TrainGPT",
   "start_url": "/schedule",
   "scope": "/",
   "display": "standalone",

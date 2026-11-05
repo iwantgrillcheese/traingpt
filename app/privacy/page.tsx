@@ -4,14 +4,14 @@ export default function PrivacyPolicyPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-16 text-black">
       <h1 className="mb-6 text-3xl font-bold">Privacy Policy</h1>
-      <p className="mb-4">At Brick, we value your privacy. This policy explains how we collect, use, and protect information when you use the product.</p>
+      <p className="mb-4">At TrainGPT, we value your privacy. This policy explains how we collect, use, and protect information when you use the product.</p>
 
       <h2 className="mb-2 mt-8 text-xl font-semibold">1. Information We Collect</h2>
       <ul className="mb-4 ml-6 list-disc">
         <li>Email address and name through Google sign-in</li>
         <li>Training preferences, race details, training zones, and schedule constraints</li>
         <li>Strava activity data when you choose to connect Strava</li>
-        <li>Workout notes and completion data you add to Brick</li>
+        <li>Workout notes and completion data you add to TrainGPT</li>
         <li>Basic product analytics such as page and feature usage</li>
       </ul>
 
@@ -44,7 +44,7 @@ export default function PrivacyPolicyPage() {
       <p className="mb-4">We use cookies and local browser storage for authentication, product preferences, and analytics. Browser controls can limit cookies, though some product functionality may require them.</p>
 
       <h2 className="mb-2 mt-8 text-xl font-semibold">7. Updates</h2>
-      <p className="mb-4">We may update this policy as Brick evolves. Material changes will be reflected on this page.</p>
+      <p className="mb-4">We may update this policy as TrainGPT evolves. Material changes will be reflected on this page.</p>
 
       <p className="mt-12 text-sm text-zinc-500">Last updated: September 8, 2026</p>
     </main>

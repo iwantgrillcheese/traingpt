@@ -14,7 +14,7 @@ export default function ProfilePage() {
   useEffect(() => {
     const controller = new AbortController();
     fetch('/api/strava/reveal', { signal: controller.signal, cache: 'no-store' }).then(async response => {
-      if (!response.ok) throw new Error('Connect Strava and complete your history import to discover your Brick profile.');
+      if (!response.ok) throw new Error('Connect Strava and complete your history import to discover your TrainGPT profile.');
       return response.json();
     }).then(data => setAthlete(data.brickProfile)).catch(error => { if (!controller.signal.aborted) setAthleteError(error.message); });
     return () => controller.abort();

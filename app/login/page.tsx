@@ -54,9 +54,9 @@ function LoginContent() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-[#FBFBFA] px-4">
       <div className="w-full max-w-sm rounded-[2rem] border border-[#E3E0D8] bg-white p-7 text-center shadow-[0_24px_80px_rgba(16,17,20,0.08)]">
-        <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-zinc-400">Brick</p>
+        <p className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-zinc-400">TrainGPT</p>
         <h1 className="text-3xl font-black tracking-[-0.05em] text-zinc-950">Save your training plan</h1>
-        <p className="mt-4 text-sm leading-6 text-zinc-600">An account lets Brick keep your race build, training zones, Strava matches, plan history, and weekly adjustments in one place.</p>
+        <p className="mt-4 text-sm leading-6 text-zinc-600">An account lets TrainGPT keep your race build, training zones, Strava matches, plan history, and weekly adjustments in one place.</p>
 
         {error ? <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-left text-sm text-rose-700">{error === 'oauth_exchange_failed' ? 'Google sign-in could not be completed. Please try again from this page.' : 'Sign-in could not be completed. Please try again.'}</div> : null}
 
@@ -70,7 +70,7 @@ function LoginContent() {
 }
 
 function LoginFallback() {
-  return <main className="flex min-h-screen items-center justify-center bg-[#FBFBFA] px-4"><p className="text-sm font-black text-[#6B7280]">Brick · Loading sign in…</p></main>;
+  return <main className="flex min-h-screen items-center justify-center bg-[#FBFBFA] px-4"><p className="text-sm font-black text-[#6B7280]">TrainGPT · Loading sign in…</p></main>;
 }
 
 export default function LoginPage() {

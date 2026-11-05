@@ -20,11 +20,10 @@ export default function Footer() {
       <div className="mx-auto grid max-w-7xl gap-10 md:grid-cols-12">
         <div className="md:col-span-5">
           <div className="flex items-center gap-3">
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-zinc-950 text-xs font-semibold text-white">B</span>
-            <span className="text-sm font-semibold tracking-tight text-zinc-950">Brick</span>
+            <span className="text-xl font-black tracking-[-0.075em] text-zinc-950">TrainGPT</span>
           </div>
           <p className="mt-5 max-w-sm text-sm leading-6 text-zinc-600">Adaptive triathlon training built around your race, your schedule, and the work you actually complete.</p>
-          <p className="mt-6 text-xs text-zinc-400">© {new Date().getFullYear()} Brick.</p>
+          <p className="mt-6 text-xs text-zinc-400">© {new Date().getFullYear()} TrainGPT.</p>
         </div>
 
         <div className="md:col-span-2 md:col-start-7">

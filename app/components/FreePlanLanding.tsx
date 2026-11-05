@@ -16,7 +16,7 @@ export default function FreePlanLanding({ eyebrow, title, description, raceType,
     <main className="min-h-screen bg-[#FBFBFA] text-[#101114]">
       <header className="border-b border-[#E3E0D8] bg-white/90">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link href="/" className="text-lg font-black tracking-[-0.04em]">Brick</Link>
+          <Link href="/" className="text-lg font-black tracking-[-0.04em]">TrainGPT</Link>
           <Link href="/login?next=/schedule" className="rounded-full border border-[#E3E0D8] px-4 py-2 text-sm font-black">Log in</Link>
         </div>
       </header>
@@ -42,7 +42,7 @@ export default function FreePlanLanding({ eyebrow, title, description, raceType,
         <div className="mx-auto grid max-w-6xl gap-6 px-4 py-14 sm:px-6 md:grid-cols-3 lg:px-8">
           <div><h2 className="font-black">Built around your week</h2><p className="mt-2 text-sm leading-6 text-[#6B7280]">Rest days, long-session preferences, available hours, and training history shape the saved plan.</p></div>
           <div><h2 className="font-black">Strava closes the loop</h2><p className="mt-2 text-sm leading-6 text-[#6B7280]">Completed rides, runs, and swims match back to the plan so the next adjustment is grounded in what happened.</p></div>
-          <div><h2 className="font-black">Free to use today</h2><p className="mt-2 text-sm leading-6 text-[#6B7280]">No credit card is required. Brick is being built as a real training product with athletes, not a one-off plan PDF.</p></div>
+          <div><h2 className="font-black">Free to use today</h2><p className="mt-2 text-sm leading-6 text-[#6B7280]">No credit card is required. TrainGPT is being built as a real training product with athletes, not a one-off plan PDF.</p></div>
         </div>
       </section>
     </main>
