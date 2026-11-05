@@ -80,7 +80,7 @@ function HeroPreview() {
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#4F63F5] to-[#7C5CF0] text-base font-black text-white">↻</span>
               <div>
                 <p className="text-sm font-black text-[#4047BD]">Weekly adjustment ready</p>
-                <p className="mt-1 text-sm leading-6 text-[#666872]">You missed Saturday's long ride. TrainGPT moved it to Sunday and eased Monday so the week still works.</p>
+                <p className="mt-1 text-sm leading-6 text-[#666872]">You missed Saturday&apos;s long ride. TrainGPT moved it to Sunday and eased Monday so the week still works.</p>
               </div>
             </div>
           </div>
@@ -89,9 +89,9 @@ function HeroPreview() {
             <div className="relative min-h-56 overflow-hidden rounded-[1.4rem] bg-[#101114] p-5 text-white">
               <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full bg-[#7C5CF0]/50 blur-3xl" />
               <div className="relative">
-                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-white/45">Today's workout</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-white/45">Today&apos;s workout</p>
                 <h3 className="mt-12 text-3xl font-black leading-none tracking-[-0.06em]">Bike threshold intervals</h3>
-                <p className="mt-3 max-w-sm text-sm leading-6 text-white/70">75 minutes with 4 x 8 minutes at threshold. Build power while keeping tomorrow's run intact.</p>
+                <p className="mt-3 max-w-sm text-sm leading-6 text-white/70">75 minutes with 4 x 8 minutes at threshold. Build power while keeping tomorrow&apos;s run intact.</p>
                 <div className="mt-5 flex flex-wrap gap-2">
                   {['75 min', '4 x 8 min', 'Z4 power', 'Key session'].map((item) => (
                     <span key={item} className="rounded-full border border-white/10 bg-white/10 px-3 py-2 text-xs font-bold text-white/80">{item}</span>

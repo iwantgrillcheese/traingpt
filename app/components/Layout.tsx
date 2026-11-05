@@ -66,17 +66,11 @@ function BrandLockup({ collapsed = false }: { collapsed?: boolean }) {
       href="/schedule"
       className={clsx("flex items-center gap-3", collapsed && "justify-center")}
     >
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#101114] text-[13px] font-black tracking-[-0.08em] text-white shadow-[0_12px_30px_rgba(16,17,20,0.16)]">
-        B
-      </span>
-      {!collapsed ? (
-        <span className="min-w-0">
-          <span className="block text-[16px] font-black tracking-[-0.04em] text-[#101114]">TrainGPT</span>
-          <span className="block text-[10px] font-black uppercase tracking-[0.18em] text-[#9CA3AF]">
-            Adaptive training
-          </span>
-        </span>
-      ) : null}
+      {collapsed ? (
+        <span className="text-base font-black tracking-[-0.075em] text-[#101114]">TG</span>
+      ) : (
+        <span className="text-xl font-black tracking-[-0.075em] text-[#101114]">TrainGPT</span>
+      )}
     </Link>
   );
 }
