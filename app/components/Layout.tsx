@@ -71,9 +71,7 @@ function BrandLockup({ collapsed = false }: { collapsed?: boolean }) {
       </span>
       {!collapsed ? (
         <span className="min-w-0">
-          <span className="block text-[16px] font-black tracking-[-0.04em] text-[#101114]">
-            Brick
-          </span>
+          <span className="block text-[16px] font-black tracking-[-0.04em] text-[#101114]">TrainGPT</span>
           <span className="block text-[10px] font-black uppercase tracking-[0.18em] text-[#9CA3AF]">
             Adaptive training
           </span>

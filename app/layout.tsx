@@ -6,11 +6,11 @@ import FunnelTelemetry from './components/FunnelTelemetry';
 
 export const metadata = {
   title: {
-    default: 'Brick | Adaptive Triathlon Training',
-    template: '%s | Brick',
+    default: 'TrainGPT | Adaptive Endurance Training',
+    template: '%s | TrainGPT',
   },
-  description: 'Build a custom triathlon plan, connect Strava, and keep your training aligned with the work you actually complete.',
-  applicationName: 'Brick',
+  description: 'Personalized training for runners and triathletes. Build your race plan, connect Strava, and adapt to completed training.',
+  applicationName: 'TrainGPT',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -21,7 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="manifest" href="/manifest.webmanifest" />
         <meta name="theme-color" content="#101114" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-title" content="Brick" />
+        <meta name="apple-mobile-web-app-title" content="TrainGPT" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
       </head>

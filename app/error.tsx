@@ -10,7 +10,7 @@ export default function AppError({ error, reset }: AppErrorProps) {
   return (
     <main className="flex min-h-[70vh] items-center justify-center bg-white px-6 py-16">
       <div className="w-full max-w-md rounded-3xl border border-zinc-200 bg-white p-6 text-center shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Brick</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">TrainGPT</p>
         <h1 className="mt-4 text-2xl font-semibold tracking-tight text-zinc-950">Something went wrong.</h1>
         <p className="mt-3 text-sm leading-6 text-zinc-600">The app hit an unexpected error. Try again, or reload the page if the issue continues.</p>
         {error.digest ? <p className="mt-3 rounded-2xl bg-zinc-50 px-3 py-2 text-xs text-zinc-400">Error reference: {error.digest}</p> : null}

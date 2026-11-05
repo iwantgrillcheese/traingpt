@@ -9,15 +9,15 @@ export default function BrickProfileCard({ profile, shareable = false }: { profi
   const total = Object.values(profile.hoursBySport).reduce((sum, hours) => sum + hours, 0);
   const share = async () => {
     const url = 'https://traingpt.co/login?next=/plan';
-    const text = `My Brick profile: ${profile.name}. ${profile.tagline}\n${profile.evidence.join(' · ')}\nBased on my last 8 weeks of imported Strava training.\n\nFind your athlete profile and build a personalized training plan:`;
+    const text = `My TrainGPT profile: ${profile.name}. ${profile.tagline}\n${profile.evidence.join(' · ')}\nBased on my last 8 weeks of imported Strava training.\n\nFind your athlete profile and build a personalized training plan:`;
     try {
-      if (navigator.share) await navigator.share({ title: 'My Brick profile', text, url });
+      if (navigator.share) await navigator.share({ title: 'My TrainGPT profile', text, url });
       else { await navigator.clipboard.writeText(`${text}\n${url}`); setMessage('Profile copied'); }
       track('brick_profile_shared', { archetype: profile.id });
     } catch (error) { if (!(error instanceof DOMException && error.name === 'AbortError')) setMessage('Sharing unavailable. Try again.'); }
   };
-  return <section className="text-white" aria-label="Your Brick athlete profile">
-    <p className="text-xs font-black tracking-[.2em] text-[#FC4C02]">YOUR BRICK PROFILE</p>
+  return <section className="text-white" aria-label="Your TrainGPT athlete profile">
+    <p className="text-xs font-black tracking-[.2em] text-[#FC4C02]">YOUR TRAINING PROFILE</p>
     <h2 className="mt-5 text-4xl font-black leading-[1.05] tracking-[-.05em] sm:text-5xl">{profile.name}</h2>
     <p className="mt-3 text-lg text-white/80">{profile.tagline}</p>
     <div className="mt-4 flex flex-wrap gap-2">{profile.traits.map(trait => <span key={trait} className="rounded-full border border-white/15 px-3 py-1 text-xs text-white/60">{trait}</span>)}</div>
