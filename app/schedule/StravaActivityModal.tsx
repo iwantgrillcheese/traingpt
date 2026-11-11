@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import clsx from 'clsx';
 import ActivityStatsPanel, { getActivityHeroStats } from './ActivityStatsPanel';
+import ActivityRoute from '@/app/components/ActivityRoute';
 import type { StravaActivity } from '@/types/strava';
 
 type Props = {
@@ -39,6 +40,11 @@ export default function StravaActivityModal({ activity, open, onClose }: Props) 
   }, [start]);
 
   const heroStats = getActivityHeroStats(activity, activity?.sport_type).slice(0, 4);
+  const sportType = String(activity?.sport_type || '').toLowerCase();
+  const showGpsRoute = /run|ride|bike|cycling/.test(sportType);
+  const routeActivityId = typeof activity?.strava_id === 'number' && Number.isSafeInteger(activity.strava_id) && activity.strava_id > 0
+    ? activity.strava_id
+    : null;
 
   const handleAnalyze = async () => {
     if (!activity) return;
@@ -95,6 +101,16 @@ export default function StravaActivityModal({ activity, open, onClose }: Props) 
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+          {showGpsRoute && routeActivityId !== null ? (
+            <section className="mb-5" aria-label="Activity GPS route">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm font-semibold uppercase tracking-wide text-zinc-500">Route</div>
+                <span className="text-[11px] font-bold tracking-wide text-[#FC4C02]">STRAVA</span>
+              </div>
+              <ActivityRoute activityId={routeActivityId} variant="light" compact />
+            </section>
+          ) : null}
+
           <div className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-500">Activity breakdown</div>
           <ActivityStatsPanel activity={activity} sportType={activity?.sport_type} compact />
 
