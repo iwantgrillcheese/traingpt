@@ -30,6 +30,7 @@ export default function ActivityStreetMap({ polyline, onUnavailable }: Props) {
     let cancelled = false;
     let map: import('leaflet').Map | null = null;
     let resizeId: ReturnType<typeof setTimeout> | undefined;
+    let loadingTimeout: ReturnType<typeof setTimeout> | undefined;
 
     const initialize = async () => {
       const coordinates = decodeRouteCoordinates(polyline);
@@ -62,6 +63,7 @@ export default function ActivityStreetMap({ polyline, onUnavailable }: Props) {
       });
       tiles.on('tileload', () => {
         successfulTiles += 1;
+        if (loadingTimeout) clearTimeout(loadingTimeout);
         if (!cancelled) setTilesReady(true);
       });
       tiles.on('tileerror', () => {
@@ -69,6 +71,10 @@ export default function ActivityStreetMap({ polyline, onUnavailable }: Props) {
         if (!cancelled && successfulTiles === 0 && failedTiles >= 3) onUnavailable();
       });
       tiles.addTo(map);
+      // If a tile server hangs rather than returning errors, restore the SVG route.
+      loadingTimeout = setTimeout(() => {
+        if (!cancelled && successfulTiles === 0) onUnavailable();
+      }, 12000);
 
       const positions = coordinates.map(([lat, lng]) => L.latLng(lat, lng));
       const route = L.polyline(positions, {
@@ -112,6 +118,7 @@ export default function ActivityStreetMap({ polyline, onUnavailable }: Props) {
     return () => {
       cancelled = true;
       if (resizeId) clearTimeout(resizeId);
+      if (loadingTimeout) clearTimeout(loadingTimeout);
       map?.remove();
     };
   }, [polyline, onUnavailable]);
