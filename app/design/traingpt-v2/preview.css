@@ -104,9 +104,6 @@
 .v2-inspector-sub { color:#aeb4c4; font-size:12px; position:relative; }
 .v2-inspector-graphic { position:absolute; bottom:-5px; right:5px; height:137px; display:flex; align-items:end; opacity:.22; pointer-events:none; }
 .v2-inspector-number { font-weight:700; font-size:160px; letter-spacing:-.15em; line-height:.7; opacity:.13; margin-right:20px; }
-.v2-inspector-art { display:flex; align-items:end; gap:6px; height:75px; }
-.v2-inspector-art span { width:8px; border-radius:4px 4px 0 0; background:#aaaefc; }
-.v2-inspector-art span:nth-child(1) {height:23px}.v2-inspector-art span:nth-child(2){height:45px}.v2-inspector-art span:nth-child(3){height:33px}.v2-inspector-art span:nth-child(4){height:63px}.v2-inspector-art span:nth-child(5){height:52px}.v2-inspector-art span:nth-child(6){height:71px}.v2-inspector-art span:nth-child(7){height:44px}.v2-inspector-art span:nth-child(8){height:27px}
 .v2-inspector-content { padding: 27px 28px; }
 .v2-inspector-sectionhead, .v2-mobile-sectionheading { display:flex; align-items:center; justify-content:space-between; gap:6px; font-size:10px; font-weight:720; letter-spacing:.14em; color:#69717e; margin-bottom:17px; }
 .v2-inspector-sectionhead>span:last-child { color:#a5aab4; font-weight:500; }
@@ -200,7 +197,7 @@
 .v2-components-demo { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; align-items:start; }
 .v2-system-button-demo { display:flex; align-items:center; justify-content:space-between; gap:20px; border:1px solid #e9ebf0; padding:20px; }
 .v2-system-button-demo>span { font-size:12px; color:#777f8d; }
-.v2-system-button-demo button { background:var(--v2-blue); color:white; border:0; border-radius:7px; padding:12px 16px; display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; }
+.v2-system-button-demo .v2-example-action { background:var(--v2-blue); color:white; border:0; border-radius:7px; padding:12px 16px; display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; }
 .v2-system-sample-workout { display:grid; grid-template-columns:30px 1fr 20px; gap:15px; align-items:center; padding:17px; border-bottom:1px solid #e9ebf0; }
 .v2-system-sample-workout>span { font-size:12px; color:#adb3be; }
 .v2-system-sample-workout small { display:block; color:#888f9e; font-size:10px; letter-spacing:.1em; }
