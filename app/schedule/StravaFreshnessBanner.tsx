@@ -3,10 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
 
-type Freshness = {
-  connected: boolean;
-  syncedAt: string | null;
-};
+type Freshness = { connected: boolean; syncedAt: string | null };
 
 function ageLabel(value: string | null) {
   if (!value) return 'never';
@@ -16,11 +13,10 @@ function ageLabel(value: string | null) {
   if (minutes < 2) return 'just now';
   if (minutes < 60) return `${minutes}m ago`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return hours < 24 ? `${hours}h ago` : `${Math.floor(hours / 24)}d ago`;
 }
 
+/** Small, honest sync affordance. Do not reintroduce a full-width status banner. */
 export default function StravaFreshnessBanner() {
   const [freshness, setFreshness] = useState<Freshness | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -29,15 +25,18 @@ export default function StravaFreshnessBanner() {
   const refresh = useCallback(async () => {
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user?.id) return;
-    const { data } = await supabase
+    const { data, error: fetchError } = await supabase
       .from('profiles')
       .select('strava_access_token,strava_last_synced_at')
       .eq('id', auth.user.id)
       .maybeSingle();
-
+    if (fetchError) {
+      setError('Could not check Strava sync status.');
+      return;
+    }
     setFreshness({
-      connected: Boolean((data as any)?.strava_access_token),
-      syncedAt: (data as any)?.strava_last_synced_at ?? null,
+      connected: Boolean(data?.strava_access_token),
+      syncedAt: data?.strava_last_synced_at ?? null,
     });
   }, []);
 
@@ -60,9 +59,10 @@ export default function StravaFreshnessBanner() {
       setSyncing(true);
       setError(null);
       const response = await fetch('/api/strava_sync', { method: 'POST' });
-      const json = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(json?.error || 'Strava sync failed.');
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error || 'Strava sync failed.');
       await refresh();
+      window.location.reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Strava sync failed.');
     } finally {
@@ -70,29 +70,21 @@ export default function StravaFreshnessBanner() {
     }
   };
 
+  const description = error ?? (stale ? 'Last sync is more than 24 hours old.' : `Last sync: ${ageLabel(freshness.syncedAt)}`);
   return (
-    <div className="px-4 sm:px-6 lg:px-8">
-      <div
-        className={`mx-auto flex min-h-[46px] max-w-[1536px] items-center justify-between gap-3 border-b py-2 text-sm ${
-          stale || error
-            ? 'border-amber-200 bg-amber-50 text-amber-950'
-            : 'border-[#E3E0D8] text-[#4B5563]'
-        }`}
+    <div className="flex min-w-0 items-center gap-2" role={error ? 'alert' : undefined}>
+      <button
+        type="button"
+        onClick={syncNow}
+        disabled={syncing}
+        title={`${description} Click to sync again.`}
+        aria-label={error ? `Strava sync needs attention: ${error}. Retry sync` : `Strava ${stale ? 'sync is stale' : 'synced'}. ${description}. Sync now`}
+        className="inline-flex h-9 items-center gap-2 rounded-xl border border-[#E4E7EC] bg-white px-3 text-xs font-semibold text-[#454B57] transition hover:bg-[#F4F6F8] disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#141820]"
       >
-        <div>
-          <span className="font-black">Strava {error ? 'needs attention' : stale ? 'is stale' : 'synced'}</span>
-          <span className="ml-2">· Last successful sync: {ageLabel(freshness.syncedAt)}</span>
-          {error ? <span className="ml-2">{error}</span> : null}
-        </div>
-        <button
-          type="button"
-          onClick={syncNow}
-          disabled={syncing}
-          className="shrink-0 rounded-full border border-current/20 bg-white px-3 py-1.5 text-xs font-black disabled:opacity-50"
-        >
-          {syncing ? 'Syncing…' : 'Sync now'}
-        </button>
-      </div>
+        <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${error ? 'bg-[#C34C4C]' : stale ? 'bg-[#89919E]' : 'bg-[#279568]'}`} />
+        <span>{syncing ? 'Syncing…' : error ? 'Strava error · Retry' : stale ? 'Sync Strava' : 'Strava synced'}</span>
+      </button>
+      {error ? <span className="max-w-48 truncate text-[11px] text-[#B44747]" title={error}>{error}</span> : null}
     </div>
   );
 }
