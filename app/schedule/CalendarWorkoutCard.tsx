@@ -3,7 +3,7 @@
 import type { CompletedSession } from '@/types/session';
 import type { StravaActivity } from '@/types/strava';
 import type { MergedSession } from '@/utils/mergeSessionWithStrava';
-import { calendarSport, formatTrainingMinutes, isRestSession, sessionStatus, sportColor, workoutTitle } from './calendar-utils';
+import { calendarSport, formatTrainingMinutes, isRestSession, sessionStatus, workoutTitle } from './calendar-utils';
 
 type Props = {
   session?: MergedSession;
@@ -27,15 +27,14 @@ export default function CalendarWorkoutCard({ session, activity, completedSessio
       disabled={rest}
       aria-label={`${title}, ${duration ? `${duration}, ` : ''}${sport}${status ? `, ${status === 'done' ? 'completed' : 'skipped'}` : ''}`}
       title={title}
-      style={{ borderLeftColor: sportColor(sport) }}
-      className={`w-full rounded-xl border border-[#E3E0D8] border-l-[3px] px-3 py-2.5 text-left transition hover:bg-[#F7F6F2] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#101114] ${status === 'done' || rest ? 'bg-[#F7F6F2]' : 'bg-white'} ${status === 'skipped' ? 'opacity-50' : ''} ${rest ? 'cursor-default' : ''}`}
+      className={`min-h-[55px] w-full rounded-xl border border-[#E8EAED] px-2.5 py-2 text-left shadow-[0_2px_7px_rgba(17,24,39,0.035)] transition hover:border-[#AEB5BF] hover:bg-[#ECEEF1] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#111827] ${status === 'done' ? 'bg-[#F0F5F1]' : 'bg-[#F5F6F8]'} ${status === 'skipped' ? 'opacity-55' : ''} ${rest ? 'cursor-default' : ''}`}
     >
-      <div className="flex items-start justify-between gap-2">
-        <span className="line-clamp-2 min-w-0 break-words text-[13px] font-semibold leading-snug text-[#101114]">{title}</span>
-        {status === 'done' ? <span aria-hidden="true" className="shrink-0 text-xs font-bold text-[#4B5563]">✓</span> : null}
-        {status === 'skipped' ? <span className="shrink-0 text-[10px] text-[#6B7280]">Skipped</span> : null}
+      <div className="flex items-start justify-between gap-1">
+        <span className="line-clamp-2 min-w-0 break-words text-[12px] font-semibold leading-[1.3] tracking-[-0.025em] text-[#222630]">{title}</span>
+        {status === 'done' ? <span aria-label="Completed" className="mt-0.5 shrink-0 font-bold leading-none text-[#228559]">✓</span> : null}
+        {status === 'skipped' ? <span className="shrink-0 text-[9px] font-medium text-[#767E88]">Skipped</span> : null}
       </div>
-      {!rest ? <p className="mt-1 text-[11px] leading-4 text-[#6B7280]">{duration ? `${duration} · ` : ''}{sport}{activity ? ' · Strava' : ''}</p> : null}
+      {!rest ? <p className="mt-1 text-[10px] font-medium leading-4 text-[#747C87]">{duration ? `${duration} · ` : ''}{sport}{strava ? ' · Strava' : ''}</p> : null}
     </button>
   );
 }
