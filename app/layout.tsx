@@ -1,4 +1,5 @@
 import './globals.css';
+import 'leaflet/dist/leaflet.css';
 import Providers from './providers';
 import { Analytics } from '@vercel/analytics/react';
 import SessionCompleteCelebration from './components/SessionCompleteCelebration';

@@ -11,7 +11,7 @@ async function load(path, mocks = {}, globals = {}) {
   await module.evaluate(); return module.namespace;
 }
 const {buildBrickProfile} = await load('../lib/strava/athlete-profile.ts');
-const {routeGeometry} = await load('../lib/strava/route-geometry.ts');
+const {routeGeometry, decodeRouteCoordinates} = await load('../lib/strava/route-geometry.ts');
 const now = Date.parse('2026-09-30T12:00:00Z');
 const row = (days, sport='Ride', hours=1) => ({start_date: new Date(now-days*86400000).toISOString(), sport_type:sport, moving_time:hours*3600});
 const weekly = sport => Array.from({length:8},(_,week)=>[row(week*7+1,sport),row(week*7+3,sport)]).flat();
@@ -38,9 +38,17 @@ test('eight-week shares and evidence are bounded and reproducible',()=>{
 });
 test('polyline fits GPS route, rejects malformed and repeated-point data',()=>{
   const route=routeGeometry('_p~iF~ps|U_ulLnnqC_mqNvxq`@');
+  const coordinates = decodeRouteCoordinates('_p~iF~ps|U_ulLnnqC_mqNvxq`@');
+  assert.equal(coordinates.length, 3);
+  assert.deepEqual(Array.from(coordinates[0]), [38.5, -120.2]);
+  assert.deepEqual(Array.from(coordinates[2]), [43.252, -126.453]);
+
   assert.ok(route.path.startsWith('M')); assert.ok(!route.path.includes('NaN'));
   for(const point of [route.start,route.end]) assert.ok(point[0]>=40 && point[0]<=560 && point[1]>=30 && point[1]<=250);
-  for(const value of ['', '_', '????', 'x'.repeat(100001)]) assert.equal(routeGeometry(value),null);
+  for(const value of ['', '_', '????', 'x'.repeat(100001)]) {
+    assert.equal(routeGeometry(value), null);
+    assert.equal(decodeRouteCoordinates(value), null);
+  }
 });
 class AuthError extends Error { status=401; }
 async function endpoint({owned=true,trainer=false,expired=false,foreign=false,status=200,noGps=false,unauthorized=false}={}) {
