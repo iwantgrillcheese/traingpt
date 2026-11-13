@@ -12,6 +12,8 @@ type Props = {
   date: Date;
   sessions: MergedSession[];
   isOutside: boolean;
+  isSelected?: boolean;
+  onDaySelect?: (date: Date) => void;
   completedSessions: CompletedSession[];
   extraActivities?: StravaActivity[];
   onSessionClick?: (session: MergedSession) => void;
@@ -28,14 +30,14 @@ function DraggableWorkout({ session, completedSessions, onClick }: { session: Me
   );
 }
 
-export default function DayCell({ date, sessions, isOutside, completedSessions, extraActivities = [], onSessionClick, onStravaActivityClick, onAddSessionClick }: Props) {
+export default function DayCell({ date, sessions, isOutside, isSelected = false, onDaySelect, completedSessions, extraActivities = [], onSessionClick, onStravaActivityClick, onAddSessionClick }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: format(date, 'yyyy-MM-dd') });
   const today = isToday(date);
   return (
-    <div ref={setNodeRef} aria-label={format(date, 'EEEE, MMMM d')} className={`group flex min-h-[150px] min-w-0 flex-col border-b border-r border-[#E3E0D8] p-2.5 ${isOver ? 'bg-[#E9ECE8]' : isOutside ? 'bg-[#F7F6F2]' : 'bg-white'}`}>
-      <div className="mb-3 flex items-center justify-between">
-        <time dateTime={format(date, 'yyyy-MM-dd')} aria-current={today ? 'date' : undefined} className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${today ? 'bg-[#101114] text-white' : isOutside ? 'text-[#9CA3AF]' : 'text-[#101114]'}`}>{format(date, 'd')}</time>
-        <button type="button" aria-label={`Add session on ${format(date, 'MMMM d')}`} onClick={() => onAddSessionClick?.(date)} className="rounded-lg px-2 py-1 text-sm text-[#6B7280] opacity-0 hover:bg-[#F7F6F2] group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100">+</button>
+    <div ref={setNodeRef} aria-label={format(date, 'EEEE, MMMM d')} className={`group flex min-h-[145px] min-w-0 flex-col border-b border-r border-[#E2E2E2] p-2 ${isOver ? 'bg-[#EBEBEB]' : isOutside ? 'bg-[#F7F7F7]' : isSelected ? 'bg-[#FBFBFB]' : 'bg-white'} ${isSelected ? 'relative z-[1] ring-[1.5px] ring-inset ring-[#343434]' : ''}`}>
+      <div className="mb-2.5 flex items-center justify-between">
+        <button type="button" onClick={() => onDaySelect?.(date)} aria-label={`View workouts on ${format(date, 'MMMM d')}`} aria-pressed={isSelected} className="rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#101114]"><time dateTime={format(date, 'yyyy-MM-dd')} aria-current={today ? 'date' : undefined} className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${today ? 'bg-[#101114] text-white' : isOutside ? 'text-[#9CA3AF]' : 'text-[#101114]'}`}>{format(date, 'd')}</time></button>
+        <button type="button" aria-label={`Add session on ${format(date, 'MMMM d')}`} onClick={() => onAddSessionClick?.(date)} className="rounded-lg px-2 py-1 text-sm text-[#6B7280] opacity-0 hover:bg-[#EFEFEF] group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100">+</button>
       </div>
       <div className="space-y-2">
         {sessions.map(session => <DraggableWorkout key={session.id} session={session} completedSessions={completedSessions} onClick={() => onSessionClick?.(session)} />)}

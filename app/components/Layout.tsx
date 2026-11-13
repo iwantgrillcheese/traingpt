@@ -75,11 +75,12 @@ function BrandLockup({ collapsed = false }: { collapsed?: boolean }) {
   );
 }
 
-function AppSidebar({ pathname, collapsed, onToggleCollapsed }: { pathname: string | null; collapsed: boolean; onToggleCollapsed: () => void }) {
+function AppSidebar({ pathname, collapsed, onToggleCollapsed, neutral = false }: { pathname: string | null; collapsed: boolean; onToggleCollapsed: () => void; neutral?: boolean }) {
   return (
     <aside
       className={clsx(
-        "hidden border-r border-[#E3E0D8] bg-[#F7F6F2]/95 lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:flex lg:flex-col lg:transition-[width] lg:duration-200 lg:ease-out",
+        "hidden border-r lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:flex lg:flex-col lg:transition-[width] lg:duration-200 lg:ease-out",
+        neutral ? "border-[#E2E2E2] bg-white" : "border-[#E3E0D8] bg-[#F7F6F2]/95",
         collapsed ? "lg:w-[72px]" : "lg:w-[248px]",
       )}
     >
@@ -111,7 +112,7 @@ function AppSidebar({ pathname, collapsed, onToggleCollapsed }: { pathname: stri
                 className={clsx(
                   "group flex items-center rounded-2xl font-bold transition-all",
                   collapsed ? "h-11 justify-center px-0 text-[13px]" : "gap-3 px-3 py-2.5 text-[14px]",
-                  active ? "bg-white text-[#101114] shadow-[inset_0_0_0_1px_rgba(16,17,20,0.08)]" : "text-[#6B7280] hover:bg-white hover:text-[#101114]",
+                  active ? (neutral ? "bg-[#F2F2F2] text-[#101114] shadow-[inset_0_0_0_1px_rgba(16,17,20,0.08)]" : "bg-white text-[#101114] shadow-[inset_0_0_0_1px_rgba(16,17,20,0.08)]") : "text-[#6B7280] hover:bg-[#F5F5F5] hover:text-[#101114]",
                 )}
               >
                 <span className={clsx("grid h-8 w-8 shrink-0 place-items-center rounded-xl text-[13px]", active ? "bg-[#101114] text-white" : "bg-white/60 text-[#9CA3AF] group-hover:text-[#101114]")}>{collapsed ? item.shortLabel : item.icon}</span>
@@ -137,9 +138,9 @@ function AppSidebar({ pathname, collapsed, onToggleCollapsed }: { pathname: stri
   );
 }
 
-function MobileHeader() {
+function MobileHeader({ neutral = false }: { neutral?: boolean }) {
   return (
-    <header className="sticky top-0 z-40 border-b border-[#E3E0D8] bg-[#F7F6F2]/92 backdrop-blur lg:hidden">
+    <header className={clsx("sticky top-0 z-40 border-b backdrop-blur lg:hidden", neutral ? "border-[#E2E2E2] bg-white/95" : "border-[#E3E0D8] bg-[#F7F6F2]/92")}>
       <div className="flex h-14 items-center justify-between px-4"><BrandLockup /><ProfileAvatar variant="compact" /></div>
     </header>
   );
@@ -204,9 +205,9 @@ export default function Layout({ children }: { children: ReactNode }) {
   const isSchedule = pathname === "/schedule" || pathname?.startsWith("/schedule/");
 
   return (
-    <div className="min-h-[100dvh] bg-[#F7F6F2] text-[#101114]">
-      <AppSidebar pathname={pathname} collapsed={collapsed} onToggleCollapsed={() => setCollapsed(!collapsed)} />
-      <MobileHeader />
+    <div className={clsx("min-h-[100dvh] text-[#101114]", isSchedule ? "bg-white" : "bg-[#F7F6F2]")}>
+      <AppSidebar pathname={pathname} collapsed={collapsed} onToggleCollapsed={() => setCollapsed(!collapsed)} neutral={Boolean(isSchedule)} />
+      <MobileHeader neutral={Boolean(isSchedule)} />
       <main className={clsx("min-h-[100dvh] pb-24 transition-[padding] duration-200 ease-out lg:pb-0", shellOffsetClass)}>
         {isSchedule ? children : <div className="mx-auto w-full max-w-[1200px] px-4 py-6 sm:px-6 lg:px-10 lg:py-8">{children}</div>}
       </main>
