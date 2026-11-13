@@ -55,12 +55,12 @@ export default function MonthGrid({
   }, [currentMonth]);
 
   return (
-    <section aria-label="Monthly training calendar" className="overflow-hidden rounded-2xl border border-[#E3E0D8] bg-white shadow-[0_8px_30px_rgba(16,17,20,0.03)]">
-      <div className="grid grid-cols-7 border-b border-[#E3E0D8] bg-[#F7F6F2]">
+    <section aria-label="Monthly training calendar" className="overflow-hidden rounded-2xl border border-[#E5E7EB] bg-white shadow-[0_8px_30px_rgba(16,17,20,0.03)]">
+      <div className="grid grid-cols-7 border-b border-[#E5E7EB] bg-[#F8FAFC]">
         {WEEKDAYS.map((weekday) => (
           <div
             key={weekday}
-            className="px-3 py-2 text-center text-[11px] font-black uppercase tracking-[0.12em] text-[#9CA3AF]"
+            className="px-3 py-2 text-center text-[11px] font-black uppercase tracking-[0.12em] text-[#8C94A0]"
           >
             {weekday}
           </div>
