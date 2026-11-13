@@ -1,6 +1,4 @@
-import type { Metadata } from 'next';
-
-export const metadata: Metadata = {
+export const metadata = {
   title: 'TrainGPT 2.0 | Design Review',
   robots: { index: false, follow: false },
 };
