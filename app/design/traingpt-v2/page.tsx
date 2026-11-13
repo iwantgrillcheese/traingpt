@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ArrowDownRight, ArrowLeft, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, CircleHelp, Minus, Plus } from 'lucide-react';
+import { ArrowDownRight, ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Minus, Plus } from 'lucide-react';
 import './preview.css';
 
 type Sport = 'RUN' | 'SWIM' | 'BIKE' | 'STRENGTH';
@@ -124,7 +124,7 @@ function WorkoutInspector({date,activeWorkout}: {date:string,activeWorkout:strin
       <p className="v2-inspector-sub">{day.length?displayDuration(total)+' of planned training':'No session scheduled'}</p>
       <div className="v2-inspector-graphic">
         <div className="v2-inspector-number">{day.length?pad(day.length):'00'}</div>
-        <div className="v2-inspector-art"><span/><span/><span/><span/><span/><span/><span/><span/></div>
+        
       </div>
     </div>
     <div className="v2-inspector-content">
@@ -235,7 +235,7 @@ function DesignSystemPreview() {
     <div className="v2-system-divider"/>
     <section className="v2-system-section"><div><span>01 / COLOUR</span><h2>Color makes meaning.</h2></div><div className="v2-swatches">{swatches.map(([name,color,usage])=><div key={name}><div style={{background:color}} className="v2-swatch"/><strong>{name}</strong><span>{color}</span><small>{usage}</small></div>)}</div></section>
     <section className="v2-system-section"><div><span>02 / TYPOGRAPHY</span><h2>Precision with a human voice.</h2></div><div className="v2-type-showcase"><p className="v2-system-type-hero">Tomorrow starts today.</p><p className="v2-system-type-detail">35 min <span>Easy aerobic run</span></p><p className="v2-system-type-editorial">The work you do consistently is what makes the difference.</p></div></section>
-    <section className="v2-system-section"><div><span>03 / COMPONENTS</span><h2>No decoration for decoration's sake.</h2></div><div className="v2-components-demo"><div className="v2-system-button-demo"><span>Selected state</span><button>Continue <ArrowRight size={14}/></button></div><div className="v2-system-sample-workout"><span>01</span><div><small>RUN / 35 MIN</small><strong>Easy aerobic</strong></div><Check size={16}/></div><div className="v2-system-progress-demo"><span>BASE / BUILD / PEAK / TAPER</span><ProgressTrack/></div></div></section>
+    <section className="v2-system-section"><div><span>03 / COMPONENTS</span><h2>No decoration for decoration's sake.</h2></div><div className="v2-components-demo"><div className="v2-system-button-demo"><span>Selected state</span><span className="v2-example-action">Continue <ArrowRight size={14}/></span></div><div className="v2-system-sample-workout"><span>01</span><div><small>RUN / 35 MIN</small><strong>Easy aerobic</strong></div><Check size={16}/></div><div className="v2-system-progress-demo"><span>BASE / BUILD / PEAK / TAPER</span><ProgressTrack/></div></div></section>
     <footer className="v2-system-footer">Linear / structure. Granola / personality. Framer / composition. TrainGPT / training intelligence.</footer>
   </div>;
 }
