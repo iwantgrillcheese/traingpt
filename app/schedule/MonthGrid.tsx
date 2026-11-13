@@ -17,6 +17,8 @@ import type { CompletedSession } from "@/types/session";
 
 type MonthGridProps = {
   currentMonth: Date;
+  selectedDay?: Date;
+  onDaySelect?: (date: Date) => void;
   sessionsByDate: Record<string, MergedSession[]>;
   completedSessions: CompletedSession[];
   stravaByDate: Record<string, StravaActivity[]>;
@@ -29,6 +31,8 @@ const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export default function MonthGrid({
   currentMonth,
+  selectedDay,
+  onDaySelect,
   sessionsByDate,
   completedSessions,
   stravaByDate,
@@ -70,6 +74,8 @@ export default function MonthGrid({
             <DayCell
               key={dayKey}
               date={date}
+              isSelected={selectedDay ? dayKey === format(selectedDay, 'yyyy-MM-dd') : false}
+              onDaySelect={onDaySelect}
               sessions={sessionsByDate[dayKey] ?? []}
               isOutside={!isSameMonth(date, currentMonth)}
               completedSessions={completedSessions}
