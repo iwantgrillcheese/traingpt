@@ -39,7 +39,7 @@ type Props = {
   planId?: string;
 };
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
-const controlClass = 'h-10 rounded-xl border border-[#E1E5EB] bg-white px-3 text-sm font-medium text-[#485160] transition hover:bg-[#F1F4F7] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#141820]';
+const controlClass = 'h-10 rounded-xl border border-[#DEDEDE] bg-white px-3 text-sm font-medium text-[#444444] transition hover:bg-[#F2F2F2] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#141820]';
 
 function raceDisplayTitle(goal?: string | null) {
   if (!goal) return 'Your race';
@@ -171,13 +171,13 @@ export default function CalendarShellV2({ sessions, completedSessions, extraStra
     } finally { pendingMoves.current.delete(draggedId); }
   };
 
-  if (!mounted) return <div className="min-h-[60vh] bg-[#F7F6F2]" />;
+  if (!mounted) return <div className="min-h-[60vh] bg-white" />;
   const calendarProps = { currentMonth, selectedDay, onDaySelect: setSelectedDay, sessionsByDate, completedSessions: completed, stravaByDate, onSessionClick: (session: MergedSession) => { setSelectedDay(parseISO(session.date)); setSelectedSession(session); }, onStravaActivityClick: setSelectedActivity, onAddSessionClick: setAddSessionDate };
   const selectedDayKey = format(selectedDay, 'yyyy-MM-dd');
   const modalProps = { session: selectedSession, stravaActivity: selectedSession?.stravaActivity, open: !!selectedSession, onClose: () => setSelectedSession(null), completedSessions: completed, onCompletedUpdate: setCompleted, weekPhase: weekPhaseSummary ?? null, raceGoal: raceGoal ?? null, onSessionDeleted: handleSessionDeleted, onSessionUpdated: handleSessionUpdated };
 
   return (
-    <div className="min-h-[100dvh] bg-[#F8FAFC] pb-[env(safe-area-inset-bottom)] text-[#141820]">
+    <div className="min-h-[100dvh] bg-white pb-[env(safe-area-inset-bottom)] text-[#141820]">
       <div className="mx-auto max-w-[1680px] px-4 py-5 sm:px-6 lg:px-8">
         <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -200,7 +200,7 @@ export default function CalendarShellV2({ sessions, completedSessions, extraStra
             <button type="button" aria-label="Next month" onClick={() => navigateMonth(1)} className={controlClass}>›</button>
             <button type="button" onClick={goToToday} className={controlClass}>Today</button>
           </div>
-          <button type="button" onClick={() => setDetailsOpen(value => !value)} aria-expanded={detailsOpen} aria-controls="schedule-day-panel" className="hidden h-10 items-center gap-2 rounded-xl border border-[#D8DEE6] bg-white px-4 text-xs font-semibold text-[#424A58] transition hover:bg-[#F0F3F7] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#141820] xl:inline-flex">{detailsOpen ? "Hide day details" : "Show day details"} <span aria-hidden="true">{detailsOpen ? "›" : "‹"}</span></button>
+          <button type="button" onClick={() => setDetailsOpen(value => !value)} aria-expanded={detailsOpen} aria-controls="schedule-day-panel" className="hidden h-10 items-center gap-2 rounded-xl border border-[#D8D8D8] bg-white px-4 text-xs font-semibold text-[#424A58] transition hover:bg-[#F2F2F2] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#141820] xl:inline-flex">{detailsOpen ? "Hide day details" : "Show day details"} <span aria-hidden="true">{detailsOpen ? "›" : "‹"}</span></button>
         </section>
         {raceHasPassed ? <div className="mb-5 rounded-xl border border-[#E3E0D8] bg-white px-4 py-3 text-sm text-[#6B7280]">Your race date has passed. <Link href="/plan" className="font-semibold text-[#101114] underline underline-offset-4">Plan your next race</Link></div> : null}
         {saveState !== 'idle' ? <div role="status" className={`mb-4 rounded-xl border px-4 py-3 text-sm ${saveState === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-[#E3E0D8] bg-white text-[#6B7280]'}`}>{saveMessage}</div> : null}
